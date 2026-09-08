@@ -1,7 +1,7 @@
 /**
  * Docker e2e: anvil + deployed contracts + the API image, driven from the host.
  *
- *   pnpm --filter @att/api test:e2e
+ *   pnpm --filter @ketsuban/api test:e2e
  *
  * Requires docker compose; `global-setup.ts` boots the compose file, which deploys
  * `DeployLocal.s.sol` into anvil and starts the API image against it. The full loop is exercised: intent → attest (node registrar) → delivery →
@@ -10,13 +10,13 @@
 import { readFileSync } from "node:fs";
 import { beforeAll, describe, expect, it } from "vitest";
 import { bytesToHex, createPublicClient, http, zeroHash, type Hex } from "viem";
-import { baseIntent, fakePrivy, fakeUser, signedAttestRequest, toWire } from "@att/registrar/testing";
-import { eciesDecrypt } from "@att/registrar";
+import { baseIntent, fakePrivy, fakeUser, signedAttestRequest, toWire } from "@ketsuban/registrar/testing";
+import { eciesDecrypt } from "@ketsuban/registrar";
 import { decodeRecord, MultipassAbi, toBytes32 } from "@peeramid-labs/multipass-client";
 import { APP_ID, PRIVY_SEED } from "./global-setup.js";
 
-const API = process.env.E2E_API_URL ?? "http://127.0.0.1:8787";
-const RPC = process.env.E2E_RPC_URL ?? "http://127.0.0.1:8545";
+const API = process.env.E2E_API_URL ?? `http://127.0.0.1:${process.env.E2E_API_PORT ?? "18787"}`;
+const RPC = process.env.E2E_RPC_URL ?? `http://127.0.0.1:${process.env.E2E_ANVIL_PORT ?? "18545"}`;
 const privy = fakePrivy(APP_ID, PRIVY_SEED);
 const USER_KEY = "0x000000000000000000000000000000000000000000000000000000000000a11c" as const;
 const user = fakeUser(USER_KEY, "fatpig");

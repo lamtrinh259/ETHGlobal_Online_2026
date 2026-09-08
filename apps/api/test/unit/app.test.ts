@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { bytesToHex, encodePacked, keccak256, zeroAddress, zeroHash, type Address, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { baseIntent, fakePrivy, fakeUser, signedAttestRequest, toWire } from "@att/registrar/testing";
-import { eciesDecrypt, type RegisterMessage } from "@att/registrar";
+import { baseIntent, fakePrivy, fakeUser, signedAttestRequest, toWire } from "@ketsuban/registrar/testing";
+import { eciesDecrypt, type RegisterMessage } from "@ketsuban/registrar";
 import {
   decodeRecord,
   maskId,
@@ -289,17 +289,17 @@ describe("GET /v1/verify/:name", () => {
     const { chain } = fakeChain({
       addr: user.account.address,
       texts: {
-        "att:answer": "terrible dictator",
-        "att:expiry": String(NOW + 100),
-        "att:humanity": "medium",
-        "att:humanity:until": String(NOW + 50),
+        "ketsuban:answer": "terrible dictator",
+        "ketsuban:expiry": String(NOW + 100),
+        "ketsuban:humanity": "medium",
+        "ketsuban:humanity:until": String(NOW + 50),
       },
       data: {
-        "att:link:x": encodePacked(
+        "ketsuban:link:x": encodePacked(
           ["bytes32", "bytes32", "bytes32"],
           [masked.name, masked.id, masked.payload]
         ),
-        "att:link:telegram": encodePacked(
+        "ketsuban:link:telegram": encodePacked(
           ["bytes32", "bytes32", "bytes32"],
           [toBytes32("fatpig_tg"), toBytes32("987"), zeroHash]
         ),
@@ -329,7 +329,7 @@ describe("GET /v1/verify/:name", () => {
       "telegram_account_control",
     ]);
     expect(body.decision).toBe("additional_context_available");
-    expect(chain.resolveData).toHaveBeenCalledWith(instance.resolver, "fatpig.kju-is.eth", "att:link:x");
+    expect(chain.resolveData).toHaveBeenCalledWith(instance.resolver, "fatpig.kju-is.eth", "ketsuban:link:x");
   });
 
   it("keeps opted-in links masked without a matching view code", async () => {
@@ -338,7 +338,7 @@ describe("GET /v1/verify/:name", () => {
       ["bytes32", "bytes32", "bytes32"],
       [maskName("h", viewCode), maskId("1", viewCode), viewCodeCommitment(viewCode)]
     );
-    const { chain } = fakeChain({ addr: user.account.address, data: { "att:link:x": masked } });
+    const { chain } = fakeChain({ addr: user.account.address, data: { "ketsuban:link:x": masked } });
     const body = await (
       await app(chain).request(`/v1/verify/fatpig.kju-is.eth?links=x&viewCode=${keccak256("0x03")}`)
     ).json();

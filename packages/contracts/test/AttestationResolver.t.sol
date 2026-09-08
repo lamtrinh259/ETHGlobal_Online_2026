@@ -36,23 +36,23 @@ contract AttestationResolverTest is BaseTest {
     }
 
     function test_text_answerAndExpiryComeFromMultipass() public view {
-        assertEq(resolveText(NAME, "att:answer"), "terrible dictator");
-        assertEq(resolveText(NAME, "att:expiry"), Strings.toString(block.timestamp + TERM));
+        assertEq(resolveText(NAME, "ketsuban:answer"), "terrible dictator");
+        assertEq(resolveText(NAME, "ketsuban:expiry"), Strings.toString(block.timestamp + TERM));
     }
 
     function test_text_answerEmptyAfterExpiry() public {
         vm.warp(block.timestamp + TERM);
-        assertEq(resolveText(NAME, "att:answer"), "");
-        assertEq(resolveText(NAME, "att:expiry"), "");
+        assertEq(resolveText(NAME, "ketsuban:answer"), "");
+        assertEq(resolveText(NAME, "ketsuban:expiry"), "");
     }
 
-    // ---------- att:link:<domain> ----------
+    // ---------- ketsuban:link:<domain> ----------
 
     function test_link_publicPlatformRecord() public {
         LibMultipass.Record memory r = record(X, alice, b32("fatpig_x"), b32("1234567890"), 1, bytes32(0));
         registerVia(alice, r, X_FEE);
 
-        bytes memory packed = resolveData(NAME, "att:link:x");
+        bytes memory packed = resolveData(NAME, "ketsuban:link:x");
         assertEq(packed, abi.encodePacked(r.name, r.id, r.payload));
         assertEq(packed.length, 96);
     }
@@ -62,7 +62,7 @@ contract AttestationResolverTest is BaseTest {
         LibMultipass.Record memory r = record(X, alice, bytes32(uint256(0xAB)), bytes32(uint256(0xCD)), 1, commitment);
         registerVia(alice, r, X_FEE);
 
-        bytes memory packed = resolveData(NAME, "att:link:x");
+        bytes memory packed = resolveData(NAME, "ketsuban:link:x");
         (bytes32 name, bytes32 id, bytes32 payload) = abi.decode(abi.encodePacked(packed), (bytes32, bytes32, bytes32));
         assertEq(name, r.name);
         assertEq(id, r.id);
@@ -70,38 +70,38 @@ contract AttestationResolverTest is BaseTest {
     }
 
     function test_link_emptyWhenNoRecordOrExpired() public {
-        assertEq(resolveData(NAME, "att:link:x").length, 0);
+        assertEq(resolveData(NAME, "ketsuban:link:x").length, 0);
         LibMultipass.Record memory r = record(X, alice, b32("fatpig_x"), b32("1"), 1, bytes32(0));
         registerVia(alice, r, X_FEE);
         vm.warp(block.timestamp + TERM);
-        assertEq(resolveData(NAME, "att:link:x").length, 0);
+        assertEq(resolveData(NAME, "ketsuban:link:x").length, 0);
     }
 
     function test_link_isWalletKeyedNotLabelKeyed() public {
         LibMultipass.Record memory r = record(X, bob, b32("bob_x"), b32("2"), 1, bytes32(0));
         registerVia(bob, r, X_FEE);
-        assertEq(resolveData(NAME, "att:link:x").length, 0, "bob's x record must not leak under alice's name");
+        assertEq(resolveData(NAME, "ketsuban:link:x").length, 0, "bob's x record must not leak under alice's name");
     }
 
     function test_link_malformedKeysFallThroughToInner() public {
         vm.prank(operator);
-        inner.setData(node(NAME), "att:link:", hex"01");
-        assertEq(resolveData(NAME, "att:link:"), hex"01");
-        assertEq(resolveData(NAME, "att:link:this-domain-name-is-longer-than-31-bytes").length, 0);
+        inner.setData(node(NAME), "ketsuban:link:", hex"01");
+        assertEq(resolveData(NAME, "ketsuban:link:"), hex"01");
+        assertEq(resolveData(NAME, "ketsuban:link:this-domain-name-is-longer-than-31-bytes").length, 0);
     }
 
-    // ---------- att:humanity ----------
+    // ---------- ketsuban:humanity ----------
 
     function test_humanity_levelFromPayload() public {
         LibMultipass.Record memory h = record(HUMANITY, alice, bytes32(0), keccak256("nullifier"), 1, b32("medium"));
         registerVia(alice, h, 0);
-        assertEq(resolveText(NAME, "att:humanity"), "medium");
-        assertEq(resolveText(NAME, "att:humanity:until"), Strings.toString(block.timestamp + TERM));
+        assertEq(resolveText(NAME, "ketsuban:humanity"), "medium");
+        assertEq(resolveText(NAME, "ketsuban:humanity:until"), Strings.toString(block.timestamp + TERM));
     }
 
     function test_humanity_emptyWhenAbsent() public view {
-        assertEq(resolveText(NAME, "att:humanity"), "");
-        assertEq(resolveText(NAME, "att:humanity:until"), "");
+        assertEq(resolveText(NAME, "ketsuban:humanity"), "");
+        assertEq(resolveText(NAME, "ketsuban:humanity:until"), "");
     }
 
     // ---------- forwarding to the stock resolver ----------
@@ -120,8 +120,8 @@ contract AttestationResolverTest is BaseTest {
 
     function test_oracleDataKeysForwardedToInner() public {
         vm.prank(operator);
-        inner.setData(node(NAME), "att:polarity", abi.encode(int256(-8e17)));
-        assertEq(abi.decode(resolveData(NAME, "att:polarity"), (int256)), -8e17);
+        inner.setData(node(NAME), "ketsuban:polarity", abi.encode(int256(-8e17)));
+        assertEq(abi.decode(resolveData(NAME, "ketsuban:polarity"), (int256)), -8e17);
     }
 
     function test_innerRevertPropagates() public {
@@ -138,7 +138,7 @@ contract AttestationResolverTest is BaseTest {
         vm.prank(operator);
         inner.setAlias(dns("acme.alice.eth"), dns(NAME));
         assertEq(resolveAddr("acme.alice.eth"), alice);
-        assertEq(resolveText("acme.alice.eth", "att:answer"), "terrible dictator");
+        assertEq(resolveText("acme.alice.eth", "ketsuban:answer"), "terrible dictator");
     }
 
     // ---------- reverse ----------

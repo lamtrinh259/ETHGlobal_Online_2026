@@ -1,5 +1,5 @@
 {
-  "name": "@att/api",
+  "name": "@ketsuban/api",
   "version": "0.1.0",
   "private": true,
   "description": "Relay and verification API: submits enclave-signed records through the bridge, serves the machine-readable verification endpoint, and runs the Node registrar fallback",
@@ -16,7 +16,7 @@
     "lint:fix": "prettier --write 'src/**/*.ts' 'test/**/*.ts'"
   },
   "dependencies": {
-    "@att/registrar": "workspace:*",
+    "@ketsuban/registrar": "workspace:*",
     "@hono/node-server": "^1.14.1",
     "@peeramid-labs/multipass-client": "1.1.0",
     "hono": "^4.7.11",

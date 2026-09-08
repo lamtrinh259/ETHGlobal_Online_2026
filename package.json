@@ -1,5 +1,5 @@
 {
-  "name": "attestation-monorepo",
+  "name": "ketsuban",
   "private": true,
   "version": "0.1.0",
   "description": "Non-deletable, human-verified references on ENSv2 + Multipass, attested by a Chainlink CRE enclave",

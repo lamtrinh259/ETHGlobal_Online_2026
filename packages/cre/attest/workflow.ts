@@ -19,7 +19,7 @@ import {
   type AttestRequest,
   type AttestResult,
   type OnchainState,
-} from "@att/registrar";
+} from "@ketsuban/registrar";
 import { MultipassAbi, toBytes32 } from "@peeramid-labs/multipass-client";
 import {
   bytesToString,

@@ -18,10 +18,10 @@ import {LibLabel} from "./libraries/LibLabel.sol";
 ///         Attestation-backed keys are read from Multipass:
 ///           addr                         wallet of the live record
 ///           name (reverse)               `<handle>.<parentName>` for a wallet
-///           text  att:answer             record payload as string
-///           text  att:expiry             record validUntil
-///           text  att:humanity[:until]   wallet-keyed hop into the `humanity` domain
-///           data  att:link:<domain>      wallet-keyed hop → abi.encodePacked(name, id, payload)
+///           text  ketsuban:answer             record payload as string
+///           text  ketsuban:expiry             record validUntil
+///           text  ketsuban:humanity[:until]   wallet-keyed hop into the `humanity` domain
+///           data  ketsuban:link:<domain>      wallet-keyed hop → abi.encodePacked(name, id, payload)
 ///         Everything else is forwarded to the stock ENSv2 PermissionedResolver (aliasing,
 ///         versioning, user text records, oracle data records).
 ///
@@ -34,11 +34,11 @@ contract AttestationResolver is IExtendedResolver, IERC165 {
     bytes32 public constant HUMANITY = "humanity";
     string internal _parentName;
 
-    bytes32 internal constant KEY_ANSWER = keccak256("att:answer");
-    bytes32 internal constant KEY_EXPIRY = keccak256("att:expiry");
-    bytes32 internal constant KEY_HUMANITY = keccak256("att:humanity");
-    bytes32 internal constant KEY_HUMANITY_UNTIL = keccak256("att:humanity:until");
-    bytes internal constant LINK_PREFIX = "att:link:";
+    bytes32 internal constant KEY_ANSWER = keccak256("ketsuban:answer");
+    bytes32 internal constant KEY_EXPIRY = keccak256("ketsuban:expiry");
+    bytes32 internal constant KEY_HUMANITY = keccak256("ketsuban:humanity");
+    bytes32 internal constant KEY_HUMANITY_UNTIL = keccak256("ketsuban:humanity:until");
+    bytes internal constant LINK_PREFIX = "ketsuban:link:";
 
     constructor(IMultipass mp, IPermissionedResolver inner, bytes32 domain, string memory parentName) {
         MP = mp;

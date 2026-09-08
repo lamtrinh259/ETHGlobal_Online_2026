@@ -4,7 +4,7 @@
  * to leave it up for inspection.
  */
 import { execSync } from "node:child_process";
-import { fakePrivy } from "@att/registrar/testing";
+import { fakePrivy } from "@ketsuban/registrar/testing";
 
 export const APP_ID = "e2e-app-id";
 export const PRIVY_SEED = "e2e-privy-key";

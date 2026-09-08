@@ -1,5 +1,5 @@
 {
-  "name": "@att/contracts",
+  "name": "@ketsuban/contracts",
   "version": "0.1.0",
   "private": true,
   "description": "Attestation instances on ENSv2: AttestationFactory/Registry/Resolver/Bridge over Multipass",

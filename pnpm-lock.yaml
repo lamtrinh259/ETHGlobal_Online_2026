@@ -111,12 +111,12 @@ importers:
 
   apps/api:
     dependencies:
-      '@att/registrar':
-        specifier: workspace:*
-        version: link:../../packages/registrar
       '@hono/node-server':
         specifier: ^1.14.1
         version: 1.19.17(hono@4.13.7)
+      '@ketsuban/registrar':
+        specifier: workspace:*
+        version: link:../../packages/registrar
       '@peeramid-labs/multipass-client':
         specifier: 1.1.0
         version: 1.1.0(graphql@16.14.2)(viem@2.56.3(typescript@5.9.3)(zod@3.25.76))
@@ -163,12 +163,12 @@ importers:
 
   packages/cre/attest:
     dependencies:
-      '@att/registrar':
-        specifier: workspace:*
-        version: link:../../registrar
       '@chainlink/cre-sdk':
         specifier: 1.19.1
         version: 1.19.1(supports-color@8.1.1)(typescript@5.9.3)
+      '@ketsuban/registrar':
+        specifier: workspace:*
+        version: link:../../registrar
       '@peeramid-labs/multipass-client':
         specifier: 1.1.0
         version: 1.1.0(graphql@16.14.2)(viem@2.56.3(typescript@5.9.3)(zod@3.25.76))

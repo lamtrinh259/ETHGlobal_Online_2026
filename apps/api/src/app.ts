@@ -7,7 +7,7 @@ import {
   type AttestRequest,
   type AttestResult,
   type RegisterMessage,
-} from "@att/registrar";
+} from "@ketsuban/registrar";
 import { decodeRecord, isOptedIn } from "@peeramid-labs/multipass-client";
 import type { ChainReader, Instance } from "./chain.js";
 import type { Config } from "./config.js";
@@ -172,10 +172,10 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
 
     const [wallet, answer, expiry, humanity, humanityUntil] = await Promise.all([
       chain.resolveAddr(r, name),
-      chain.resolveText(r, name, "att:answer"),
-      chain.resolveText(r, name, "att:expiry"),
-      chain.resolveText(r, name, "att:humanity"),
-      chain.resolveText(r, name, "att:humanity:until"),
+      chain.resolveText(r, name, "ketsuban:answer"),
+      chain.resolveText(r, name, "ketsuban:expiry"),
+      chain.resolveText(r, name, "ketsuban:humanity"),
+      chain.resolveText(r, name, "ketsuban:humanity:until"),
     ]);
     const active = wallet !== "0x0000000000000000000000000000000000000000";
     const linkDomains = (c.req.query("links") ?? "x,telegram,github,discord,google,email,linkedin")
@@ -185,7 +185,7 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     const links = active
       ? await Promise.all(
           linkDomains.map(async (domain) => {
-            const packed = await chain.resolveData(r, name, `att:link:${domain}`);
+            const packed = await chain.resolveData(r, name, `ketsuban:link:${domain}`);
             if (packed === "0x" || packed.length !== 194) return null;
             const record = {
               name: `0x${packed.slice(2, 66)}` as Hex,

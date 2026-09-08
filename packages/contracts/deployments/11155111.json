@@ -1,0 +1,16 @@
+{
+  "bridge": "0xC7283bD9Aad1B08947C841536946Ce4dA9c99929",
+  "chainId": 11155111,
+  "childDomain": "kju-is",
+  "childParent": "kju-is.ketsuban.eth",
+  "childRegistry": "0xA976CB21597c555F92e7A5de2dAAF06A3c0D63F7",
+  "childResolver": "0x24d0F1dc28D9d05342C2c2ceA459C3f0Dffb18D8",
+  "ethRegistry": "0xBDC85dD5b15D7ecb354cd7cb6f2c50b4f2c4F0E2",
+  "factory": "0xc0281d75974155fE8513F623de726F040c4bcC51",
+  "instanceDomain": "ketsuban",
+  "instanceParent": "ketsuban.eth",
+  "multipass": "0x418F82fd0014a4CA402F145978bfaF0555a9cA06",
+  "permissionedResolver": "0x4E2d9783cEFF2ed72CD77C14206b29fe246b24F7",
+  "registry": "0x254D9c7601BD8fa6b6FA7f5A42c860d184E053A7",
+  "resolver": "0x178ff1589Be8Af3B19426Aa1d2Bd07cd178E215e"
+}

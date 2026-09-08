@@ -21,7 +21,7 @@ export const INTENT_TYPES = {
 
 /** Intent domain is separated from Multipass's own domain; `verifyingContract` pins the store */
 export function intentDomain(chainId: number, multipass: Address): TypedDataDomain {
-  return { name: "Attestation Intent", version: "1", chainId, verifyingContract: multipass };
+  return { name: "Ketsuban Intent", version: "1", chainId, verifyingContract: multipass };
 }
 
 export async function recoverIntentSigner(

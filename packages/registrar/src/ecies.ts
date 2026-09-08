@@ -5,8 +5,8 @@ import { sha256 } from "@noble/hashes/sha256";
 import { bytesToHex, hexToBytes, type Hex } from "viem";
 import type { EciesBox } from "./types.js";
 
-const KEY_INFO = "att/ecies/key";
-const NONCE_INFO = "att/ecies/nonce";
+const KEY_INFO = "ketsuban/ecies/key";
+const NONCE_INFO = "ketsuban/ecies/nonce";
 
 /** Map an arbitrary seed to a valid secp256k1 scalar (re-hash on the negligible miss) */
 function seedToPrivateKey(seed: Uint8Array): Uint8Array {

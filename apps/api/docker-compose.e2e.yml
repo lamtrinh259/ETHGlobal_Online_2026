@@ -1,10 +1,26 @@
 # e2e stack: anvil → contracts deployed by DeployLocal.s.sol → api image against them.
+#
+# Isolation: fixed project name, a dedicated bridge network with its own subnet, and host ports
+# published on loopback only under env-overridable defaults, so the stack coexists with other
+# compose projects on the same machine (nothing here touches the default bridge or 172.18–20/16).
 # Keys below are anvil's well-known dev keys; never reuse them anywhere real.
+name: ketsuban-e2e
+
+networks:
+  ketsuban_e2e:
+    name: ketsuban_e2e
+    driver: bridge
+    ipam:
+      config:
+        - subnet: ${E2E_SUBNET:-10.211.7.0/24}
+
 services:
   anvil:
     image: ghcr.io/foundry-rs/foundry:latest
+    networks: [ketsuban_e2e]
     entrypoint: ["anvil", "--host", "0.0.0.0", "--chain-id", "31337", "--silent"]
-    ports: ["8545:8545"]
+    ports:
+      - "127.0.0.1:${E2E_ANVIL_PORT:-18545}:8545"
     healthcheck:
       test: ["CMD", "cast", "chain-id", "--rpc-url", "http://127.0.0.1:8545"]
       interval: 2s
@@ -13,6 +29,7 @@ services:
 
   deploy:
     image: ghcr.io/foundry-rs/foundry:latest
+    networks: [ketsuban_e2e]
     depends_on:
       anvil: { condition: service_healthy }
     working_dir: /repo/packages/contracts
@@ -33,9 +50,11 @@ services:
     build:
       context: ../..
       dockerfile: apps/api/Dockerfile
+    networks: [ketsuban_e2e]
     depends_on:
       deploy: { condition: service_completed_successfully }
-    ports: ["8787:8787"]
+    ports:
+      - "127.0.0.1:${E2E_API_PORT:-18787}:8787"
     volumes:
       - ../../packages/contracts/deployments:/deployments:ro
     environment:

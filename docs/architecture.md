@@ -31,7 +31,7 @@ flowchart LR
   F -- create --> R & S
   E -- getSubregistry(label) --> R
   R -- getResolver(handle) --> S
-  S -- att:* --> M
+  S -- ketsuban:* --> M
   S -- other keys --> I
 ```
 
@@ -47,7 +47,7 @@ PermissionedResolver, the bridge, the factory, the CRE workflow, the API.
 ## Record lifecycle
 
 1. **Intent.** Wallet signs `Intent{wallet, domain, nonce, exp, optIn, pubkey, handle, payload}` (EIP-712, domain
-   `Attestation Intent/1`, `verifyingContract = Multipass`).
+   `Ketsuban Intent/1`, `verifyingContract = Multipass`).
 2. **Public leg (DON).** Signature recovers to `wallet`; `exp` fresh; `nonce` strictly greater than the on-chain nonce
    for `(wallet, domain)`; a renewal cannot rebind the wallet.
 3. **Confidential leg (enclave).** ES256 identity token verified against the pinned Privy JWK; `wallet` ∈ linked
@@ -81,5 +81,5 @@ PermissionedResolver, the bridge, the factory, the CRE workflow, the API.
 2. `AttestationFactory.create(...)` — `script/DeploySepolia.s.sol` does this for the first instance
 3. Register `<parentLabel>.eth` on the ENSv2 ETHRegistrar, then `setSubregistry` / `setResolver` on the ETHRegistry
 4. `PermissionedResolver.grantRootRoles(ROLE_SET_TEXT_ADMIN | ROLE_SET_ALIAS, bridge)` once;
-   `authorizeDataRoles(ANY, "att:<key>", oracle, true)` per oracle key once
+   `authorizeDataRoles(ANY, "ketsuban:<key>", oracle, true)` per oracle key once
 5. CRE: add the domain to `nameDomains`, secrets in Vault; API: `NAME_DOMAINS`, `DEPLOYMENT_FILE`

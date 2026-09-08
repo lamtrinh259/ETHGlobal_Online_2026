@@ -4,7 +4,7 @@
 |---|---|
 | `AttestationFactory` | `create(domain, parent, parentLabel, parentName, inner)` → one registry + resolver per Multipass domain |
 | `AttestationRegistry` | ENSv2 `IRegistry`: `getResolver(label)` is the shim iff a live record exists; `setSubregistry` nests instances |
-| `AttestationResolver` | ENSIP-10 shim: `addr`, reverse `name`, `text att:answer|expiry|humanity[:until]`, `data att:link:<domain>` from Multipass; everything else forwarded to the stock `PermissionedResolver` |
+| `AttestationResolver` | ENSIP-10 shim: `addr`, reverse `name`, `text ketsuban:answer|expiry|humanity[:until]`, `data ketsuban:link:<domain>` from Multipass; everything else forwarded to the stock `PermissionedResolver` |
 | `AttestationBridge` | `verify` / `verifyFor(orgId, …)` proxy `Multipass.register` and grant the wallet four profile text keys; `linkOwnName(domain, label)` aliases `<parentLabel>.<label>.eth` for `.eth` owners; `setOrg` registers sponsoring treasuries |
 
 `vendor/` holds pinned copies of the ENSv2 (`contracts-v2`) and `ens-contracts` interfaces we depend on; Multipass and

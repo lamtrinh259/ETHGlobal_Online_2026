@@ -5,11 +5,11 @@ WORKDIR /repo
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml tsconfig.base.json ./
 COPY packages/registrar/package.json packages/registrar/
 COPY apps/api/package.json apps/api/
-RUN pnpm install --frozen-lockfile --filter @att/api... --config.dedupe-peer-dependents=false
+RUN pnpm install --frozen-lockfile --filter @ketsuban/api... --config.dedupe-peer-dependents=false
 COPY packages/registrar packages/registrar
 COPY apps/api apps/api
-RUN pnpm --filter @att/registrar build && pnpm --filter @att/api build
-RUN pnpm deploy --filter @att/api --prod /out
+RUN pnpm --filter @ketsuban/registrar build && pnpm --filter @ketsuban/api build
+RUN pnpm deploy --filter @ketsuban/api --prod /out
 
 FROM node:22-alpine
 ENV NODE_ENV=production

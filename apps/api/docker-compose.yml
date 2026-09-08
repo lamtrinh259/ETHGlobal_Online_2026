@@ -1,0 +1,42 @@
+# Production compose for Coolify (Docker Compose deployment, dedicated project).
+#
+# No host ports: Coolify's proxy reaches the service on its internal network via `expose`.
+# No fixed subnet: Coolify creates and manages the project network; a dedicated named network
+# keeps this stack off the default bridge and away from other projects on the same host.
+# All configuration is environment — set it in the Coolify project, never here.
+name: ketsuban-api
+
+networks:
+  ketsuban_api:
+    name: ketsuban_api
+    driver: bridge
+
+services:
+  api:
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+    networks: [ketsuban_api]
+    expose: ["8787"]
+    restart: unless-stopped
+    environment:
+      PORT: "8787"
+      RPC_URL: ${RPC_URL}
+      CHAIN_ID: ${CHAIN_ID}
+      MULTIPASS: ${MULTIPASS}
+      BRIDGE: ${BRIDGE}
+      FACTORY: ${FACTORY}
+      RELAYER_KEY: ${RELAYER_KEY}
+      PRIVY_APP_ID: ${PRIVY_APP_ID}
+      PRIVY_VERIFICATION_KEY_JWK: ${PRIVY_VERIFICATION_KEY_JWK}
+      NAME_DOMAINS: ${NAME_DOMAINS}
+      DELIVERY_TOKEN: ${DELIVERY_TOKEN}
+      RECORD_TERM_SECONDS: ${RECORD_TERM_SECONDS:-2592000}
+      # Node registrar fallback only; leave unset when the CRE enclave signs.
+      REGISTRAR_KEY: ${REGISTRAR_KEY:-}
+      VIEWCODE_KEY: ${VIEWCODE_KEY:-}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8787/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 6

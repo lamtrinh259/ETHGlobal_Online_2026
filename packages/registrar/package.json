@@ -1,5 +1,5 @@
 {
-  "name": "@att/registrar",
+  "name": "@ketsuban/registrar",
   "version": "0.1.0",
   "description": "Attestation registrar: (idToken, intent, sig, secrets) -> { record, signature, viewCode? }. Pure, WASM-safe; wrapped by the CRE enclave handler and the Node fallback.",
   "type": "module",

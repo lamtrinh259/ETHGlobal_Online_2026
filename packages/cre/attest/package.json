@@ -1,5 +1,5 @@
 {
-  "name": "@att/cre-attest",
+  "name": "@ketsuban/cre-attest",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -10,7 +10,7 @@
     "simulate": "cd .. && cre workflow simulate attest --target staging-settings --non-interactive --trigger-index 0 --http-payload ./attest/fixtures/request.json"
   },
   "dependencies": {
-    "@att/registrar": "workspace:*",
+    "@ketsuban/registrar": "workspace:*",
     "@chainlink/cre-sdk": "1.19.1",
     "@peeramid-labs/multipass-client": "1.1.0",
     "viem": "^2.38.3",

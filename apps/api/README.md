@@ -13,9 +13,18 @@ Relay and verification service. One container, env-configured, health-checked on
 
 See `src/config.ts`. Addresses come from env or from a forge deployment artifact via `DEPLOYMENT_FILE`.
 
+## Deploy (Coolify)
+
+`docker-compose.yml` is the production compose: dedicated project `ketsuban-api`, named network `ketsuban_api`, no host
+ports (the proxy reaches `expose`d 8787), every setting from the project environment.
+
 ## Tests
 
 ```bash
 pnpm test        # unit, fake chain
 pnpm test:e2e    # docker: anvil + DeployLocal.s.sol + api image, full loop from the host
 ```
+
+The e2e stack is project `ketsuban-e2e` on network `ketsuban_e2e` (`E2E_SUBNET`, default `10.211.7.0/24`) with loopback-only
+ports `E2E_ANVIL_PORT` (18545) and `E2E_API_PORT` (18787), so it never collides with other compose projects on the
+same machine.

@@ -15,7 +15,7 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { MultipassAbi, fromBytes32, toBytes32 } from "@peeramid-labs/multipass-client";
-import type { OnchainState, RegisterMessage } from "@att/registrar";
+import type { OnchainState, RegisterMessage } from "@ketsuban/registrar";
 import { bridgeAbi, factoryAbi, resolverAbi } from "./abi.js";
 import type { Config } from "./config.js";
 

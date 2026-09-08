@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import type { TeeRuntime } from "@chainlink/cre-sdk";
-import { baseIntent, fakePrivy, fakeUser, signedAttestRequest, toWire } from "@att/registrar/testing";
+import { baseIntent, fakePrivy, fakeUser, signedAttestRequest, toWire } from "@ketsuban/registrar/testing";
 import { decodeRecord, MultipassAbi, registerNameTypes, toBytes32 } from "@peeramid-labs/multipass-client";
 import { bytesToHex, decodeFunctionData, encodeFunctionResult, recoverTypedDataAddress, stringToBytes, zeroHash, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { eciesDecrypt } from "@att/registrar";
+import { eciesDecrypt } from "@ketsuban/registrar";
 import { initWorkflow, onAttest, parseRequest, serializeResult, type Config } from "./workflow";
 
 const NOW = 1_800_000_000;

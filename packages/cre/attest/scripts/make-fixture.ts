@@ -4,7 +4,7 @@
  *
  *   bun run scripts/make-fixture.ts [name|optin]
  */
-import { baseIntent, fakePrivy, fakeUser, signedAttestRequest, toWire } from "@att/registrar/testing";
+import { baseIntent, fakePrivy, fakeUser, signedAttestRequest, toWire } from "@ketsuban/registrar/testing";
 import { toBytes32, type Hex } from "@peeramid-labs/multipass-client";
 import { writeFileSync, readFileSync } from "node:fs";
 

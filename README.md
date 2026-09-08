@@ -1,4 +1,4 @@
-# Attestation instances on ENSv2
+# Ketsuban
 
 Non-deletable, human-verified references. A reference is a Multipass record whose registrar signature is produced
 inside a Chainlink CRE enclave from a Privy identity token and a wallet-signed intent; ENSv2 makes every record a
@@ -11,7 +11,7 @@ argument, never a source artifact.
 
 | Package | What |
 |---|---|
-| `packages/registrar` | `@att/registrar` — pure attester: `(idToken, intent, signature, secrets) → { record, signature, viewCode? }`. Runs unchanged inside the CRE enclave and in the Node fallback. |
+| `packages/registrar` | `@ketsuban/registrar` — pure attester: `(idToken, intent, signature, secrets) → { record, signature, viewCode? }`. Runs unchanged inside the CRE enclave and in the Node fallback. |
 | `packages/contracts` | Foundry. `AttestationFactory` deploys one `AttestationRegistry` (ENSv2 `IRegistry` over a Multipass domain) + `AttestationResolver` (ENSIP-10 shim) per instance; `AttestationBridge` proxies registration, grants profile keys, links owned `.eth` names, and lets orgs sponsor. |
 | `packages/cre` | Chainlink CRE workflow: HTTP trigger → public checks + chain read on the DON → `handlerInTee` signs as registrar. |
 | `apps/api` | Relay: receives enclave output, submits through the bridge, serves the machine-readable verification endpoint. |
@@ -31,7 +31,7 @@ sequenceDiagram
   C->>C: verify token + intent, derive record, sign as registrar (enclave)
   C->>A: { record, signature, viewCode? }
   A->>M: AttestationBridge.verify / verifyFor
-  E-->>B: <handle>.<instance>.eth resolves (addr, att:answer, att:link:*, att:humanity)
+  E-->>B: <handle>.<instance>.eth resolves (addr, ketsuban:answer, ketsuban:link:*, ketsuban:humanity)
 ```
 
 ## Develop
@@ -52,9 +52,9 @@ Environment variables are listed in `.env.example`; never commit `.env`.
 | Key | Source |
 |---|---|
 | `addr`, reverse `name` | live Multipass record in the instance domain |
-| `text att:answer`, `text att:expiry` | record `payload`, `validUntil` |
-| `text att:humanity[:until]` | wallet-keyed hop into the `humanity` domain |
-| `data att:link:<domain>` | wallet-keyed hop → `abi.encodePacked(name, id, payload)`; `payload != 0` ⇒ opted-in, decode with the view code |
+| `text ketsuban:answer`, `text ketsuban:expiry` | record `payload`, `validUntil` |
+| `text ketsuban:humanity[:until]` | wallet-keyed hop into the `humanity` domain |
+| `data ketsuban:link:<domain>` | wallet-keyed hop → `abi.encodePacked(name, id, payload)`; `payload != 0` ⇒ opted-in, decode with the view code |
 | everything else | stock ENSv2 `PermissionedResolver` (user text records, oracle `data` keys, aliases) |
 
 ## License
