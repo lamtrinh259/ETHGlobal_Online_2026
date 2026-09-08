@@ -19,7 +19,9 @@ export function VouchFlow({ candidate }: { candidate: string }) {
   const { ready, authenticated } = usePrivy();
   const [linked, setLinked] = useState(false);
   const [named, setNamed] = useState<string>();
+  const [published, setPublished] = useState<string>();
   const stage: Stage = !authenticated ? "signin" : !linked ? "work" : !named ? "name" : "statement";
+  const vouchDomain = `~${candidate}`;
 
   return (
     <>

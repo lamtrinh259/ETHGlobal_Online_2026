@@ -1,4 +1,4 @@
-import type { Verification } from "./api";
+import type { Verification, Vouch } from "./api";
 import type { WebConfig } from "./config";
 
 /** The instance whose parent name is the root people namespace (first configured). */
@@ -20,9 +20,16 @@ export type Policy = {
   minLinks: number;
   /** Whether a live humanity attestation is required */
   requireHumanity: boolean;
+  /** Minimum live vouches from distinct vouchers (spec §3.1 default floor: 3) */
+  minVouches: number;
 };
 
-export const DEFAULT_POLICY: Policy = { requiredAnswers: [], minLinks: 1, requireHumanity: false };
+export const DEFAULT_POLICY: Policy = {
+  requiredAnswers: [],
+  minLinks: 1,
+  requireHumanity: false,
+  minVouches: 3,
+};
 
 export type Profile = {
   handle: string;
@@ -36,6 +43,7 @@ export type Profile = {
   }[];
   links: Verification["links"];
   humanity: Verification["humanity"];
+  vouches: Vouch[];
   wallet: string | null;
   checks: Check[];
   complete: boolean;
@@ -49,7 +57,8 @@ export type Profile = {
 export function assessProfile(
   handle: string,
   results: { instanceDomain: string; name: string; v: Verification | null }[],
-  policy: Policy = DEFAULT_POLICY
+  policy: Policy = DEFAULT_POLICY,
+  vouches: Vouch[] = []
 ): Profile {
   const root = results[0]?.v ?? undefined;
   const identity = root && root.status === "active" ? root : undefined;
@@ -91,6 +100,13 @@ export function assessProfile(
       };
     }),
   ];
+  const liveVouchers = new Set(vouches.filter((v) => v.live).map((v) => v.voucher));
+  checks.push({
+    id: "vouches",
+    label: `Vouches (≥${policy.minVouches})`,
+    ok: liveVouchers.size >= policy.minVouches,
+    detail: liveVouchers.size ? `${liveVouchers.size} live: ${[...liveVouchers].join(", ")}` : "none yet",
+  });
   if (policy.requireHumanity) {
     checks.push({
       id: "humanity",
@@ -106,6 +122,7 @@ export function assessProfile(
     answers,
     links,
     humanity,
+    vouches,
     wallet: identity?.wallet ?? null,
     checks,
     complete: checks.every((c) => c.ok),
@@ -128,5 +145,9 @@ export function policyFromQuery(q: Record<string, string | undefined>, subjectDo
     requiredAnswers: q.answers === undefined ? subjectDomains : q.answers.split(",").filter(Boolean),
     minLinks: q.minLinks !== undefined && /^\d+$/.test(q.minLinks) ? Number(q.minLinks) : 1,
     requireHumanity: q.humanity === "1",
+    minVouches:
+      q.minVouches !== undefined && /^\d+$/.test(q.minVouches)
+        ? Number(q.minVouches)
+        : DEFAULT_POLICY.minVouches,
   };
 }

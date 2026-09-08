@@ -30,6 +30,7 @@ function fakeApi(): Api {
       nonce += 1n;
       return { ok: true as const, txHash: `0x${"ab".repeat(32)}` as `0x${string}` };
     }),
+    vouches: vi.fn(async (handle: string) => ({ handle, domain: `~${handle}`, vouches: [], warning: "w" })),
     verify: vi.fn(async (name: string) => ({
       name,
       instance: { domain: "ketsuban", parentName: "ketsuban.eth" },

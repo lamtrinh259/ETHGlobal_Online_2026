@@ -11,7 +11,7 @@ import {
   viewCodeCommitment,
 } from "@peeramid-labs/multipass-client";
 import { createApp, locate, WARNING } from "../../src/app.js";
-import type { ChainReader, Instance } from "../../src/chain.js";
+import type { ChainReader, Instance, ListedRecord } from "../../src/chain.js";
 import { loadConfig } from "../../src/config.js";
 
 const NOW = 1_800_000_000;
@@ -48,10 +48,20 @@ type State = {
   texts: Record<string, string>;
   addr: Address;
   data: Record<string, Hex>;
+  listed: Record<string, ListedRecord[]>;
+  instancesCreated: string[];
 };
 
 function fakeChain(state: Partial<State> = {}) {
-  const s: State = { records: {}, texts: {}, addr: zeroAddress, data: {}, ...state };
+  const s: State = {
+    records: {},
+    texts: {},
+    addr: zeroAddress,
+    data: {},
+    listed: {},
+    instancesCreated: [],
+    ...state,
+  };
   const submitted: { record: RegisterMessage; signature: Hex }[] = [];
   const chain: ChainReader = {
     relayer: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
@@ -72,6 +82,12 @@ function fakeChain(state: Partial<State> = {}) {
     resolveText: vi.fn(async (_r: Address, _n: string, key: string) => s.texts[key] ?? ""),
     resolveAddr: vi.fn(async () => s.addr),
     resolveData: vi.fn(async (_r: Address, _n: string, key: string) => s.data[key] ?? "0x"),
+    ensureVouchInstance: vi.fn(async (handle: string) => {
+      const created = !s.instancesCreated.includes(handle);
+      if (created) s.instancesCreated.push(handle);
+      return { domain: `~${handle}`, created };
+    }),
+    listRecords: vi.fn(async (domain: string) => s.listed[domain] ?? []),
   };
   return { chain, submitted, state: s };
 }
@@ -303,6 +319,37 @@ describe("POST /v1/cre/delivery", () => {
     expect(await res.json()).toEqual({ ok: false, error: "recordExists" });
   });
 
+  it("provisions the vouch instance when a root name is claimed, idempotently, and survives provisioning failure", async () => {
+    const { chain, state } = fakeChain();
+    const root = {
+      ...delivery(),
+      record: { ...delivery().record, domainName: toBytes32("kju-is"), name: toBytes32("alice") },
+    };
+    const first = await (
+      await post(app(chain), "/v1/cre/delivery", root, { "x-delivery-token": baseEnv.DELIVERY_TOKEN })
+    ).json();
+    expect(first).toEqual({
+      ok: true,
+      txHash: `0x${"ab".repeat(32)}`,
+      vouchInstance: { domain: "~alice", created: true },
+    });
+    const again = await (
+      await post(app(chain), "/v1/cre/delivery", root, { "x-delivery-token": baseEnv.DELIVERY_TOKEN })
+    ).json();
+    expect(again.vouchInstance).toEqual({ domain: "~alice", created: false });
+    expect(state.instancesCreated).toEqual(["alice"]);
+    expect(chain.ensureVouchInstance).toHaveBeenCalledWith("alice");
+
+    (chain.ensureVouchInstance as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("no gas"));
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const degraded = await (
+      await post(app(chain), "/v1/cre/delivery", root, { "x-delivery-token": baseEnv.DELIVERY_TOKEN })
+    ).json();
+    expect(degraded).toEqual({ ok: true, txHash: `0x${"ab".repeat(32)}` });
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
   it("accepts deliveries without a token when none is configured", async () => {
     const { chain } = fakeChain();
     const { DELIVERY_TOKEN: _t, ...open } = baseEnv;
@@ -418,5 +465,63 @@ describe("locate", () => {
     expect(locate("a.b.kju-is.eth", [instance])).toBeUndefined();
     expect(locate("kju-is.eth", [instance])).toBeUndefined();
     expect(locate("x.other.eth", [instance])).toBeUndefined();
+  });
+});
+
+describe("GET /v1/vouches/:handle", () => {
+  it("lists the vouch domain's records with voucher names and liveness", async () => {
+    const { chain } = fakeChain({
+      listed: {
+        "~alice": [
+          {
+            name: "bob",
+            id: toBytes32("b"),
+            wallet: user.account.address,
+            payload: toBytes32("worked together 2019-22"),
+            validUntil: 1_800_000_000n,
+            nonce: 1n,
+            live: true,
+          },
+          {
+            name: "carol",
+            id: toBytes32("c"),
+            wallet: zeroAddress,
+            payload: toBytes32("revoked"),
+            validUntil: 1_700_000_000n,
+            nonce: 2n,
+            live: false,
+          },
+        ],
+      },
+    });
+    const body = await (await app(chain).request("/v1/vouches/Alice")).json();
+    expect(body).toEqual({
+      handle: "alice",
+      domain: "~alice",
+      vouches: [
+        {
+          voucher: "bob",
+          voucherName: "bob.kju-is.eth",
+          wallet: user.account.address,
+          statement: "worked together 2019-22",
+          validUntil: "2027-01-15T08:00:00.000Z",
+          nonce: "1",
+          live: true,
+        },
+        {
+          voucher: "carol",
+          voucherName: "carol.kju-is.eth",
+          wallet: zeroAddress,
+          statement: "revoked",
+          validUntil: "2023-11-14T22:13:20.000Z",
+          nonce: "2",
+          live: false,
+        },
+      ],
+      warning: WARNING,
+    });
+    expect(chain.listRecords).toHaveBeenCalledWith("~alice");
+    expect((await app(chain).request("/v1/vouches/Not%20Valid")).status).toBe(400);
+    expect((await (await app(chain).request("/v1/vouches/nobody")).json()).vouches).toEqual([]);
   });
 });

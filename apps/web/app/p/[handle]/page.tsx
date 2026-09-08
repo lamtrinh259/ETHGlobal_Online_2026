@@ -60,7 +60,13 @@ export default async function ProfilePage({ params, searchParams }: Params) {
     q,
     subjects.map((s) => s.domain)
   );
-  const profile = assessProfile(handle, results, policy);
+  let vouches: Awaited<ReturnType<typeof api.vouches>>["vouches"] = [];
+  try {
+    vouches = (await api.vouches(handle)).vouches;
+  } catch (e) {
+    error ??= (e as Error).message;
+  }
+  const profile = assessProfile(handle, results, policy, vouches);
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "";
 
   return (
@@ -89,9 +95,9 @@ export default async function ProfilePage({ params, searchParams }: Params) {
           {policy.requiredAnswers.length
             ? `answers ${policy.requiredAnswers.join(", ")}`
             : "no answers required"}
-          , ≥{policy.minLinks} linked account{policy.minLinks === 1 ? "" : "s"}
+          , ≥{policy.minLinks} linked account{policy.minLinks === 1 ? "" : "s"}, ≥{policy.minVouches} vouches
           {policy.requireHumanity ? ", humanity attested" : ""}. Change it with{" "}
-          <code>?answers=&amp;minLinks=&amp;humanity=1</code>.
+          <code>?answers=&amp;minLinks=&amp;minVouches=&amp;humanity=1</code>.
         </p>
       </section>
       <section className="card">

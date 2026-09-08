@@ -71,6 +71,27 @@ export function ProfileCard({ p, rootParent }: { p: Profile; rootParent: string 
         </ul>
       )}
 
+      <h3>Vouches</h3>
+      {p.vouches.length === 0 ? (
+        <p>
+          <em>none yet</em> — <a href={`/vouch/${p.handle}`}>be the first</a>
+        </p>
+      ) : (
+        <ul className="vouches" data-testid="vouches">
+          {p.vouches.map((v) => (
+            <li key={`${v.voucher}-${v.nonce}`} className={v.live ? "live" : "expired"}>
+              <span className="vouch-who">
+                <code>{v.voucherName ?? v.voucher}</code>
+              </span>
+              <span className="vouch-what">“{v.statement}”</span>
+              <span className="vouch-meta muted">
+                {v.live ? "live" : "expired"} · until {fmtUtc(v.validUntil)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+
       <h3>Humanity</h3>
       <p data-testid="humanity">{p.humanity ? `attested (${p.humanity.level})` : "not attested"}</p>
 

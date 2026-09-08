@@ -26,8 +26,20 @@ import type { AttestEnv, AttestRequest, AttestResult, OnchainState, RegistrarSec
 const DAY = 24 * 60 * 60;
 const HANDLE_RE = /^[a-z0-9-]{1,31}$/;
 
+export const DEFAULT_NAME_DOMAIN_PREFIXES: readonly string[] = ["~"];
+
+/** A name domain is configured explicitly or carries a vouch-instance prefix (`~alice`). */
+export function isNameDomain(
+  domain: string,
+  env: Pick<AttestEnv, "nameDomains" | "nameDomainPrefixes">
+): boolean {
+  if (env.nameDomains.includes(domain)) return true;
+  const prefixes = env.nameDomainPrefixes ?? DEFAULT_NAME_DOMAIN_PREFIXES;
+  return prefixes.some((p) => domain.length > p.length && domain.startsWith(p));
+}
+
 function isSupported(domain: string, env: AttestEnv): boolean {
-  return env.nameDomains.includes(domain) || (env.platformDomains ?? PLATFORM_DOMAIN_NAMES).includes(domain);
+  return isNameDomain(domain, env) || (env.platformDomains ?? PLATFORM_DOMAIN_NAMES).includes(domain);
 }
 
 /** Fit a platform id into bytes32: verbatim when it fits, keccak otherwise (never throws) */
@@ -85,7 +97,7 @@ export async function attestConfidential(
   let payload: Hex;
   let viewCode: Hex | undefined;
 
-  if (env.nameDomains.includes(intent.domain)) {
+  if (isNameDomain(intent.domain, env)) {
     if (intent.optIn) throw new Error("intent: name-domain handle is public, opt-in not allowed");
     if (!HANDLE_RE.test(intent.handle)) throw new Error("intent: invalid handle");
     name = toBytes32(intent.handle);

@@ -9,7 +9,7 @@ import {
   type AttestResult,
   type RegisterMessage,
 } from "@ketsuban/registrar";
-import { decodeRecord, isOptedIn } from "@peeramid-labs/multipass-client";
+import { decodeRecord, fromBytes32, isOptedIn } from "@peeramid-labs/multipass-client";
 import type { ChainReader, Instance } from "./chain.js";
 import type { Config } from "./config.js";
 
@@ -177,11 +177,52 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     const parsed = wireDelivery.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return c.json({ ok: false, error: "bad request", issues: parsed.error.issues }, 400);
     try {
-      const txHash = await chain.submit(toRecord(parsed.data.record), parsed.data.signature as Hex);
-      return c.json({ ok: true, txHash });
+      const record = toRecord(parsed.data.record);
+      const txHash = await chain.submit(record, parsed.data.signature as Hex);
+      // A newly claimed root name gets its vouch instance so others can write references under it.
+      let vouchInstance: { domain: string; created: boolean } | undefined;
+      if (config.NAME_DOMAINS[0] && fromBytes32(record.domainName) === config.NAME_DOMAINS[0]) {
+        try {
+          vouchInstance = await chain.ensureVouchInstance(fromBytes32(record.name));
+        } catch (e) {
+          vouchInstance = undefined;
+          console.error(
+            JSON.stringify({
+              msg: "vouch instance provisioning failed",
+              handle: fromBytes32(record.name),
+              error: (e as Error).message,
+            })
+          );
+        }
+      }
+      return c.json({ ok: true, txHash, ...(vouchInstance ? { vouchInstance } : {}) });
     } catch (e) {
       return c.json({ ok: false, error: (e as Error).message }, 502);
     }
+  });
+
+  /** References written under a candidate: every record in the `<prefix><handle>` vouch domain. */
+  app.get("/v1/vouches/:handle", async (c) => {
+    const handle = c.req.param("handle").toLowerCase();
+    if (!/^[a-z0-9-]{1,30}$/.test(handle)) return c.json({ error: "bad handle" }, 400);
+    const domain = `${config.VOUCH_PREFIX}${handle}`;
+    const rootParent =
+      (await chain.instances()).find((i) => i.domain === config.NAME_DOMAINS[0])?.parentName ?? "";
+    const records = await chain.listRecords(domain);
+    return c.json({
+      handle,
+      domain,
+      vouches: records.map((r) => ({
+        voucher: r.name,
+        voucherName: rootParent ? `${r.name}.${rootParent}` : null,
+        wallet: r.wallet,
+        statement: fromBytes32(r.payload),
+        validUntil: new Date(Number(r.validUntil) * 1000).toISOString(),
+        nonce: r.nonce.toString(),
+        live: r.live,
+      })),
+      warning: WARNING,
+    });
   });
 
   /**

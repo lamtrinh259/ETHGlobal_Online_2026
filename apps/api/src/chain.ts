@@ -3,6 +3,7 @@ import {
   createWalletClient,
   decodeAbiParameters,
   encodeFunctionData,
+  getAbiItem,
   http,
   namehash,
   toHex,
@@ -16,8 +17,19 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 import { MultipassAbi, fromBytes32, toBytes32 } from "@peeramid-labs/multipass-client";
 import type { OnchainState, RegisterMessage } from "@ketsuban/registrar";
-import { bridgeAbi, factoryAbi, resolverAbi } from "./abi.js";
+import { bridgeAbi, factoryAbi, registryAbi, resolverAbi } from "./abi.js";
 import type { Config } from "./config.js";
+
+/** One Multipass record as seen in Registered/Renewed logs, with its current liveness */
+export type ListedRecord = {
+  name: string;
+  id: Hex;
+  wallet: Address;
+  payload: Hex;
+  validUntil: bigint;
+  nonce: bigint;
+  live: boolean;
+};
 
 export type Instance = {
   domain: string;
@@ -122,6 +134,135 @@ export class Chain {
     return hash;
   }
 
+  /**
+   * Provision the per-candidate vouch instance `<prefix><handle>` beneath the root registry:
+   * Multipass domain (registrar signs, fee 0) → factory.create → root.setSubregistry. Idempotent.
+   * Needs the relayer to own Multipass, the factory and the root registry.
+   */
+  async ensureVouchInstance(handle: string): Promise<{ domain: string; created: boolean }> {
+    const domain = `${this.config.VOUCH_PREFIX}${handle}`;
+    const domainB = toBytes32(domain);
+    const exists = await this.publicClient.readContract({
+      address: this.config.FACTORY,
+      abi: factoryAbi,
+      functionName: "isInstance",
+      args: [domainB],
+    });
+    if (exists) return { domain, created: false };
+    const { REGISTRY, PERMISSIONED_RESOLVER, REGISTRAR_ADDRESS } = this.config;
+    if (!REGISTRY || !PERMISSIONED_RESOLVER || !REGISTRAR_ADDRESS)
+      throw new Error("vouch instances need REGISTRY, PERMISSIONED_RESOLVER and REGISTRAR_ADDRESS");
+    const rootParent = (await this.instances()).find(
+      (i) => i.registry.toLowerCase() === REGISTRY.toLowerCase()
+    )?.parentName;
+    if (!rootParent) throw new Error("root registry is not a known instance");
+    const w = { chain: this.walletClient.chain, account: this.walletClient.account! };
+    const mpState = await this.publicClient.readContract({
+      address: this.config.MULTIPASS,
+      abi: MultipassAbi,
+      functionName: "getDomainState",
+      args: [domainB],
+    });
+    if (mpState.name === zeroHash) {
+      await this.wait(
+        await this.walletClient.writeContract({
+          ...w,
+          address: this.config.MULTIPASS,
+          abi: MultipassAbi,
+          functionName: "initializeDomain",
+          args: [REGISTRAR_ADDRESS, 0n, 0n, domainB, 0n, 0n],
+        })
+      );
+    }
+    if (!mpState.isActive) {
+      await this.wait(
+        await this.walletClient.writeContract({
+          ...w,
+          address: this.config.MULTIPASS,
+          abi: MultipassAbi,
+          functionName: "activateDomain",
+          args: [domainB],
+        })
+      );
+    }
+    await this.wait(
+      await this.walletClient.writeContract({
+        ...w,
+        address: this.config.FACTORY,
+        abi: factoryAbi,
+        functionName: "create",
+        args: [domainB, REGISTRY, handle, `${handle}.${rootParent}`, PERMISSIONED_RESOLVER],
+      })
+    );
+    const inst = await this.publicClient.readContract({
+      address: this.config.FACTORY,
+      abi: factoryAbi,
+      functionName: "instance",
+      args: [domainB],
+    });
+    await this.wait(
+      await this.walletClient.writeContract({
+        ...w,
+        address: REGISTRY,
+        abi: registryAbi,
+        functionName: "setSubregistry",
+        args: [handle, inst.registry],
+      })
+    );
+    return { domain, created: true };
+  }
+
+  /** Every record ever written to `domain` (Registered + Renewed logs), latest state per id, with liveness */
+  async listRecords(domain: string): Promise<ListedRecord[]> {
+    const domainB = toBytes32(domain);
+    const fromBlock = BigInt(this.config.DEPLOY_BLOCK);
+    const [registered, renewed] = await Promise.all([
+      this.publicClient.getLogs({
+        address: this.config.MULTIPASS,
+        event: getAbiItem({ abi: MultipassAbi, name: "Registered" }),
+        args: { domainName: domainB },
+        fromBlock,
+        toBlock: "latest",
+      }),
+      this.publicClient.getLogs({
+        address: this.config.MULTIPASS,
+        event: getAbiItem({ abi: MultipassAbi, name: "Renewed" }),
+        args: { domainName: domainB },
+        fromBlock,
+        toBlock: "latest",
+      }),
+    ]);
+    const ids = new Set<Hex>();
+    for (const l of registered) if (l.args.NewRecord) ids.add(l.args.NewRecord.id);
+    for (const l of renewed) if (l.args.id) ids.add(l.args.id);
+    const now = BigInt(Math.floor(Date.now() / 1000));
+    const out: ListedRecord[] = [];
+    for (const id of ids) {
+      const [ok, r] = await this.publicClient.readContract({
+        address: this.config.MULTIPASS,
+        abi: MultipassAbi,
+        functionName: "resolveRecord",
+        args: [{ name: zeroHash, id, wallet: zeroAddress, domainName: domainB, targetDomain: zeroHash }],
+      });
+      if (!ok) continue;
+      out.push({
+        name: fromBytes32(r.name),
+        id: r.id,
+        wallet: r.wallet,
+        payload: r.payload,
+        validUntil: r.validUntil,
+        nonce: r.nonce,
+        live: r.validUntil > now,
+      });
+    }
+    return out.sort((a, b) => Number(b.validUntil - a.validUntil));
+  }
+
+  private async wait(hash: Hex) {
+    const receipt = await this.publicClient.waitForTransactionReceipt({ hash });
+    if (receipt.status !== "success") throw new Error(`transaction reverted: ${hash}`);
+  }
+
   /** ENSIP-10 read through the instance resolver */
   async resolveText(resolver: Address, name: string, key: string): Promise<string> {
     const out = await this.publicClient.readContract({
@@ -165,5 +306,13 @@ export class Chain {
 
 export type ChainReader = Pick<
   Chain,
-  "readOnchain" | "instances" | "submit" | "resolveText" | "resolveAddr" | "resolveData" | "relayer"
+  | "readOnchain"
+  | "instances"
+  | "submit"
+  | "resolveText"
+  | "resolveAddr"
+  | "resolveData"
+  | "relayer"
+  | "ensureVouchInstance"
+  | "listRecords"
 >;

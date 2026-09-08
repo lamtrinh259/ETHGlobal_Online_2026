@@ -84,6 +84,12 @@ export type AttestEnv = {
    * ENS labels under the instance's parent name. A deployment argument — e.g. `["kju-is"]`.
    */
   nameDomains: readonly string[];
+  /**
+   * Prefixes marking dynamically created name domains — per-candidate vouch instances are
+   * `~<candidate>`; a record there is `{ name: voucher handle, id: keccak256(DID), payload: statement }`.
+   * Default `["~"]`.
+   */
+  nameDomainPrefixes?: readonly string[];
   /** Platform domains accepted; default: every key of PLATFORM_DOMAINS */
   platformDomains?: readonly string[];
   /** Record term in seconds; default 30 days */

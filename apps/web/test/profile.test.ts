@@ -57,9 +57,39 @@ describe("assessProfile", () => {
           v: active("alice.kju-is.ketsuban.eth", { answer: "terrible dictator" }),
         },
       ],
-      { requiredAnswers: ["kju-is"], minLinks: 1, requireHumanity: true }
+      { requiredAnswers: ["kju-is"], minLinks: 1, requireHumanity: true, minVouches: 2 },
+      [
+        {
+          voucher: "bob",
+          voucherName: "bob.ketsuban.eth",
+          wallet: "0x1",
+          statement: "worked together",
+          validUntil: "2027-01-01T00:00:00.000Z",
+          nonce: "1",
+          live: true,
+        },
+        {
+          voucher: "bob",
+          voucherName: "bob.ketsuban.eth",
+          wallet: "0x1",
+          statement: "older",
+          validUntil: "2026-01-01T00:00:00.000Z",
+          nonce: "0",
+          live: false,
+        },
+        {
+          voucher: "carol",
+          voucherName: "carol.ketsuban.eth",
+          wallet: "0x2",
+          statement: "great",
+          validUntil: "2027-01-01T00:00:00.000Z",
+          nonce: "1",
+          live: true,
+        },
+      ]
     );
     expect(p.wallet).toBe("0xEE4811b9462956C9C3535E79c08776D769CA9F3a");
+    expect(p.vouches).toHaveLength(3);
     expect(p.answers).toEqual([
       {
         domain: "kju-is",
@@ -73,10 +103,12 @@ describe("assessProfile", () => {
       ["identity", true],
       ["links", true],
       ["answer:kju-is", true],
+      ["vouches", true],
       ["humanity", true],
     ]);
     expect(p.checks[1].detail).toBe("x (masked)");
     expect(p.checks[2].detail).toBe('"terrible dictator"');
+    expect(p.checks[3].detail).toBe("2 live: bob, carol");
     expect(p.complete).toBe(true);
     expect(p.warning).toBe("w");
   });
@@ -92,14 +124,15 @@ describe("assessProfile", () => {
         },
         { instanceDomain: "kju-is", name: "nobody.kju-is.ketsuban.eth", v: null },
       ],
-      { requiredAnswers: ["kju-is"], minLinks: 1, requireHumanity: false }
+      { requiredAnswers: ["kju-is"], minLinks: 1, requireHumanity: false, minVouches: 3 }
     );
     expect(p.identity).toBeUndefined();
     expect(p.wallet).toBeNull();
-    expect(p.checks.map((c) => c.ok)).toEqual([false, false, false]);
+    expect(p.checks.map((c) => c.ok)).toEqual([false, false, false, false]);
     expect(p.checks[0].detail).toContain("nobody.ketsuban.eth has no live record");
     expect(p.checks[1].detail).toBe("none");
     expect(p.checks[2].detail).toBe("no live answer");
+    expect(p.checks[3].detail).toBe("none yet");
     expect(p.complete).toBe(false);
     expect(p.warning).toBe("w");
   });
@@ -113,8 +146,9 @@ describe("assessProfile", () => {
       },
     ]);
     expect(DEFAULT_POLICY.minLinks).toBe(1);
-    expect(p.checks.map((c) => c.id)).toEqual(["identity", "links"]);
-    expect(p.complete).toBe(true);
+    expect(DEFAULT_POLICY.minVouches).toBe(3);
+    expect(p.checks.map((c) => c.id)).toEqual(["identity", "links", "vouches"]);
+    expect(p.complete).toBe(false);
   });
 });
 
@@ -132,16 +166,21 @@ describe("policyFromQuery", () => {
       requiredAnswers: ["kju-is", "uni"],
       minLinks: 1,
       requireHumanity: false,
+      minVouches: 3,
     });
-    expect(policyFromQuery({ answers: "", minLinks: "3", humanity: "1" }, ["kju-is"])).toEqual({
+    expect(
+      policyFromQuery({ answers: "", minLinks: "3", humanity: "1", minVouches: "0" }, ["kju-is"])
+    ).toEqual({
       requiredAnswers: [],
       minLinks: 3,
       requireHumanity: true,
+      minVouches: 0,
     });
-    expect(policyFromQuery({ answers: "uni", minLinks: "x" }, ["kju-is"])).toEqual({
+    expect(policyFromQuery({ answers: "uni", minLinks: "x", minVouches: "y" }, ["kju-is"])).toEqual({
       requiredAnswers: ["uni"],
       minLinks: 1,
       requireHumanity: false,
+      minVouches: 3,
     });
   });
 });

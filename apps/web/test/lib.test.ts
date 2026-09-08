@@ -175,6 +175,24 @@ describe("api client", () => {
       "http://api.test/v1/attest": { body: result },
       "http://api.test/v1/cre/delivery": { body: { ok: true, txHash: `0x${"ab".repeat(32)}` } },
       "http://api.test/v1/verify/alice.ketsuban.eth": { body: verification },
+      "http://api.test/v1/vouches/alice": {
+        body: {
+          handle: "alice",
+          domain: "~alice",
+          warning: "w",
+          vouches: [
+            {
+              voucher: "bob",
+              voucherName: "bob.ketsuban.eth",
+              wallet: "0x1",
+              statement: "s",
+              validUntil: "2027-01-01T00:00:00.000Z",
+              nonce: "1",
+              live: true,
+            },
+          ],
+        },
+      },
     });
     const api = createApi("http://api.test/", "http://api.test/v1/attest", fn);
 
@@ -189,6 +207,7 @@ describe("api client", () => {
     expect((calls[2].init?.headers as Record<string, string>)["x-delivery-token"]).toBe("tok");
 
     expect(await api.verify("alice.ketsuban.eth", { links: ["x"], viewCode: "0x02" })).toEqual(verification);
+    expect((await api.vouches("alice")).vouches[0].voucher).toBe("bob");
     expect(calls[3].url).toBe("http://api.test/v1/verify/alice.ketsuban.eth?links=x&viewCode=0x02");
   });
 

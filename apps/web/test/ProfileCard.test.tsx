@@ -18,6 +18,26 @@ const profile: Profile = {
   ],
   links: [{ domain: "x", optedIn: true, commitment: "0x01" }],
   humanity: null,
+  vouches: [
+    {
+      voucher: "bob",
+      voucherName: "bob.ketsuban.eth",
+      wallet: "0x1",
+      statement: "worked together 2019-22",
+      validUntil: "2027-01-01T00:00:00.000Z",
+      nonce: "1",
+      live: true,
+    },
+    {
+      voucher: "carol",
+      voucherName: null,
+      wallet: "0x2",
+      statement: "old",
+      validUntil: "2025-01-01T00:00:00.000Z",
+      nonce: "1",
+      live: false,
+    },
+  ],
   checks: [
     { id: "identity", label: "Claimed name", ok: true, detail: "alice.ketsuban.eth → 0xEE48" },
     { id: "answer:kju-is", label: "Answered kju-is", ok: false, detail: "no live answer" },
@@ -40,6 +60,13 @@ describe("ProfileCard", () => {
     expect(screen.getByTestId("answers")).toHaveTextContent("2026-10-08 09:14Z");
     expect(screen.getByTestId("links")).toHaveTextContent("masked");
     expect(screen.getByTestId("humanity")).toHaveTextContent("not attested");
+    const vouches = screen.getByTestId("vouches").querySelectorAll("li");
+    expect(vouches).toHaveLength(2);
+    expect(vouches[0]).toHaveClass("live");
+    expect(vouches[0]).toHaveTextContent("bob.ketsuban.eth");
+    expect(vouches[0]).toHaveTextContent("worked together 2019-22");
+    expect(vouches[1]).toHaveClass("expired");
+    expect(vouches[1]).toHaveTextContent("carol");
     expect(screen.getByRole("note")).toHaveTextContent(profile.warning);
   });
 

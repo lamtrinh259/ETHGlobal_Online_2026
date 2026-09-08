@@ -140,6 +140,30 @@ describe("attest — name domain (kju-is as a config value)", () => {
   });
 });
 
+describe("attest — vouch instance (~candidate) domain", () => {
+  it("treats ~<candidate> as a name domain: voucher handle, keccak(DID), statement", async () => {
+    const statement = toBytes32("worked together 2019-22");
+    const req = await signedRequest(makeIntent({ domain: "~alice", handle: "bob", payload: statement }));
+    const res = await attest(req, noRecord, secrets, env);
+    expect(res.record.domainName).toBe(toBytes32("~alice"));
+    expect(res.record.name).toBe(toBytes32("bob"));
+    expect(res.record.id).toBe(keccak256(stringToBytes(DID)));
+    expect(res.record.payload).toBe(statement);
+  });
+
+  it("a bare prefix or a disabled prefix list is not a name domain", async () => {
+    await expect(
+      attest(await signedRequest(makeIntent({ domain: "~", handle: "bob" })), noRecord, secrets, env)
+    ).rejects.toThrow("unknown domain");
+    await expect(
+      attest(await signedRequest(makeIntent({ domain: "~alice", handle: "bob" })), noRecord, secrets, {
+        ...env,
+        nameDomainPrefixes: [],
+      })
+    ).rejects.toThrow("unknown domain");
+  });
+});
+
 describe("verifyPublicLeg", () => {
   it("rejects unknown domain", async () => {
     await expect(

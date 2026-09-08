@@ -14,10 +14,10 @@ test("verifier form builds a policy URL for the candidate page", async ({ page }
   await page.getByLabel("handle").fill("Alice.ketsuban.eth");
   await page.getByLabel("minimum linked accounts").fill("2");
   await page.getByRole("button", { name: "Check" }).click();
-  await expect(page).toHaveURL(/\/p\/alice\?answers=kju-is&minLinks=2$/);
+  await expect(page).toHaveURL(/\/p\/alice\?answers=kju-is&minLinks=2&minVouches=3$/);
   // API unreachable in this run: the page still renders the graded card with failing checks + the error.
   await expect(page.getByTestId("completeness")).toHaveText("incomplete");
-  await expect(page.getByTestId("checks").locator("li")).toHaveCount(3);
+  await expect(page.getByTestId("checks").locator("li")).toHaveCount(4);
   await expect(page.locator("main [role=alert]").first()).toBeVisible();
 });
 

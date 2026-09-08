@@ -44,6 +44,16 @@ export const configSchema = z.object({
     .int()
     .positive()
     .default(30 * 24 * 3600),
+  /** Root instance registry (mounted under .eth) — vouch instances nest beneath it */
+  REGISTRY: address.optional(),
+  /** Stock PermissionedResolver every instance forwards to */
+  PERMISSIONED_RESOLVER: address.optional(),
+  /** Registrar address the relay initialises new vouch domains with */
+  REGISTRAR_ADDRESS: address.optional(),
+  /** Block the factory was deployed at; record listing scans logs from here */
+  DEPLOY_BLOCK: z.coerce.number().int().nonnegative().default(0),
+  /** Prefix of per-candidate vouch domains (`~alice`) */
+  VOUCH_PREFIX: z.string().min(1).default("~"),
   /** Comma-separated browser origins allowed to call the API; "*" allows any (default) */
   CORS_ORIGINS: z
     .string()
@@ -58,7 +68,15 @@ export const configSchema = z.object({
 
 export type Config = Omit<
   z.infer<typeof configSchema>,
-  "MULTIPASS" | "BRIDGE" | "FACTORY" | "RELAYER_KEY" | "REGISTRAR_KEY" | "VIEWCODE_KEY"
+  | "MULTIPASS"
+  | "BRIDGE"
+  | "FACTORY"
+  | "RELAYER_KEY"
+  | "REGISTRAR_KEY"
+  | "VIEWCODE_KEY"
+  | "REGISTRY"
+  | "PERMISSIONED_RESOLVER"
+  | "REGISTRAR_ADDRESS"
 > & {
   MULTIPASS: Address;
   BRIDGE: Address;
@@ -66,6 +84,9 @@ export type Config = Omit<
   RELAYER_KEY: Hex;
   REGISTRAR_KEY?: Hex;
   VIEWCODE_KEY?: Hex;
+  REGISTRY?: Address;
+  PERMISSIONED_RESOLVER?: Address;
+  REGISTRAR_ADDRESS?: Address;
 };
 
 /** Addresses written by the forge deploy scripts (`deployments/<chainId>.json`, `local.json`) */
@@ -74,6 +95,8 @@ const deploymentFile = z.object({
   multipass: address,
   bridge: address,
   factory: address,
+  registry: address.optional(),
+  permissionedResolver: address.optional(),
 });
 
 /**
@@ -89,6 +112,8 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
       MULTIPASS: d.multipass,
       BRIDGE: d.bridge,
       FACTORY: d.factory,
+      ...(d.registry ? { REGISTRY: d.registry } : {}),
+      ...(d.permissionedResolver ? { PERMISSIONED_RESOLVER: d.permissionedResolver } : {}),
       ...Object.fromEntries(Object.entries(env).filter(([, v]) => v !== undefined && v !== "")),
     };
   }

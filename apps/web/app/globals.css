@@ -433,3 +433,30 @@ h3 {
   letter-spacing: 0.06em;
   font-family: var(--font-mono);
 }
+
+/* ── vouches ── */
+.vouches {
+  list-style: none;
+  padding: 0;
+  margin: var(--sp-sm) 0;
+  display: grid;
+  gap: 8px;
+}
+.vouches li {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--knot);
+  background: var(--panel-2);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+.vouches li.expired {
+  border-left-color: var(--discarded);
+  opacity: 0.75;
+}
+.vouch-what {
+  font-size: 15px;
+}
+.vouch-meta {
+  font-size: 12px;
+}

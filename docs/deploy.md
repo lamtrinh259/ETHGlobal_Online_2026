@@ -95,6 +95,8 @@ Sepolia addresses and placeholders for the secrets:
 | `NAME_DOMAINS` | comma-separated instance domains |
 | `DELIVERY_TOKEN` | ≥16 chars, same value in the CRE delivery header |
 | `REGISTRAR_KEY`, `VIEWCODE_KEY` | only for the Node fallback; unset when the enclave signs |
+| `REGISTRY`, `PERMISSIONED_RESOLVER`, `REGISTRAR_ADDRESS`, `DEPLOY_BLOCK` | vouch-instance provisioning (relayer must own Multipass, factory, root registry); `VOUCH_PREFIX` defaults to `~` |
+| `CORS_ORIGINS` | the web app origin |
 
 Health: `GET /healthz`. No volumes, no ports, stateless — scale by replicas.
 

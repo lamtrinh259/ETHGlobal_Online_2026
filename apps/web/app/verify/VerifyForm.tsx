@@ -10,6 +10,7 @@ export function VerifyForm({ subjectDomains }: { subjectDomains: string[] }) {
   const [handle, setHandle] = useState("");
   const [answers, setAnswers] = useState<string[]>(subjectDomains);
   const [minLinks, setMinLinks] = useState(1);
+  const [minVouches, setMinVouches] = useState(3);
   const [humanity, setHumanity] = useState(false);
   const clean = handle
     .trim()
@@ -23,7 +24,11 @@ export function VerifyForm({ subjectDomains }: { subjectDomains: string[] }) {
       onSubmit={(e) => {
         e.preventDefault();
         if (!valid) return;
-        const q = new URLSearchParams({ answers: answers.join(","), minLinks: String(minLinks) });
+        const q = new URLSearchParams({
+          answers: answers.join(","),
+          minLinks: String(minLinks),
+          minVouches: String(minVouches),
+        });
         if (humanity) q.set("humanity", "1");
         router.push(`/p/${clean}?${q.toString()}`);
       }}

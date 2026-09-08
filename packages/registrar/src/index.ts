@@ -1,5 +1,12 @@
 export * from "./types.js";
-export { attest, attestConfidential, verifyPublicLeg, idToBytes32 } from "./attest.js";
+export {
+  attest,
+  attestConfidential,
+  verifyPublicLeg,
+  idToBytes32,
+  isNameDomain,
+  DEFAULT_NAME_DOMAIN_PREFIXES,
+} from "./attest.js";
 export { INTENT_TYPES, intentDomain, recoverIntentSigner, signIntent } from "./intent.js";
 export { verifyEs256Jwt, jwkToPublicKey } from "./jwt.js";
 export {

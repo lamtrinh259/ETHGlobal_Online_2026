@@ -43,6 +43,25 @@ export const verifySchema = z.object({
 });
 export type Verification = z.infer<typeof verifySchema>;
 
+export const vouchesSchema = z.object({
+  handle: z.string(),
+  domain: z.string(),
+  vouches: z.array(
+    z.object({
+      voucher: z.string(),
+      voucherName: z.string().nullable(),
+      wallet: z.string(),
+      statement: z.string(),
+      validUntil: z.string(),
+      nonce: z.string(),
+      live: z.boolean(),
+    })
+  ),
+  warning: z.string(),
+});
+export type Vouches = z.infer<typeof vouchesSchema>;
+export type Vouch = Vouches["vouches"][number];
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -124,6 +143,12 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
         body: JSON.stringify(result),
       });
       return (await readJson(res)) as { ok: true; txHash: Hex };
+    },
+
+    async vouches(handle: string): Promise<Vouches> {
+      return vouchesSchema.parse(
+        await readJson(await call(`${base}/v1/vouches/${encodeURIComponent(handle)}`))
+      );
     },
 
     async verify(name: string, opts: { links?: string[]; viewCode?: Hex } = {}): Promise<Verification> {
