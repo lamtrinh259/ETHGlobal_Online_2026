@@ -12,6 +12,7 @@ import type { Address, Hex } from "viem";
 import { PLATFORM_DOMAIN_NAMES } from "@ketsuban/registrar";
 import { fromBytes32 } from "@peeramid-labs/multipass-client";
 import { apiFor, useAttest, useDeliver, useNameStatus, useNonce } from "@/lib/hooks";
+import { isNameDomainFor, parentNameFor } from "@/lib/journey";
 import { buildIntent, intentTypedData, toWire } from "@/lib/intent";
 import { loadOrCreateViewKey, openViewCode } from "@/lib/keys";
 import { useWebConfig } from "./providers";
@@ -56,8 +57,8 @@ export function AttestFlow({ fixedDomain, fixedHandle, title, answerLabel, hideF
 
   const embedded = wallets.find((w) => w.walletClientType === "privy") ?? wallets[0];
   const wallet = embedded?.address as Address | undefined;
-  const isNameDomain = config.nameDomains.includes(domain);
-  const parentName = config.instances.find((i) => i.domain === domain)?.parentName;
+  const isNameDomain = isNameDomainFor(domain, config);
+  const parentName = parentNameFor(domain, config);
 
   const nonce = useNonce(api, wallet, domain);
   const [debounced, setDebounced] = useState(handle);

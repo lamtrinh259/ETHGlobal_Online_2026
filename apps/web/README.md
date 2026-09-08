@@ -6,17 +6,18 @@ identity is Privy (embedded wallet, identity token); the view-code key stays on 
 | Route | Who | What |
 |---|---|---|
 | `/` | everyone | Three doors: candidate, voucher, verifier. |
-| `/claim` | candidate | Claim `<handle>.<root>`, answer each subject instance (`kju-is` …), get the share line. |
+| `/claim` | candidate | Claim `<handle>.<root>`, answer each subject instance (`kju-is` …), get the share line and next steps. Resumes at the first unanswered subject. |
 | `/p/<handle>` | verifier / agent | The reference page: identity, answers, linked accounts, humanity, graded by a policy (`?answers=&minLinks=&humanity=1`), with the raw names to resolve yourself. |
 | `/verify` | verifier | Policy picker → `/p/<handle>`. |
-| `/vouch/<handle>` | voucher | Sign in → humanity (pending partner access) → link work account → claim own name → statement (per-candidate vouch instances land next). |
+| `/vouch/<handle>` | voucher | Sign in → humanity (pending partner access) → link work account → claim own name → statement as `<you>.<handle>.<root>`. Resumes from the wallet's live records; an existing statement is shown and superseded on republish. |
 | `/me` | candidate / voucher | Dashboard for the signed-in wallet: names, linked accounts, references given (`GET /v1/wallet/:address`); edit ENS profile records (`setText` from the wallet), alias your own `.eth` (`AttestationBridge.linkOwnName`), one-shot test gas from the relay (`POST /v1/gas`). |
 | `/v/<name>` | anyone | One name's verification card, server-rendered (`generateMetadata` for unfurls). `?viewCode=0x…&links=x` discloses opted-in links. |
 | `/api/health` | ops | Readiness probe for the container HEALTHCHECK. |
 
 `AttestFlow` is the single publishing component — it checks handle availability as you type (`GET /v1/name/:domain/:handle`)
 and turns into "Sign & update" when the wallet already holds a record (the newer nonce supersedes the old one); journeys pass `fixedDomain` / `fixedHandle` / `onPublished` to
-sequence it. `lib/profile.ts` folds per-name verifications into the page and grades the policy (pure, tested).
+sequence it. `lib/profile.ts` folds per-name verifications into the page and grades the policy; `lib/journey.ts` derives
+journey progress from the wallet dashboard (both pure, tested).
 
 `lib/` is the pure part (config, intent builder, API client, react-query hooks, browser view key, `chain.ts` wallet writes) — unit-tested;
 `app/` holds the shell (`AppShell`, `ThemeToggle`) and the two screens. Privy hooks live only in `app/AttestFlow.tsx`.

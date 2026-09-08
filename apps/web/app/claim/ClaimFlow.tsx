@@ -1,25 +1,41 @@
 "use client";
 
-import { useState } from "react";
+import Link from "next/link";
+import { useMemo, useState } from "react";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
+import type { Address } from "viem";
 import { AttestFlow } from "@/app/AttestFlow";
 import { useWebConfig } from "@/app/providers";
 import { shareSnippet } from "@/lib/profile";
+import { apiFor, useWalletDashboard } from "@/lib/hooks";
+import { claimProgress } from "@/lib/journey";
 import { CopyButton } from "@/app/CopyButton";
 
 /**
  * Candidate journey: claim the root name, then one answer per subject instance, then share.
- * The publishing mechanics are AttestFlow; this component sequences the domains and keeps the
- * handle constant across them.
+ * Progress is read from the wallet's live records, so a returning candidate lands on the next
+ * unanswered subject instead of re-claiming. The publishing mechanics are AttestFlow.
  */
 export function ClaimFlow() {
   const config = useWebConfig();
   const [root, ...subjects] = config.instances;
-  const [handle, setHandle] = useState<string>();
+  const api = useMemo(() => apiFor(config), [config]);
+  const { authenticated } = usePrivy();
+  const { wallets } = useWallets();
+  const wallet = (wallets.find((w) => w.walletClientType === "privy") ?? wallets[0])?.address as
+    Address | undefined;
+  const dash = useWalletDashboard(api, authenticated ? wallet : undefined);
+  const onChain = claimProgress(dash.data, config.instances);
+
+  const [claimed, setClaimed] = useState<string>();
   const [done, setDone] = useState<Set<string>>(new Set());
-  const step = !handle ? 0 : 1 + subjects.findIndex((s) => !done.has(s.domain));
-  const current = !handle ? root : subjects.find((s) => !done.has(s.domain));
-  const finished = !!handle && subjects.every((s) => done.has(s.domain));
+  const handle = claimed ?? onChain.handle;
+  const answered = (d: string) => done.has(d) || onChain.answered.has(d);
+  const step = !handle ? 0 : 1 + subjects.findIndex((s) => !answered(s.domain));
+  const current = !handle ? root : subjects.find((s) => !answered(s.domain));
+  const finished = !!handle && subjects.every((s) => answered(s.domain));
   const siteUrl = typeof window === "undefined" ? "" : window.location.origin;
+  const loading = authenticated && !!wallet && dash.isPending;
 
   return (
     <>
@@ -28,7 +44,7 @@ export function ClaimFlow() {
         {subjects.map((s) => (
           <li
             key={s.domain}
-            className={done.has(s.domain) ? "done" : current?.domain === s.domain ? "now" : ""}
+            className={answered(s.domain) ? "done" : current?.domain === s.domain ? "now" : ""}
           >
             Answer {s.domain}
           </li>
@@ -36,7 +52,9 @@ export function ClaimFlow() {
         <li className={finished ? "now" : ""}>Share</li>
       </ol>
 
-      {!finished && current && (
+      {loading && <p className="muted">reading your records…</p>}
+
+      {!loading && !finished && current && (
         <AttestFlow
           key={current.domain}
           fixedDomain={current.domain}
@@ -44,29 +62,59 @@ export function ClaimFlow() {
           title={step === 0 ? "Your handle" : `Question: ${current.domain}`}
           answerLabel={step === 0 ? undefined : questionFor(current.domain)}
           onPublished={({ handle: h, domain }) => {
-            if (!handle) setHandle(h);
+            if (!handle) setClaimed(h);
             if (domain !== root?.domain) setDone((d) => new Set(d).add(domain));
           }}
         />
       )}
 
-      {finished && handle && root && (
-        <section className="card" data-testid="share">
-          <h2>Share your page</h2>
-          <p>
-            <a href={`/p/${handle}`}>
-              {siteUrl}/p/{handle}
-            </a>
-          </p>
-          <p>
-            <code>{shareSnippet(handle, siteUrl, root.parentName)}</code>
-          </p>
-          <CopyButton text={shareSnippet(handle, siteUrl, root.parentName)} label="Copy for a cold email" />
-          <p className="muted">
-            Ask the people who can speak for you to open <code>/vouch/{handle}</code>. Every vouch is a
-            verified human staking their own permanent name.
-          </p>
-        </section>
+      {!loading && finished && handle && root && (
+        <>
+          <section className="card" data-testid="share">
+            <h2>Share your page</h2>
+            <p>
+              <a href={`/p/${handle}`}>
+                {siteUrl}/p/{handle}
+              </a>
+            </p>
+            <p>
+              <code>{shareSnippet(handle, siteUrl, root.parentName)}</code>
+            </p>
+            <CopyButton text={shareSnippet(handle, siteUrl, root.parentName)} label="Copy for a cold email" />
+          </section>
+          <section className="card" data-testid="next-steps">
+            <h2>Make it count</h2>
+            <ul className="checks">
+              <li>
+                <Link href={`/vouch/${handle}`}>Ask for references</Link> — send <code>/vouch/{handle}</code>{" "}
+                to people who can speak for you. Every vouch is a verified human staking their own permanent
+                name.
+              </li>
+              <li>
+                <Link href="/me">Link a work account</Link> — X, GitHub or Telegram, masked unless you share
+                the view code. Verifiers count live links.
+              </li>
+              <li>
+                <Link href="/me">Fill your ENS profile</Link> — avatar, description, website. Any ENS client
+                shows them on{" "}
+                <code>
+                  {handle}.{root.parentName}
+                </code>
+                .
+              </li>
+              <li>
+                <Link href="/me">
+                  Own <code>{handle}.eth</code>?
+                </Link>{" "}
+                Alias it so{" "}
+                <code>
+                  {root.parentLabel}.{handle}.eth
+                </code>{" "}
+                resolves to the same records.
+              </li>
+            </ul>
+          </section>
+        </>
       )}
     </>
   );
