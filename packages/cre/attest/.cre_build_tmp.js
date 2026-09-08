@@ -73970,8 +73970,8 @@ function expand(hash, prk, info, length = 32) {
   return okm.slice(0, length);
 }
 var hkdf = (hash, ikm, salt, info, length) => expand(hash, extract(hash, ikm, salt), info, length);
-var KEY_INFO = "att/ecies/key";
-var NONCE_INFO = "att/ecies/nonce";
+var KEY_INFO = "ketsuban/ecies/key";
+var NONCE_INFO = "ketsuban/ecies/nonce";
 function seedToPrivateKey(seed) {
   let k = sha2563(seed);
   while (!secp256k12.utils.isValidPrivateKey(k))
@@ -74008,7 +74008,7 @@ var INTENT_TYPES = {
   ]
 };
 function intentDomain(chainId, multipass) {
-  return { name: "Attestation Intent", version: "1", chainId, verifyingContract: multipass };
+  return { name: "Ketsuban Intent", version: "1", chainId, verifyingContract: multipass };
 }
 async function recoverIntentSigner(intent, signature, domain) {
   return recoverTypedDataAddress({
