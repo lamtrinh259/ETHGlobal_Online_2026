@@ -281,3 +281,11 @@ abi/
 
 
 .env
+
+# monorepo
+.slop/
+packages/*/out/
+packages/*/cache/
+packages/*/dist/
+apps/*/dist/
+coverage/

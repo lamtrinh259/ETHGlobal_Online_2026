@@ -1,0 +1,19 @@
+{
+  "name": "@att/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Attestation instances on ENSv2: AttestationFactory/Registry/Resolver/Bridge over Multipass",
+  "scripts": {
+    "build": "forge build",
+    "test": "forge test -vv",
+    "coverage": "forge coverage --report summary",
+    "lint": "forge fmt --check",
+    "lint:fix": "forge fmt",
+    "typecheck": "forge build"
+  },
+  "devDependencies": {
+    "@openzeppelin/contracts": "5.4.0",
+    "@openzeppelin/contracts-upgradeable": "5.4.0",
+    "@peeramid-labs/multipass": "1.1.0"
+  }
+}

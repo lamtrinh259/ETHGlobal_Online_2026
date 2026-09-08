@@ -1,0 +1,6 @@
+forge-std/=lib/forge-std/src/
+@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/
+@openzeppelin/contracts-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable/
+@peeramid-labs/multipass/=node_modules/@peeramid-labs/multipass/
+@ens/contracts/=vendor/ens/contracts/
+@ensv2/=vendor/ensv2/

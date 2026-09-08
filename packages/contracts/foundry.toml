@@ -1,0 +1,26 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+test = "test"
+script = "script"
+solc_version = "0.8.28"
+evm_version = "cancun"
+optimizer = true
+optimizer_runs = 200
+via_ir = false
+allow_paths = ["node_modules", "vendor"]
+fs_permissions = [{ access = "read", path = "./" }]
+gas_reports = ["AttestationRegistry", "AttestationResolver", "AttestationBridge", "AttestationFactory"]
+ignored_warnings_from = ["node_modules", "vendor", "test/mocks"]
+
+[fmt]
+line_length = 120
+tab_width = 4
+bracket_spacing = false
+
+[rpc_endpoints]
+sepolia = "${ETH_SEPOLIA_RPC_URL}"
+
+[etherscan]
+sepolia = { key = "${ETHERSCAN_V2_KEY}" }

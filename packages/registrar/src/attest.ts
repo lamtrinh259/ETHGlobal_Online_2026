@@ -1,0 +1,142 @@
+import { hmac } from "@noble/hashes/hmac";
+import { sha256 } from "@noble/hashes/sha256";
+import { concatBytes } from "@noble/hashes/utils";
+import { hexToBytes, keccak256, stringToBytes, zeroHash, type Hex } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+import {
+  deriveViewCode,
+  maskId,
+  maskName,
+  registerNameTypes,
+  toBytes32,
+  viewCodeCommitment,
+  type RegisterMessage,
+} from "@peeramid-labs/multipass-client";
+import { hasLinkedWallet, parseLinkedAccounts, pickPlatformAccount, PLATFORM_DOMAIN_NAMES } from "./accounts";
+import { eciesEncrypt } from "./ecies";
+import { intentDomain, recoverIntentSigner } from "./intent";
+import { verifyEs256Jwt } from "./jwt";
+import type { AttestEnv, AttestRequest, AttestResult, OnchainState, RegistrarSecrets } from "./types";
+
+const DAY = 24 * 60 * 60;
+const HANDLE_RE = /^[a-z0-9-]{1,31}$/;
+
+function isSupported(domain: string, env: AttestEnv): boolean {
+  return env.nameDomains.includes(domain) || (env.platformDomains ?? PLATFORM_DOMAIN_NAMES).includes(domain);
+}
+
+/** Fit a platform id into bytes32: verbatim when it fits, keccak otherwise (never throws) */
+export function idToBytes32(id: string): Hex {
+  return stringToBytes(id).length <= 31 ? toBytes32(id) : keccak256(stringToBytes(id));
+}
+
+/**
+ * Public leg (B.4 `attest`): no secrets, deterministic, runs on the DON.
+ * Wallet signed this intent, it is fresh, the domain is known, the nonce
+ * strictly increases, and a renewal may not rebind the wallet.
+ */
+export async function verifyPublicLeg(req: AttestRequest, onchain: OnchainState, env: AttestEnv): Promise<void> {
+  const { intent } = req;
+  if (!isSupported(intent.domain, env)) throw new Error(`intent: unknown domain "${intent.domain}"`);
+
+  const signer = await recoverIntentSigner(intent, req.signature, intentDomain(env.chainId, env.multipass));
+  if (signer.toLowerCase() !== intent.wallet.toLowerCase()) throw new Error("intent: bad signature");
+  if (intent.exp <= BigInt(env.now)) throw new Error("intent: expired");
+
+  if (intent.nonce < 1n) throw new Error("intent: nonce must be >= 1");
+  const onchainNonce = onchain.exists ? onchain.nonce : 0n;
+  if (intent.nonce <= onchainNonce) throw new Error("intent: nonce not increasing");
+  if (onchain.exists && onchain.wallet.toLowerCase() !== intent.wallet.toLowerCase()) {
+    throw new Error("record: wallet mismatch");
+  }
+}
+
+/**
+ * Confidential leg (B.4 `confidentialLeg`): identity token, secrets, preimages.
+ * Everything here is local computation; nothing leaves except the signed
+ * record and, if opted in, the view code encrypted to the user.
+ */
+export async function attestConfidential(
+  req: AttestRequest,
+  onchainId: Hex,
+  secrets: RegistrarSecrets,
+  env: AttestEnv
+): Promise<AttestResult> {
+  const { intent } = req;
+  const claims = verifyEs256Jwt(req.idToken, env.privy.verificationKey, {
+    issuer: "privy.io",
+    audience: env.privy.appId,
+    now: env.now,
+  });
+  const linked = parseLinkedAccounts(claims.linked_accounts);
+  if (!hasLinkedWallet(linked, intent.wallet)) throw new Error("identity: wallet not linked to DID");
+
+  let name: Hex;
+  let id: Hex;
+  let payload: Hex;
+  let viewCode: Hex | undefined;
+
+  if (env.nameDomains.includes(intent.domain)) {
+    if (intent.optIn) throw new Error("intent: name-domain handle is public, opt-in not allowed");
+    if (!HANDLE_RE.test(intent.handle)) throw new Error("intent: invalid handle");
+    name = toBytes32(intent.handle);
+    id = keccak256(stringToBytes(claims.sub));
+    payload = intent.payload;
+  } else {
+    const acct = pickPlatformAccount(linked, intent.domain);
+    if (intent.optIn) {
+      viewCode = deriveViewCode(secrets.viewcodeKey, intent.domain, acct.subject);
+      name = maskName(acct.username, viewCode);
+      id = maskId(acct.subject, viewCode);
+      payload = viewCodeCommitment(viewCode);
+    } else {
+      name = toBytes32(acct.username);
+      id = idToBytes32(acct.subject);
+      payload = zeroHash;
+    }
+  }
+
+  // Opt-in is immutable: a different account or a flipped opt-in derives a different id.
+  if (onchainId !== zeroHash && id !== onchainId) throw new Error("record: id mismatch — account or opt-in changed");
+
+  const record: RegisterMessage = {
+    name,
+    id,
+    domainName: toBytes32(intent.domain),
+    validUntil: BigInt(env.now + (env.termSeconds ?? 30 * DAY)),
+    nonce: intent.nonce,
+    wallet: intent.wallet,
+    payload,
+  };
+
+  const registrar = privateKeyToAccount(secrets.registrarKey);
+  const signature = await registrar.signTypedData({
+    domain: { ...env.eip712, chainId: env.chainId, verifyingContract: env.multipass },
+    types: registerNameTypes,
+    primaryType: "registerName",
+    message: record,
+  });
+
+  let box: AttestResult["viewCode"];
+  if (viewCode) {
+    const seed = hmac(
+      sha256,
+      hexToBytes(secrets.viewcodeKey),
+      concatBytes(stringToBytes("ecies"), hexToBytes(intent.pubkey), hexToBytes(viewCode))
+    );
+    box = eciesEncrypt(intent.pubkey, hexToBytes(viewCode), seed);
+  }
+
+  return { record, signature, viewCode: box };
+}
+
+/** Full pipeline: public leg then confidential leg. Node fallback and tests use this. */
+export async function attest(
+  req: AttestRequest,
+  onchain: OnchainState,
+  secrets: RegistrarSecrets,
+  env: AttestEnv
+): Promise<AttestResult> {
+  await verifyPublicLeg(req, onchain, env);
+  return attestConfidential(req, onchain.exists ? onchain.id : zeroHash, secrets, env);
+}
