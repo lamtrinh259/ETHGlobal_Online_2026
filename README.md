@@ -47,7 +47,7 @@ Sepolia dependencies: Multipass `0x418F82fd0014a4CA402F145978bfaF0555a9cA06`, EN
 
 Environment variables are listed in `.env.example`; never commit `.env`.
 
-## Live on Sepolia
+## Sepolia deployment
 
 | | |
 |---|---|
@@ -55,8 +55,6 @@ Environment variables are listed in `.env.example`; never commit `.env`.
 | Child instance | `kju-is.ketsuban.eth` → registry `0xA976CB21597c555F92e7A5de2dAAF06A3c0D63F7`, resolver `0x24d0F1dc28D9d05342C2c2ceA459C3f0Dffb18D8` |
 | Factory / Bridge | `0xc0281d75974155fE8513F623de726F040c4bcC51` / `0xC7283bD9Aad1B08947C841536946Ce4dA9c99929` |
 | Stock PermissionedResolver | `0x4E2d9783cEFF2ed72CD77C14206b29fe246b24F7` (Verifiable Factory proxy) |
-| First record | `alice.ketsuban.eth` — enclave-simulated signature, relayed by the API, registered in tx `0xc778c74484c6b4f1a424b348ec0622dde80b180ebad2573b8cfce9c30733d7ab` |
-| First vouch | `bob.alice.ketsuban.eth` — a second human's statement under Alice's auto-provisioned `~alice` instance, tx `0xee28340c8a56bcd3f55031654b0f449a00b4199c58e0cd3a228240f441b2bd8a` |
 
 ```bash
 # any ENSv2 client, no integration with us
@@ -65,7 +63,7 @@ cast call 0x4a1817d13e9cf196f471725176355c1234b63c70 "resolve(bytes,bytes)(bytes
   $(cast calldata "text(bytes32,string)" $(cast namehash alice.ketsuban.eth) "ketsuban:answer") --rpc-url sepolia
 ```
 
-Full artifact: `packages/contracts/deployments/11155111.json`. Runbook: `docs/deploy.md`.
+Artifact: `packages/contracts/deployments/11155111.json`. Runbook: `docs/deploy.md`.
 
 ## Resolver keys
 
