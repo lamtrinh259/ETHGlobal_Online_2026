@@ -3,3 +3,4 @@
 attest/dist/
 attest/config.local.json
 attest/fixtures/
+.cre_build_tmp.js
