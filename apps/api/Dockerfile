@@ -12,10 +12,11 @@ RUN pnpm --filter @ketsuban/registrar build && pnpm --filter @ketsuban/api build
 RUN pnpm deploy --filter @ketsuban/api --prod /out
 
 FROM node:22-alpine
-ENV NODE_ENV=production
+ENV NODE_ENV=production PORT=8787
 WORKDIR /app
 COPY --from=build /out /app
 EXPOSE 8787
 USER node
-HEALTHCHECK --interval=10s --timeout=3s --retries=6 CMD wget -qO- http://127.0.0.1:8787/healthz || exit 1
+# Coolify overrides PORT from its "Ports Exposes" setting; probe whatever the server actually binds.
+HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=6 CMD wget -qO- "http://127.0.0.1:${PORT:-8787}/healthz" || exit 1
 CMD ["node", "dist/server.js"]

@@ -77,7 +77,7 @@ Coolify → project → **New resource → Application (Git)** → repository `E
 | Build Pack | **Dockerfile** |
 | Base Directory | **`/`** — the image copies `packages/registrar` and the workspace lockfile; a base dir of `apps/api` makes every `COPY` fail with `"/packages/registrar": not found` |
 | Dockerfile Location | `/apps/api/Dockerfile` |
-| Port | `8787` |
+| Port | `8787` — Coolify sets `PORT` from this value and the image's HEALTHCHECK follows `$PORT`, so any port works as long as the proxy target matches |
 | Health | `/healthz` (the image declares a HEALTHCHECK; enable zero-downtime) |
 
 `apps/api/docker-compose.yml` is the alternative (Docker Compose build pack, base directory `/`, compose path
