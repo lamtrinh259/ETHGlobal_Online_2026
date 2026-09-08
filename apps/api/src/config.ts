@@ -24,7 +24,12 @@ export const configSchema = z.object({
   PRIVY_APP_ID: z.string(),
   PRIVY_VERIFICATION_KEY_JWK: z.string().transform((s, ctx) => {
     const r = jwk.safeParse(JSON.parse(s));
-    if (!r.success) ctx.addIssue({ code: "custom", message: "invalid P-256 JWK" });
+    if (!r.success) ctx.addIssue({ code: "custom", message: "invalid P-256 JWK"   /** Comma-separated browser origins allowed to call the API; "*" allows any (default) */
+  CORS_ORIGINS: z
+    .string()
+    .default("*")
+    .transform((v) => v.split(",").map((o) => o.trim()).filter(Boolean)),
+});
     return r.success ? r.data : (undefined as never);
   }),
   /** Comma-separated name domains this deployment serves, e.g. "kju-is" */
