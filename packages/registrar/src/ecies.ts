@@ -3,7 +3,7 @@ import { xchacha20poly1305 } from "@noble/ciphers/chacha";
 import { hkdf } from "@noble/hashes/hkdf";
 import { sha256 } from "@noble/hashes/sha256";
 import { bytesToHex, hexToBytes, type Hex } from "viem";
-import type { EciesBox } from "./types";
+import type { EciesBox } from "./types.js";
 
 const KEY_INFO = "att/ecies/key";
 const NONCE_INFO = "att/ecies/nonce";
@@ -29,7 +29,11 @@ function deriveKeys(shared: Uint8Array): { key: Uint8Array; nonce: Uint8Array } 
  * produce byte-identical output for consensus (B.4). Derive the seed from a
  * secret plus the plaintext so it is unpredictable to anyone else.
  */
-export function eciesEncrypt(recipientPubkey: Hex, plaintext: Uint8Array, ephemeralSeed: Uint8Array): EciesBox {
+export function eciesEncrypt(
+  recipientPubkey: Hex,
+  plaintext: Uint8Array,
+  ephemeralSeed: Uint8Array
+): EciesBox {
   const ephPriv = seedToPrivateKey(ephemeralSeed);
   const ephPub = secp256k1.getPublicKey(ephPriv, true);
   const shared = secp256k1.getSharedSecret(ephPriv, hexToBytes(recipientPubkey), true);
@@ -43,7 +47,11 @@ export function eciesEncrypt(recipientPubkey: Hex, plaintext: Uint8Array, epheme
 
 /** Client side: open the box with the wallet's private key */
 export function eciesDecrypt(recipientPrivkey: Hex, box: EciesBox): Uint8Array {
-  const shared = secp256k1.getSharedSecret(hexToBytes(recipientPrivkey), hexToBytes(box.ephemeralPubkey), true);
+  const shared = secp256k1.getSharedSecret(
+    hexToBytes(recipientPrivkey),
+    hexToBytes(box.ephemeralPubkey),
+    true
+  );
   const { key, nonce } = deriveKeys(shared);
   if (bytesToHex(nonce) !== box.nonce) throw new Error("ecies: nonce mismatch");
   return xchacha20poly1305(key, nonce).decrypt(hexToBytes(box.ciphertext));

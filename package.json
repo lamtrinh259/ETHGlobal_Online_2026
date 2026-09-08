@@ -12,13 +12,5 @@
     "test": "pnpm -r run test",
     "lint": "pnpm -r run lint",
     "typecheck": "pnpm -r run typecheck"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild"
-    ],
-    "ignoredBuiltDependencies": [
-      "keccak"
-    ]
   }
 }

@@ -1,4 +1,4 @@
-import type { LinkedAccount } from "./types";
+import type { LinkedAccount } from "./types.js";
 
 /** Multipass platform domain → Privy linked-account `type` (B.4 `toPrivyType`) */
 export const PLATFORM_DOMAINS: Readonly<Record<string, string>> = {
@@ -28,7 +28,9 @@ export function parseLinkedAccounts(raw: string): LinkedAccount[] {
 /** DID ↔ wallet: the intent's wallet must be one of the DID's linked wallets */
 export function hasLinkedWallet(linked: LinkedAccount[], wallet: string): boolean {
   const w = wallet.toLowerCase();
-  return linked.some((a) => a.type === "wallet" && typeof a.address === "string" && a.address.toLowerCase() === w);
+  return linked.some(
+    (a) => a.type === "wallet" && typeof a.address === "string" && a.address.toLowerCase() === w
+  );
 }
 
 export type PlatformAccount = { subject: string; username: string };

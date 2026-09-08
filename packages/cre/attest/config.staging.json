@@ -1,0 +1,15 @@
+{
+  "chainSelectorName": "ethereum-testnet-sepolia",
+  "chainId": 11155111,
+  "multipass": "0x418F82fd0014a4CA402F145978bfaF0555a9cA06",
+  "eip712": { "name": "MultipassDNS", "version": "1.0.0" },
+  "privy": {
+    "appId": "REPLACE_WITH_PRIVY_APP_ID",
+    "verificationKey": { "kty": "EC", "crv": "P-256", "x": "REPLACE", "y": "REPLACE" }
+  },
+  "nameDomains": ["kju-is"],
+  "termSeconds": 2592000,
+  "secretIds": { "registrarKey": "REGISTRAR_KEY", "viewcodeKey": "VIEWCODE_KEY" },
+  "authorizedKeys": [],
+  "deliveryUrl": ""
+}

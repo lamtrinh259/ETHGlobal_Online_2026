@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { bytesToHex, stringToBytes } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { base64urlDecode, base64urlEncode } from "../src/base64url";
-import { eciesDecrypt, eciesEncrypt } from "../src/ecies";
-import { jwkToPublicKey, verifyEs256Jwt } from "../src/jwt";
-import { hasLinkedWallet, parseLinkedAccounts, pickPlatformAccount, toPrivyType } from "../src/accounts";
-import { APP_ID, defaultLinked, mintIdToken, NOW, PRIVY_JWK, USER_KEY, userAccount } from "./fixtures";
+import { base64urlDecode, base64urlEncode } from "../src/base64url.js";
+import { eciesDecrypt, eciesEncrypt } from "../src/ecies.js";
+import { jwkToPublicKey, verifyEs256Jwt } from "../src/jwt.js";
+import { hasLinkedWallet, parseLinkedAccounts, pickPlatformAccount, toPrivyType } from "../src/accounts.js";
+import { APP_ID, defaultLinked, mintIdToken, NOW, PRIVY_JWK, USER_KEY, userAccount } from "./fixtures.js";
 
 describe("base64url", () => {
   it("round-trips arbitrary bytes", () => {
@@ -37,7 +37,11 @@ describe("verifyEs256Jwt", () => {
     ["wrong audience", mintIdToken(undefined, { aud: "other" }), "audience mismatch"],
     ["expired", mintIdToken(undefined, { exp: NOW }), "expired"],
     ["missing sub", mintIdToken(undefined, { sub: "" }), "missing sub"],
-    ["missing linked_accounts", mintIdToken(undefined, { linked_accounts: undefined }), "missing linked_accounts"],
+    [
+      "missing linked_accounts",
+      mintIdToken(undefined, { linked_accounts: undefined }),
+      "missing linked_accounts",
+    ],
     ["bad signature bytes", `${mintIdToken().split(".").slice(0, 2).join(".")}.AAAA`, "bad signature length"],
   ])("rejects %s", (_, token, msg) => {
     expect(() => verifyEs256Jwt(token, PRIVY_JWK, opts)).toThrow(msg);
@@ -45,7 +49,9 @@ describe("verifyEs256Jwt", () => {
 
   it("rejects a tampered payload", () => {
     const [h, , s] = mintIdToken().split(".");
-    const p = base64urlEncode(stringToBytes(JSON.stringify({ sub: "x", iss: "privy.io", aud: APP_ID, exp: NOW + 1 })));
+    const p = base64urlEncode(
+      stringToBytes(JSON.stringify({ sub: "x", iss: "privy.io", aud: APP_ID, exp: NOW + 1 }))
+    );
     expect(() => verifyEs256Jwt(`${h}.${p}.${s}`, PRIVY_JWK, opts)).toThrow("invalid signature");
   });
 
@@ -71,11 +77,15 @@ describe("accounts", () => {
   });
 
   it("supports telegram camelCase id and rejects accounts without subject/handle", () => {
-    expect(pickPlatformAccount([{ type: "telegram", telegramUserId: "42", username: "u" }], "telegram")).toEqual({
+    expect(
+      pickPlatformAccount([{ type: "telegram", telegramUserId: "42", username: "u" }], "telegram")
+    ).toEqual({
       subject: "42",
       username: "u",
     });
-    expect(() => pickPlatformAccount([{ type: "telegram", username: "u" }], "telegram")).toThrow("no subject");
+    expect(() => pickPlatformAccount([{ type: "telegram", username: "u" }], "telegram")).toThrow(
+      "no subject"
+    );
     expect(() => pickPlatformAccount([{ type: "twitter_oauth", subject: "1" }], "x")).toThrow("no handle");
   });
 });

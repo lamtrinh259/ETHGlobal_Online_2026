@@ -3,8 +3,8 @@ packages:
   - "packages/cre/attest"
   - "apps/*"
 allowBuilds:
-  esbuild: set this to true or false
-  keccak: set this to true or false
+  esbuild: true
+  keccak: false
 minimumReleaseAgeExclude:
   - '@peeramid-labs/multipass-client@1.1.0'
   - '@peeramid-labs/multipass@1.1.0'

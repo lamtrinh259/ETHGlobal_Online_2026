@@ -1,0 +1,24 @@
+staging-settings:
+  user-workflow:
+    workflow-name: "attest-staging"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.staging.json"
+    secrets-path: "../secrets.yaml"
+
+production-settings:
+  user-workflow:
+    workflow-name: "attest-production"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.production.json"
+    secrets-path: "../secrets.yaml"
+
+# Simulation against a fake Privy issuer whose key lives in config.local.json (see scripts/make-fixture.ts)
+local-settings:
+  user-workflow:
+    workflow-name: "attest-local"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.local.json"
+    secrets-path: "../secrets.yaml"

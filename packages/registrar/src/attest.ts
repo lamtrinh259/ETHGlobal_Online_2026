@@ -12,11 +12,16 @@ import {
   viewCodeCommitment,
   type RegisterMessage,
 } from "@peeramid-labs/multipass-client";
-import { hasLinkedWallet, parseLinkedAccounts, pickPlatformAccount, PLATFORM_DOMAIN_NAMES } from "./accounts";
-import { eciesEncrypt } from "./ecies";
-import { intentDomain, recoverIntentSigner } from "./intent";
-import { verifyEs256Jwt } from "./jwt";
-import type { AttestEnv, AttestRequest, AttestResult, OnchainState, RegistrarSecrets } from "./types";
+import {
+  hasLinkedWallet,
+  parseLinkedAccounts,
+  pickPlatformAccount,
+  PLATFORM_DOMAIN_NAMES,
+} from "./accounts.js";
+import { eciesEncrypt } from "./ecies.js";
+import { intentDomain, recoverIntentSigner } from "./intent.js";
+import { verifyEs256Jwt } from "./jwt.js";
+import type { AttestEnv, AttestRequest, AttestResult, OnchainState, RegistrarSecrets } from "./types.js";
 
 const DAY = 24 * 60 * 60;
 const HANDLE_RE = /^[a-z0-9-]{1,31}$/;
@@ -35,7 +40,11 @@ export function idToBytes32(id: string): Hex {
  * Wallet signed this intent, it is fresh, the domain is known, the nonce
  * strictly increases, and a renewal may not rebind the wallet.
  */
-export async function verifyPublicLeg(req: AttestRequest, onchain: OnchainState, env: AttestEnv): Promise<void> {
+export async function verifyPublicLeg(
+  req: AttestRequest,
+  onchain: OnchainState,
+  env: AttestEnv
+): Promise<void> {
   const { intent } = req;
   if (!isSupported(intent.domain, env)) throw new Error(`intent: unknown domain "${intent.domain}"`);
 
@@ -97,7 +106,8 @@ export async function attestConfidential(
   }
 
   // Opt-in is immutable: a different account or a flipped opt-in derives a different id.
-  if (onchainId !== zeroHash && id !== onchainId) throw new Error("record: id mismatch — account or opt-in changed");
+  if (onchainId !== zeroHash && id !== onchainId)
+    throw new Error("record: id mismatch — account or opt-in changed");
 
   const record: RegisterMessage = {
     name,

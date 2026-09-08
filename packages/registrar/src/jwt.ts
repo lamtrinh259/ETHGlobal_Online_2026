@@ -2,8 +2,8 @@ import { p256 } from "@noble/curves/p256";
 import { sha256 } from "@noble/hashes/sha256";
 import { concatBytes } from "@noble/hashes/utils";
 import { bytesToString, stringToBytes } from "viem";
-import { base64urlDecode } from "./base64url";
-import type { IdentityClaims, Jwk } from "./types";
+import { base64urlDecode } from "./base64url.js";
+import type { IdentityClaims, Jwk } from "./types.js";
 
 export type VerifyJwtOptions = {
   issuer: string;

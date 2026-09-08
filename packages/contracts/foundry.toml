@@ -10,7 +10,7 @@ optimizer = true
 optimizer_runs = 200
 via_ir = false
 allow_paths = ["node_modules", "vendor"]
-fs_permissions = [{ access = "read", path = "./" }]
+fs_permissions = [{ access = "read", path = "./" }, { access = "read-write", path = "./deployments" }]
 gas_reports = ["AttestationRegistry", "AttestationResolver", "AttestationBridge", "AttestationFactory"]
 ignored_warnings_from = ["node_modules", "vendor", "test/mocks"]
 

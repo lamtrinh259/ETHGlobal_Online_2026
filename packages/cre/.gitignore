@@ -1,0 +1,5 @@
+.env
+*.wasm
+attest/dist/
+attest/config.local.json
+attest/fixtures/

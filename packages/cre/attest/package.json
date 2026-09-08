@@ -1,0 +1,23 @@
+{
+  "name": "@att/cre-attest",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/main.js",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "simulate": "cd .. && cre workflow simulate attest --target staging-settings --non-interactive --trigger-index 0 --http-payload ./attest/fixtures/request.json"
+  },
+  "dependencies": {
+    "@att/registrar": "workspace:*",
+    "@chainlink/cre-sdk": "1.19.1",
+    "@peeramid-labs/multipass-client": "1.1.0",
+    "viem": "^2.38.3",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.2",
+    "typescript": "^5.9.3"
+  }
+}

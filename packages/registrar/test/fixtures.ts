@@ -1,25 +1,16 @@
-import { p256 } from "@noble/curves/p256";
-import { sha256 } from "@noble/hashes/sha256";
-import { stringToBytes, zeroHash, type Address, type Hex } from "viem";
+import { zeroHash, type Address, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { base64urlEncode } from "../src/base64url";
-import { intentDomain, signIntent } from "../src/intent";
-import type { AttestEnv, Intent, Jwk, LinkedAccount, RegistrarSecrets } from "../src/types";
+import { intentDomain, signIntent } from "../src/intent.js";
+import { fakePrivy } from "../src/testing.js";
+import type { AttestEnv, Intent, Jwk, LinkedAccount, RegistrarSecrets } from "../src/types.js";
 
 export const NOW = 1_800_000_000; // fixed clock, unix seconds
 export const APP_ID = "cltest-app-id";
 export const CHAIN_ID = 11155111;
 export const MULTIPASS: Address = "0x418F82fd0014a4CA402F145978bfaF0555a9cA06";
 
-/** Test-only Privy signing key (P-256) */
-const privyPriv = sha256(stringToBytes("privy-test-key"));
-const privyPub = p256.getPublicKey(privyPriv, false);
-export const PRIVY_JWK: Jwk = {
-  kty: "EC",
-  crv: "P-256",
-  x: base64urlEncode(privyPub.slice(1, 33)),
-  y: base64urlEncode(privyPub.slice(33, 65)),
-};
+const privy = fakePrivy(APP_ID);
+export const PRIVY_JWK: Jwk = privy.jwk;
 
 export const USER_KEY = "0x000000000000000000000000000000000000000000000000000000000000a11c" as const;
 export const userAccount = privateKeyToAccount(USER_KEY);
@@ -65,19 +56,17 @@ export type TokenOverrides = Partial<{
 
 /** Mint an ES256 identity token shaped like Privy's */
 export function mintIdToken(linked: LinkedAccount[] = defaultLinked(), o: TokenOverrides = {}): string {
-  const header = { alg: o.alg ?? "ES256", typ: "JWT" };
-  const payload: Record<string, unknown> = {
+  return privy.mint({
     sub: o.sub ?? DID,
-    iss: o.iss ?? "privy.io",
-    aud: o.aud ?? APP_ID,
-    iat: NOW - 60,
-    exp: o.exp ?? NOW + 3600,
-    linked_accounts: "linked_accounts" in o ? o.linked_accounts : JSON.stringify(linked),
-  };
-  const h = base64urlEncode(stringToBytes(JSON.stringify(header)));
-  const p = base64urlEncode(stringToBytes(JSON.stringify(payload)));
-  const sig = p256.sign(sha256(stringToBytes(`${h}.${p}`)), o.signWith ?? privyPriv).toCompactRawBytes();
-  return `${h}.${p}.${base64urlEncode(sig)}`;
+    linked,
+    now: NOW,
+    alg: o.alg,
+    iss: o.iss,
+    aud: o.aud,
+    exp: o.exp,
+    omitLinkedAccounts: "linked_accounts" in o && o.linked_accounts === undefined,
+    signWith: o.signWith,
+  });
 }
 
 export function makeIntent(over: Partial<Intent> = {}): Intent {

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { bytesToHex, keccak256, recoverTypedDataAddress, stringToBytes, zeroHash } from "viem";
 import { decodeRecord, fromBytes32, registerNameTypes, toBytes32 } from "@peeramid-labs/multipass-client";
-import { attest, attestConfidential, idToBytes32, verifyPublicLeg } from "../src/attest";
-import { eciesDecrypt } from "../src/ecies";
+import { attest, attestConfidential, idToBytes32, verifyPublicLeg } from "../src/attest.js";
+import { eciesDecrypt } from "../src/ecies.js";
 import {
   DID,
   defaultLinked,
@@ -16,7 +16,7 @@ import {
   signedRequest,
   USER_KEY,
   userAccount,
-} from "./fixtures";
+} from "./fixtures.js";
 
 async function recoverRegistrar(result: Awaited<ReturnType<typeof attest>>) {
   return recoverTypedDataAddress({
@@ -82,7 +82,10 @@ describe("attest — platform domain, opted in", () => {
     expect(res.viewCode).toBeDefined();
 
     const viewCode = bytesToHex(eciesDecrypt(USER_KEY, res.viewCode!));
-    expect(decodeRecord(res.record, viewCode)).toEqual({ handle: "fatpig", platformId: "1234567890123456789" });
+    expect(decodeRecord(res.record, viewCode)).toEqual({
+      handle: "fatpig",
+      platformId: "1234567890123456789",
+    });
     expect(await recoverRegistrar(res)).toBe(registrarAccount.address);
   });
 
@@ -97,7 +100,12 @@ describe("attest — platform domain, opted in", () => {
     const first = await attest(await signedRequest(makeIntent({ optIn: true })), noRecord, secrets, env);
     const onchain = { exists: true, nonce: 1n, id: first.record.id, wallet: userAccount.address };
 
-    const renew = await attest(await signedRequest(makeIntent({ optIn: true, nonce: 2n })), onchain, secrets, env);
+    const renew = await attest(
+      await signedRequest(makeIntent({ optIn: true, nonce: 2n })),
+      onchain,
+      secrets,
+      env
+    );
     expect(renew.record.id).toBe(first.record.id);
     expect(renew.record.nonce).toBe(2n);
 
@@ -119,7 +127,12 @@ describe("attest — name domain (kju-is as a config value)", () => {
 
   it("rejects opt-in and invalid handles", async () => {
     await expect(
-      attest(await signedRequest(makeIntent({ domain: "kju-is", handle: "fatpig", optIn: true })), noRecord, secrets, env)
+      attest(
+        await signedRequest(makeIntent({ domain: "kju-is", handle: "fatpig", optIn: true })),
+        noRecord,
+        secrets,
+        env
+      )
     ).rejects.toThrow("opt-in not allowed");
     await expect(
       attest(await signedRequest(makeIntent({ domain: "kju-is", handle: "Fat Pig" })), noRecord, secrets, env)
@@ -129,9 +142,9 @@ describe("attest — name domain (kju-is as a config value)", () => {
 
 describe("verifyPublicLeg", () => {
   it("rejects unknown domain", async () => {
-    await expect(verifyPublicLeg(await signedRequest(makeIntent({ domain: "myspace" })), noRecord, env)).rejects.toThrow(
-      "unknown domain"
-    );
+    await expect(
+      verifyPublicLeg(await signedRequest(makeIntent({ domain: "myspace" })), noRecord, env)
+    ).rejects.toThrow("unknown domain");
   });
 
   it("rejects a signature from another wallet", async () => {
@@ -140,26 +153,26 @@ describe("verifyPublicLeg", () => {
   });
 
   it("rejects expired intent", async () => {
-    await expect(verifyPublicLeg(await signedRequest(makeIntent({ exp: BigInt(NOW) })), noRecord, env)).rejects.toThrow(
-      "expired"
-    );
+    await expect(
+      verifyPublicLeg(await signedRequest(makeIntent({ exp: BigInt(NOW) })), noRecord, env)
+    ).rejects.toThrow("expired");
   });
 
   it("rejects non-increasing nonce and nonce 0", async () => {
     const onchain = { exists: true, nonce: 3n, id: toBytes32("x"), wallet: userAccount.address };
-    await expect(verifyPublicLeg(await signedRequest(makeIntent({ nonce: 3n })), onchain, env)).rejects.toThrow(
-      "nonce not increasing"
-    );
-    await expect(verifyPublicLeg(await signedRequest(makeIntent({ nonce: 0n })), noRecord, env)).rejects.toThrow(
-      "nonce must be >= 1"
-    );
+    await expect(
+      verifyPublicLeg(await signedRequest(makeIntent({ nonce: 3n })), onchain, env)
+    ).rejects.toThrow("nonce not increasing");
+    await expect(
+      verifyPublicLeg(await signedRequest(makeIntent({ nonce: 0n })), noRecord, env)
+    ).rejects.toThrow("nonce must be >= 1");
   });
 
   it("rejects wallet rebinding on renewal", async () => {
     const onchain = { exists: true, nonce: 1n, id: toBytes32("x"), wallet: registrarAccount.address };
-    await expect(verifyPublicLeg(await signedRequest(makeIntent({ nonce: 2n })), onchain, env)).rejects.toThrow(
-      "wallet mismatch"
-    );
+    await expect(
+      verifyPublicLeg(await signedRequest(makeIntent({ nonce: 2n })), onchain, env)
+    ).rejects.toThrow("wallet mismatch");
   });
 
   it("honours platformDomains and nameDomains allow-lists", async () => {
@@ -193,7 +206,10 @@ describe("attestConfidential — identity checks", () => {
   });
 
   it("rejects a token signed by another key", async () => {
-    const req = await signedRequest(makeIntent(), mintIdToken(undefined, { signWith: new Uint8Array(32).fill(7) }));
+    const req = await signedRequest(
+      makeIntent(),
+      mintIdToken(undefined, { signWith: new Uint8Array(32).fill(7) })
+    );
     await expect(attestConfidential(req, zeroHash, secrets, env)).rejects.toThrow("invalid signature");
   });
 });

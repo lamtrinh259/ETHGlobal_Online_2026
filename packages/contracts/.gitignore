@@ -2,3 +2,5 @@ out/
 cache/
 broadcast/**/dry-run/
 node_modules/
+deployments/local.json
+broadcast/

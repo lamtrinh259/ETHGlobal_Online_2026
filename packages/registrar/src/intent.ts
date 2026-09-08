@@ -1,6 +1,6 @@
 import { recoverTypedDataAddress, type Address, type Hex, type TypedDataDomain } from "viem";
 import type { PrivateKeyAccount } from "viem/accounts";
-import type { Intent } from "./types";
+import type { Intent } from "./types.js";
 
 /**
  * EIP-712 type of the wallet-signed intent. `optIn` is inside the typehash so

@@ -1,0 +1,86 @@
+import { readFileSync } from "node:fs";
+import { z } from "zod";
+import type { Address, Hex } from "viem";
+
+const hex = z.string().regex(/^0x[0-9a-fA-F]+$/);
+const address = z.string().regex(/^0x[0-9a-fA-F]{40}$/);
+const jwk = z.object({ kty: z.literal("EC"), crv: z.literal("P-256"), x: z.string(), y: z.string() });
+
+/**
+ * Service configuration. Everything is an environment variable so the same image runs
+ * locally (anvil), on Sepolia, and behind Coolify. Instance subjects are data, not code.
+ */
+export const configSchema = z.object({
+  PORT: z.coerce.number().int().default(8787),
+  RPC_URL: z.string().url(),
+  CHAIN_ID: z.coerce.number().int(),
+  MULTIPASS: address,
+  MULTIPASS_EIP712_NAME: z.string().default("MultipassDNS"),
+  MULTIPASS_EIP712_VERSION: z.string().default("1.0.0"),
+  BRIDGE: address,
+  FACTORY: address,
+  /** Relayer key that submits `bridge.verify`; a Privy server wallet replaces it in production */
+  RELAYER_KEY: hex,
+  PRIVY_APP_ID: z.string(),
+  PRIVY_VERIFICATION_KEY_JWK: z.string().transform((s, ctx) => {
+    const r = jwk.safeParse(JSON.parse(s));
+    if (!r.success) ctx.addIssue({ code: "custom", message: "invalid P-256 JWK" });
+    return r.success ? r.data : (undefined as never);
+  }),
+  /** Comma-separated name domains this deployment serves, e.g. "kju-is" */
+  NAME_DOMAINS: z.string().transform((s) =>
+    s
+      .split(",")
+      .map((d) => d.trim())
+      .filter(Boolean)
+  ),
+  /** Node registrar fallback (spec B.9.7); unset in production where the enclave signs */
+  REGISTRAR_KEY: hex.optional(),
+  VIEWCODE_KEY: hex.optional(),
+  /** Shared secret the CRE delivery must present in `x-delivery-token` */
+  DELIVERY_TOKEN: z.string().min(16).optional(),
+  RECORD_TERM_SECONDS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(30 * 24 * 3600),
+});
+
+export type Config = Omit<
+  z.infer<typeof configSchema>,
+  "MULTIPASS" | "BRIDGE" | "FACTORY" | "RELAYER_KEY" | "REGISTRAR_KEY" | "VIEWCODE_KEY"
+> & {
+  MULTIPASS: Address;
+  BRIDGE: Address;
+  FACTORY: Address;
+  RELAYER_KEY: Hex;
+  REGISTRAR_KEY?: Hex;
+  VIEWCODE_KEY?: Hex;
+};
+
+/** Addresses written by the forge deploy scripts (`deployments/<chainId>.json`, `local.json`) */
+const deploymentFile = z.object({
+  chainId: z.number().int(),
+  multipass: address,
+  bridge: address,
+  factory: address,
+});
+
+/**
+ * Load from the environment; when `DEPLOYMENT_FILE` points at a forge deployment artifact its
+ * addresses fill MULTIPASS / BRIDGE / FACTORY / CHAIN_ID unless set explicitly.
+ */
+export function loadConfig(env: Record<string, string | undefined> = process.env): Config {
+  let merged = { ...env };
+  if (env.DEPLOYMENT_FILE) {
+    const d = deploymentFile.parse(JSON.parse(readFileSync(env.DEPLOYMENT_FILE, "utf8")));
+    merged = {
+      CHAIN_ID: String(d.chainId),
+      MULTIPASS: d.multipass,
+      BRIDGE: d.bridge,
+      FACTORY: d.factory,
+      ...Object.fromEntries(Object.entries(env).filter(([, v]) => v !== undefined && v !== "")),
+    };
+  }
+  return configSchema.parse(merged) as Config;
+}
