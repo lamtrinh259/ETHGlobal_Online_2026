@@ -4,7 +4,10 @@ import Link from "next/link";
 import { useMemo } from "react";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import type { Address } from "viem";
-import { apiFor, useGasTopup, useWalletDashboard } from "@/lib/hooks";
+import { apiFor, useGasTopup, useVouches, useWalletDashboard } from "@/lib/hooks";
+import { nameRows } from "@/lib/journey";
+import { vouchRequest } from "@/lib/profile";
+import { CopyButton } from "@/app/CopyButton";
 import { formatEther } from "viem";
 import type { Signer } from "@/lib/chain";
 import { ProfileEditor } from "./ProfileEditor";
@@ -34,6 +37,13 @@ export function Dashboard() {
   };
   const dash = useWalletDashboard(api, wallet);
   const gas = useGasTopup(wallet);
+  const rows = nameRows(dash.data, config.instances);
+  const rootLive = rows[0]?.live ? rows[0].ensName.split(".")[0] : undefined;
+  const received = useVouches(api, rootLive);
+  const liveVouchers = [
+    ...new Set((received.data?.vouches ?? []).filter((v) => v.live).map((v) => v.voucher)),
+  ];
+  const siteUrl = typeof window === "undefined" ? "" : window.location.origin;
   const root = config.instances[0];
 
   if (!ready) return <p className="muted">loading…</p>;
@@ -83,21 +93,28 @@ export function Dashboard() {
         <p className="muted">
           wallet <code>{wallet && short(wallet)}</code>
         </p>
-        {d.names.length === 0 ? (
+        {rows.length === 0 ? (
           <p>
             No name yet. <Link href="/claim">Claim one →</Link>
           </p>
         ) : (
           <dl className="kv">
-            {d.names.map((n) => (
-              <div key={`${n.domain}:${n.name}`} className="kv-row">
-                <dt>
-                  <Link href={`/v/${n.ensName}`}>{n.ensName}</Link>
-                </dt>
+            {rows.map((r) => (
+              <div key={r.domain} className="kv-row" data-testid={`name-${r.domain}`}>
+                <dt>{r.live ? <Link href={`/v/${r.ensName}`}>{r.ensName}</Link> : r.ensName}</dt>
                 <dd>
-                  {n.payload ? `“${n.payload}” · ` : ""}
-                  <span className={n.live ? "muted" : "error"}>{n.live ? "live" : "expired"}</span> until{" "}
-                  {fmtUtc(n.validUntil)} · nonce {n.nonce}
+                  {r.live ? (
+                    <>
+                      {r.live.payload ? `“${r.live.payload}” · ` : ""}
+                      <span className="muted">live</span> until {fmtUtc(r.live.validUntil)} · nonce{" "}
+                      {r.live.nonce} · <Link href={r.href}>{r.live.payload ? "change" : "renew"} →</Link>
+                    </>
+                  ) : (
+                    <>
+                      <span className="error">{r.expired ? "expired" : "not answered"}</span> ·{" "}
+                      <Link href={r.href}>{r.expired ? "renew" : "answer now"} →</Link>
+                    </>
+                  )}
                 </dd>
               </div>
             ))}
@@ -105,11 +122,43 @@ export function Dashboard() {
         )}
         {rootName && (
           <p>
-            <Link href={`/p/${rootName.name}`}>Your reference page →</Link> ·{" "}
-            <Link href="/claim">Answer more / renew →</Link>
+            <Link href={`/p/${rootName.name}`}>Your reference page →</Link>
           </p>
         )}
       </section>
+
+      {rootName && root && (
+        <section className="card" data-testid="dash-references">
+          <h2>References</h2>
+          {received.data ? (
+            <p>
+              {liveVouchers.length === 0 ? (
+                <>
+                  <strong>None yet.</strong> Verifiers usually want three.
+                </>
+              ) : (
+                <>
+                  <strong>{liveVouchers.length} live</strong> from{" "}
+                  {liveVouchers.map((v, i) => (
+                    <span key={v}>
+                      {i > 0 && ", "}
+                      <Link href={`/p/${v}`}>{v}</Link>
+                    </span>
+                  ))}
+                  .
+                </>
+              )}
+            </p>
+          ) : (
+            <p className="muted">reading references…</p>
+          )}
+          <p className="muted">Ask someone who worked with you. Paste this:</p>
+          <code data-testid="vouch-request">{vouchRequest(rootName.name, siteUrl, root.parentName)}</code>
+          <p>
+            <CopyButton text={vouchRequest(rootName.name, siteUrl, root.parentName)} label="Copy the ask" />
+          </p>
+        </section>
+      )}
 
       {rootName && root && (
         <>

@@ -224,3 +224,9 @@ export function disclosureLink(siteUrl: string, handle: string, domain: string, 
   const q = new URLSearchParams({ links: domain, viewCode });
   return `${siteUrl.replace(/\/$/, "")}/p/${handle}?${q.toString()}`;
 }
+
+/** The message a candidate pastes to someone they ask for a reference. */
+export function vouchRequest(handle: string, siteUrl: string, rootParent: string): string {
+  const base = siteUrl.replace(/\/$/, "");
+  return `Could you vouch for me? It takes five minutes and lands as your own permanent name: ${base}/vouch/${handle} (my page: ${handle}.${rootParent})`;
+}

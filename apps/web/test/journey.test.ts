@@ -3,6 +3,7 @@ import type { WalletDashboard } from "@/lib/api";
 import {
   claimProgress,
   isNameDomainFor,
+  nameRows,
   needsAttention,
   parentNameFor,
   voucherProgress,
@@ -121,5 +122,36 @@ describe("needsAttention", () => {
     ]);
     expect(needsAttention(soonDash, now, 1)).toHaveLength(1);
     expect(needsAttention(undefined, now)).toEqual([]);
+  });
+});
+
+describe("nameRows", () => {
+  it("builds one row per instance under the held handle, distinguishing missing, live and expired", () => {
+    const three = [
+      ...config.instances,
+      { domain: "uni", parentName: "uni.ketsuban.eth", parentLabel: "uni" },
+    ];
+    const withExpired: WalletDashboard = {
+      ...dash,
+      names: [...dash.names, { ...rec("uni", "bob", "cs", false), ensName: "bob.uni.ketsuban.eth" }],
+    };
+    expect(nameRows(withExpired, three)).toEqual([
+      {
+        domain: "ketsuban",
+        ensName: "bob.ketsuban.eth",
+        live: { payload: "", validUntil: "2027-01-01T00:00:00.000Z", nonce: "1" },
+        expired: false,
+        href: "/claim?renew=ketsuban",
+      },
+      {
+        domain: "kju-is",
+        ensName: "bob.kju-is.ketsuban.eth",
+        live: { payload: "terrible dictator", validUntil: "2027-01-01T00:00:00.000Z", nonce: "1" },
+        expired: false,
+        href: "/claim?renew=kju-is",
+      },
+      { domain: "uni", ensName: "bob.uni.ketsuban.eth", live: undefined, expired: true, href: "/claim" },
+    ]);
+    expect(nameRows(undefined, three)).toEqual([]);
   });
 });

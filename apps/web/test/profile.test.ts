@@ -12,6 +12,7 @@ import {
   policyToQuery,
   presetPolicy,
   shareSnippet,
+  vouchRequest,
 } from "@/lib/profile";
 
 const config = {
@@ -161,6 +162,14 @@ describe("shareSnippet", () => {
   it("builds the cold-email line", () => {
     expect(shareSnippet("alice", "https://app.example/", "ketsuban.eth")).toBe(
       "Verify me at Ketsuban: https://app.example/p/alice — on-chain name alice.ketsuban.eth"
+    );
+  });
+});
+
+describe("vouchRequest", () => {
+  it("builds the ask-for-a-reference message", () => {
+    expect(vouchRequest("alice", "https://app.example/", "ketsuban.eth")).toBe(
+      "Could you vouch for me? It takes five minutes and lands as your own permanent name: https://app.example/vouch/alice (my page: alice.ketsuban.eth)"
     );
   });
 });

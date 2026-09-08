@@ -108,3 +108,30 @@ export function needsAttention(dash: WalletDashboard | undefined, nowMs: number,
   ];
   return out.sort((a, b) => a.daysLeft - b.daysLeft);
 }
+
+export type NameRow = {
+  domain: string;
+  ensName: string;
+  /** Live record under the held handle, if any */
+  live?: { payload: string; validUntil: string; nonce: string };
+  /** Expired record exists (renewal, not a first claim) */
+  expired: boolean;
+  href: string;
+};
+
+/** One row per instance for the dashboard: what is answered, what is missing, where to go. */
+export function nameRows(dash: WalletDashboard | undefined, instances: Instances["instances"]): NameRow[] {
+  const { handle } = claimProgress(dash, instances);
+  if (!handle) return [];
+  return instances.map((i, idx) => {
+    const mine = (dash?.names ?? []).filter((n) => n.domain === i.domain && n.name === handle);
+    const live = mine.find((n) => n.live);
+    return {
+      domain: i.domain,
+      ensName: `${handle}.${i.parentName}`,
+      live: live ? { payload: live.payload, validUntil: live.validUntil, nonce: live.nonce } : undefined,
+      expired: !live && mine.length > 0,
+      href: live || idx === 0 ? `/claim?renew=${i.domain}` : "/claim",
+    };
+  });
+}

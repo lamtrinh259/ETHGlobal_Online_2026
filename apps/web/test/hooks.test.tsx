@@ -14,6 +14,7 @@ import {
   useNonce,
   useProfileWrite,
   useVerification,
+  useVouches,
   useWalletDashboard,
 } from "@/lib/hooks";
 import * as chain from "@/lib/chain";
@@ -146,6 +147,11 @@ describe("hooks", () => {
     expect(api.nameStatus).toHaveBeenCalledWith("ketsuban", "taken");
     const off = renderHook(() => useNameStatus(api, "ketsuban", "free", false), { wrapper: wrapper() });
     expect(off.result.current.fetchStatus).toBe("idle");
+
+    const noHandle = renderHook(() => useVouches(api, undefined), { wrapper: wrapper() });
+    expect(noHandle.result.current.fetchStatus).toBe("idle");
+    const vouches = renderHook(() => useVouches(api, "alice"), { wrapper: wrapper() });
+    await waitFor(() => expect(vouches.result.current.data?.handle).toBe("alice"));
 
     const noWallet = renderHook(() => useWalletDashboard(api, undefined), { wrapper: wrapper() });
     expect(noWallet.result.current.fetchStatus).toBe("idle");

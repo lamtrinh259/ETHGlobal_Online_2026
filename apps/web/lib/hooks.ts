@@ -110,3 +110,12 @@ export function useGasTopup(wallet: Address | undefined) {
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["wallet", wallet] }),
   });
 }
+
+/** References written under a handle, for the candidate's own view of who has spoken. */
+export function useVouches(api: Api, handle: string | undefined) {
+  return useQuery({
+    queryKey: ["vouches", handle],
+    queryFn: () => api.vouches(handle as string),
+    enabled: !!handle,
+  });
+}
