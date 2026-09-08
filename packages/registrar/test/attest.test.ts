@@ -34,7 +34,7 @@ describe("attest — platform domain, public record", () => {
     const res = await attest(req, noRecord, secrets, env);
 
     expect(res.record).toEqual({
-      name: toBytes32("fatpig"),
+      name: toBytes32("alice"),
       id: toBytes32("1234567890123456789"),
       domainName: toBytes32("x"),
       validUntil: BigInt(NOW + 30 * 86400),
@@ -61,9 +61,9 @@ describe("attest — platform domain, public record", () => {
 
   it("maps telegram / google / email accounts", async () => {
     for (const [domain, name, id] of [
-      ["telegram", "fatpig_tg", "987654321"],
-      ["google", "fatpig@example.com", "10987654321098765432"],
-      ["email", "fatpig@example.com", "fatpig@example.com"],
+      ["telegram", "alice_tg", "987654321"],
+      ["google", "alice@example.com", "10987654321098765432"],
+      ["email", "alice@example.com", "alice@example.com"],
     ] as const) {
       const res = await attest(await signedRequest(makeIntent({ domain })), noRecord, secrets, env);
       expect(fromBytes32(res.record.name)).toBe(name);
@@ -78,12 +78,12 @@ describe("attest — platform domain, opted in", () => {
     const res = await attest(req, noRecord, secrets, env);
 
     expect(res.record.payload).not.toBe(zeroHash);
-    expect(res.record.name).not.toBe(toBytes32("fatpig"));
+    expect(res.record.name).not.toBe(toBytes32("alice"));
     expect(res.viewCode).toBeDefined();
 
     const viewCode = bytesToHex(eciesDecrypt(USER_KEY, res.viewCode!));
     expect(decodeRecord(res.record, viewCode)).toEqual({
-      handle: "fatpig",
+      handle: "alice",
       platformId: "1234567890123456789",
     });
     expect(await recoverRegistrar(res)).toBe(registrarAccount.address);
@@ -118,9 +118,9 @@ describe("attest — platform domain, opted in", () => {
 describe("attest — name domain (kju-is as a config value)", () => {
   it("uses the handle as name, keccak(DID) as id, answer as payload", async () => {
     const payload = toBytes32("terrible dictator");
-    const req = await signedRequest(makeIntent({ domain: "kju-is", handle: "fatpig", payload }));
+    const req = await signedRequest(makeIntent({ domain: "kju-is", handle: "alice", payload }));
     const res = await attest(req, noRecord, secrets, env);
-    expect(res.record.name).toBe(toBytes32("fatpig"));
+    expect(res.record.name).toBe(toBytes32("alice"));
     expect(res.record.id).toBe(keccak256(stringToBytes(DID)));
     expect(res.record.payload).toBe(payload);
   });
@@ -128,14 +128,14 @@ describe("attest — name domain (kju-is as a config value)", () => {
   it("rejects opt-in and invalid handles", async () => {
     await expect(
       attest(
-        await signedRequest(makeIntent({ domain: "kju-is", handle: "fatpig", optIn: true })),
+        await signedRequest(makeIntent({ domain: "kju-is", handle: "alice", optIn: true })),
         noRecord,
         secrets,
         env
       )
     ).rejects.toThrow("opt-in not allowed");
     await expect(
-      attest(await signedRequest(makeIntent({ domain: "kju-is", handle: "Fat Pig" })), noRecord, secrets, env)
+      attest(await signedRequest(makeIntent({ domain: "kju-is", handle: "Alice" })), noRecord, secrets, env)
     ).rejects.toThrow("invalid handle");
   });
 });

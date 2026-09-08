@@ -63,13 +63,13 @@ export function fakePrivy(appId: string, seed = "privy-test-key"): FakePrivy {
 }
 
 /** A user with an embedded wallet and the usual linked accounts */
-export function fakeUser(privateKey: Hex, handle = "fatpig") {
+export function fakeUser(privateKey: Hex, handle = "alice") {
   const account = privateKeyToAccount(privateKey);
   const did = `did:privy:${handle}`;
   const linked: LinkedAccount[] = [
     { type: "wallet", address: account.address, chain_type: "ethereum" },
-    { type: "twitter_oauth", subject: "1234567890123456789", username: handle, name: "Fat Pig" },
-    { type: "telegram", telegram_user_id: "987654321", username: `${handle}_tg`, first_name: "Fat" },
+    { type: "twitter_oauth", subject: "1234567890123456789", username: handle, name: "Alice" },
+    { type: "telegram", telegram_user_id: "987654321", username: `${handle}_tg`, first_name: "Alice" },
     { type: "google_oauth", subject: "10987654321098765432", email: `${handle}@example.com` },
     { type: "email", address: `${handle}@example.com` },
   ];

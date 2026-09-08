@@ -108,7 +108,7 @@ describe("onAttest", () => {
     expect(deliveries).toHaveLength(0);
 
     expect(out.record).toEqual({
-      name: toBytes32("fatpig"),
+      name: toBytes32("alice"),
       id: toBytes32("1234567890123456789"),
       domainName: toBytes32("x"),
       validUntil: String(NOW + 30 * 86400),
@@ -132,14 +132,14 @@ describe("onAttest", () => {
     const out = JSON.parse(await onAttest(runtime, (await request({ optIn: true })) as any));
     expect(out.record.payload).not.toBe(zeroHash);
     const viewCode = bytesToHex(eciesDecrypt(USER_KEY, out.viewCode));
-    expect(decodeRecord(out.record, viewCode)).toEqual({ handle: "fatpig", platformId: "1234567890123456789" });
+    expect(decodeRecord(out.record, viewCode)).toEqual({ handle: "alice", platformId: "1234567890123456789" });
   });
 
   test("name domain from config: handle becomes the label, answer the payload", async () => {
     const { runtime } = fakeTeeRuntime();
     const answer = toBytes32("terrible dictator");
-    const out = JSON.parse(await onAttest(runtime, (await request({ domain: "kju-is", handle: "fatpig", payload: answer })) as any));
-    expect(out.record.name).toBe(toBytes32("fatpig"));
+    const out = JSON.parse(await onAttest(runtime, (await request({ domain: "kju-is", handle: "alice", payload: answer })) as any));
+    expect(out.record.name).toBe(toBytes32("alice"));
     expect(out.record.payload).toBe(answer);
     expect(out.record.domainName).toBe(toBytes32("kju-is"));
   });

@@ -9,11 +9,11 @@ import {MockPermissionedResolver} from "./mocks/MockPermissionedResolver.sol";
 import {BaseTest} from "./Base.t.sol";
 
 contract AttestationResolverTest is BaseTest {
-    string internal constant NAME = "fatpig.acme-alumni.eth";
+    string internal constant NAME = "alice.acme-alumni.eth";
 
     function setUp() public override {
         super.setUp();
-        registerName(alice, "fatpig", "terrible dictator");
+        registerName(alice, "alice", "terrible dictator");
     }
 
     // ---------- addr / att:* text ----------
@@ -49,7 +49,7 @@ contract AttestationResolverTest is BaseTest {
     // ---------- ketsuban:link:<domain> ----------
 
     function test_link_publicPlatformRecord() public {
-        LibMultipass.Record memory r = record(X, alice, b32("fatpig_x"), b32("1234567890"), 1, bytes32(0));
+        LibMultipass.Record memory r = record(X, alice, b32("alice_x"), b32("1234567890"), 1, bytes32(0));
         registerVia(alice, r, X_FEE);
 
         bytes memory packed = resolveData(NAME, "ketsuban:link:x");
@@ -71,7 +71,7 @@ contract AttestationResolverTest is BaseTest {
 
     function test_link_emptyWhenNoRecordOrExpired() public {
         assertEq(resolveData(NAME, "ketsuban:link:x").length, 0);
-        LibMultipass.Record memory r = record(X, alice, b32("fatpig_x"), b32("1"), 1, bytes32(0));
+        LibMultipass.Record memory r = record(X, alice, b32("alice_x"), b32("1"), 1, bytes32(0));
         registerVia(alice, r, X_FEE);
         vm.warp(block.timestamp + TERM);
         assertEq(resolveData(NAME, "ketsuban:link:x").length, 0);

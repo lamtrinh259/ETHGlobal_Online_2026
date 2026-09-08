@@ -19,7 +19,7 @@ const API = process.env.E2E_API_URL ?? `http://127.0.0.1:${process.env.E2E_API_P
 const RPC = process.env.E2E_RPC_URL ?? `http://127.0.0.1:${process.env.E2E_ANVIL_PORT ?? "18545"}`;
 const privy = fakePrivy(APP_ID, PRIVY_SEED);
 const USER_KEY = "0x000000000000000000000000000000000000000000000000000000000000a11c" as const;
-const user = fakeUser(USER_KEY, "fatpig");
+const user = fakeUser(USER_KEY, "alice");
 
 let deployment: { multipass: Hex; instanceDomain: string; instanceParent: string };
 
@@ -56,7 +56,7 @@ describe("api e2e", () => {
     const answer = toBytes32("terrible dictator");
     const intent = baseIntent(user.account, now, {
       domain: deployment.instanceDomain,
-      handle: "fatpig",
+      handle: "alice",
       payload: answer,
       exp: BigInt(now + 3600),
     });
@@ -71,7 +71,7 @@ describe("api e2e", () => {
       })
     ).json();
     expect(attested.record).toMatchObject({
-      name: toBytes32("fatpig"),
+      name: toBytes32("alice"),
       domainName: toBytes32(deployment.instanceDomain),
       payload: answer,
       nonce: "1",
@@ -95,7 +95,7 @@ describe("api e2e", () => {
       functionName: "resolveRecord",
       args: [
         {
-          name: toBytes32("fatpig"),
+          name: toBytes32("alice"),
           id: zeroHash,
           wallet: "0x0000000000000000000000000000000000000000",
           domainName: toBytes32(deployment.instanceDomain),
@@ -107,7 +107,7 @@ describe("api e2e", () => {
     expect(onchain.wallet).toBe(user.account.address);
     expect(onchain.payload).toBe(answer);
 
-    const name = `fatpig.${deployment.instanceParent}`;
+    const name = `alice.${deployment.instanceParent}`;
     const verified = await (await fetch(`${API}/v1/verify/${name}`)).json();
     expect(verified).toMatchObject({
       name,
@@ -136,7 +136,7 @@ describe("api e2e", () => {
     expect(attested.viewCode).not.toBeNull();
     const viewCode = bytesToHex(eciesDecrypt(USER_KEY, attested.viewCode));
     expect(decodeRecord(attested.record, viewCode)).toEqual({
-      handle: "fatpig",
+      handle: "alice",
       platformId: "1234567890123456789",
     });
 
@@ -149,12 +149,12 @@ describe("api e2e", () => {
     ).json();
     expect(delivered.ok).toBe(true);
 
-    const name = `fatpig.${deployment.instanceParent}`;
+    const name = `alice.${deployment.instanceParent}`;
     const masked = await (await fetch(`${API}/v1/verify/${name}?links=x`)).json();
     expect(masked.links).toEqual([{ domain: "x", optedIn: true, commitment: attested.record.payload }]);
 
     const disclosed = await (await fetch(`${API}/v1/verify/${name}?links=x&viewCode=${viewCode}`)).json();
-    expect(disclosed.links[0].disclosed).toEqual({ handle: "fatpig", platformId: "1234567890123456789" });
+    expect(disclosed.links[0].disclosed).toEqual({ handle: "alice", platformId: "1234567890123456789" });
     expect(disclosed.evidence).toContain("x_account_control");
   });
 

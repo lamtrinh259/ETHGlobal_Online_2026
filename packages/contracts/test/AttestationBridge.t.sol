@@ -9,17 +9,17 @@ import {AttestationFactory} from "../src/AttestationFactory.sol";
 import {BaseTest} from "./Base.t.sol";
 
 contract AttestationBridgeTest is BaseTest {
-    string internal constant NAME = "fatpig.acme-alumni.eth";
+    string internal constant NAME = "alice.acme-alumni.eth";
 
     // ---------- verify ----------
 
     function test_verify_registersAndGrantsFourTextKeys() public {
-        registerName(alice, "fatpig", "answer");
+        registerName(alice, "alice", "answer");
 
         (bool ok, LibMultipass.Record memory r) =
             mp.resolveRecord(LibMultipass.NameQuery(INSTANCE, alice, bytes32(0), bytes32(0), bytes32(0)));
         assertTrue(ok);
-        assertEq(r.name, b32("fatpig"));
+        assertEq(r.name, b32("alice"));
         assertEq(r.payload, b32("answer"));
         assertEq(r.nonce, 1);
         assertEq(r.validUntil, block.timestamp + TERM);
@@ -33,22 +33,22 @@ contract AttestationBridgeTest is BaseTest {
     }
 
     function test_verify_platformDomainGrantsNothing() public {
-        LibMultipass.Record memory r = record(X, alice, b32("fatpig_x"), b32("1"), 1, bytes32(0));
+        LibMultipass.Record memory r = record(X, alice, b32("alice_x"), b32("1"), 1, bytes32(0));
         registerVia(alice, r, X_FEE);
         assertFalse(inner.hasTextGrant(dns(NAME), "avatar", alice));
-        assertFalse(inner.hasTextGrant(dns("fatpig_x.acme-alumni.eth"), "avatar", alice));
+        assertFalse(inner.hasTextGrant(dns("alice_x.acme-alumni.eth"), "avatar", alice));
     }
 
     function test_verify_anyoneCanPayForAnyone() public {
-        LibMultipass.Record memory r = record(INSTANCE, alice, b32("fatpig"), b32("id"), 1, b32("a"));
+        LibMultipass.Record memory r = record(INSTANCE, alice, b32("alice"), b32("id"), 1, b32("a"));
         vm.prank(bob);
         bridge.verify(r, signRecord(r), emptyQuery(), "");
-        assertEq(registry.getResolver("fatpig"), address(shim));
+        assertEq(registry.getResolver("alice"), address(shim));
         assertTrue(inner.hasTextGrant(dns(NAME), "avatar", alice), "grant goes to the record wallet, not the payer");
     }
 
     function test_verify_forwardsFeeAndRevertsWhenUnderpaid() public {
-        LibMultipass.Record memory r = record(X, alice, b32("fatpig_x"), b32("1"), 1, bytes32(0));
+        LibMultipass.Record memory r = record(X, alice, b32("alice_x"), b32("1"), 1, bytes32(0));
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(IMultipass.paymentTooLow.selector, X_FEE, X_FEE - 1));
         bridge.verify{value: X_FEE - 1}(r, signRecord(r), emptyQuery(), "");
@@ -60,7 +60,7 @@ contract AttestationBridgeTest is BaseTest {
     }
 
     function test_verify_badRegistrarSignatureReverts() public {
-        LibMultipass.Record memory r = record(INSTANCE, alice, b32("fatpig"), b32("id"), 1, b32("a"));
+        LibMultipass.Record memory r = record(INSTANCE, alice, b32("alice"), b32("id"), 1, b32("a"));
         bytes memory sig = signRecord(r);
         r.payload = b32("tampered");
         vm.prank(alice);
@@ -102,7 +102,7 @@ contract AttestationBridgeTest is BaseTest {
         bytes32 orgId = keccak256("acme");
         address orgWallet = _setupOrg(orgId, 0x0C3E);
 
-        LibMultipass.Record memory r = record(X, alice, b32("fatpig_x"), b32("1"), 1, bytes32(0));
+        LibMultipass.Record memory r = record(X, alice, b32("alice_x"), b32("1"), 1, bytes32(0));
         uint256 orgBefore = orgWallet.balance;
         uint256 treasuryBefore = treasury.balance;
 
@@ -113,7 +113,7 @@ contract AttestationBridgeTest is BaseTest {
 
         assertEq(orgBefore - orgWallet.balance, X_FEE - X_DISCOUNT - X_REWARD, "org pays discounted fee minus reward");
         assertEq(treasury.balance - treasuryBefore, X_FEE - X_DISCOUNT - X_REWARD);
-        assertEq(registry.getResolver("fatpig_x"), address(0), "platform record is not an ENS name");
+        assertEq(registry.getResolver("alice_x"), address(0), "platform record is not an ENS name");
         (bool ok,) = mp.resolveRecord(LibMultipass.NameQuery(X, alice, bytes32(0), bytes32(0), bytes32(0)));
         assertTrue(ok);
     }
@@ -121,7 +121,7 @@ contract AttestationBridgeTest is BaseTest {
     function test_verifyFor_grantsTextKeysForInstanceDomain() public {
         bytes32 orgId = keccak256("acme");
         address orgWallet = _setupOrg(orgId, 0x0C3E);
-        LibMultipass.Record memory r = record(INSTANCE, alice, b32("fatpig"), b32("id"), 1, b32("a"));
+        LibMultipass.Record memory r = record(INSTANCE, alice, b32("alice"), b32("id"), 1, b32("a"));
         vm.prank(orgWallet);
         bridge.verifyFor(orgId, r, signRecord(r));
         assertTrue(inner.hasTextGrant(dns(NAME), "avatar", alice));
@@ -130,7 +130,7 @@ contract AttestationBridgeTest is BaseTest {
     function test_verifyFor_onlyOrgTreasury() public {
         bytes32 orgId = keccak256("acme");
         _setupOrg(orgId, 0x0C3E);
-        LibMultipass.Record memory r = record(X, alice, b32("fatpig_x"), b32("1"), 1, bytes32(0));
+        LibMultipass.Record memory r = record(X, alice, b32("alice_x"), b32("1"), 1, bytes32(0));
         vm.prank(bob);
         vm.expectRevert(abi.encodeWithSelector(AttestationBridge.NotOrgTreasury.selector, orgId, bob));
         bridge.verifyFor{value: X_FEE}(orgId, r, signRecord(r));
@@ -142,7 +142,7 @@ contract AttestationBridgeTest is BaseTest {
         vm.prank(operator);
         bridge.setOrg(orgId, orgWallet, emptyQuery(), "", false);
         assertFalse(bridge.org(orgId).active);
-        LibMultipass.Record memory r = record(X, alice, b32("fatpig_x"), b32("1"), 1, bytes32(0));
+        LibMultipass.Record memory r = record(X, alice, b32("alice_x"), b32("1"), 1, bytes32(0));
         vm.prank(orgWallet);
         vm.expectRevert(abi.encodeWithSelector(AttestationBridge.NotOrgTreasury.selector, orgId, orgWallet));
         bridge.verifyFor{value: X_FEE}(orgId, r, signRecord(r));
@@ -157,7 +157,7 @@ contract AttestationBridgeTest is BaseTest {
     // ---------- linkOwnName ----------
 
     function test_linkOwnName_setsAliasForEnsOwner() public {
-        registerName(alice, "fatpig", "a");
+        registerName(alice, "alice", "a");
         ethRegistry.setLabel("alice", alice, registry, address(0));
 
         vm.prank(alice);
@@ -170,7 +170,7 @@ contract AttestationBridgeTest is BaseTest {
     }
 
     function test_linkOwnName_revertsForNonOwner() public {
-        registerName(alice, "fatpig", "a");
+        registerName(alice, "alice", "a");
         ethRegistry.setLabel("alice", alice, registry, address(0));
         vm.prank(bob);
         vm.expectRevert(abi.encodeWithSelector(AttestationBridge.NotNameOwner.selector, "alice", bob));
@@ -189,7 +189,7 @@ contract AttestationBridgeTest is BaseTest {
         mp.initializeDomain(registrar, 0, 0, "orphan", 0, 0);
         vm.prank(treasury);
         mp.activateDomain("orphan");
-        registerVia(alice, record("orphan", alice, b32("fatpig"), b32("id"), 1, bytes32(0)), 0);
+        registerVia(alice, record("orphan", alice, b32("alice"), b32("id"), 1, bytes32(0)), 0);
         ethRegistry.setLabel("alice", alice, registry, address(0));
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(AttestationFactory.UnknownInstance.selector, bytes32("orphan")));

@@ -11,11 +11,11 @@ import { writeFileSync, readFileSync } from "node:fs";
 const USER_KEY = "0x000000000000000000000000000000000000000000000000000000000000a11c" as const;
 const cfg = JSON.parse(readFileSync(new URL("../config.staging.json", import.meta.url), "utf8"));
 const privy = fakePrivy("local-app-id", "local-privy-key");
-const user = fakeUser(USER_KEY, "fatpig");
+const user = fakeUser(USER_KEY, "alice");
 const now = Math.floor(Date.now() / 1000);
 
 const [domain, handle, payload] = process.argv[2] === "name"
-  ? [cfg.nameDomains[0], "fatpig", toBytes32("terrible dictator")]
+  ? [cfg.nameDomains[0], "alice", toBytes32("terrible dictator")]
   : ["x", "", undefined];
 const optIn = process.argv[2] === "optin";
 const intent = baseIntent(user.account, now, {

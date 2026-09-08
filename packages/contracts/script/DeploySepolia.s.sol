@@ -28,7 +28,7 @@ interface IPermissionedResolverInit {
 ///   Required env: PRIVATE_KEY, MULTIPASS, ETH_REGISTRY, VERIFIABLE_FACTORY, PERMISSIONED_RESOLVER_IMPL,
 ///                 ROOT_DOMAIN, ROOT_LABEL, CHILD_DOMAIN, CHILD_LABEL
 ///   Example:      ROOT_DOMAIN=ketsuban ROOT_LABEL=ketsuban CHILD_DOMAIN=kju-is CHILD_LABEL=kju-is
-///                 → alice.ketsuban.eth and fatpig.kju-is.ketsuban.eth
+///                 → alice.ketsuban.eth and alice.kju-is.ketsuban.eth
 contract DeploySepolia is Script {
     /// @dev EAC bitmaps use the low bit of every nybble (EACBaseRolesLib.ALL_ROLES).
     uint256 internal constant ALL_ROLES = 0x1111111111111111111111111111111111111111111111111111111111111111;

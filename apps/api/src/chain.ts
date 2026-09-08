@@ -117,7 +117,8 @@ export class Chain {
       ],
       value: fee,
     });
-    await this.publicClient.waitForTransactionReceipt({ hash });
+    const receipt = await this.publicClient.waitForTransactionReceipt({ hash });
+    if (receipt.status !== "success") throw new Error(`verify reverted in ${hash}`);
     return hash;
   }
 

@@ -37,10 +37,10 @@ export const DID = "did:privy:cm0000000000000000000000";
 export function defaultLinked(): LinkedAccount[] {
   return [
     { type: "wallet", address: userAccount.address, chain_type: "ethereum" },
-    { type: "twitter_oauth", subject: "1234567890123456789", username: "fatpig", name: "Fat Pig" },
-    { type: "telegram", telegram_user_id: "987654321", username: "fatpig_tg", first_name: "Fat" },
-    { type: "google_oauth", subject: "10987654321098765432", email: "fatpig@example.com" },
-    { type: "email", address: "fatpig@example.com" },
+    { type: "twitter_oauth", subject: "1234567890123456789", username: "alice", name: "Alice" },
+    { type: "telegram", telegram_user_id: "987654321", username: "alice_tg", first_name: "Alice" },
+    { type: "google_oauth", subject: "10987654321098765432", email: "alice@example.com" },
+    { type: "email", address: "alice@example.com" },
   ];
 }
 

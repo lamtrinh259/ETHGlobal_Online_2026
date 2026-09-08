@@ -150,7 +150,7 @@ describe("POST /v1/attest (node registrar fallback)", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.record).toEqual({
-      name: toBytes32("fatpig"),
+      name: toBytes32("alice"),
       id: toBytes32("1234567890123456789"),
       domainName: toBytes32("x"),
       validUntil: String(NOW + 2_592_000),
@@ -168,7 +168,7 @@ describe("POST /v1/attest (node registrar fallback)", () => {
     const body = await (await post(app(chain), "/v1/attest", await wireRequest({ optIn: true }))).json();
     const viewCode = bytesToHex(eciesDecrypt(USER_KEY, body.viewCode));
     expect(decodeRecord(body.record, viewCode)).toEqual({
-      handle: "fatpig",
+      handle: "alice",
       platformId: "1234567890123456789",
     });
   });
@@ -203,7 +203,7 @@ describe("POST /v1/attest (node registrar fallback)", () => {
 describe("POST /v1/cre/delivery", () => {
   const delivery = () => ({
     record: {
-      name: toBytes32("fatpig"),
+      name: toBytes32("alice"),
       id: toBytes32("1"),
       domainName: toBytes32("x"),
       validUntil: "1800000000",
@@ -282,7 +282,7 @@ describe("GET /v1/verify/:name", () => {
   it("assembles an active record from resolver reads, including opted-in links", async () => {
     const viewCode = keccak256("0x01");
     const masked = {
-      name: maskName("fatpig_x", viewCode),
+      name: maskName("alice_x", viewCode),
       id: maskId("42", viewCode),
       payload: viewCodeCommitment(viewCode),
     };
@@ -301,12 +301,12 @@ describe("GET /v1/verify/:name", () => {
         ),
         "ketsuban:link:telegram": encodePacked(
           ["bytes32", "bytes32", "bytes32"],
-          [toBytes32("fatpig_tg"), toBytes32("987"), zeroHash]
+          [toBytes32("alice_tg"), toBytes32("987"), zeroHash]
         ),
       },
     });
     const body = await (
-      await app(chain).request(`/v1/verify/fatpig.kju-is.eth?links=x,telegram&viewCode=${viewCode}`)
+      await app(chain).request(`/v1/verify/alice.kju-is.eth?links=x,telegram&viewCode=${viewCode}`)
     ).json();
     expect(body.status).toBe("active");
     expect(body.wallet).toBe(user.account.address);
@@ -318,7 +318,7 @@ describe("GET /v1/verify/:name", () => {
         domain: "x",
         optedIn: true,
         commitment: masked.payload,
-        disclosed: { handle: "fatpig_x", platformId: "42" },
+        disclosed: { handle: "alice_x", platformId: "42" },
       },
       { domain: "telegram", optedIn: false },
     ]);
@@ -329,7 +329,7 @@ describe("GET /v1/verify/:name", () => {
       "telegram_account_control",
     ]);
     expect(body.decision).toBe("additional_context_available");
-    expect(chain.resolveData).toHaveBeenCalledWith(instance.resolver, "fatpig.kju-is.eth", "ketsuban:link:x");
+    expect(chain.resolveData).toHaveBeenCalledWith(instance.resolver, "alice.kju-is.eth", "ketsuban:link:x");
   });
 
   it("keeps opted-in links masked without a matching view code", async () => {
@@ -340,7 +340,7 @@ describe("GET /v1/verify/:name", () => {
     );
     const { chain } = fakeChain({ addr: user.account.address, data: { "ketsuban:link:x": masked } });
     const body = await (
-      await app(chain).request(`/v1/verify/fatpig.kju-is.eth?links=x&viewCode=${keccak256("0x03")}`)
+      await app(chain).request(`/v1/verify/alice.kju-is.eth?links=x&viewCode=${keccak256("0x03")}`)
     ).json();
     expect(body.links).toEqual([{ domain: "x", optedIn: true, commitment: viewCodeCommitment(viewCode) }]);
   });
@@ -348,7 +348,7 @@ describe("GET /v1/verify/:name", () => {
 
 describe("locate", () => {
   it("matches the longest known parent and rejects nested labels", () => {
-    expect(locate("fatpig.kju-is.eth", [instance])).toEqual({ handle: "fatpig", instance });
+    expect(locate("alice.kju-is.eth", [instance])).toEqual({ handle: "alice", instance });
     expect(locate("a.b.kju-is.eth", [instance])).toBeUndefined();
     expect(locate("kju-is.eth", [instance])).toBeUndefined();
     expect(locate("x.other.eth", [instance])).toBeUndefined();

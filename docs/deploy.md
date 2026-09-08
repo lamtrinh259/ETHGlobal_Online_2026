@@ -47,7 +47,8 @@ STEP=register forge script script/MountRoot.s.sol --rpc-url sepolia --broadcast
 Oracle keys (once): `PermissionedResolver.authorizeDataRoles(encode(""), "ketsuban:<key>", ORACLE, true)` for
 `polarity`, `conviction`, `rank`.
 
-Current Sepolia deployment: `packages/contracts/deployments/11155111.json` (committed).
+Current Sepolia deployment: `packages/contracts/deployments/11155111.json` (committed); sources verified on Etherscan
+and Sourcify.
 
 ENSv2 Sepolia addresses: [docs.ens.domains/learn/deployments](https://docs.ens.domains/learn/deployments/).
 
@@ -72,7 +73,8 @@ cre workflow activate attest --target production-settings
 Coolify → new project → *Docker Compose* resource → repository `ETHGlobal_Online_2026`, branch, compose path
 `apps/api/docker-compose.yml`, build context is the repo root (the compose sets it). Domain → service `api`, port 8787.
 
-Environment (Coolify project → Environment Variables):
+Environment (Coolify project → Environment Variables) — copy `apps/api/.env.coolify.example`, it carries the current
+Sepolia addresses and placeholders for the secrets:
 
 | Variable | Value |
 |---|---|

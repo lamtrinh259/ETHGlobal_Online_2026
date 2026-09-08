@@ -55,13 +55,13 @@ Environment variables are listed in `.env.example`; never commit `.env`.
 | Child instance | `kju-is.ketsuban.eth` → registry `0xA976CB21597c555F92e7A5de2dAAF06A3c0D63F7`, resolver `0x24d0F1dc28D9d05342C2c2ceA459C3f0Dffb18D8` |
 | Factory / Bridge | `0xc0281d75974155fE8513F623de726F040c4bcC51` / `0xC7283bD9Aad1B08947C841536946Ce4dA9c99929` |
 | Stock PermissionedResolver | `0x4E2d9783cEFF2ed72CD77C14206b29fe246b24F7` (Verifiable Factory proxy) |
-| First record | `fatpig.ketsuban.eth` — enclave-simulated signature, relayed by the API, registered in tx `0x8fb69e37ba770b961435f2d5fff88482ea91d919bdd138dbcee083d109ef46c6` |
+| First record | `alice.ketsuban.eth` — enclave-simulated signature, relayed by the API, registered in tx `0xc778c74484c6b4f1a424b348ec0622dde80b180ebad2573b8cfce9c30733d7ab` |
 
 ```bash
 # any ENSv2 client, no integration with us
 cast call 0x4a1817d13e9cf196f471725176355c1234b63c70 "resolve(bytes,bytes)(bytes,address)" \
-  $(python3 -c "print('0x'+b'\x06fatpig\x08ketsuban\x03eth\x00'.hex())") \
-  $(cast calldata "text(bytes32,string)" $(cast namehash fatpig.ketsuban.eth) "ketsuban:answer") --rpc-url sepolia
+  $(python3 -c "print('0x'+b'\x06alice\x08ketsuban\x03eth\x00'.hex())") \
+  $(cast calldata "text(bytes32,string)" $(cast namehash alice.ketsuban.eth) "ketsuban:answer") --rpc-url sepolia
 ```
 
 Full artifact: `packages/contracts/deployments/11155111.json`. Runbook: `docs/deploy.md`.

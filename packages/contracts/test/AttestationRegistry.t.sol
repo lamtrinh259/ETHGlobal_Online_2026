@@ -9,7 +9,7 @@ import {BaseTest} from "./Base.t.sol";
 
 contract AttestationRegistryTest is BaseTest {
     function test_noSubregistryByDefault() public view {
-        assertEq(address(registry.getSubregistry("fatpig")), address(0));
+        assertEq(address(registry.getSubregistry("alice")), address(0));
     }
 
     function test_ownerMountsChildInstance() public {
@@ -41,18 +41,18 @@ contract AttestationRegistryTest is BaseTest {
     }
 
     function test_resolverIsZeroForUnknownLabel() public view {
-        assertEq(registry.getResolver("fatpig"), address(0));
+        assertEq(registry.getResolver("alice"), address(0));
     }
 
     function test_resolverIsShimWhileRecordLive_thenZeroAfterExpiry() public {
-        registerName(alice, "fatpig", "terrible dictator");
-        assertEq(registry.getResolver("fatpig"), address(shim));
+        registerName(alice, "alice", "terrible dictator");
+        assertEq(registry.getResolver("alice"), address(shim));
 
         vm.warp(block.timestamp + TERM - 1);
-        assertEq(registry.getResolver("fatpig"), address(shim), "live until validUntil");
+        assertEq(registry.getResolver("alice"), address(shim), "live until validUntil");
 
         vm.warp(block.timestamp + 1);
-        assertEq(registry.getResolver("fatpig"), address(0), "dark at validUntil");
+        assertEq(registry.getResolver("alice"), address(0), "dark at validUntil");
     }
 
     function test_labelLongerThan31BytesIsNotAName() public view {
