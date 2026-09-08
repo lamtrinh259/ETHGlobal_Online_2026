@@ -5,6 +5,9 @@ import { useMemo } from "react";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import type { Address } from "viem";
 import { apiFor, useWalletDashboard } from "@/lib/hooks";
+import type { Signer } from "@/lib/chain";
+import { ProfileEditor } from "./ProfileEditor";
+import { OwnName } from "./OwnName";
 import { useWebConfig } from "@/app/providers";
 import { fmtUtc, short } from "@/app/ui";
 
@@ -14,8 +17,17 @@ export function Dashboard() {
   const api = useMemo(() => apiFor(config), [config]);
   const { ready, authenticated, login } = usePrivy();
   const { wallets } = useWallets();
-  const wallet = (wallets.find((w) => w.walletClientType === "privy") ?? wallets[0])?.address as
-    Address | undefined;
+  const embedded = wallets.find((w) => w.walletClientType === "privy") ?? wallets[0];
+  const wallet = embedded?.address as Address | undefined;
+  const getSigner = async (): Promise<Signer> => {
+    if (!embedded) throw new Error("no wallet");
+    await embedded.switchChain(config.chainId);
+    return {
+      provider: await embedded.getEthereumProvider(),
+      account: embedded.address as Address,
+      chainId: config.chainId,
+    };
+  };
   const dash = useWalletDashboard(api, wallet);
   const root = config.instances[0];
 
@@ -75,6 +87,20 @@ export function Dashboard() {
           </p>
         )}
       </section>
+
+      {rootName && root && (
+        <>
+          <ProfileEditor api={api} name={rootName.ensName} getSigner={getSigner} />
+          <OwnName
+            api={api}
+            wallet={wallet}
+            domain={root.domain}
+            parentLabel={root.parentLabel}
+            handle={rootName.name}
+            getSigner={getSigner}
+          />
+        </>
+      )}
 
       <section className="card" data-testid="dash-links">
         <h2>Linked accounts</h2>

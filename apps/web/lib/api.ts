@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { Hex } from "viem";
+import type { Address, Hex } from "viem";
 
 const hex = z
   .string()
@@ -69,6 +69,25 @@ export const vouchesSchema = z.object({
 });
 export type Vouches = z.infer<typeof vouchesSchema>;
 export type Vouch = Vouches["vouches"][number];
+
+const address = z
+  .string()
+  .regex(/^0x[0-9a-fA-F]{40}$/)
+  .transform((s) => s as Address);
+export const contractsSchema = z.object({
+  instances: z.array(
+    z.object({
+      domain: z.string(),
+      registry: address,
+      resolver: address,
+      parentName: z.string(),
+      parentLabel: z.string(),
+    })
+  ),
+  bridge: address,
+  permissionedResolver: address.nullable(),
+});
+export type Contracts = z.infer<typeof contractsSchema>;
 
 export const nameStatusSchema = z.object({
   domain: z.string(),
@@ -177,6 +196,10 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
         body: JSON.stringify(result),
       });
       return (await readJson(res)) as { ok: true; txHash: Hex };
+    },
+
+    async contracts(): Promise<Contracts> {
+      return contractsSchema.parse(await readJson(await call(`${base}/v1/instances`)));
     },
 
     async nameStatus(domain: string, handle: string): Promise<NameStatus> {

@@ -10,7 +10,7 @@ identity is Privy (embedded wallet, identity token); the view-code key stays on 
 | `/p/<handle>` | verifier / agent | The reference page: identity, answers, linked accounts, humanity, graded by a policy (`?answers=&minLinks=&humanity=1`), with the raw names to resolve yourself. |
 | `/verify` | verifier | Policy picker → `/p/<handle>`. |
 | `/vouch/<handle>` | voucher | Sign in → humanity (pending partner access) → link work account → claim own name → statement (per-candidate vouch instances land next). |
-| `/me` | candidate / voucher | Dashboard for the signed-in wallet: names, linked accounts, references given (`GET /v1/wallet/:address`). |
+| `/me` | candidate / voucher | Dashboard for the signed-in wallet: names, linked accounts, references given (`GET /v1/wallet/:address`); edit ENS profile records (`setText` from the wallet) and alias your own `.eth` (`AttestationBridge.linkOwnName`). |
 | `/v/<name>` | anyone | One name's verification card, server-rendered (`generateMetadata` for unfurls). `?viewCode=0x…&links=x` discloses opted-in links. |
 | `/api/health` | ops | Readiness probe for the container HEALTHCHECK. |
 
@@ -18,7 +18,7 @@ identity is Privy (embedded wallet, identity token); the view-code key stays on 
 and turns into "Sign & update" when the wallet already holds a record (the newer nonce supersedes the old one); journeys pass `fixedDomain` / `fixedHandle` / `onPublished` to
 sequence it. `lib/profile.ts` folds per-name verifications into the page and grades the policy (pure, tested).
 
-`lib/` is the pure part (config, intent builder, API client, react-query hooks, browser view key) — unit-tested;
+`lib/` is the pure part (config, intent builder, API client, react-query hooks, browser view key, `chain.ts` wallet writes) — unit-tested;
 `app/` holds the shell (`AppShell`, `ThemeToggle`) and the two screens. Privy hooks live only in `app/AttestFlow.tsx`.
 
 ## Develop

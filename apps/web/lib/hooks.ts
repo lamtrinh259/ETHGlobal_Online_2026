@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Address, Hex } from "viem";
 import { createApi, type Api, type AttestResult, type Verification } from "./api";
+import { linkOwnName, writeProfileText, type ProfileKey, type Signer } from "./chain";
 import type { WebConfig } from "./config";
 
 /** One client per config; the hooks below are the only place components touch the API. */
@@ -64,5 +65,39 @@ export function useDeliver(api: Api, wallet: Address | undefined, domain: string
       void qc.invalidateQueries({ queryKey: ["name"] });
       void qc.invalidateQueries({ queryKey: ["wallet", wallet] });
     },
+  });
+}
+
+/** Contract addresses the wallet writes to directly (cached: they never change for a deployment). */
+export function useContracts(api: Api) {
+  return useQuery({ queryKey: ["contracts"], queryFn: () => api.contracts(), staleTime: Infinity });
+}
+
+/** Write changed ENS profile records for `name`, one transaction per key; refreshes the verification card. */
+export function useProfileWrite(name: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      signer: Signer;
+      resolver: Address;
+      changes: Partial<Record<ProfileKey, string>>;
+    }) => {
+      const hashes: Hex[] = [];
+      for (const [key, value] of Object.entries(input.changes) as [ProfileKey, string][]) {
+        hashes.push(await writeProfileText(input.signer, input.resolver, name, key, value));
+      }
+      return hashes;
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["verify", name] }),
+  });
+}
+
+/** Alias `<parentLabel>.<label>.eth` to the caller's record; refreshes the wallet dashboard. */
+export function useLinkOwnName(wallet: Address | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { signer: Signer; bridge: Address; domain: string; label: string }) =>
+      linkOwnName(input.signer, input.bridge, input.domain, input.label),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["wallet", wallet] }),
   });
 }

@@ -197,6 +197,22 @@ describe("GET /healthz", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ok: true, relayer: chain.relayer, chainId: 31337 });
   });
+
+  it("GET /v1/instances lists instances with the contracts a wallet writes to", async () => {
+    const { chain } = fakeChain();
+    const res = await app(chain).request("/v1/instances");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      instances: [instance],
+      bridge: baseEnv.BRIDGE,
+      permissionedResolver: null,
+    });
+    const withResolver = createApp({
+      config: loadConfig({ ...baseEnv, PERMISSIONED_RESOLVER: baseEnv.FACTORY }),
+      chain,
+    });
+    expect((await (await withResolver.request("/v1/instances")).json()).permissionedResolver).toBe(baseEnv.FACTORY);
+  });
 });
 
 describe("GET /v1/nonce", () => {

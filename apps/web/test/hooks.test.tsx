@@ -6,12 +6,22 @@ import type { Api, AttestResult } from "@/lib/api";
 import {
   apiFor,
   useAttest,
+  useContracts,
   useDeliver,
+  useLinkOwnName,
   useNameStatus,
   useNonce,
+  useProfileWrite,
   useVerification,
   useWalletDashboard,
 } from "@/lib/hooks";
+import * as chain from "@/lib/chain";
+
+vi.mock("@/lib/chain", async (orig) => ({
+  ...(await orig<typeof chain>()),
+  writeProfileText: vi.fn(async () => "0xhash1"),
+  linkOwnName: vi.fn(async () => "0xhash2"),
+}));
 import { loadWebConfig } from "@/lib/config";
 
 const WALLET: Address = "0xEE4811b9462956C9C3535E79c08776D769CA9F3a";
@@ -47,6 +57,7 @@ function fakeApi(): Api {
       live: handle === "taken",
     })),
     wallet: vi.fn(async (address: string) => ({ address, names: [], links: [], given: [], warning: "w" })),
+    contracts: vi.fn(async () => ({ instances: [], bridge: WALLET, permissionedResolver: WALLET })),
     verify: vi.fn(async (name: string) => ({
       name,
       instance: { domain: "ketsuban", parentName: "ketsuban.eth" },
@@ -130,6 +141,31 @@ describe("hooks", () => {
     expect(noWallet.result.current.fetchStatus).toBe("idle");
     const dash = renderHook(() => useWalletDashboard(api, WALLET), { wrapper: wrapper() });
     await waitFor(() => expect(dash.result.current.data?.address).toBe(WALLET));
+  });
+
+  it("useContracts caches addresses; profile write sends one tx per changed key and refreshes the card", async () => {
+    const api = fakeApi();
+    const w = wrapper();
+    const contracts = renderHook(() => useContracts(api), { wrapper: w });
+    await waitFor(() => expect(contracts.result.current.data?.bridge).toBe(WALLET));
+
+    const signer = { provider: {} as never, account: WALLET, chainId: 31337 };
+    const write = renderHook(() => useProfileWrite("alice.ketsuban.eth"), { wrapper: w });
+    write.result.current.mutate({ signer, resolver: WALLET, changes: { url: "https://a", email: "a@b" } });
+    await waitFor(() => expect(write.result.current.data).toEqual(["0xhash1", "0xhash1"]));
+    expect(chain.writeProfileText).toHaveBeenCalledWith(
+      signer,
+      WALLET,
+      "alice.ketsuban.eth",
+      "url",
+      "https://a"
+    );
+    expect(chain.writeProfileText).toHaveBeenCalledWith(signer, WALLET, "alice.ketsuban.eth", "email", "a@b");
+
+    const link = renderHook(() => useLinkOwnName(WALLET), { wrapper: w });
+    link.result.current.mutate({ signer, bridge: WALLET, domain: "ketsuban", label: "alice" });
+    await waitFor(() => expect(link.result.current.data).toBe("0xhash2"));
+    expect(chain.linkOwnName).toHaveBeenCalledWith(signer, WALLET, "ketsuban", "alice");
   });
 
   it("apiFor builds a client from config", () => {

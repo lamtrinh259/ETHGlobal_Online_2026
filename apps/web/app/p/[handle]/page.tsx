@@ -127,7 +127,7 @@ export default async function ProfilePage({ params, searchParams }: Params) {
             AttestationBridge.linkOwnName(&quot;{root.domain}&quot;, &quot;{handle}&quot;)
           </code>{" "}
           from the wallet that owns the name (the bridge checks ownership on the ENSv2 registry in the same
-          transaction).
+          transaction) — or do it from <Link href="/me">your dashboard</Link>.
         </p>
       </section>
       <section className="card">

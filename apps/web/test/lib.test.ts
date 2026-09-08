@@ -175,6 +175,21 @@ describe("api client", () => {
       "http://api.test/v1/attest": { body: result },
       "http://api.test/v1/cre/delivery": { body: { ok: true, txHash: `0x${"ab".repeat(32)}` } },
       "http://api.test/v1/verify/alice.ketsuban.eth": { body: verification },
+      "http://api.test/v1/instances": {
+        body: {
+          instances: [
+            {
+              domain: "ketsuban",
+              registry: account.address,
+              resolver: account.address,
+              parentName: "ketsuban.eth",
+              parentLabel: "ketsuban",
+            },
+          ],
+          bridge: account.address,
+          permissionedResolver: null,
+        },
+      },
       "http://api.test/v1/name/ketsuban/alice": {
         body: { domain: "ketsuban", handle: "alice", taken: true, wallet: account.address, live: true },
       },
@@ -230,6 +245,8 @@ describe("api client", () => {
 
     expect(await api.verify("alice.ketsuban.eth", { links: ["x"], viewCode: "0x02" })).toEqual(verification);
     expect((await api.vouches("alice")).vouches[0].voucher).toBe("bob");
+    expect((await api.contracts()).bridge).toBe(account.address);
+    expect((await api.contracts()).permissionedResolver).toBeNull();
     expect(await api.nameStatus("ketsuban", "alice")).toEqual({
       domain: "ketsuban",
       handle: "alice",

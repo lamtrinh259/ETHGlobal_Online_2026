@@ -128,7 +128,14 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
 
   app.get("/healthz", (c) => c.json({ ok: true, relayer: chain.relayer, chainId: config.CHAIN_ID }));
 
-  app.get("/v1/instances", async (c) => c.json({ instances: await chain.instances() }));
+  /** Instances plus the two contracts a wallet writes to directly (profile records, own-name alias). */
+  app.get("/v1/instances", async (c) =>
+    c.json({
+      instances: await chain.instances(),
+      bridge: config.BRIDGE,
+      permissionedResolver: config.PERMISSIONED_RESOLVER ?? null,
+    })
+  );
 
   /** Current on-chain state for (wallet, domain): the browser needs the nonce to build an intent. */
   app.get("/v1/nonce", async (c) => {
