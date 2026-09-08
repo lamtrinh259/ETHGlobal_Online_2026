@@ -44,3 +44,9 @@ test("the dashboard is behind the sign-in gate", async ({ page }) => {
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Your names");
   await expect(page.getByTestId("signin")).toBeVisible({ timeout: 20000 });
 });
+
+test("renewal deep link keeps the claim page behind the sign-in gate", async ({ page }) => {
+  await page.goto("/claim?renew=ketsuban");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Claim your name");
+  await expect(page.locator(".stepper")).toBeVisible();
+});

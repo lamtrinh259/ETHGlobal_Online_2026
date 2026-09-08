@@ -3,7 +3,8 @@ import { ClaimFlow } from "./ClaimFlow";
 
 export const metadata = { title: "Claim your name" };
 
-export default function ClaimPage() {
+export default async function ClaimPage({ searchParams }: { searchParams: Promise<{ renew?: string }> }) {
+  const { renew } = await searchParams;
   const config = loadWebConfig();
   const [root, ...subjects] = config.instances;
   return (
@@ -16,7 +17,7 @@ export default function ClaimPage() {
           permanent name under yours.
         </p>
       </section>
-      <ClaimFlow />
+      <ClaimFlow renew={renew} />
     </>
   );
 }

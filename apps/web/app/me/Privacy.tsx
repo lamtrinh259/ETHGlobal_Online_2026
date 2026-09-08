@@ -29,7 +29,7 @@ export function Privacy({ links, handle }: Props) {
       </p>
       {live.length === 0 ? (
         <p>
-          No live links. <Link href="/claim">Link one →</Link>
+          No live links. <a href="#link">Link one below ↓</a>
         </p>
       ) : (
         <ul className="vouches">
@@ -51,7 +51,7 @@ export function Privacy({ links, handle }: Props) {
                 )}
                 {l.optedIn && !url && (
                   <span className="vouch-meta muted">
-                    view code not in this browser — <Link href="/claim">re-link</Link> to get it again
+                    view code not in this browser — <a href="#link">re-link</a> to get it again
                   </span>
                 )}
                 {!l.optedIn && (

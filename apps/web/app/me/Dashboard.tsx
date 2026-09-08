@@ -10,6 +10,8 @@ import type { Signer } from "@/lib/chain";
 import { ProfileEditor } from "./ProfileEditor";
 import { OwnName } from "./OwnName";
 import { Privacy } from "./Privacy";
+import { AttestFlow } from "@/app/AttestFlow";
+import { needsAttention } from "@/lib/journey";
 import { useWebConfig } from "@/app/providers";
 import { fmtUtc, short } from "@/app/ui";
 
@@ -55,9 +57,27 @@ export function Dashboard() {
   }
   const d = dash.data!;
   const rootName = d.names.find((n) => n.domain === root?.domain);
+  const attention = needsAttention(d, Date.now());
 
   return (
     <>
+      {attention.length > 0 && (
+        <section className="card" data-testid="dash-attention">
+          <h2>Needs attention</h2>
+          <ul className="checks">
+            {attention.map((a) => (
+              <li key={`${a.kind}:${a.label}`} className={a.daysLeft < 0 ? "no" : "ok"}>
+                <span className="check-mark" aria-hidden>
+                  {a.daysLeft < 0 ? "✗" : "!"}
+                </span>
+                {a.label} ·{" "}
+                {a.daysLeft < 0 ? "expired" : `${a.daysLeft} day${a.daysLeft === 1 ? "" : "s"} left`} ·{" "}
+                <Link href={a.href}>renew →</Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       <section className="card" data-testid="dash-names">
         <h2>Names</h2>
         <p className="muted">
@@ -136,12 +156,10 @@ export function Dashboard() {
         </>
       )}
 
-      <section className="card" data-testid="dash-links">
+      <section className="card" data-testid="dash-links" id="link">
         <h2>Linked accounts</h2>
         {d.links.length === 0 ? (
-          <p>
-            None. <Link href="/claim">Link one →</Link>
-          </p>
+          <p>None yet — verifiers count live links. Add one below.</p>
         ) : (
           <ul>
             {d.links.map((l) => (
@@ -152,6 +170,7 @@ export function Dashboard() {
             ))}
           </ul>
         )}
+        <AttestFlow platformsOnly title="Link an account" onPublished={() => void dash.refetch()} />
       </section>
 
       {rootName && <Privacy links={d.links} handle={rootName.name} />}

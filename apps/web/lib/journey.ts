@@ -66,3 +66,45 @@ export function claimProgress(
   );
   return { handle, answered };
 }
+
+export type Attention = {
+  kind: "name" | "link" | "given";
+  label: string;
+  /** Days until expiry; negative when already expired */
+  daysLeft: number;
+  href: string;
+};
+
+/** Records expired or expiring within `days`, with where to renew them. Expired vouch references are left alone. */
+export function needsAttention(dash: WalletDashboard | undefined, nowMs: number, days = 7): Attention[] {
+  if (!dash) return [];
+  const left = (iso: string) => Math.floor((Date.parse(iso) - nowMs) / 86_400_000);
+  const soon = (iso: string) => left(iso) <= days;
+  const out: Attention[] = [
+    ...dash.names
+      .filter((n) => soon(n.validUntil))
+      .map((n) => ({
+        kind: "name" as const,
+        label: n.ensName,
+        daysLeft: left(n.validUntil),
+        href: `/claim?renew=${n.domain}`,
+      })),
+    ...dash.links
+      .filter((l) => soon(l.validUntil))
+      .map((l) => ({
+        kind: "link" as const,
+        label: `${l.domain} link`,
+        daysLeft: left(l.validUntil),
+        href: "/me#link",
+      })),
+    ...dash.given
+      .filter((g) => g.live && soon(g.validUntil))
+      .map((g) => ({
+        kind: "given" as const,
+        label: `reference for ${g.candidate}`,
+        daysLeft: left(g.validUntil),
+        href: `/vouch/${g.candidate}`,
+      })),
+  ];
+  return out.sort((a, b) => a.daysLeft - b.daysLeft);
+}

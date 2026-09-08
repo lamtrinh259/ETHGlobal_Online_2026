@@ -16,7 +16,7 @@ import { CopyButton } from "@/app/CopyButton";
  * Progress is read from the wallet's live records, so a returning candidate lands on the next
  * unanswered subject instead of re-claiming. The publishing mechanics are AttestFlow.
  */
-export function ClaimFlow() {
+export function ClaimFlow({ renew }: { renew?: string }) {
   const config = useWebConfig();
   const [root, ...subjects] = config.instances;
   const api = useMemo(() => apiFor(config), [config]);
@@ -36,6 +36,29 @@ export function ClaimFlow() {
   const finished = !!handle && subjects.every((s) => answered(s.domain));
   const siteUrl = typeof window === "undefined" ? "" : window.location.origin;
   const loading = authenticated && !!wallet && dash.isPending;
+  const renewing = renew ? config.instances.find((i) => i.domain === renew) : undefined;
+
+  if (renewing && handle) {
+    return (
+      <>
+        <p className="muted" data-testid="renewing">
+          Renewing{" "}
+          <code>
+            {handle}.{renewing.parentName}
+          </code>
+          . A renewal is a fresh record with the next nonce; the old one stays in the history.{" "}
+          <Link href="/me">Back to your dashboard</Link>.
+        </p>
+        <AttestFlow
+          key={renewing.domain}
+          fixedDomain={renewing.domain}
+          fixedHandle={handle}
+          title={`Renew ${renewing.domain}`}
+          answerLabel={renewing.domain === root?.domain ? undefined : questionFor(renewing.domain)}
+        />
+      </>
+    );
+  }
 
   return (
     <>
@@ -91,8 +114,8 @@ export function ClaimFlow() {
                 name.
               </li>
               <li>
-                <Link href="/me">Link a work account</Link> — X, GitHub or Telegram, masked unless you share
-                the view code. Verifiers count live links.
+                <Link href="/me#link">Link a work account</Link> — X, GitHub or Telegram, masked unless you
+                share the view code. Verifiers count live links.
               </li>
               <li>
                 <Link href="/me">Fill your ENS profile</Link> — avatar, description, website. Any ENS client

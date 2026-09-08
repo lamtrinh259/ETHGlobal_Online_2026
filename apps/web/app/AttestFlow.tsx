@@ -30,6 +30,8 @@ type Props = {
   answerLabel?: string;
   /** Sign-in only: render the gate and nothing else */
   hideForm?: boolean;
+  /** Only platform (linked-account) domains in the picker */
+  platformsOnly?: boolean;
   onPublished?: (p: Published) => void;
 };
 
@@ -38,7 +40,15 @@ type Props = {
  * Privy identity token are the only inputs the attester needs; nothing here talks to the chain.
  * Server state (nonce) and the two mutations go through react-query (`lib/hooks`).
  */
-export function AttestFlow({ fixedDomain, fixedHandle, title, answerLabel, hideForm, onPublished }: Props) {
+export function AttestFlow({
+  fixedDomain,
+  fixedHandle,
+  title,
+  answerLabel,
+  hideForm,
+  platformsOnly,
+  onPublished,
+}: Props) {
   const config = useWebConfig();
   const { ready, authenticated, login, logout, user } = usePrivy();
   const { wallets } = useWallets();
@@ -47,7 +57,9 @@ export function AttestFlow({ fixedDomain, fixedHandle, title, answerLabel, hideF
   const { linkTwitter, linkTelegram, linkGithub, linkDiscord, linkGoogle } = useLinkAccount();
   const api = useMemo(() => apiFor(config), [config]);
 
-  const [domain, setDomain] = useState(fixedDomain ?? config.instances[0]?.domain ?? "");
+  const [domain, setDomain] = useState(
+    fixedDomain ?? (platformsOnly ? PLATFORM_DOMAIN_NAMES[0] : config.instances[0]?.domain) ?? ""
+  );
   const [handle, setHandle] = useState(fixedHandle ?? "");
   const [answer, setAnswer] = useState("");
   const [optIn, setOptIn] = useState(false);
@@ -201,14 +213,16 @@ export function AttestFlow({ fixedDomain, fixedHandle, title, answerLabel, hideF
         ) : (
           <label>
             domain{" "}
-            <select value={domain} onChange={(e) => setDomain(e.target.value)}>
-              <optgroup label="names">
-                {config.nameDomains.map((d) => (
-                  <option key={d} value={d}>
-                    {d}
-                  </option>
-                ))}
-              </optgroup>
+            <select value={domain} onChange={(e) => setDomain(e.target.value)} aria-label="domain">
+              {!platformsOnly && (
+                <optgroup label="names">
+                  {config.nameDomains.map((d) => (
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
               <optgroup label="linked accounts">
                 {PLATFORM_DOMAIN_NAMES.map((d) => (
                   <option key={d} value={d}>
