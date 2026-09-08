@@ -3,11 +3,18 @@
 Next.js client (template: the noolog web app — same shell, tokens, Dockerfile and test setup). Talks to `apps/api`;
 identity is Privy (embedded wallet, identity token); the view-code key stays on the device.
 
-| Route | What |
-|---|---|
-| `/` | Sign in (Privy) → link an account → pick a domain → sign the EIP-712 intent → attest → deliver. Shows the tx and, for opted-in links, the view code (decryptable only in this browser — the key is in `localStorage`). |
-| `/v/<name>` | Public verification card, server-rendered from the API (`generateMetadata` so shared links unfurl). `?viewCode=0x…&links=x,telegram` discloses opted-in links. |
-| `/api/health` | Readiness probe for the container HEALTHCHECK. |
+| Route | Who | What |
+|---|---|---|
+| `/` | everyone | Three doors: candidate, voucher, verifier. |
+| `/claim` | candidate | Claim `<handle>.<root>`, answer each subject instance (`kju-is` …), get the share line. |
+| `/p/<handle>` | verifier / agent | The reference page: identity, answers, linked accounts, humanity, graded by a policy (`?answers=&minLinks=&humanity=1`), with the raw names to resolve yourself. |
+| `/verify` | verifier | Policy picker → `/p/<handle>`. |
+| `/vouch/<handle>` | voucher | Sign in → humanity (pending partner access) → link work account → claim own name → statement (per-candidate vouch instances land next). |
+| `/v/<name>` | anyone | One name's verification card, server-rendered (`generateMetadata` for unfurls). `?viewCode=0x…&links=x` discloses opted-in links. |
+| `/api/health` | ops | Readiness probe for the container HEALTHCHECK. |
+
+`AttestFlow` is the single publishing component; journeys pass `fixedDomain` / `fixedHandle` / `onPublished` to
+sequence it. `lib/profile.ts` folds per-name verifications into the page and grades the policy (pure, tested).
 
 `lib/` is the pure part (config, intent builder, API client, react-query hooks, browser view key) — unit-tested;
 `app/` holds the shell (`AppShell`, `ThemeToggle`) and the two screens. Privy hooks live only in `app/AttestFlow.tsx`.

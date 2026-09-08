@@ -17,12 +17,27 @@ import { loadOrCreateViewKey, openViewCode } from "@/lib/keys";
 import { useWebConfig } from "./providers";
 import { fmtUtc, short } from "./ui";
 
+export type Published = { handle: string; domain: string; txHash: Hex; name?: string };
+
+type Props = {
+  /** Lock the domain (journeys sequence domains themselves) */
+  fixedDomain?: string;
+  /** Reuse a handle claimed earlier in the journey */
+  fixedHandle?: string;
+  title?: string;
+  /** Label for the answer field on name domains */
+  answerLabel?: string;
+  /** Sign-in only: render the gate and nothing else */
+  hideForm?: boolean;
+  onPublished?: (p: Published) => void;
+};
+
 /**
  * Sign in → (link account) → sign intent → attest → deliver. The wallet-signed intent and the
  * Privy identity token are the only inputs the attester needs; nothing here talks to the chain.
  * Server state (nonce) and the two mutations go through react-query (`lib/hooks`).
  */
-export function AttestFlow() {
+export function AttestFlow({ fixedDomain, fixedHandle, title, answerLabel, hideForm, onPublished }: Props) {
   const config = useWebConfig();
   const { ready, authenticated, login, logout, user } = usePrivy();
   const { wallets } = useWallets();
@@ -31,8 +46,8 @@ export function AttestFlow() {
   const { linkTwitter, linkTelegram, linkGithub, linkDiscord, linkGoogle } = useLinkAccount();
   const api = useMemo(() => apiFor(config), [config]);
 
-  const [domain, setDomain] = useState(config.instances[0]?.domain ?? "");
-  const [handle, setHandle] = useState("");
+  const [domain, setDomain] = useState(fixedDomain ?? config.instances[0]?.domain ?? "");
+  const [handle, setHandle] = useState(fixedHandle ?? "");
   const [answer, setAnswer] = useState("");
   const [optIn, setOptIn] = useState(false);
   const [signing, setSigning] = useState(false);
@@ -95,7 +110,13 @@ export function AttestFlow() {
       setSigning(false);
       const attested = await attest.mutateAsync(toWire(intent, identityToken, signature as Hex));
       if (attested.viewCode) setViewCode(openViewCode(viewKey, attested.viewCode));
-      await deliver.mutateAsync(attested);
+      const { txHash } = await deliver.mutateAsync(attested);
+      onPublished?.({
+        handle,
+        domain,
+        txHash,
+        name: isNameDomain && parentName ? `${handle}.${parentName}` : undefined,
+      });
     } catch (e) {
       setSigning(false);
       if (!attest.error && !deliver.error) setSignError((e as Error).message);
@@ -106,19 +127,24 @@ export function AttestFlow() {
   if (!authenticated) {
     return (
       <div className="card">
-        <p className="muted">Sign in to publish. An embedded wallet is created for you; you never see gas.</p>
+        {title && <h2>{title}</h2>}
+        <p className="muted">
+          Sign in to continue. An embedded wallet is created for you; you never see gas.
+        </p>
         <button onClick={login} className="primary" data-testid="signin">
           Sign in
         </button>
       </div>
     );
   }
+  if (hideForm) return null;
 
   const result = attest.data;
   const txHash = deliver.data?.txHash;
 
   return (
     <div className="card">
+      {title && <h2>{title}</h2>}
       <p className="row muted">
         <span>
           signed in as <code>{user?.id}</code>
@@ -134,60 +160,85 @@ export function AttestFlow() {
         <button onClick={logout}>sign out</button>
       </p>
 
-      <fieldset>
-        <legend>Link an account</legend>
-        <div className="row">
-          <button onClick={() => linkTwitter()}>X</button>
-          <button onClick={() => linkTelegram()}>Telegram</button>
-          <button onClick={() => linkGithub()}>GitHub</button>
-          <button onClick={() => linkDiscord()}>Discord</button>
-          <button onClick={() => linkGoogle()}>Google</button>
-        </div>
-      </fieldset>
+      {!isNameDomain && (
+        <fieldset>
+          <legend>Link an account</legend>
+          <div className="row">
+            <button onClick={() => linkTwitter()}>X</button>
+            <button onClick={() => linkTelegram()}>Telegram</button>
+            <button onClick={() => linkGithub()}>GitHub</button>
+            <button onClick={() => linkDiscord()}>Discord</button>
+            <button onClick={() => linkGoogle()}>Google</button>
+          </div>
+        </fieldset>
+      )}
 
       <fieldset>
         <legend>Record</legend>
-        <label>
-          domain{" "}
-          <select value={domain} onChange={(e) => setDomain(e.target.value)}>
-            <optgroup label="names">
-              {config.nameDomains.map((d) => (
-                <option key={d} value={d}>
-                  {d}
-                </option>
-              ))}
-            </optgroup>
-            <optgroup label="linked accounts">
-              {PLATFORM_DOMAIN_NAMES.map((d) => (
-                <option key={d} value={d}>
-                  {d}
-                </option>
-              ))}
-            </optgroup>
-          </select>
-        </label>
+        {fixedDomain ? (
+          <p className="muted">
+            domain <code>{domain}</code>
+            {parentName && (
+              <>
+                {" "}
+                → <code>{parentName}</code>
+              </>
+            )}
+          </p>
+        ) : (
+          <label>
+            domain{" "}
+            <select value={domain} onChange={(e) => setDomain(e.target.value)}>
+              <optgroup label="names">
+                {config.nameDomains.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="linked accounts">
+                {PLATFORM_DOMAIN_NAMES.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </optgroup>
+            </select>
+          </label>
+        )}
         {isNameDomain ? (
           <>
+            {fixedHandle ? (
+              <p>
+                handle <code>{fixedHandle}</code>
+              </p>
+            ) : (
+              <label>
+                handle{" "}
+                <input
+                  value={handle}
+                  onChange={(e) => setHandle(e.target.value.toLowerCase())}
+                  placeholder="alice"
+                />
+                {parentName && handle && (
+                  <small className="muted">
+                    {" "}
+                    →{" "}
+                    <code>
+                      {handle}.{parentName}
+                    </code>
+                  </small>
+                )}
+              </label>
+            )}
             <label>
-              handle{" "}
+              {answerLabel ?? "answer (≤31 bytes, permanent)"}{" "}
               <input
-                value={handle}
-                onChange={(e) => setHandle(e.target.value.toLowerCase())}
-                placeholder="alice"
+                value={answer}
+                onChange={(e) => setAnswer(e.target.value)}
+                maxLength={31}
+                aria-label="answer"
               />
-              {parentName && handle && (
-                <small className="muted">
-                  {" "}
-                  →{" "}
-                  <code>
-                    {handle}.{parentName}
-                  </code>
-                </small>
-              )}
-            </label>
-            <label>
-              answer (≤31 bytes, permanent){" "}
-              <input value={answer} onChange={(e) => setAnswer(e.target.value)} maxLength={31} />
             </label>
           </>
         ) : (
@@ -198,7 +249,7 @@ export function AttestFlow() {
         )}
       </fieldset>
 
-      <button className="primary" onClick={run} disabled={busy}>
+      <button className="primary" onClick={run} disabled={busy} data-testid="publish">
         {step ? `${step}…` : "Sign & publish"}
       </button>
 

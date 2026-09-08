@@ -23,9 +23,12 @@ async function noOverflow(page: Page) {
   expect(overflow).toBeLessThanOrEqual(1);
 }
 
-test("landing renders the shell and the sign-in gate without horizontal overflow", async ({ page }) => {
+test("landing renders the shell and the three doors without horizontal overflow", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toContainText("cannot be");
+  await expect(page.locator(".door")).toHaveCount(3);
+  await noOverflow(page);
+  await page.goto("/claim");
   await expect(page.getByTestId("signin")).toBeVisible({ timeout: 20000 });
   await noOverflow(page);
 });

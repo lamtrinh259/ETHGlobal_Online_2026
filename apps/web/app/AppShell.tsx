@@ -7,13 +7,15 @@ import { ThemeToggle } from "./ThemeToggle";
 import { waveChars } from "./ui";
 
 const NAV = [
-  { href: "/", label: "Publish" },
-  { href: "/v/alice.ketsuban.eth", label: "Verify" },
+  { href: "/claim", label: "Claim" },
+  { href: "/vouch", label: "Vouch" },
+  { href: "/verify", label: "Verify" },
 ];
 
-/** "/" is active only on the landing; the verify entry is active on any /v/<name>. */
+/** A nav entry is active on its own route and its sub-routes; /verify also owns /p and /v pages. */
 export function isActive(path: string, href: string): boolean {
-  return href === "/" ? path === "/" : path.startsWith("/v/");
+  if (path === href || path.startsWith(`${href}/`)) return true;
+  return href === "/verify" && (path.startsWith("/p/") || path.startsWith("/v/"));
 }
 
 function Wordmark() {

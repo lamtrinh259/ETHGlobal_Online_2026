@@ -22,10 +22,12 @@ describe("ui helpers", () => {
 import { isActive } from "@/app/AppShell";
 
 describe("nav", () => {
-  it("marks publish on the landing and verify on any name", () => {
-    expect(isActive("/", "/")).toBe(true);
-    expect(isActive("/v/x.eth", "/")).toBe(false);
-    expect(isActive("/v/x.eth", "/v/alice.ketsuban.eth")).toBe(true);
-    expect(isActive("/", "/v/alice.ketsuban.eth")).toBe(false);
+  it("marks each door on its routes; verify owns /p and /v", () => {
+    expect(isActive("/claim", "/claim")).toBe(true);
+    expect(isActive("/vouch/alice", "/vouch")).toBe(true);
+    expect(isActive("/p/alice", "/verify")).toBe(true);
+    expect(isActive("/v/x.eth", "/verify")).toBe(true);
+    expect(isActive("/", "/claim")).toBe(false);
+    expect(isActive("/claim", "/vouch")).toBe(false);
   });
 });

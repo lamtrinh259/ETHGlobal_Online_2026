@@ -315,3 +315,121 @@ dl.kv dd {
   color: var(--text-secondary);
   max-width: 60ch;
 }
+
+/* ── doors (landing) ── */
+.doors {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--sp-md);
+  margin: var(--sp-lg) 0;
+}
+.door {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--sp-lg);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  text-decoration: none;
+  transition: box-shadow 0.25s ease, border-color 0.25s ease;
+}
+.door:hover {
+  border-color: var(--flame-glow);
+  box-shadow: 0 0 24px -8px var(--flame-glow);
+}
+.door-k {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+.door-t {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--flame);
+}
+.door-d {
+  font-size: 13px;
+}
+.steps {
+  padding-left: 1.2em;
+}
+.steps li {
+  margin: var(--sp-sm) 0;
+}
+
+/* ── stepper (journeys) ── */
+.stepper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-sm);
+  padding: 0;
+  margin: var(--sp-md) 0;
+  list-style: none;
+  counter-reset: step;
+}
+.stepper li {
+  counter-increment: step;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+.stepper li::before {
+  content: counter(step) " · ";
+  font-family: var(--font-mono);
+}
+.stepper li.now {
+  color: var(--flame);
+  border-color: var(--flame-glow);
+  box-shadow: 0 0 14px -6px var(--flame-glow);
+}
+.stepper li.done {
+  color: var(--consensus);
+  border-color: var(--consensus);
+}
+.stepper li.pending {
+  border-style: dashed;
+}
+
+/* ── policy checks ── */
+.checks {
+  list-style: none;
+  padding: 0;
+  margin: var(--sp-md) 0;
+  display: grid;
+  gap: 6px;
+}
+.checks li {
+  display: grid;
+  grid-template-columns: 1.4em 1fr;
+  gap: 2px 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.checks li.ok .check-mark {
+  color: var(--consensus);
+}
+.checks li.no .check-mark {
+  color: var(--contested);
+}
+.check-detail {
+  grid-column: 2;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.kv-row {
+  display: contents;
+}
+h3 {
+  font-size: 14px;
+  margin: var(--sp-md) 0 var(--sp-xs);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-family: var(--font-mono);
+}
