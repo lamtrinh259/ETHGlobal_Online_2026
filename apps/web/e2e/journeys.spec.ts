@@ -32,11 +32,21 @@ test("claim and vouch journeys show the stepper and the sign-in gate", async ({ 
   await expect(page.getByTestId("signin")).toBeVisible({ timeout: 20000 });
 });
 
-test("vouch lookup routes to the candidate", async ({ page }) => {
+test("vouch lookup routes to the candidate when the API cannot answer, and blocks unclaimed handles when it can", async ({
+  page,
+}) => {
   await page.goto("/vouch");
   await page.getByLabel("handle").fill("alice");
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page).toHaveURL(/\/vouch\/alice$/);
+
+  await page.route("**/v1/name/*/nobody", (route) =>
+    route.fulfill({ json: { domain: "ketsuban", handle: "nobody", taken: false, wallet: null, live: false } })
+  );
+  await page.goto("/vouch");
+  await page.getByLabel("handle").fill("nobody");
+  await expect(page.getByTestId("lookup-status")).toContainText("Nobody has claimed");
+  await expect(page.getByRole("button", { name: "Continue" })).toBeDisabled();
 });
 
 test("the dashboard is behind the sign-in gate", async ({ page }) => {

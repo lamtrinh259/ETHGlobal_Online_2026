@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { loadWebConfig } from "@/lib/config";
+import { SignedIn } from "./SignedIn";
 
 /** Three doors, one per role (spec §3): candidate, voucher, verifier. */
 export default function Home() {
@@ -16,6 +17,8 @@ export default function Home() {
           <code>&lt;you&gt;.{root?.parentName}</code> — and nothing on it can be quietly removed.
         </p>
       </section>
+
+      <SignedIn />
 
       <div className="doors">
         <Link href="/claim" className="door">
