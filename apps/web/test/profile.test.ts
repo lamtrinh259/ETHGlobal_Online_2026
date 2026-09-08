@@ -6,6 +6,7 @@ import {
   policyFromQuery,
   profileNames,
   rootInstance,
+  disclosureLink,
   shareSnippet,
 } from "@/lib/profile";
 
@@ -182,5 +183,13 @@ describe("policyFromQuery", () => {
       requireHumanity: false,
       minVouches: 3,
     });
+  });
+});
+
+describe("disclosureLink", () => {
+  it("points at the reference page with one platform and the view code", () => {
+    expect(disclosureLink("https://app.example/", "alice", "x", "0xabc")).toBe(
+      "https://app.example/p/alice?links=x&viewCode=0xabc"
+    );
   });
 });

@@ -9,6 +9,7 @@ import { formatEther } from "viem";
 import type { Signer } from "@/lib/chain";
 import { ProfileEditor } from "./ProfileEditor";
 import { OwnName } from "./OwnName";
+import { Privacy } from "./Privacy";
 import { useWebConfig } from "@/app/providers";
 import { fmtUtc, short } from "@/app/ui";
 
@@ -152,6 +153,8 @@ export function Dashboard() {
           </ul>
         )}
       </section>
+
+      {rootName && <Privacy links={d.links} handle={rootName.name} />}
 
       <section className="card" data-testid="dash-given">
         <h2>References you gave</h2>

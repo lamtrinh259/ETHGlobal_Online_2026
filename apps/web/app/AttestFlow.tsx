@@ -14,7 +14,7 @@ import { fromBytes32 } from "@peeramid-labs/multipass-client";
 import { apiFor, useAttest, useDeliver, useNameStatus, useNonce } from "@/lib/hooks";
 import { isNameDomainFor, parentNameFor } from "@/lib/journey";
 import { buildIntent, intentTypedData, toWire } from "@/lib/intent";
-import { loadOrCreateViewKey, openViewCode } from "@/lib/keys";
+import { loadOrCreateViewKey, openViewCode, saveViewCode } from "@/lib/keys";
 import { useWebConfig } from "./providers";
 import { fmtUtc, short } from "./ui";
 
@@ -118,7 +118,11 @@ export function AttestFlow({ fixedDomain, fixedHandle, title, answerLabel, hideF
       );
       setSigning(false);
       const attested = await attest.mutateAsync(toWire(intent, identityToken, signature as Hex));
-      if (attested.viewCode) setViewCode(openViewCode(viewKey, attested.viewCode));
+      if (attested.viewCode) {
+        const code = openViewCode(viewKey, attested.viewCode);
+        setViewCode(code);
+        saveViewCode(domain, code);
+      }
       const { txHash } = await deliver.mutateAsync(attested);
       onPublished?.({
         handle,
@@ -288,7 +292,10 @@ export function AttestFlow({ fixedDomain, fixedHandle, title, answerLabel, hideF
               <dd>
                 <code>{viewCode}</code>
                 <br />
-                <small className="muted">save it — only holders can read this link</small>
+                <small className="muted">
+                  kept in this browser — make disclosure links from your dashboard; only holders can read this
+                  link
+                </small>
               </dd>
             </>
           )}

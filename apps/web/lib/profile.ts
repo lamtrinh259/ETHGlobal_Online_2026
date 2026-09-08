@@ -151,3 +151,9 @@ export function policyFromQuery(q: Record<string, string | undefined>, subjectDo
         : DEFAULT_POLICY.minVouches,
   };
 }
+
+/** Reference page link that unmasks one platform link for whoever holds it. */
+export function disclosureLink(siteUrl: string, handle: string, domain: string, viewCode: string): string {
+  const q = new URLSearchParams({ links: domain, viewCode });
+  return `${siteUrl.replace(/\/$/, "")}/p/${handle}?${q.toString()}`;
+}

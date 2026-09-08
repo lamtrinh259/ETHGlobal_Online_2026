@@ -3,6 +3,7 @@ import { bytesToHex, hexToBytes, type Hex } from "viem";
 import { eciesDecrypt, type EciesBox } from "@ketsuban/registrar";
 
 const STORAGE_KEY = "ketsuban:viewcode-key";
+const CODES_KEY = "ketsuban:viewcodes";
 
 export type ViewKey = { privateKey: Hex; publicKey: Hex };
 
@@ -26,4 +27,30 @@ export function fromPrivateKey(privateKey: Hex): ViewKey {
 /** Open the enclave's view-code box with this browser's key */
 export function openViewCode(key: ViewKey, box: EciesBox): Hex {
   return bytesToHex(eciesDecrypt(key.privateKey, box));
+}
+
+type Store = Pick<Storage, "getItem" | "setItem">;
+
+/** View codes opened in this browser, by platform domain — what a disclosure link needs later. */
+export function loadViewCodes(storage: Store = localStorage): Record<string, Hex> {
+  try {
+    const raw = storage.getItem(CODES_KEY);
+    const parsed: unknown = raw ? JSON.parse(raw) : {};
+    if (!parsed || typeof parsed !== "object") return {};
+    return Object.fromEntries(
+      Object.entries(parsed as Record<string, unknown>).filter(
+        (e): e is [string, Hex] => typeof e[1] === "string" && /^0x[0-9a-fA-F]+$/.test(e[1])
+      )
+    );
+  } catch {
+    return {};
+  }
+}
+
+export function saveViewCode(domain: string, code: Hex, storage: Store = localStorage): void {
+  try {
+    storage.setItem(CODES_KEY, JSON.stringify({ ...loadViewCodes(storage), [domain]: code }));
+  } catch {
+    // storage unavailable (private mode, quota): the code is still shown once on screen
+  }
 }

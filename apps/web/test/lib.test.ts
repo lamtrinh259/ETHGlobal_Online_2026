@@ -6,7 +6,7 @@ import { toBytes32 } from "@peeramid-labs/multipass-client";
 import { ApiError, createApi } from "@/lib/api";
 import { loadWebConfig } from "@/lib/config";
 import { buildIntent, intentTypedData, toWire } from "@/lib/intent";
-import { fromPrivateKey, loadOrCreateViewKey, openViewCode } from "@/lib/keys";
+import { fromPrivateKey, loadOrCreateViewKey, loadViewCodes, openViewCode, saveViewCode } from "@/lib/keys";
 
 const env = {
   NEXT_PUBLIC_PRIVY_APP_ID: "app",
@@ -20,6 +20,34 @@ const env = {
 };
 const NOW = 1_800_000_000;
 const account = privateKeyToAccount("0x000000000000000000000000000000000000000000000000000000000000a11c");
+
+describe("view codes", () => {
+  it("keeps opened view codes per domain and survives garbage in storage", () => {
+    const mem: Record<string, string> = {};
+    const storage = {
+      getItem: (k: string) => mem[k] ?? null,
+      setItem: (k: string, v: string) => void (mem[k] = v),
+    };
+    expect(loadViewCodes(storage)).toEqual({});
+    saveViewCode("x", "0xaa", storage);
+    saveViewCode("github", "0xbb", storage);
+    expect(loadViewCodes(storage)).toEqual({ x: "0xaa", github: "0xbb" });
+    mem["ketsuban:viewcodes"] = JSON.stringify({ x: "0xaa", bad: 1, worse: "nope" });
+    expect(loadViewCodes(storage)).toEqual({ x: "0xaa" });
+    mem["ketsuban:viewcodes"] = "{not json";
+    expect(loadViewCodes(storage)).toEqual({});
+    const throwing = {
+      getItem: () => {
+        throw new Error("denied");
+      },
+      setItem: () => {
+        throw new Error("denied");
+      },
+    };
+    expect(loadViewCodes(throwing)).toEqual({});
+    expect(() => saveViewCode("x", "0xaa", throwing)).not.toThrow();
+  });
+});
 
 describe("config", () => {
   it("pairs name domains with parent names", () => {
