@@ -70,8 +70,18 @@ cre workflow activate attest --target production-settings
 
 ## 3. API (`apps/api`) — Coolify
 
-Coolify → new project → *Docker Compose* resource → repository `ETHGlobal_Online_2026`, branch, compose path
-`apps/api/docker-compose.yml`, build context is the repo root (the compose sets it). Domain → service `api`, port 8787.
+Coolify → project → **New resource → Application (Git)** → repository `ETHGlobal_Online_2026`, branch `feat/scaffold`:
+
+| Setting | Value |
+|---|---|
+| Build Pack | **Dockerfile** |
+| Base Directory | **`/`** — the image copies `packages/registrar` and the workspace lockfile; a base dir of `apps/api` makes every `COPY` fail with `"/packages/registrar": not found` |
+| Dockerfile Location | `/apps/api/Dockerfile` |
+| Port | `8787` |
+| Health | `/healthz` (the image declares a HEALTHCHECK; enable zero-downtime) |
+
+`apps/api/docker-compose.yml` is the alternative (Docker Compose build pack, base directory `/`, compose path
+`apps/api/docker-compose.yml`) if a dedicated network name is wanted.
 
 Environment (Coolify project → Environment Variables) — copy `apps/api/.env.coolify.example`, it carries the current
 Sepolia addresses and placeholders for the secrets:
@@ -88,12 +98,12 @@ Sepolia addresses and placeholders for the secrets:
 
 Health: `GET /healthz`. No volumes, no ports, stateless — scale by replicas.
 
-## 4. Web (`apps/web`, planned)
+## 4. Web (`apps/web`) — Coolify
 
-Next.js + Privy (`PRIVY_APP_ID`, `NEXT_PUBLIC_PRIVY_CLIENT_ID`, `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_CRE_TRIGGER_URL`).
-Same shape as the API: `apps/web/docker-compose.yml` with `name: ketsuban-web`, network `ketsuban_web`, `expose: 3000`,
-no host ports; Coolify domain → service `web`, port 3000. Allowed origins in the Privy dashboard must list the web
-domain.
+Same shape as the API: Application (Git), Build Pack **Dockerfile**, Base Directory **`/`**, Dockerfile Location
+`/apps/web/Dockerfile`, Port `3000`, health `/api/health`. `NEXT_PUBLIC_*` are inlined at build time — set them in the
+Coolify environment **before** the first build and rebuild when they change (`apps/web/.env.example` lists them; all
+public). Add the web domain to the Privy dashboard's allowed origins and to the API's CORS allow-list.
 
 ## 5. Verify a deployment
 

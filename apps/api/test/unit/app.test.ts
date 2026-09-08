@@ -143,6 +143,28 @@ describe("GET /healthz", () => {
   });
 });
 
+describe("GET /v1/nonce", () => {
+  it("returns the on-chain nonce and the next usable one", async () => {
+    const key = `${user.account.address.toLowerCase()}:x`;
+    const { chain } = fakeChain({
+      records: { [key]: { exists: true, nonce: 2n, id: toBytes32("1"), wallet: user.account.address } },
+    });
+    const body = await (await app(chain).request(`/v1/nonce?wallet=${user.account.address}&domain=x`)).json();
+    expect(body).toEqual({
+      exists: true,
+      nonce: "2",
+      next: "3",
+      id: toBytes32("1"),
+      wallet: user.account.address,
+    });
+    const fresh = await (
+      await app(chain).request(`/v1/nonce?wallet=${user.account.address}&domain=telegram`)
+    ).json();
+    expect(fresh).toMatchObject({ exists: false, nonce: "0", next: "1" });
+    expect((await app(chain).request(`/v1/nonce?wallet=nope&domain=x`)).status).toBe(400);
+  });
+});
+
 describe("POST /v1/attest (node registrar fallback)", () => {
   it("signs a record identical in shape to the enclave output", async () => {
     const { chain } = fakeChain();

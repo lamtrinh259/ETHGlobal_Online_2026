@@ -3,8 +3,11 @@ packages:
   - "packages/cre/attest"
   - "apps/*"
 allowBuilds:
+  '@reown/appkit': false
+  bufferutil: false
   esbuild: true
   keccak: false
+  utf-8-validate: false
 minimumReleaseAgeExclude:
   - '@peeramid-labs/multipass-client@1.1.0'
   - '@peeramid-labs/multipass@1.1.0'

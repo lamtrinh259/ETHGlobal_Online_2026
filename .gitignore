@@ -289,3 +289,5 @@ packages/*/cache/
 packages/*/dist/
 apps/*/dist/
 coverage/
+
+.secrets/

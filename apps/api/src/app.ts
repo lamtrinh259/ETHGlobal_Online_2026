@@ -121,6 +121,22 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
 
   app.get("/v1/instances", async (c) => c.json({ instances: await chain.instances() }));
 
+  /** Current on-chain state for (wallet, domain): the browser needs the nonce to build an intent. */
+  app.get("/v1/nonce", async (c) => {
+    const wallet = c.req.query("wallet");
+    const domain = c.req.query("domain");
+    if (!wallet || !/^0x[0-9a-fA-F]{40}$/.test(wallet) || !domain)
+      return c.json({ error: "wallet and domain required" }, 400);
+    const s = await chain.readOnchain(wallet as Address, domain);
+    return c.json({
+      exists: s.exists,
+      nonce: s.nonce.toString(),
+      next: (s.nonce + 1n).toString(),
+      id: s.id,
+      wallet: s.wallet,
+    });
+  });
+
   /**
    * Node registrar fallback (spec B.9.7): same input and byte-identical output as the enclave.
    * Enabled only when REGISTRAR_KEY / VIEWCODE_KEY are configured.

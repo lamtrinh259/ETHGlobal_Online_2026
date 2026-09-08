@@ -1,0 +1,139 @@
+import { z } from "zod";
+import type { Hex } from "viem";
+
+const hex = z
+  .string()
+  .regex(/^0x[0-9a-fA-F]*$/)
+  .transform((s) => s as Hex);
+
+export const attestResultSchema = z.object({
+  record: z.object({
+    name: hex,
+    id: hex,
+    domainName: hex,
+    validUntil: z.string(),
+    nonce: z.string(),
+    wallet: hex,
+    payload: hex,
+  }),
+  signature: hex,
+  viewCode: z.object({ ephemeralPubkey: hex, nonce: hex, ciphertext: hex }).nullable(),
+});
+export type AttestResult = z.infer<typeof attestResultSchema>;
+
+export const verifySchema = z.object({
+  name: z.string(),
+  instance: z.object({ domain: z.string(), parentName: z.string() }),
+  status: z.enum(["active", "inactive"]),
+  wallet: z.string().nullable(),
+  answer: z.string().nullable(),
+  expiresAt: z.string().nullable(),
+  humanity: z.object({ level: z.string(), until: z.string().nullable() }).nullable(),
+  links: z.array(
+    z.object({
+      domain: z.string(),
+      optedIn: z.boolean(),
+      commitment: z.string().optional(),
+      disclosed: z.object({ handle: z.string(), platformId: z.string() }).optional(),
+    })
+  ),
+  evidence: z.array(z.string()),
+  decision: z.string(),
+  warning: z.string(),
+});
+export type Verification = z.infer<typeof verifySchema>;
+
+export class ApiError extends Error {
+  constructor(
+    readonly status: number,
+    message: string
+  ) {
+    super(message);
+  }
+}
+
+// 20s abort signal; AbortSignal.timeout is unsupported on older iOS Safari, so fall back to a
+// manual AbortController there.
+function timeoutSignal(ms: number): AbortSignal {
+  if (typeof AbortSignal !== "undefined" && "timeout" in AbortSignal) return AbortSignal.timeout(ms);
+  const c = new AbortController();
+  setTimeout(() => c.abort(), ms);
+  return c.signal;
+}
+
+export type Fetch = typeof fetch;
+
+async function readJson(res: Response): Promise<unknown> {
+  const text = await res.text().catch(() => "");
+  let body: unknown = null;
+  try {
+    body = text ? JSON.parse(text) : null;
+  } catch {
+    // A 2xx that isn't JSON means a gateway answered instead of the service.
+    if (res.ok)
+      throw new ApiError(res.status, "The service sent a reply the app could not read — try again.");
+  }
+  if (!res.ok) {
+    const msg = (body as { error?: string } | null)?.error ?? `HTTP ${res.status}`;
+    throw new ApiError(res.status, msg);
+  }
+  return body;
+}
+
+/**
+ * Client for apps/api. Mutations get a longer timeout: aborting a POST the server already
+ * committed and retrying risks a double submit.
+ */
+export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fetch) {
+  const base = apiUrl.replace(/\/$/, "");
+  const call = (url: string, init?: RequestInit) =>
+    fetchFn(url, {
+      ...init,
+      signal: init?.signal ?? timeoutSignal(init?.method && init.method !== "GET" ? 45_000 : 20_000),
+    });
+
+  return {
+    async nonce(wallet: string, domain: string): Promise<{ exists: boolean; next: bigint }> {
+      const b = (await readJson(
+        await call(`${base}/v1/nonce?wallet=${wallet}&domain=${encodeURIComponent(domain)}`)
+      )) as {
+        exists: boolean;
+        next: string;
+      };
+      return { exists: b.exists, next: BigInt(b.next) };
+    },
+
+    /** POST the signed request to the attester (API node fallback or CRE HTTP trigger) */
+    async attest(wire: object): Promise<AttestResult> {
+      const res = await call(attestUrl, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(wire),
+      });
+      return attestResultSchema.parse(await readJson(res));
+    },
+
+    /** Hand a signed record to the relay, which pays and submits `bridge.verify` */
+    async deliver(result: AttestResult, deliveryToken?: string): Promise<{ ok: true; txHash: Hex }> {
+      const res = await call(`${base}/v1/cre/delivery`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          ...(deliveryToken ? { "x-delivery-token": deliveryToken } : {}),
+        },
+        body: JSON.stringify(result),
+      });
+      return (await readJson(res)) as { ok: true; txHash: Hex };
+    },
+
+    async verify(name: string, opts: { links?: string[]; viewCode?: Hex } = {}): Promise<Verification> {
+      const q = new URLSearchParams();
+      if (opts.links?.length) q.set("links", opts.links.join(","));
+      if (opts.viewCode) q.set("viewCode", opts.viewCode);
+      const qs = q.toString();
+      return verifySchema.parse(await readJson(await call(`${base}/v1/verify/${name}${qs ? `?${qs}` : ""}`)));
+    },
+  };
+}
+
+export type Api = ReturnType<typeof createApi>;
