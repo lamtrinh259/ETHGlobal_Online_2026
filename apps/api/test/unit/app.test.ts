@@ -50,6 +50,8 @@ type State = {
   data: Record<string, Hex>;
   listed: Record<string, ListedRecord[]>;
   instancesCreated: string[];
+  byWallet: (ListedRecord & { domain: string })[];
+  names: Record<string, { taken: boolean; wallet: Address | null; live: boolean }>;
 };
 
 function fakeChain(state: Partial<State> = {}) {
@@ -88,6 +90,11 @@ function fakeChain(state: Partial<State> = {}) {
       return { domain: `~${handle}`, created };
     }),
     listRecords: vi.fn(async (domain: string) => s.listed[domain] ?? []),
+    nameStatus: vi.fn(
+      async (domain: string, handle: string) =>
+        s.names[`${domain}/${handle}`] ?? { taken: false, wallet: null, live: false }
+    ),
+    listRecordsByWallet: vi.fn(async () => s.byWallet),
   };
   return { chain, submitted, state: s };
 }
@@ -539,5 +546,88 @@ describe("GET /v1/vouches/:handle", () => {
     expect(chain.listRecords).toHaveBeenCalledWith("~alice");
     expect((await app(chain).request("/v1/vouches/Not%20Valid")).status).toBe(400);
     expect((await (await app(chain).request("/v1/vouches/nobody")).json()).vouches).toEqual([]);
+  });
+});
+
+describe("GET /v1/name/:domain/:handle", () => {
+  it("reports availability and the holder", async () => {
+    const { chain } = fakeChain({
+      names: { "kju-is/alice": { taken: true, wallet: user.account.address, live: true } },
+    });
+    expect(await (await app(chain).request("/v1/name/kju-is/Alice")).json()).toEqual({
+      domain: "kju-is",
+      handle: "alice",
+      taken: true,
+      wallet: user.account.address,
+      live: true,
+    });
+    expect(await (await app(chain).request("/v1/name/kju-is/free")).json()).toMatchObject({
+      taken: false,
+      wallet: null,
+    });
+    expect((await app(chain).request("/v1/name/kju-is/bad%20name")).status).toBe(400);
+  });
+});
+
+describe("GET /v1/wallet/:address", () => {
+  it("splits a wallet's records into names, links and references given", async () => {
+    const rec = (
+      domain: string,
+      name: string,
+      payload: string,
+      live = true
+    ): ListedRecord & { domain: string } => ({
+      domain,
+      name,
+      id: toBytes32(name),
+      wallet: user.account.address,
+      payload: toBytes32(payload),
+      validUntil: 1_800_000_000n,
+      nonce: 1n,
+      live,
+    });
+    const { chain } = fakeChain({
+      byWallet: [
+        rec("kju-is", "alice", "hi"),
+        rec("x", "alice_x", ""),
+        rec("~bob", "alice", "great colleague", false),
+      ],
+    });
+    const body = await (await app(chain).request(`/v1/wallet/${user.account.address}`)).json();
+    expect(body.names).toEqual([
+      {
+        domain: "kju-is",
+        name: "alice",
+        payload: "hi",
+        validUntil: "2027-01-15T08:00:00.000Z",
+        nonce: "1",
+        live: true,
+        ensName: "alice.kju-is.eth",
+      },
+    ]);
+    expect(body.links).toEqual([
+      {
+        domain: "x",
+        name: "alice_x",
+        payload: "",
+        validUntil: "2027-01-15T08:00:00.000Z",
+        nonce: "1",
+        live: true,
+        optedIn: false,
+      },
+    ]);
+    expect(body.given).toEqual([
+      {
+        domain: "~bob",
+        name: "alice",
+        payload: "great colleague",
+        validUntil: "2027-01-15T08:00:00.000Z",
+        nonce: "1",
+        live: false,
+        candidate: "bob",
+        ensName: "alice.bob.kju-is.eth",
+      },
+    ]);
+    expect((await app(chain).request("/v1/wallet/nope")).status).toBe(400);
   });
 });

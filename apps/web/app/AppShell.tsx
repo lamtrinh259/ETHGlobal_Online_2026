@@ -10,6 +10,7 @@ const NAV = [
   { href: "/claim", label: "Claim" },
   { href: "/vouch", label: "Vouch" },
   { href: "/verify", label: "Verify" },
+  { href: "/me", label: "Me" },
 ];
 
 /** A nav entry is active on its own route and its sub-routes; /verify also owns /p and /v pages. */

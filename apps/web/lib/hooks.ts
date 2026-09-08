@@ -29,6 +29,25 @@ export function useVerification(api: Api, name: string, opts: { links?: string[]
   });
 }
 
+/** Is a handle free in a name domain? Enabled only for well-formed handles; the caller debounces. */
+export function useNameStatus(api: Api, domain: string, handle: string, enabled = true) {
+  return useQuery({
+    queryKey: ["name", domain, handle],
+    queryFn: () => api.nameStatus(domain, handle),
+    enabled: enabled && !!domain && /^[a-z0-9-]{1,31}$/.test(handle),
+    staleTime: 10_000,
+  });
+}
+
+/** A wallet's dashboard: names, links, references given. */
+export function useWalletDashboard(api: Api, address: Address | undefined) {
+  return useQuery({
+    queryKey: ["wallet", address],
+    queryFn: () => api.wallet(address as Address),
+    enabled: !!address,
+  });
+}
+
 /** POST the signed request to the attester. */
 export function useAttest(api: Api) {
   return useMutation({ mutationFn: (wire: object) => api.attest(wire) });
@@ -42,6 +61,8 @@ export function useDeliver(api: Api, wallet: Address | undefined, domain: string
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["nonce", wallet, domain] });
       void qc.invalidateQueries({ queryKey: ["verify"] });
+      void qc.invalidateQueries({ queryKey: ["name"] });
+      void qc.invalidateQueries({ queryKey: ["wallet", wallet] });
     },
   });
 }

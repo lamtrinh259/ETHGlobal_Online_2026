@@ -175,6 +175,28 @@ describe("api client", () => {
       "http://api.test/v1/attest": { body: result },
       "http://api.test/v1/cre/delivery": { body: { ok: true, txHash: `0x${"ab".repeat(32)}` } },
       "http://api.test/v1/verify/alice.ketsuban.eth": { body: verification },
+      "http://api.test/v1/name/ketsuban/alice": {
+        body: { domain: "ketsuban", handle: "alice", taken: true, wallet: account.address, live: true },
+      },
+      [`http://api.test/v1/wallet/${account.address}`]: {
+        body: {
+          address: account.address,
+          names: [
+            {
+              domain: "ketsuban",
+              name: "alice",
+              payload: "",
+              validUntil: "2027-01-01T00:00:00.000Z",
+              nonce: "1",
+              live: true,
+              ensName: "alice.ketsuban.eth",
+            },
+          ],
+          links: [],
+          given: [],
+          warning: "w",
+        },
+      },
       "http://api.test/v1/vouches/alice": {
         body: {
           handle: "alice",
@@ -208,6 +230,14 @@ describe("api client", () => {
 
     expect(await api.verify("alice.ketsuban.eth", { links: ["x"], viewCode: "0x02" })).toEqual(verification);
     expect((await api.vouches("alice")).vouches[0].voucher).toBe("bob");
+    expect(await api.nameStatus("ketsuban", "alice")).toEqual({
+      domain: "ketsuban",
+      handle: "alice",
+      taken: true,
+      wallet: account.address,
+      live: true,
+    });
+    expect((await api.wallet(account.address)).names[0].ensName).toBe("alice.ketsuban.eth");
     expect(calls[3].url).toBe("http://api.test/v1/verify/alice.ketsuban.eth?links=x&viewCode=0x02");
   });
 

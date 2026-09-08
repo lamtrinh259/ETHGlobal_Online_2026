@@ -70,6 +70,32 @@ export const vouchesSchema = z.object({
 export type Vouches = z.infer<typeof vouchesSchema>;
 export type Vouch = Vouches["vouches"][number];
 
+export const nameStatusSchema = z.object({
+  domain: z.string(),
+  handle: z.string(),
+  taken: z.boolean(),
+  wallet: z.string().nullable(),
+  live: z.boolean(),
+});
+export type NameStatus = z.infer<typeof nameStatusSchema>;
+
+const walletRecord = z.object({
+  domain: z.string(),
+  name: z.string(),
+  payload: z.string(),
+  validUntil: z.string(),
+  nonce: z.string(),
+  live: z.boolean(),
+});
+export const walletSchema = z.object({
+  address: z.string(),
+  names: z.array(walletRecord.extend({ ensName: z.string() })),
+  links: z.array(walletRecord.extend({ optedIn: z.boolean() })),
+  given: z.array(walletRecord.extend({ candidate: z.string(), ensName: z.string().nullable() })),
+  warning: z.string(),
+});
+export type WalletDashboard = z.infer<typeof walletSchema>;
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -151,6 +177,18 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
         body: JSON.stringify(result),
       });
       return (await readJson(res)) as { ok: true; txHash: Hex };
+    },
+
+    async nameStatus(domain: string, handle: string): Promise<NameStatus> {
+      return nameStatusSchema.parse(
+        await readJson(
+          await call(`${base}/v1/name/${encodeURIComponent(domain)}/${encodeURIComponent(handle)}`)
+        )
+      );
+    },
+
+    async wallet(address: string): Promise<WalletDashboard> {
+      return walletSchema.parse(await readJson(await call(`${base}/v1/wallet/${address}`)));
     },
 
     async vouches(handle: string): Promise<Vouches> {

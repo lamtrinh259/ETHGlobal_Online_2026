@@ -38,3 +38,9 @@ test("vouch lookup routes to the candidate", async ({ page }) => {
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page).toHaveURL(/\/vouch\/alice$/);
 });
+
+test("the dashboard is behind the sign-in gate", async ({ page }) => {
+  await page.goto("/me");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Your names");
+  await expect(page.getByTestId("signin")).toBeVisible({ timeout: 20000 });
+});

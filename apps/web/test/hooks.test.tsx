@@ -3,7 +3,15 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { zeroHash, type Address } from "viem";
 import type { Api, AttestResult } from "@/lib/api";
-import { apiFor, useAttest, useDeliver, useNonce, useVerification } from "@/lib/hooks";
+import {
+  apiFor,
+  useAttest,
+  useDeliver,
+  useNameStatus,
+  useNonce,
+  useVerification,
+  useWalletDashboard,
+} from "@/lib/hooks";
 import { loadWebConfig } from "@/lib/config";
 
 const WALLET: Address = "0xEE4811b9462956C9C3535E79c08776D769CA9F3a";
@@ -31,6 +39,14 @@ function fakeApi(): Api {
       return { ok: true as const, txHash: `0x${"ab".repeat(32)}` as `0x${string}` };
     }),
     vouches: vi.fn(async (handle: string) => ({ handle, domain: `~${handle}`, vouches: [], warning: "w" })),
+    nameStatus: vi.fn(async (domain: string, handle: string) => ({
+      domain,
+      handle,
+      taken: handle === "taken",
+      wallet: handle === "taken" ? WALLET : null,
+      live: handle === "taken",
+    })),
+    wallet: vi.fn(async (address: string) => ({ address, names: [], links: [], given: [], warning: "w" })),
     verify: vi.fn(async (name: string) => ({
       name,
       instance: { domain: "ketsuban", parentName: "ketsuban.eth" },
@@ -98,6 +114,22 @@ describe("hooks", () => {
     expect(api.verify).toHaveBeenCalledWith("a.ketsuban.eth", { links: ["x"], viewCode: "0x02" });
     const off = renderHook(() => useVerification(api, ""), { wrapper: wrapper() });
     expect(off.result.current.fetchStatus).toBe("idle");
+  });
+
+  it("useNameStatus only asks for well-formed handles; useWalletDashboard waits for a wallet", async () => {
+    const api = fakeApi();
+    const bad = renderHook(() => useNameStatus(api, "ketsuban", "Bad Name"), { wrapper: wrapper() });
+    expect(bad.result.current.fetchStatus).toBe("idle");
+    const ok = renderHook(() => useNameStatus(api, "ketsuban", "taken"), { wrapper: wrapper() });
+    await waitFor(() => expect(ok.result.current.data?.taken).toBe(true));
+    expect(api.nameStatus).toHaveBeenCalledWith("ketsuban", "taken");
+    const off = renderHook(() => useNameStatus(api, "ketsuban", "free", false), { wrapper: wrapper() });
+    expect(off.result.current.fetchStatus).toBe("idle");
+
+    const noWallet = renderHook(() => useWalletDashboard(api, undefined), { wrapper: wrapper() });
+    expect(noWallet.result.current.fetchStatus).toBe("idle");
+    const dash = renderHook(() => useWalletDashboard(api, WALLET), { wrapper: wrapper() });
+    await waitFor(() => expect(dash.result.current.data?.address).toBe(WALLET));
   });
 
   it("apiFor builds a client from config", () => {

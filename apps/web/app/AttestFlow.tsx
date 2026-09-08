@@ -11,7 +11,7 @@ import {
 import type { Address, Hex } from "viem";
 import { PLATFORM_DOMAIN_NAMES } from "@ketsuban/registrar";
 import { fromBytes32 } from "@peeramid-labs/multipass-client";
-import { apiFor, useAttest, useDeliver, useNonce } from "@/lib/hooks";
+import { apiFor, useAttest, useDeliver, useNameStatus, useNonce } from "@/lib/hooks";
 import { buildIntent, intentTypedData, toWire } from "@/lib/intent";
 import { loadOrCreateViewKey, openViewCode } from "@/lib/keys";
 import { useWebConfig } from "./providers";
@@ -60,6 +60,14 @@ export function AttestFlow({ fixedDomain, fixedHandle, title, answerLabel, hideF
   const parentName = config.instances.find((i) => i.domain === domain)?.parentName;
 
   const nonce = useNonce(api, wallet, domain);
+  const [debounced, setDebounced] = useState(handle);
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(handle), 350);
+    return () => clearTimeout(t);
+  }, [handle]);
+  const nameStatus = useNameStatus(api, domain, debounced, isNameDomain && !fixedHandle);
+  const takenByOther =
+    !!nameStatus.data?.taken && !!wallet && nameStatus.data.wallet?.toLowerCase() !== wallet.toLowerCase();
   const attest = useAttest(api);
   const deliver = useDeliver(api, wallet, domain);
 
@@ -249,8 +257,14 @@ export function AttestFlow({ fixedDomain, fixedHandle, title, answerLabel, hideF
         )}
       </fieldset>
 
-      <button className="primary" onClick={run} disabled={busy} data-testid="publish">
-        {step ? `${step}…` : "Sign & publish"}
+      {nonce.data?.exists && (
+        <p className="muted" data-testid="renewal-note">
+          You already hold a record here. Publishing again writes a newer one (nonce {nonce.data.next}); the
+          previous stays visible in the history — that is how a statement is revoked.
+        </p>
+      )}
+      <button className="primary" onClick={run} disabled={busy || takenByOther} data-testid="publish">
+        {step ? `${step}…` : nonce.data?.exists ? "Sign & update" : "Sign & publish"}
       </button>
 
       {error && (

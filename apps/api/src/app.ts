@@ -201,6 +201,53 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     }
   });
 
+  /** Is a handle free in a domain? The browser asks before the wallet signs. */
+  app.get("/v1/name/:domain/:handle", async (c) => {
+    const domain = c.req.param("domain");
+    const handle = c.req.param("handle").toLowerCase();
+    if (!/^[a-z0-9-]{1,31}$/.test(handle)) return c.json({ error: "bad handle" }, 400);
+    return c.json({ domain, handle, ...(await chain.nameStatus(domain, handle)) });
+  });
+
+  /** A wallet's dashboard: its names per domain and the references it has given (`<prefix>*` domains). */
+  app.get("/v1/wallet/:address", async (c) => {
+    const address = c.req.param("address");
+    if (!/^0x[0-9a-fA-F]{40}$/.test(address)) return c.json({ error: "bad address" }, 400);
+    const instances = await chain.instances();
+    const parentOf = new Map(instances.map((i) => [i.domain, i.parentName]));
+    const rootParent = parentOf.get(config.NAME_DOMAINS[0] ?? "") ?? "";
+    const records = await chain.listRecordsByWallet(address as Address);
+    const isVouch = (d: string) => d.startsWith(config.VOUCH_PREFIX) && d.length > config.VOUCH_PREFIX.length;
+    const fmt = (r: (typeof records)[number]) => ({
+      domain: r.domain,
+      name: r.name,
+      payload: fromBytes32(r.payload),
+      validUntil: new Date(Number(r.validUntil) * 1000).toISOString(),
+      nonce: r.nonce.toString(),
+      live: r.live,
+    });
+    return c.json({
+      address,
+      names: records
+        .filter((r) => parentOf.has(r.domain) && !isVouch(r.domain))
+        .map((r) => ({ ...fmt(r), ensName: `${r.name}.${parentOf.get(r.domain)}` })),
+      links: records
+        .filter((r) => !parentOf.has(r.domain) && !isVouch(r.domain))
+        .map((r) => ({ ...fmt(r), optedIn: r.payload !== zeroHash })),
+      given: records
+        .filter((r) => isVouch(r.domain))
+        .map((r) => {
+          const candidate = r.domain.slice(config.VOUCH_PREFIX.length);
+          return {
+            ...fmt(r),
+            candidate,
+            ensName: rootParent ? `${r.name}.${candidate}.${rootParent}` : null,
+          };
+        }),
+      warning: WARNING,
+    });
+  });
+
   /** References written under a candidate: every record in the `<prefix><handle>` vouch domain. */
   app.get("/v1/vouches/:handle", async (c) => {
     const handle = c.req.param("handle").toLowerCase();

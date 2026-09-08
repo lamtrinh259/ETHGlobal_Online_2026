@@ -212,6 +212,77 @@ export class Chain {
     return { domain, created: true };
   }
 
+  /** Whether `handle` is taken in `domain`, and by which wallet */
+  async nameStatus(
+    domain: string,
+    handle: string
+  ): Promise<{ taken: boolean; wallet: Address | null; live: boolean }> {
+    const [ok, r] = await this.publicClient.readContract({
+      address: this.config.MULTIPASS,
+      abi: MultipassAbi,
+      functionName: "resolveRecord",
+      args: [
+        {
+          name: toBytes32(handle),
+          id: zeroHash,
+          wallet: zeroAddress,
+          domainName: toBytes32(domain),
+          targetDomain: zeroHash,
+        },
+      ],
+    });
+    const live = ok && r.validUntil > BigInt(Math.floor(Date.now() / 1000));
+    return { taken: ok, wallet: ok ? r.wallet : null, live };
+  }
+
+  /** Every record a wallet has registered (any domain), current state, with liveness */
+  async listRecordsByWallet(wallet: Address): Promise<(ListedRecord & { domain: string })[]> {
+    const fromBlock = BigInt(this.config.DEPLOY_BLOCK);
+    const logs = await this.publicClient.getLogs({
+      address: this.config.MULTIPASS,
+      event: getAbiItem({ abi: MultipassAbi, name: "Registered" }),
+      fromBlock,
+      toBlock: "latest",
+    });
+    const w = wallet.toLowerCase();
+    const seen = new Set<string>();
+    const out: (ListedRecord & { domain: string })[] = [];
+    for (const l of logs) {
+      const rec = l.args.NewRecord;
+      if (!rec || rec.wallet.toLowerCase() !== w) continue;
+      const domain = fromBytes32(l.args.domainName as Hex);
+      const key = `${domain}:${rec.id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const [ok, r] = await this.publicClient.readContract({
+        address: this.config.MULTIPASS,
+        abi: MultipassAbi,
+        functionName: "resolveRecord",
+        args: [
+          {
+            name: zeroHash,
+            id: rec.id,
+            wallet: zeroAddress,
+            domainName: l.args.domainName as Hex,
+            targetDomain: zeroHash,
+          },
+        ],
+      });
+      if (!ok || r.wallet.toLowerCase() !== w) continue;
+      out.push({
+        domain,
+        name: fromBytes32(r.name),
+        id: r.id,
+        wallet: r.wallet,
+        payload: r.payload,
+        validUntil: r.validUntil,
+        nonce: r.nonce,
+        live: r.validUntil > BigInt(Math.floor(Date.now() / 1000)),
+      });
+    }
+    return out;
+  }
+
   /** Every record ever written to `domain` (Registered + Renewed logs), latest state per id, with liveness */
   async listRecords(domain: string): Promise<ListedRecord[]> {
     const domainB = toBytes32(domain);
@@ -315,4 +386,6 @@ export type ChainReader = Pick<
   | "relayer"
   | "ensureVouchInstance"
   | "listRecords"
+  | "nameStatus"
+  | "listRecordsByWallet"
 >;

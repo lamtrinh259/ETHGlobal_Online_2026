@@ -27,6 +27,7 @@ describe("nav", () => {
     expect(isActive("/vouch/alice", "/vouch")).toBe(true);
     expect(isActive("/p/alice", "/verify")).toBe(true);
     expect(isActive("/v/x.eth", "/verify")).toBe(true);
+    expect(isActive("/me", "/me")).toBe(true);
     expect(isActive("/", "/claim")).toBe(false);
     expect(isActive("/claim", "/vouch")).toBe(false);
   });
