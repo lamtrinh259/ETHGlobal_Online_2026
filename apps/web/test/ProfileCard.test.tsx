@@ -27,6 +27,7 @@ const profile: Profile = {
       validUntil: "2027-01-01T00:00:00.000Z",
       nonce: "1",
       live: true,
+      standing: { claimed: true, given: 4, received: 2 },
     },
     {
       voucher: "carol",
@@ -85,6 +86,8 @@ describe("ProfileCard", () => {
     expect(vouches[0]).toHaveClass("live");
     expect(vouches[0]).toHaveTextContent("bob.ketsuban.eth");
     expect(vouches[0]).toHaveTextContent("worked together 2019-22");
+    expect(vouches[0].querySelector("[data-testid=standing]")).toHaveTextContent("gave 4 · received 2");
+    expect(vouches[1].querySelector("[data-testid=standing]")).toBeNull();
     expect(vouches[1]).toHaveClass("expired");
     expect(vouches[1]).toHaveTextContent("carol");
     expect(screen.getByRole("note")).toHaveTextContent(profile.warning);

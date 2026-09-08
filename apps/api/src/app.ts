@@ -293,6 +293,31 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
   });
 
   /** References written under a candidate: every record in the `<prefix><handle>` vouch domain. */
+  const isVouchDomain = (d: string) =>
+    d.startsWith(config.VOUCH_PREFIX) && d.length > config.VOUCH_PREFIX.length;
+
+  /** A handle's standing in the reference graph: live references given by its wallet and received under it. */
+  async function standing(handle: string): Promise<{ claimed: boolean; given: number; received: number }> {
+    const rootDomain = config.NAME_DOMAINS[0] ?? "";
+    const status = await chain.nameStatus(rootDomain, handle);
+    const received = new Set(
+      (await chain.listRecords(`${config.VOUCH_PREFIX}${handle}`)).filter((r) => r.live).map((r) => r.name)
+    ).size;
+    if (!status.live || !status.wallet) return { claimed: false, given: 0, received };
+    const given = new Set(
+      (await chain.listRecordsByWallet(status.wallet))
+        .filter((r) => r.live && isVouchDomain(r.domain))
+        .map((r) => r.domain)
+    ).size;
+    return { claimed: true, given, received };
+  }
+
+  app.get("/v1/standing/:handle", async (c) => {
+    const handle = c.req.param("handle").toLowerCase();
+    if (!/^[a-z0-9-]{1,30}$/.test(handle)) return c.json({ error: "bad handle" }, 400);
+    return c.json({ handle, ...(await standing(handle)), warning: WARNING });
+  });
+
   app.get("/v1/vouches/:handle", async (c) => {
     const handle = c.req.param("handle").toLowerCase();
     if (!/^[a-z0-9-]{1,30}$/.test(handle)) return c.json({ error: "bad handle" }, 400);
@@ -300,6 +325,8 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     const rootParent =
       (await chain.instances()).find((i) => i.domain === config.NAME_DOMAINS[0])?.parentName ?? "";
     const records = await chain.listRecords(domain);
+    const vouchers = [...new Set(records.filter((r) => r.live).map((r) => r.name))];
+    const standings = new Map(await Promise.all(vouchers.map(async (v) => [v, await standing(v)] as const)));
     return c.json({
       handle,
       domain,
@@ -311,6 +338,7 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
         validUntil: new Date(Number(r.validUntil) * 1000).toISOString(),
         nonce: r.nonce.toString(),
         live: r.live,
+        standing: standings.get(r.name) ?? null,
       })),
       warning: WARNING,
     });

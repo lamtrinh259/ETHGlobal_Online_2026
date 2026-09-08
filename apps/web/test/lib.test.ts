@@ -259,6 +259,7 @@ describe("api client", () => {
               validUntil: "2027-01-01T00:00:00.000Z",
               nonce: "1",
               live: true,
+              standing: { claimed: true, given: 1, received: 0 },
             },
           ],
         },
@@ -278,6 +279,11 @@ describe("api client", () => {
 
     expect(await api.verify("alice.ketsuban.eth", { links: ["x"], viewCode: "0x02" })).toEqual(verification);
     expect((await api.vouches("alice")).vouches[0].voucher).toBe("bob");
+    expect((await api.vouches("alice")).vouches[0].standing).toEqual({
+      claimed: true,
+      given: 1,
+      received: 0,
+    });
     expect((await api.contracts()).bridge).toBe(account.address);
     expect((await api.contracts()).permissionedResolver).toBeNull();
     expect(await api.nameStatus("ketsuban", "alice")).toEqual({

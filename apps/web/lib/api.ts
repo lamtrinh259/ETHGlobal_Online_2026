@@ -63,6 +63,10 @@ export const vouchesSchema = z.object({
       validUntil: z.string(),
       nonce: z.string(),
       live: z.boolean(),
+      standing: z
+        .object({ claimed: z.boolean(), given: z.number(), received: z.number() })
+        .nullable()
+        .optional(),
     })
   ),
   warning: z.string(),

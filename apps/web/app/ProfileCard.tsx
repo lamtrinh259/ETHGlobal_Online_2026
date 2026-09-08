@@ -115,6 +115,13 @@ export function ProfileCard({ p, rootParent, policy }: { p: Profile; rootParent:
                 <Link href={`/p/${v.voucher}`}>
                   <code>{v.voucherName ?? v.voucher}</code>
                 </Link>
+                {v.standing && (
+                  <small className="muted" data-testid="standing">
+                    {" "}
+                    · {v.standing.claimed ? "" : "unclaimed · "}gave {v.standing.given} · received{" "}
+                    {v.standing.received}
+                  </small>
+                )}
               </span>
               <span className="vouch-what">“{v.statement}”</span>
               <span className="vouch-meta muted">

@@ -527,30 +527,42 @@ describe("locate", () => {
 });
 
 describe("GET /v1/vouches/:handle", () => {
-  it("lists the vouch domain's records with voucher names and liveness", async () => {
+  const bobVouch = {
+    name: "bob",
+    id: toBytes32("b"),
+    wallet: user.account.address,
+    payload: toBytes32("worked together 2019-22"),
+    validUntil: 1_800_000_000n,
+    nonce: 1n,
+    live: true,
+  };
+  const carolVouch = {
+    name: "carol",
+    id: toBytes32("c"),
+    wallet: zeroAddress,
+    payload: toBytes32("revoked"),
+    validUntil: 1_700_000_000n,
+    nonce: 2n,
+    live: false,
+  };
+
+  it("lists the vouch domain's records with voucher names, liveness and each live voucher's standing", async () => {
     const { chain } = fakeChain({
       listed: {
-        "~alice": [
-          {
-            name: "bob",
-            id: toBytes32("b"),
-            wallet: user.account.address,
-            payload: toBytes32("worked together 2019-22"),
-            validUntil: 1_800_000_000n,
-            nonce: 1n,
-            live: true,
-          },
-          {
-            name: "carol",
-            id: toBytes32("c"),
-            wallet: zeroAddress,
-            payload: toBytes32("revoked"),
-            validUntil: 1_700_000_000n,
-            nonce: 2n,
-            live: false,
-          },
+        "~alice": [bobVouch, carolVouch],
+        "~bob": [
+          { ...carolVouch, live: true },
+          { ...bobVouch, name: "dave" },
         ],
       },
+      names: { "kju-is/bob": { taken: true, wallet: user.account.address, live: true } },
+      byWallet: [
+        { ...bobVouch, domain: "~alice" },
+        { ...bobVouch, domain: "~erin", nonce: 2n },
+        { ...bobVouch, domain: "~erin", nonce: 1n, live: false },
+        { ...bobVouch, domain: "~old", live: false },
+        { ...bobVouch, domain: "kju-is" },
+      ],
     });
     const body = await (await app(chain).request("/v1/vouches/Alice")).json();
     expect(body).toEqual({
@@ -565,6 +577,7 @@ describe("GET /v1/vouches/:handle", () => {
           validUntil: "2027-01-15T08:00:00.000Z",
           nonce: "1",
           live: true,
+          standing: { claimed: true, given: 2, received: 2 },
         },
         {
           voucher: "carol",
@@ -574,13 +587,64 @@ describe("GET /v1/vouches/:handle", () => {
           validUntil: "2023-11-14T22:13:20.000Z",
           nonce: "2",
           live: false,
+          standing: null,
         },
       ],
       warning: WARNING,
     });
     expect(chain.listRecords).toHaveBeenCalledWith("~alice");
+    expect(chain.nameStatus).toHaveBeenCalledWith("kju-is", "bob");
+    expect(chain.nameStatus).not.toHaveBeenCalledWith("kju-is", "carol");
     expect((await app(chain).request("/v1/vouches/Not%20Valid")).status).toBe(400);
     expect((await (await app(chain).request("/v1/vouches/nobody")).json()).vouches).toEqual([]);
+  });
+});
+
+describe("GET /v1/standing/:handle", () => {
+  it("counts distinct live references given and received; unclaimed handles can still receive", async () => {
+    const { chain } = fakeChain({
+      listed: {
+        "~alice": [
+          {
+            name: "bob",
+            id: toBytes32("b"),
+            wallet: zeroAddress,
+            payload: zeroHash,
+            validUntil: 1n,
+            nonce: 1n,
+            live: true,
+          },
+        ],
+      },
+      names: { "kju-is/bob": { taken: true, wallet: user.account.address, live: true } },
+      byWallet: [
+        {
+          name: "bob",
+          id: toBytes32("b"),
+          wallet: user.account.address,
+          payload: zeroHash,
+          validUntil: 1n,
+          nonce: 1n,
+          live: true,
+          domain: "~alice",
+        },
+      ],
+    });
+    expect(await (await app(chain).request("/v1/standing/alice")).json()).toEqual({
+      handle: "alice",
+      claimed: false,
+      given: 0,
+      received: 1,
+      warning: WARNING,
+    });
+    expect(await (await app(chain).request("/v1/standing/BOB")).json()).toEqual({
+      handle: "bob",
+      claimed: true,
+      given: 1,
+      received: 0,
+      warning: WARNING,
+    });
+    expect((await app(chain).request("/v1/standing/no%20way")).status).toBe(400);
   });
 });
 
