@@ -106,8 +106,12 @@ export function AttestFlow({
       if (!wallet) throw new Error("no wallet yet — Privy is still creating it");
       if (!identityToken)
         throw new Error("no identity token — enable identity tokens in the Privy dashboard");
-      const state = nonce.data ?? (await nonce.refetch()).data;
-      if (!state) throw new Error("could not read the on-chain nonce");
+      const refreshed = nonce.data ? undefined : await nonce.refetch();
+      const state = nonce.data ?? refreshed?.data;
+      if (!state) {
+        const why = refreshed?.error?.message ?? nonce.error?.message ?? "no response";
+        throw new Error(`could not read the on-chain nonce from ${config.apiUrl}: ${why}`);
+      }
       const { next } = state;
       const viewKey = loadOrCreateViewKey();
       setSigning(true);
