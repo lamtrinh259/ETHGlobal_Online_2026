@@ -134,6 +134,29 @@ describe("config", () => {
   });
 });
 
+describe("CORS", () => {
+  it("allows any origin by default and only listed origins when configured", async () => {
+    const { chain } = fakeChain();
+    const open = await app(chain).request("/healthz", { headers: { origin: "https://x.example" } });
+    expect(open.headers.get("access-control-allow-origin")).toBe("*");
+    const strict = app(chain, { ...baseEnv, CORS_ORIGINS: "https://app.example, https://b.example" });
+    const ok = await strict.request("/healthz", { headers: { origin: "https://app.example" } });
+    expect(ok.headers.get("access-control-allow-origin")).toBe("https://app.example");
+    const no = await strict.request("/healthz", { headers: { origin: "https://evil.example" } });
+    expect(no.headers.get("access-control-allow-origin")).toBeNull();
+    const pre = await strict.request("/v1/cre/delivery", {
+      method: "OPTIONS",
+      headers: {
+        origin: "https://app.example",
+        "access-control-request-method": "POST",
+        "access-control-request-headers": "x-delivery-token",
+      },
+    });
+    expect(pre.status).toBe(204);
+    expect(pre.headers.get("access-control-allow-headers")?.toLowerCase()).toContain("x-delivery-token");
+  });
+});
+
 describe("GET /healthz", () => {
   it("reports relayer and chain", async () => {
     const { chain } = fakeChain();

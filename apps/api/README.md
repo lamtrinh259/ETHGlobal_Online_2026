@@ -8,6 +8,8 @@ Relay and verification service. One container, env-configured, health-checked on
 | `POST /v1/attest` | Node registrar fallback (same input/output as the enclave). Enabled only when `REGISTRAR_KEY` and `VIEWCODE_KEY` are set. |
 | `GET /v1/verify/:name` | Machine-readable verification read through the ENS resolver: status, wallet, answer, expiry, humanity, links (`?links=x,telegram`, `?viewCode=` to disclose opted-in links), evidence, warning. |
 | `GET /v1/instances` | Instances known to the factory. |
+
+CORS: `CORS_ORIGINS` (comma list, default `*`) — set it to the web app origin in production.
 | `GET /v1/nonce?wallet=&domain=` | On-chain state for a wallet in a domain; `next` is the nonce to sign into the intent. |
 
 ## Configuration

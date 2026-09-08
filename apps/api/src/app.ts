@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { cors } from "hono/cors";
 import { z } from "zod";
 import { zeroHash, type Address, type Hex } from "viem";
 import {
@@ -106,6 +107,14 @@ export function locate(
 
 export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1000) }: AppDeps) {
   const app = new Hono();
+  app.use(
+    "*",
+    cors({
+      origin: config.CORS_ORIGINS.includes("*") ? "*" : config.CORS_ORIGINS,
+      allowHeaders: ["content-type", "x-delivery-token"],
+      allowMethods: ["GET", "POST", "OPTIONS"],
+    })
+  );
 
   const env = (): AttestEnv => ({
     now: now(),
