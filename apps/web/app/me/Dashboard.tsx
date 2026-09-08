@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useMemo } from "react";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import type { Address } from "viem";
-import { apiFor, useWalletDashboard } from "@/lib/hooks";
+import { apiFor, useGasTopup, useWalletDashboard } from "@/lib/hooks";
+import { formatEther } from "viem";
 import type { Signer } from "@/lib/chain";
 import { ProfileEditor } from "./ProfileEditor";
 import { OwnName } from "./OwnName";
@@ -29,6 +30,7 @@ export function Dashboard() {
     };
   };
   const dash = useWalletDashboard(api, wallet);
+  const gas = useGasTopup(wallet);
   const root = config.instances[0];
 
   if (!ready) return <p className="muted">loading…</p>;
@@ -90,6 +92,37 @@ export function Dashboard() {
 
       {rootName && root && (
         <>
+          <section className="card" data-testid="dash-gas">
+            <h2>Gas</h2>
+            <p className="muted">
+              The two actions below are transactions your wallet sends itself. Balance:{" "}
+              <code>{formatEther(BigInt(d.balance))} ETH</code>
+              {BigInt(d.balance) === 0n && " — empty"}.
+            </p>
+            {d.gasTopup.available && (
+              <button
+                className="primary"
+                onClick={() => gas.mutate(api)}
+                disabled={gas.isPending}
+                data-testid="gas-topup"
+              >
+                {gas.isPending ? "sending…" : `Get ${formatEther(BigInt(d.gasTopup.amount))} test ETH`}
+              </button>
+            )}
+            {gas.error && (
+              <p className="error" role="alert">
+                {gas.error.message}
+              </p>
+            )}
+            {gas.isSuccess && (
+              <p className="muted">
+                sent · tx <code>{gas.data.hash}</code>
+              </p>
+            )}
+            {!d.gasTopup.enabled && BigInt(d.balance) === 0n && (
+              <p className="muted">Fund this address from a Sepolia faucet before saving.</p>
+            )}
+          </section>
           <ProfileEditor api={api} name={rootName.ensName} getSigner={getSigner} />
           <OwnName
             api={api}

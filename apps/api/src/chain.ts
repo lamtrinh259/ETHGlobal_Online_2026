@@ -236,6 +236,23 @@ export class Chain {
   }
 
   /** Every record a wallet has registered (any domain), current state, with liveness */
+  balance(wallet: Address): Promise<bigint> {
+    return this.publicClient.getBalance({ address: wallet });
+  }
+
+  /** Plain ETH transfer from the relayer; throws when the receipt is not successful. */
+  async sendEth(to: Address, value: bigint): Promise<Hex> {
+    const hash = await this.walletClient.sendTransaction({
+      chain: this.walletClient.chain,
+      account: this.walletClient.account!,
+      to,
+      value,
+    });
+    const receipt = await this.publicClient.waitForTransactionReceipt({ hash });
+    if (receipt.status !== "success") throw new Error(`gas top-up ${hash} reverted`);
+    return hash;
+  }
+
   async listRecordsByWallet(wallet: Address): Promise<(ListedRecord & { domain: string })[]> {
     const fromBlock = BigInt(this.config.DEPLOY_BLOCK);
     const logs = await this.publicClient.getLogs({
@@ -388,4 +405,6 @@ export type ChainReader = Pick<
   | "listRecords"
   | "nameStatus"
   | "listRecordsByWallet"
+  | "balance"
+  | "sendEth"
 >;

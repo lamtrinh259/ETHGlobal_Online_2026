@@ -10,7 +10,7 @@ identity is Privy (embedded wallet, identity token); the view-code key stays on 
 | `/p/<handle>` | verifier / agent | The reference page: identity, answers, linked accounts, humanity, graded by a policy (`?answers=&minLinks=&humanity=1`), with the raw names to resolve yourself. |
 | `/verify` | verifier | Policy picker → `/p/<handle>`. |
 | `/vouch/<handle>` | voucher | Sign in → humanity (pending partner access) → link work account → claim own name → statement (per-candidate vouch instances land next). |
-| `/me` | candidate / voucher | Dashboard for the signed-in wallet: names, linked accounts, references given (`GET /v1/wallet/:address`); edit ENS profile records (`setText` from the wallet) and alias your own `.eth` (`AttestationBridge.linkOwnName`). |
+| `/me` | candidate / voucher | Dashboard for the signed-in wallet: names, linked accounts, references given (`GET /v1/wallet/:address`); edit ENS profile records (`setText` from the wallet), alias your own `.eth` (`AttestationBridge.linkOwnName`), one-shot test gas from the relay (`POST /v1/gas`). |
 | `/v/<name>` | anyone | One name's verification card, server-rendered (`generateMetadata` for unfurls). `?viewCode=0x…&links=x` discloses opted-in links. |
 | `/api/health` | ops | Readiness probe for the container HEALTHCHECK. |
 

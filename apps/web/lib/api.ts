@@ -111,6 +111,8 @@ export const walletSchema = z.object({
   names: z.array(walletRecord.extend({ ensName: z.string() })),
   links: z.array(walletRecord.extend({ optedIn: z.boolean() })),
   given: z.array(walletRecord.extend({ candidate: z.string(), ensName: z.string().nullable() })),
+  balance: z.string().regex(/^\d+$/),
+  gasTopup: z.object({ enabled: z.boolean(), amount: z.string().regex(/^\d+$/), available: z.boolean() }),
   warning: z.string(),
 });
 export type WalletDashboard = z.infer<typeof walletSchema>;
@@ -212,6 +214,18 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
 
     async wallet(address: string): Promise<WalletDashboard> {
       return walletSchema.parse(await readJson(await call(`${base}/v1/wallet/${address}`)));
+    },
+
+    async gas(wallet: string): Promise<{ hash: Hex; amount: string }> {
+      return z.object({ hash: hex, amount: z.string() }).parse(
+        await readJson(
+          await call(`${base}/v1/gas`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ wallet }),
+          })
+        )
+      );
     },
 
     async vouches(handle: string): Promise<Vouches> {

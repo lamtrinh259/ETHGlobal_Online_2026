@@ -209,8 +209,13 @@ describe("api client", () => {
           ],
           links: [],
           given: [],
+          balance: "0",
+          gasTopup: { enabled: true, amount: "2000000000000000", available: true },
           warning: "w",
         },
+      },
+      "http://api.test/v1/gas": {
+        body: { hash: `0x${"cc".repeat(32)}`, amount: "2000000000000000" },
       },
       "http://api.test/v1/vouches/alice": {
         body: {
@@ -254,7 +259,13 @@ describe("api client", () => {
       wallet: account.address,
       live: true,
     });
-    expect((await api.wallet(account.address)).names[0].ensName).toBe("alice.ketsuban.eth");
+    const dash = await api.wallet(account.address);
+    expect(dash.names[0].ensName).toBe("alice.ketsuban.eth");
+    expect(dash.gasTopup).toEqual({ enabled: true, amount: "2000000000000000", available: true });
+    expect(await api.gas(account.address)).toEqual({
+      hash: `0x${"cc".repeat(32)}`,
+      amount: "2000000000000000",
+    });
     expect(calls[3].url).toBe("http://api.test/v1/verify/alice.ketsuban.eth?links=x&viewCode=0x02");
   });
 

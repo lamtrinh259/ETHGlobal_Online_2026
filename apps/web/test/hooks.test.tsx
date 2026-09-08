@@ -1,13 +1,14 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { zeroHash, type Address } from "viem";
+import { zeroHash, type Address, type Hex } from "viem";
 import type { Api, AttestResult } from "@/lib/api";
 import {
   apiFor,
   useAttest,
   useContracts,
   useDeliver,
+  useGasTopup,
   useLinkOwnName,
   useNameStatus,
   useNonce,
@@ -56,7 +57,16 @@ function fakeApi(): Api {
       wallet: handle === "taken" ? WALLET : null,
       live: handle === "taken",
     })),
-    wallet: vi.fn(async (address: string) => ({ address, names: [], links: [], given: [], warning: "w" })),
+    wallet: vi.fn(async (address: string) => ({
+      address,
+      names: [],
+      links: [],
+      given: [],
+      balance: "0",
+      gasTopup: { enabled: false, amount: "0", available: false },
+      warning: "w",
+    })),
+    gas: vi.fn(async () => ({ hash: "0xhash3" as Hex, amount: "1" })),
     contracts: vi.fn(async () => ({ instances: [], bridge: WALLET, permissionedResolver: WALLET })),
     verify: vi.fn(async (name: string) => ({
       name,
@@ -161,6 +171,11 @@ describe("hooks", () => {
       "https://a"
     );
     expect(chain.writeProfileText).toHaveBeenCalledWith(signer, WALLET, "alice.ketsuban.eth", "email", "a@b");
+
+    const gas = renderHook(() => useGasTopup(WALLET), { wrapper: w });
+    gas.result.current.mutate(api);
+    await waitFor(() => expect(gas.result.current.data?.hash).toBe("0xhash3"));
+    expect(api.gas).toHaveBeenCalledWith(WALLET);
 
     const link = renderHook(() => useLinkOwnName(WALLET), { wrapper: w });
     link.result.current.mutate({ signer, bridge: WALLET, domain: "ketsuban", label: "alice" });

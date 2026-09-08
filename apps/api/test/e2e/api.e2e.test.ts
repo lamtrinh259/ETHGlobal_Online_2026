@@ -242,6 +242,34 @@ describe("api e2e", () => {
     });
   });
 
+  it("tops up a wallet that holds a live name exactly once, from the relayer", async () => {
+    const rpc = createPublicClient({ transport: http(RPC) });
+    const before = await rpc.getBalance({ address: user.account.address });
+    const dash = await (await fetch(`${API}/v1/wallet/${user.account.address}`)).json();
+    expect(dash.balance).toBe(before.toString());
+    expect(dash.gasTopup).toEqual({ enabled: true, amount: "2000000000000000", available: true });
+
+    const res = await fetch(`${API}/v1/gas`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ wallet: user.account.address }),
+    });
+    expect(res.status).toBe(200);
+    const { hash, amount } = await res.json();
+    expect(amount).toBe("2000000000000000");
+    expect((await rpc.getTransactionReceipt({ hash })).status).toBe("success");
+    expect(await rpc.getBalance({ address: user.account.address })).toBe(before + 2_000_000_000_000_000n);
+
+    const again = await fetch(`${API}/v1/gas`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ wallet: user.account.address }),
+    });
+    expect(again.status).toBe(409);
+    const after = await (await fetch(`${API}/v1/wallet/${user.account.address}`)).json();
+    expect(after.gasTopup.available).toBe(false);
+  });
+
   it("rejects a replayed record", async () => {
     const now = Math.floor(Date.now() / 1000);
     const intent = baseIntent(user.account, now, {

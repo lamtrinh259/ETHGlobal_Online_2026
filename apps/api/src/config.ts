@@ -54,6 +54,12 @@ export const configSchema = z.object({
   DEPLOY_BLOCK: z.coerce.number().int().nonnegative().default(0),
   /** Prefix of per-candidate vouch domains (`~alice`) */
   VOUCH_PREFIX: z.string().min(1).default("~"),
+  /** Test-gas the relayer sends once to a wallet holding a live name (wei); 0 disables `POST /v1/gas` */
+  GAS_TOPUP_WEI: z
+    .string()
+    .regex(/^\d+$/)
+    .default("0")
+    .transform((s) => BigInt(s)),
   /** Comma-separated browser origins allowed to call the API; "*" allows any (default) */
   CORS_ORIGINS: z
     .string()

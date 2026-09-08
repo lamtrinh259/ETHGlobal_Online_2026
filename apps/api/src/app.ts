@@ -223,8 +223,12 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     const instances = await chain.instances();
     const parentOf = new Map(instances.map((i) => [i.domain, i.parentName]));
     const rootParent = parentOf.get(config.NAME_DOMAINS[0] ?? "") ?? "";
-    const records = await chain.listRecordsByWallet(address as Address);
+    const [records, balance] = await Promise.all([
+      chain.listRecordsByWallet(address as Address),
+      chain.balance(address as Address),
+    ]);
     const isVouch = (d: string) => d.startsWith(config.VOUCH_PREFIX) && d.length > config.VOUCH_PREFIX.length;
+    const hasLiveName = records.some((r) => r.live && parentOf.has(r.domain) && !isVouch(r.domain));
     const fmt = (r: (typeof records)[number]) => ({
       domain: r.domain,
       name: r.name,
@@ -251,8 +255,41 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
             ensName: rootParent ? `${r.name}.${candidate}.${rootParent}` : null,
           };
         }),
+      balance: balance.toString(),
+      gasTopup: {
+        enabled: config.GAS_TOPUP_WEI > 0n,
+        amount: config.GAS_TOPUP_WEI.toString(),
+        available: config.GAS_TOPUP_WEI > 0n && hasLiveName && balance < config.GAS_TOPUP_WEI,
+      },
       warning: WARNING,
     });
+  });
+
+  /**
+   * Test-gas for the two transactions a wallet sends itself (profile records, own-name alias).
+   * Once per wallet per process, only for wallets that hold a live name and sit below the amount.
+   */
+  const toppedUp = new Set<string>();
+  app.post("/v1/gas", async (c) => {
+    if (config.GAS_TOPUP_WEI === 0n) return c.json({ error: "gas top-up disabled" }, 501);
+    const body = z
+      .object({ wallet: z.string().regex(/^0x[0-9a-fA-F]{40}$/) })
+      .safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: "wallet required" }, 400);
+    const wallet = body.data.wallet as Address;
+    const key = wallet.toLowerCase();
+    if (toppedUp.has(key)) return c.json({ error: "already topped up" }, 409);
+    const instances = await chain.instances();
+    const nameDomains = new Set(instances.map((i) => i.domain));
+    const isVouch = (d: string) => d.startsWith(config.VOUCH_PREFIX) && d.length > config.VOUCH_PREFIX.length;
+    const records = await chain.listRecordsByWallet(wallet);
+    if (!records.some((r) => r.live && nameDomains.has(r.domain) && !isVouch(r.domain)))
+      return c.json({ error: "wallet holds no live name" }, 403);
+    if ((await chain.balance(wallet)) >= config.GAS_TOPUP_WEI)
+      return c.json({ error: "wallet has enough gas" }, 409);
+    toppedUp.add(key);
+    const hash = await chain.sendEth(wallet, config.GAS_TOPUP_WEI);
+    return c.json({ hash, amount: config.GAS_TOPUP_WEI.toString() });
   });
 
   /** References written under a candidate: every record in the `<prefix><handle>` vouch domain. */

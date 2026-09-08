@@ -101,3 +101,12 @@ export function useLinkOwnName(wallet: Address | undefined) {
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["wallet", wallet] }),
   });
 }
+
+/** Ask the relay for test gas; the dashboard refetches so the balance and the offer update. */
+export function useGasTopup(wallet: Address | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (api: Api) => api.gas(wallet as Address),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["wallet", wallet] }),
+  });
+}

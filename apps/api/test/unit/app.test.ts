@@ -52,6 +52,8 @@ type State = {
   instancesCreated: string[];
   byWallet: (ListedRecord & { domain: string })[];
   names: Record<string, { taken: boolean; wallet: Address | null; live: boolean }>;
+  balance: bigint;
+  sent: { to: Address; value: bigint }[];
 };
 
 function fakeChain(state: Partial<State> = {}) {
@@ -62,6 +64,8 @@ function fakeChain(state: Partial<State> = {}) {
     data: {},
     listed: {},
     instancesCreated: [],
+    balance: 0n,
+    sent: [],
     ...state,
   };
   const submitted: { record: RegisterMessage; signature: Hex }[] = [];
@@ -95,6 +99,11 @@ function fakeChain(state: Partial<State> = {}) {
         s.names[`${domain}/${handle}`] ?? { taken: false, wallet: null, live: false }
     ),
     listRecordsByWallet: vi.fn(async () => s.byWallet),
+    balance: vi.fn(async () => s.balance),
+    sendEth: vi.fn(async (to: Address, value: bigint) => {
+      s.sent.push({ to, value });
+      return `0x${"cc".repeat(32)}` as Hex;
+    }),
   };
   return { chain, submitted, state: s };
 }
@@ -128,6 +137,14 @@ describe("config", () => {
     expect(c.PRIVY_VERIFICATION_KEY_JWK).toEqual(privy.jwk);
     expect(c.PORT).toBe(8787);
     expect(c.RECORD_TERM_SECONDS).toBe(2_592_000);
+  });
+
+  it("parses the gas top-up amount as wei, defaulting to disabled", () => {
+    expect(loadConfig(baseEnv).GAS_TOPUP_WEI).toBe(0n);
+    expect(loadConfig({ ...baseEnv, GAS_TOPUP_WEI: "2000000000000000" }).GAS_TOPUP_WEI).toBe(
+      2_000_000_000_000_000n
+    );
+    expect(() => loadConfig({ ...baseEnv, GAS_TOPUP_WEI: "0.1" })).toThrow();
   });
 
   it("fills addresses from a deployment file, env wins", () => {
@@ -211,7 +228,9 @@ describe("GET /healthz", () => {
       config: loadConfig({ ...baseEnv, PERMISSIONED_RESOLVER: baseEnv.FACTORY }),
       chain,
     });
-    expect((await (await withResolver.request("/v1/instances")).json()).permissionedResolver).toBe(baseEnv.FACTORY);
+    expect((await (await withResolver.request("/v1/instances")).json()).permissionedResolver).toBe(
+      baseEnv.FACTORY
+    );
   });
 });
 
@@ -644,6 +663,91 @@ describe("GET /v1/wallet/:address", () => {
         ensName: "alice.bob.kju-is.eth",
       },
     ]);
+    expect(body.balance).toBe("0");
+    expect(body.gasTopup).toEqual({ enabled: false, amount: "0", available: false });
     expect((await app(chain).request("/v1/wallet/nope")).status).toBe(400);
+  });
+
+  it("offers a gas top-up only when enabled, the wallet holds a live name and is below the amount", async () => {
+    const live = {
+      domain: "kju-is",
+      name: "alice",
+      id: toBytes32("alice"),
+      wallet: user.account.address,
+      payload: zeroHash,
+      validUntil: 1_800_000_000n,
+      nonce: 1n,
+      live: true,
+    };
+    const gasApp = (chain: ChainReader) =>
+      createApp({
+        config: loadConfig({ ...baseEnv, GAS_TOPUP_WEI: "2000000000000000" }),
+        chain,
+        now: () => NOW,
+      });
+    const { chain } = fakeChain({ byWallet: [live], balance: 1_000_000_000_000_000n });
+    const body = await (await gasApp(chain).request(`/v1/wallet/${user.account.address}`)).json();
+    expect(body.balance).toBe("1000000000000000");
+    expect(body.gasTopup).toEqual({ enabled: true, amount: "2000000000000000", available: true });
+
+    const rich = fakeChain({ byWallet: [live], balance: 5_000_000_000_000_000n });
+    expect(
+      (await (await gasApp(rich.chain).request(`/v1/wallet/${user.account.address}`)).json()).gasTopup
+        .available
+    ).toBe(false);
+    const noName = fakeChain({ byWallet: [{ ...live, live: false }] });
+    expect(
+      (await (await gasApp(noName.chain).request(`/v1/wallet/${user.account.address}`)).json()).gasTopup
+        .available
+    ).toBe(false);
+  });
+});
+
+describe("POST /v1/gas", () => {
+  const live = {
+    domain: "kju-is",
+    name: "alice",
+    id: toBytes32("alice"),
+    wallet: user.account.address,
+    payload: zeroHash,
+    validUntil: 1_800_000_000n,
+    nonce: 1n,
+    live: true,
+  };
+  const gasApp = (chain: ChainReader, wei = "2000000000000000") =>
+    createApp({ config: loadConfig({ ...baseEnv, GAS_TOPUP_WEI: wei }), chain, now: () => NOW });
+  const body = { wallet: user.account.address };
+
+  it("is disabled unless GAS_TOPUP_WEI is set", async () => {
+    const { chain } = fakeChain({ byWallet: [live] });
+    expect((await post(app(chain), "/v1/gas", body)).status).toBe(501);
+  });
+
+  it("sends the configured amount once to a wallet with a live name and a low balance", async () => {
+    const { chain, state } = fakeChain({ byWallet: [live], balance: 0n });
+    const a = gasApp(chain);
+    const res = await post(a, "/v1/gas", body);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ hash: `0x${"cc".repeat(32)}`, amount: "2000000000000000" });
+    expect(state.sent).toEqual([{ to: user.account.address, value: 2_000_000_000_000_000n }]);
+
+    const again = await post(a, "/v1/gas", body);
+    expect(again.status).toBe(409);
+    expect((await again.json()).error).toMatch(/already/);
+    expect(state.sent).toHaveLength(1);
+  });
+
+  it("refuses bad, nameless and already-funded wallets", async () => {
+    const { chain, state } = fakeChain({ byWallet: [live], balance: 3_000_000_000_000_000n });
+    expect((await post(gasApp(chain), "/v1/gas", { wallet: "nope" })).status).toBe(400);
+    const funded = await post(gasApp(chain), "/v1/gas", body);
+    expect(funded.status).toBe(409);
+    expect((await funded.json()).error).toMatch(/enough/);
+    const nameless = fakeChain({ byWallet: [], balance: 0n });
+    const res = await post(gasApp(nameless.chain), "/v1/gas", body);
+    expect(res.status).toBe(403);
+    expect((await res.json()).error).toMatch(/live name/);
+    expect(state.sent).toEqual([]);
+    expect(nameless.state.sent).toEqual([]);
   });
 });
