@@ -291,3 +291,8 @@ apps/*/dist/
 coverage/
 
 .secrets/
+
+# editor swap/backup files
+*.swp
+*.swo
+*~
