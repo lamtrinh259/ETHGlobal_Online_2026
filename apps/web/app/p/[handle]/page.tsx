@@ -101,6 +101,36 @@ export default async function ProfilePage({ params, searchParams }: Params) {
         </p>
       </section>
       <section className="card">
+        <h3>For agents and ATS</h3>
+        <p className="muted">
+          The same page as JSON, conservative and bounded — never authorisation to execute anything:
+        </p>
+        <p>
+          <code>
+            GET {config.apiUrl}/v1/verify/{names[0]}
+          </code>{" "}
+          ·{" "}
+          <code>
+            GET {config.apiUrl}/v1/vouches/{handle}
+          </code>
+        </p>
+      </section>
+      <section className="card">
+        <h3>Bring your own .eth name</h3>
+        <p className="muted">
+          Own <code>{handle}.eth</code>? Alias it so{" "}
+          <code>
+            {root.parentLabel}.{handle}.eth
+          </code>{" "}
+          resolves to this page&apos;s records: call{" "}
+          <code>
+            AttestationBridge.linkOwnName(&quot;{root.domain}&quot;, &quot;{handle}&quot;)
+          </code>{" "}
+          from the wallet that owns the name (the bridge checks ownership on the ENSv2 registry in the same
+          transaction).
+        </p>
+      </section>
+      <section className="card">
         <h3>Share</h3>
         <code>{shareSnippet(handle, siteUrl, root.parentName)}</code>
         <p>

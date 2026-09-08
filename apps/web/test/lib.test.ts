@@ -25,8 +25,8 @@ describe("config", () => {
   it("pairs name domains with parent names", () => {
     const c = loadWebConfig(env);
     expect(c.instances).toEqual([
-      { domain: "ketsuban", parentName: "ketsuban.eth" },
-      { domain: "kju-is", parentName: "kju-is.ketsuban.eth" },
+      { domain: "ketsuban", parentName: "ketsuban.eth", parentLabel: "ketsuban" },
+      { domain: "kju-is", parentName: "kju-is.ketsuban.eth", parentLabel: "kju-is" },
     ]);
     expect(c.chainId).toBe(11155111);
   });

@@ -11,8 +11,8 @@ import {
 
 const config = {
   instances: [
-    { domain: "ketsuban", parentName: "ketsuban.eth" },
-    { domain: "kju-is", parentName: "kju-is.ketsuban.eth" },
+    { domain: "ketsuban", parentName: "ketsuban.eth", parentLabel: "ketsuban" },
+    { domain: "kju-is", parentName: "kju-is.ketsuban.eth", parentLabel: "kju-is" },
   ],
 };
 

@@ -11,7 +11,9 @@ const schema = z.object({
   parentNames: z.array(z.string().min(1)).min(1),
 });
 
-export type WebConfig = z.infer<typeof schema> & { instances: { domain: string; parentName: string }[] };
+export type WebConfig = z.infer<typeof schema> & {
+  instances: { domain: string; parentName: string; parentLabel: string }[];
+};
 
 const split = (s: string | undefined) =>
   (s ?? "")
@@ -34,5 +36,12 @@ export function loadWebConfig(env: Record<string, string | undefined> = process.
   if (c.nameDomains.length !== c.parentNames.length) {
     throw new Error("NEXT_PUBLIC_NAME_DOMAINS and NEXT_PUBLIC_PARENT_NAMES must have the same length");
   }
-  return { ...c, instances: c.nameDomains.map((domain, i) => ({ domain, parentName: c.parentNames[i] })) };
+  return {
+    ...c,
+    instances: c.nameDomains.map((domain, i) => ({
+      domain,
+      parentName: c.parentNames[i],
+      parentLabel: c.parentNames[i].split(".")[0],
+    })),
+  };
 }
