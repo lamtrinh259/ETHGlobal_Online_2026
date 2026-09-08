@@ -158,6 +158,16 @@ describe("CORS", () => {
 });
 
 describe("GET /healthz", () => {
+  it("attests with the default clock", async () => {
+    const { chain } = fakeChain();
+    const res = await post(
+      createApp({ config: loadConfig(baseEnv), chain }),
+      "/v1/attest",
+      await wireRequest()
+    );
+    expect(res.status).toBe(200);
+  });
+
   it("reports relayer and chain", async () => {
     const { chain } = fakeChain();
     const res = await app(chain).request("/healthz");
@@ -375,6 +385,17 @@ describe("GET /v1/verify/:name", () => {
     ]);
     expect(body.decision).toBe("additional_context_available");
     expect(chain.resolveData).toHaveBeenCalledWith(instance.resolver, "alice.kju-is.eth", "ketsuban:link:x");
+  });
+
+  it("skips malformed link payloads and honours an explicit links list", async () => {
+    const { chain } = fakeChain({
+      addr: user.account.address,
+      data: { "ketsuban:link:x": "0x01", "ketsuban:link:telegram": "0x" },
+    });
+    const body = await (await app(chain).request("/v1/verify/alice.kju-is.eth?links=x,telegram")).json();
+    expect(body.links).toEqual([]);
+    expect(body.evidence).toEqual(["wallet_binding"]);
+    expect(chain.resolveData).toHaveBeenCalledTimes(2);
   });
 
   it("keeps opted-in links masked without a matching view code", async () => {
