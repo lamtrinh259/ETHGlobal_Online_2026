@@ -15,6 +15,24 @@ export function ProfileCard({ p, rootParent }: { p: Profile; rootParent: string 
         <small className="muted">{p.identity ? `wallet ${p.wallet}` : "unclaimed"}</small>
       </p>
 
+      {p.identity?.profile &&
+        (p.identity.profile.description || p.identity.profile.url || p.identity.profile.avatar) && (
+          <div className="ens-profile" data-testid="ens-profile">
+            {p.identity.profile.avatar && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={p.identity.profile.avatar} alt="" className="ens-avatar" width={48} height={48} />
+            )}
+            <div>
+              {p.identity.profile.description && <p>{p.identity.profile.description}</p>}
+              {p.identity.profile.url && (
+                <a href={p.identity.profile.url} rel="noreferrer nofollow">
+                  {p.identity.profile.url}
+                </a>
+              )}
+            </div>
+          </div>
+        )}
+
       <ul className="checks" data-testid="checks">
         {p.checks.map((c) => (
           <li key={c.id} className={c.ok ? "ok" : "no"}>

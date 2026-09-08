@@ -375,10 +375,26 @@ describe("GET /v1/verify/:name", () => {
       expiresAt: null,
       humanity: null,
       links: [],
+      profile: { avatar: null, description: null, url: null, email: null },
       evidence: ["wallet_binding"],
       decision: "no_record",
       warning: WARNING,
     });
+  });
+
+  it("exposes the user's ENS profile text records", async () => {
+    const { chain } = fakeChain({
+      addr: user.account.address,
+      texts: { avatar: "ipfs://pig", description: "prof of maths", url: "https://alice.example" },
+    });
+    const body = await (await app(chain).request("/v1/verify/alice.kju-is.eth")).json();
+    expect(body.profile).toEqual({
+      avatar: "ipfs://pig",
+      description: "prof of maths",
+      url: "https://alice.example",
+      email: null,
+    });
+    expect(chain.resolveText).toHaveBeenCalledWith(instance.resolver, "alice.kju-is.eth", "avatar");
   });
 
   it("assembles an active record from resolver reads, including opted-in links", async () => {

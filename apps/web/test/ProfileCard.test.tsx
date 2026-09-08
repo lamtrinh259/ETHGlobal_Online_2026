@@ -48,7 +48,27 @@ const profile: Profile = {
 
 describe("ProfileCard", () => {
   it("renders checks with marks, answers, masked links and the warning", () => {
-    render(<ProfileCard p={{ ...profile, identity: {} as never }} rootParent="ketsuban.eth" />);
+    render(
+      <ProfileCard
+        p={{
+          ...profile,
+          identity: {
+            profile: {
+              avatar: "https://img.example/a.png",
+              description: "prof of maths",
+              url: "https://alice.example",
+              email: null,
+            },
+          } as never,
+        }}
+        rootParent="ketsuban.eth"
+      />
+    );
+    expect(screen.getByTestId("ens-profile")).toHaveTextContent("prof of maths");
+    expect(screen.getByRole("link", { name: "https://alice.example" })).toHaveAttribute(
+      "href",
+      "https://alice.example"
+    );
     expect(screen.getByRole("heading", { name: "alice.ketsuban.eth" })).toBeInTheDocument();
     expect(screen.getByTestId("completeness")).toHaveTextContent("incomplete");
     const items = screen.getByTestId("checks").querySelectorAll("li");

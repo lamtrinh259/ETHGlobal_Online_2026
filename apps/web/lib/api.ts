@@ -37,6 +37,14 @@ export const verifySchema = z.object({
       disclosed: z.object({ handle: z.string(), platformId: z.string() }).optional(),
     })
   ),
+  profile: z
+    .object({
+      avatar: z.string().nullable(),
+      description: z.string().nullable(),
+      url: z.string().nullable(),
+      email: z.string().nullable(),
+    })
+    .optional(),
   evidence: z.array(z.string()),
   decision: z.string(),
   warning: z.string(),

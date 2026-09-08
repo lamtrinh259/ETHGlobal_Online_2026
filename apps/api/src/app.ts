@@ -236,13 +236,19 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     const { instance } = located;
     const r = instance.resolver;
 
-    const [wallet, answer, expiry, humanity, humanityUntil] = await Promise.all([
-      chain.resolveAddr(r, name),
-      chain.resolveText(r, name, "ketsuban:answer"),
-      chain.resolveText(r, name, "ketsuban:expiry"),
-      chain.resolveText(r, name, "ketsuban:humanity"),
-      chain.resolveText(r, name, "ketsuban:humanity:until"),
-    ]);
+    const [wallet, answer, expiry, humanity, humanityUntil, avatar, description, url, email] =
+      await Promise.all([
+        chain.resolveAddr(r, name),
+        chain.resolveText(r, name, "ketsuban:answer"),
+        chain.resolveText(r, name, "ketsuban:expiry"),
+        chain.resolveText(r, name, "ketsuban:humanity"),
+        chain.resolveText(r, name, "ketsuban:humanity:until"),
+        // ENS profile records the user writes on the stock PermissionedResolver (bridge grants ROLE_SET_TEXT)
+        chain.resolveText(r, name, "avatar"),
+        chain.resolveText(r, name, "description"),
+        chain.resolveText(r, name, "url"),
+        chain.resolveText(r, name, "email"),
+      ]);
     const active = wallet !== "0x0000000000000000000000000000000000000000";
     const linkDomains = (c.req.query("links") ?? "x,telegram,github,discord,google,email,linkedin")
       .split(",")
@@ -296,6 +302,12 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
           }
         : null,
       links: links.filter(Boolean),
+      profile: {
+        avatar: avatar || null,
+        description: description || null,
+        url: url || null,
+        email: email || null,
+      },
       evidence,
       decision: active ? "additional_context_available" : "no_record",
       warning: WARNING,

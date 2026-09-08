@@ -2,22 +2,27 @@
  * Writes a simulation fixture: a request signed by a throwaway wallet with an identity token
  * from a fake Privy issuer whose JWK is written into config.local.json. Simulation-only.
  *
- *   bun run scripts/make-fixture.ts [name|optin]
+ *   bun run scripts/make-fixture.ts [name|optin|vouch <candidate> <voucher> "<statement>"]
  */
 import { baseIntent, fakePrivy, fakeUser, signedAttestRequest, toWire } from "@ketsuban/registrar/testing";
 import { toBytes32, type Hex } from "@peeramid-labs/multipass-client";
 import { writeFileSync, readFileSync } from "node:fs";
 
-const USER_KEY = "0x000000000000000000000000000000000000000000000000000000000000a11c" as const;
+const ALICE_KEY = "0x000000000000000000000000000000000000000000000000000000000000a11c" as const;
+const BOB_KEY = "0x000000000000000000000000000000000000000000000000000000000000b0bb" as const;
 const cfg = JSON.parse(readFileSync(new URL("../config.staging.json", import.meta.url), "utf8"));
 const privy = fakePrivy("local-app-id", "local-privy-key");
-const user = fakeUser(USER_KEY, "alice");
+const mode = process.argv[2] ?? "platform";
+const user = mode === "vouch" ? fakeUser(BOB_KEY, process.argv[4] ?? "bob") : fakeUser(ALICE_KEY, "alice");
 const now = Math.floor(Date.now() / 1000);
 
-const [domain, handle, payload] = process.argv[2] === "name"
-  ? [cfg.nameDomains[0], "alice", toBytes32("terrible dictator")]
-  : ["x", "", undefined];
-const optIn = process.argv[2] === "optin";
+const [domain, handle, payload] =
+  mode === "name"
+    ? [cfg.nameDomains[0], "alice", toBytes32("terrible dictator")]
+    : mode === "vouch"
+      ? [`~${process.argv[3]}`, process.argv[4] ?? "bob", toBytes32(process.argv[5] ?? "worked together 2019-22")]
+      : ["x", "", undefined];
+const optIn = mode === "optin";
 const intent = baseIntent(user.account, now, {
   domain,
   handle,
