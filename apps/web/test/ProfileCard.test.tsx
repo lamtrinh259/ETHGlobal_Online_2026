@@ -90,6 +90,26 @@ describe("ProfileCard", () => {
     expect(screen.getByRole("note")).toHaveTextContent(profile.warning);
   });
 
+  it("shows the policy line, the disclosure badge and links vouchers to their own page", () => {
+    render(
+      <ProfileCard
+        p={{
+          ...profile,
+          links: [{ domain: "x", optedIn: true, disclosed: { handle: "alice_x", platformId: "1" } }],
+        }}
+        rootParent="ketsuban.eth"
+        policy={{ requiredAnswers: ["kju-is"], minLinks: 1, requireHumanity: true, minVouches: 2 }}
+      />
+    );
+    expect(screen.getByTestId("policy-line")).toHaveTextContent(
+      "Policy: answers for kju-is · ≥1 linked account · ≥2 live references · humanity attested"
+    );
+    expect(screen.getByTestId("links")).toHaveTextContent("@alice_x");
+    expect(screen.getByTestId("disclosed")).toHaveTextContent("disclosed to you by the candidate");
+    const voucherLink = screen.getByTestId("vouches").querySelector("a");
+    expect(voucherLink).toHaveAttribute("href", "/p/bob");
+  });
+
   it("renders an unclaimed page", () => {
     render(
       <ProfileCard p={{ ...profile, wallet: null, answers: [], links: [] }} rootParent="ketsuban.eth" />

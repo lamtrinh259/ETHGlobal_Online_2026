@@ -31,6 +31,71 @@ export const DEFAULT_POLICY: Policy = {
   minVouches: 3,
 };
 
+export type PolicyPreset = {
+  id: string;
+  label: string;
+  blurb: string;
+  policy: Omit<Policy, "requiredAnswers"> & { allSubjects: boolean };
+};
+
+/** Ready-made verifier policies; `allSubjects` requires every subject instance answered. */
+export const POLICY_PRESETS: PolicyPreset[] = [
+  {
+    id: "hiring",
+    label: "Hiring",
+    blurb: "Every subject answered, one linked account, three live references.",
+    policy: { allSubjects: true, minLinks: 1, requireHumanity: false, minVouches: 3 },
+  },
+  {
+    id: "landlord",
+    label: "Landlord",
+    blurb: "Identity and one reference; no opinions asked.",
+    policy: { allSubjects: false, minLinks: 1, requireHumanity: false, minVouches: 1 },
+  },
+  {
+    id: "dao",
+    label: "DAO membership",
+    blurb: "Proof of unique humanity, two references, subjects answered, no links required.",
+    policy: { allSubjects: true, minLinks: 0, requireHumanity: true, minVouches: 2 },
+  },
+  {
+    id: "open",
+    label: "Just look",
+    blurb: "No requirements — read the page as it is.",
+    policy: { allSubjects: false, minLinks: 0, requireHumanity: false, minVouches: 0 },
+  },
+];
+
+export function presetPolicy(preset: PolicyPreset, subjectDomains: string[]): Policy {
+  const { allSubjects, ...rest } = preset.policy;
+  return { requiredAnswers: allSubjects ? subjectDomains : [], ...rest };
+}
+
+/** Query string for a policy: the reference page reads it back with `policyFromQuery`. */
+export function policyToQuery(policy: Policy, presetId?: string): string {
+  const q = new URLSearchParams({
+    answers: policy.requiredAnswers.join(","),
+    minLinks: String(policy.minLinks),
+    minVouches: String(policy.minVouches),
+  });
+  if (policy.requireHumanity) q.set("humanity", "1");
+  if (presetId) q.set("preset", presetId);
+  return q.toString();
+}
+
+/** One-line description of what a policy demands, for the verifier's own sanity. */
+export function describePolicy(policy: Policy): string {
+  const parts = [
+    policy.requiredAnswers.length
+      ? `answers for ${policy.requiredAnswers.join(", ")}`
+      : "no answers required",
+    `≥${policy.minLinks} linked account${policy.minLinks === 1 ? "" : "s"}`,
+    `≥${policy.minVouches} live reference${policy.minVouches === 1 ? "" : "s"}`,
+  ];
+  if (policy.requireHumanity) parts.push("humanity attested");
+  return parts.join(" · ");
+}
+
 export type Profile = {
   handle: string;
   identity?: Verification;
@@ -139,8 +204,10 @@ export function shareSnippet(handle: string, siteUrl: string, rootParent: string
 
 export const HANDLE_RE = /^[a-z0-9-]{1,31}$/;
 
-/** Verifier policy from a query string; defaults require every subject instance answered. */
+/** Verifier policy from a query string; `preset` wins, otherwise defaults require every subject answered. */
 export function policyFromQuery(q: Record<string, string | undefined>, subjectDomains: string[]): Policy {
+  const preset = q.preset ? POLICY_PRESETS.find((p) => p.id === q.preset) : undefined;
+  if (preset) return presetPolicy(preset, subjectDomains);
   return {
     requiredAnswers: q.answers === undefined ? subjectDomains : q.answers.split(",").filter(Boolean),
     minLinks: q.minLinks !== undefined && /^\d+$/.test(q.minLinks) ? Number(q.minLinks) : 1,

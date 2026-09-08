@@ -76,7 +76,7 @@ export default async function ProfilePage({ params, searchParams }: Params) {
           {error}
         </p>
       )}
-      <ProfileCard p={profile} rootParent={root.parentName} />
+      <ProfileCard p={profile} rootParent={root.parentName} policy={policy} />
       <section className="card">
         <h3>Verify it yourself</h3>
         <p className="muted">

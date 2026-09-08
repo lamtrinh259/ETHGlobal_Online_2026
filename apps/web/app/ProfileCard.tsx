@@ -1,8 +1,9 @@
-import type { Profile } from "@/lib/profile";
+import Link from "next/link";
+import { describePolicy, type Policy, type Profile } from "@/lib/profile";
 import { fmtUtc } from "./ui";
 
 /** The candidate reference page: identity, answers, links, humanity, and the policy checks. */
-export function ProfileCard({ p, rootParent }: { p: Profile; rootParent: string }) {
+export function ProfileCard({ p, rootParent, policy }: { p: Profile; rootParent: string; policy?: Policy }) {
   return (
     <section className="card" aria-label="candidate page">
       <h2>
@@ -33,6 +34,11 @@ export function ProfileCard({ p, rootParent }: { p: Profile; rootParent: string 
           </div>
         )}
 
+      {policy && (
+        <p className="muted" data-testid="policy-line">
+          Policy: {describePolicy(policy)}
+        </p>
+      )}
       <ul className="checks" data-testid="checks">
         {p.checks.map((c) => (
           <li key={c.id} className={c.ok ? "ok" : "no"}>
@@ -79,11 +85,18 @@ export function ProfileCard({ p, rootParent }: { p: Profile; rootParent: string 
           {p.links.map((l) => (
             <li key={l.domain}>
               <code>{l.domain}</code>{" "}
-              {l.disclosed
-                ? `@${l.disclosed.handle}`
-                : l.optedIn
-                  ? "verified, masked — needs a view code"
-                  : "verified"}
+              {l.disclosed ? (
+                <>
+                  @{l.disclosed.handle}{" "}
+                  <span className="badge ok" data-testid="disclosed">
+                    disclosed to you by the candidate
+                  </span>
+                </>
+              ) : l.optedIn ? (
+                "verified, masked — needs a view code"
+              ) : (
+                "verified"
+              )}
             </li>
           ))}
         </ul>
@@ -99,7 +112,9 @@ export function ProfileCard({ p, rootParent }: { p: Profile; rootParent: string 
           {p.vouches.map((v) => (
             <li key={`${v.voucher}-${v.nonce}`} className={v.live ? "live" : "expired"}>
               <span className="vouch-who">
-                <code>{v.voucherName ?? v.voucher}</code>
+                <Link href={`/p/${v.voucher}`}>
+                  <code>{v.voucherName ?? v.voucher}</code>
+                </Link>
               </span>
               <span className="vouch-what">“{v.statement}”</span>
               <span className="vouch-meta muted">

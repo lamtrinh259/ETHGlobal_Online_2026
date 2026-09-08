@@ -13,3 +13,14 @@ test("unknown routes get the not-found card", async ({ page }) => {
   await page.goto("/nope");
   await expect(page.getByRole("heading", { name: "Not here" })).toBeVisible();
 });
+
+test("verify form presets fill the policy and encode it into the reference page URL", async ({ page }) => {
+  await page.goto("/verify");
+  await page.getByLabel("handle").fill("Alice.ketsuban.eth");
+  await page.getByTestId("preset-dao").click();
+  await expect(page.getByTestId("policy-summary")).toHaveText(/≥2 live references · humanity attested/);
+  await page.getByLabel("minimum live references").fill("5");
+  await expect(page.getByTestId("policy-summary")).toHaveText(/≥5 live references/);
+  await page.getByRole("button", { name: "Check" }).click();
+  await expect(page).toHaveURL(/\/p\/alice\?answers=kju-is&minLinks=0&minVouches=5&humanity=1$/);
+});

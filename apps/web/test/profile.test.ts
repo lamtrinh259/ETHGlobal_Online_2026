@@ -6,7 +6,11 @@ import {
   policyFromQuery,
   profileNames,
   rootInstance,
+  describePolicy,
   disclosureLink,
+  POLICY_PRESETS,
+  policyToQuery,
+  presetPolicy,
   shareSnippet,
 } from "@/lib/profile";
 
@@ -191,5 +195,42 @@ describe("disclosureLink", () => {
     expect(disclosureLink("https://app.example/", "alice", "x", "0xabc")).toBe(
       "https://app.example/p/alice?links=x&viewCode=0xabc"
     );
+  });
+});
+
+describe("policy presets", () => {
+  it("expand to full policies, round-trip through the query string, and describe themselves", () => {
+    const hiring = POLICY_PRESETS.find((p) => p.id === "hiring")!;
+    const policy = presetPolicy(hiring, ["kju-is", "uni"]);
+    expect(policy).toEqual({
+      requiredAnswers: ["kju-is", "uni"],
+      minLinks: 1,
+      requireHumanity: false,
+      minVouches: 3,
+    });
+    const q = policyToQuery(policy, "hiring");
+    expect(q).toBe("answers=kju-is%2Cuni&minLinks=1&minVouches=3&preset=hiring");
+    expect(policyFromQuery(Object.fromEntries(new URLSearchParams(q)), ["kju-is", "uni"])).toEqual(policy);
+
+    const dao = presetPolicy(
+      POLICY_PRESETS.find((p) => p.id === "dao")!,
+      ["kju-is"]
+    );
+    expect(dao.requireHumanity).toBe(true);
+    expect(policyToQuery(dao)).toBe("answers=kju-is&minLinks=0&minVouches=2&humanity=1");
+    expect(policyFromQuery({ preset: "dao", minLinks: "9" }, ["kju-is"])).toEqual(dao);
+    expect(policyFromQuery({ preset: "nope" }, ["kju-is"]).minLinks).toBe(1);
+
+    expect(describePolicy(dao)).toBe(
+      "answers for kju-is · ≥0 linked accounts · ≥2 live references · humanity attested"
+    );
+    expect(
+      describePolicy(
+        presetPolicy(
+          POLICY_PRESETS.find((p) => p.id === "landlord")!,
+          ["kju-is"]
+        )
+      )
+    ).toBe("no answers required · ≥1 linked account · ≥1 live reference");
   });
 });

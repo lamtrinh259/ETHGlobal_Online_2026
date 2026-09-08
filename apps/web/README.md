@@ -8,7 +8,7 @@ identity is Privy (embedded wallet, identity token); the view-code key stays on 
 | `/` | everyone | Three doors: candidate, voucher, verifier. |
 | `/claim` | candidate | Claim `<handle>.<root>`, answer each subject instance (`kju-is` …), get the share line and next steps. Resumes at the first unanswered subject. |
 | `/p/<handle>` | verifier / agent | The reference page: identity, answers, linked accounts, humanity, graded by a policy (`?answers=&minLinks=&humanity=1`), with the raw names to resolve yourself. |
-| `/verify` | verifier | Policy picker → `/p/<handle>`. |
+| `/verify` | verifier | Policy presets (hiring, landlord, DAO, open) or custom → `/p/<handle>?…&preset=`. |
 | `/vouch/<handle>` | voucher | Sign in → humanity (pending partner access) → link work account → claim own name → statement as `<you>.<handle>.<root>`. Resumes from the wallet's live records; an existing statement is shown and superseded on republish. |
 | `/me` | candidate / voucher | Dashboard for the signed-in wallet: names, linked accounts, references given (`GET /v1/wallet/:address`); edit ENS profile records (`setText` from the wallet), alias your own `.eth` (`AttestationBridge.linkOwnName`), one-shot test gas from the relay (`POST /v1/gas`); privacy card makes per-recipient disclosure links from view codes kept in this browser. |
 | `/v/<name>` | anyone | One name's verification card, server-rendered (`generateMetadata` for unfurls). `?viewCode=0x…&links=x` discloses opted-in links. |
