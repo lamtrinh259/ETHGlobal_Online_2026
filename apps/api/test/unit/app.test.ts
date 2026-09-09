@@ -72,6 +72,14 @@ const instance: Instance = {
   parentLabel: "kju-is",
 };
 
+/** The platform this deployment mounts, which is what makes `x` writable at all. */
+const xInstance: Instance = {
+  ...instance,
+  domain: "x",
+  parentName: "x.kju-is.eth",
+  parentLabel: "x",
+};
+
 /** A provisioned vouch instance for alice, as the relay creates it. */
 const vouchInstance: Instance = {
   ...instance,
@@ -111,7 +119,7 @@ function fakeChain(state: Partial<State> = {}) {
     names: {},
     reverse: {},
     ready: {},
-    instances: [instance],
+    instances: [instance, xInstance],
     preflight: {
       ok: true,
       bridge: { address: baseEnv.BRIDGE as Address, deployed: true, missing: [] },
@@ -329,7 +337,7 @@ describe("GET /healthz", () => {
     const res = await app(chain).request("/v1/instances");
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
-      instances: [instance],
+      instances: [instance, xInstance],
       bridge: baseEnv.BRIDGE,
       permissionedResolver: null,
     });
@@ -1463,7 +1471,8 @@ describe("GET /v1/wallet/:address", () => {
         nonce: "1",
         live: true,
         optedIn: false,
-        ensName: null,
+        // The platform is mounted, so the account has a name to be read by.
+        ensName: "alice_x.x.kju-is.eth",
         nameless: null,
       },
     ]);

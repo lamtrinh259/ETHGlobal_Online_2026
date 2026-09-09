@@ -39,12 +39,17 @@ services:
       PRIVATE_KEY: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
       INSTANCE_DOMAIN: ${INSTANCE_DOMAIN:-kju-is}
       INSTANCE_PARENT: ${INSTANCE_PARENT:-kju-is.eth}
+      # The DNS namespace the app attests into: a platform is its own name, an email is its mail host.
+      WWW_NAMES: x.com,github.com,google.com,discord.com,linkedin.com,t.me
+      AT_NAMES: ${E2E_MAIL_DOMAINS:-example.com}
     entrypoint: ["sh", "-c"]
     command:
       - >
         export REGISTRAR=$$(cast wallet address --private-key 0x000000000000000000000000000000000000000000000000000000000000b0b0) &&
         forge script script/DeployLocal.s.sol --rpc-url http://anvil:8545 --broadcast --skip-simulation -vv
         && test -f deployments/local.json
+        && DEPLOYMENT_FILE=deployments/local.json
+        forge script script/AddNamespace.s.sol --rpc-url http://anvil:8545 --broadcast --skip-simulation -vv
 
   api:
     build:

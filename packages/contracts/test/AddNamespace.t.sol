@@ -83,6 +83,31 @@ contract AddNamespaceTest is BaseTest {
         return masked ? factory2.mirror(bytes32(bytes(dns))).resolver : open.resolver;
     }
 
+    function test_readsTheDeploymentFileWhenNoAddressesAreGiven() public {
+        // A local run has just written the file the API reads; naming it beats repeating six addresses.
+        string memory file = "deployments/test-namespace.json";
+        string memory json = "deployment";
+        vm.serializeAddress(json, "factory", address(factory2));
+        vm.serializeAddress(json, "registry", address(root2));
+        vm.serializeAddress(json, "multipass", address(mp2));
+        vm.serializeAddress(json, "permissionedResolver", address(inner2));
+        vm.serializeString(json, "instanceDomain", LABEL);
+        vm.writeJson(vm.serializeString(json, "instanceParent", PARENT), file);
+
+        vm.setEnv("DEPLOYMENT_FILE", file);
+        for (uint256 i; i < 4; ++i) {
+            vm.setEnv(["FACTORY", "REGISTRY", "MULTIPASS", "PERMISSIONED_RESOLVER"][i], "");
+        }
+        vm.setEnv("ROOT_PARENT", "");
+        vm.setEnv("ROOT_DOMAIN", "");
+        vm.setEnv("WWW_NAMES", "reddit.com");
+        vm.setEnv("AT_NAMES", "");
+
+        script.run();
+        assertEq(factory2.parentNameOf("reddit.com"), "com.reddit.www.acme-alumni.eth");
+        vm.removeFile(file);
+    }
+
     function test_everyLevelIsMountedAndReused() public {
         IRegistry www = root2.getSubregistry("www");
         assertTrue(address(www) != address(0), "www");

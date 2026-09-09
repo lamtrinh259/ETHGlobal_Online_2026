@@ -30,7 +30,7 @@ import {
   toWire,
 } from "@ketsuban/registrar/testing";
 import { eciesDecrypt } from "@ketsuban/registrar";
-import { decodeRecord, MultipassAbi, toBytes32 } from "@peeramid-labs/multipass-client";
+import { decodeRecord, fromBytes32, MultipassAbi, toBytes32 } from "@peeramid-labs/multipass-client";
 import { APP_ID, PRIVY_SEED } from "./global-setup.js";
 
 const API = process.env.E2E_API_URL ?? `http://127.0.0.1:${process.env.E2E_API_PORT ?? "18787"}`;
@@ -107,12 +107,21 @@ describe("api e2e", () => {
     ).toBe(true);
   });
 
-  it("lists the deployed instance", async () => {
+  it("lists the root instance and the platform namespace mounted under it", async () => {
     const { instances } = await (await fetch(`${API}/v1/instances`)).json();
-    expect(instances).toHaveLength(1);
     expect(instances[0]).toMatchObject({
       domain: deployment.instanceDomain,
       parentName: deployment.instanceParent,
+    });
+    // Each platform is mounted at the DNS name it is, first label first: `x.com` lives at `com.x.www`.
+    const byDomain = new Map(instances.map((i: { domain: string; parentName: string }) => [i.domain, i]));
+    expect(byDomain.get("x.com")).toMatchObject({
+      parentName: `com.x.www.${deployment.instanceParent}`,
+    });
+    expect(byDomain.get("t.me")).toMatchObject({ parentName: `me.t.www.${deployment.instanceParent}` });
+    // A mail host is grouped apart, under the at-sign level.
+    expect(byDomain.get("example.com")).toMatchObject({
+      parentName: `com.example.@.${deployment.instanceParent}`,
     });
   });
 
@@ -221,6 +230,41 @@ describe("api e2e", () => {
     const disclosed = await (await fetch(`${API}/v1/verify/${name}?links=x&viewCode=${viewCode}`)).json();
     expect(disclosed.links[0].disclosed).toEqual({ handle: "alice", platformId: "1234567890123456789" });
     expect(disclosed.evidence).toContain("x_account_control");
+  });
+
+  it("attests an account into the DNS domain it belongs to, and names it there", async () => {
+    // The platform namespace this deployment mounts: `x.com` under `www`, so the account reads as one.
+    const now = Math.floor(Date.now() / 1000);
+    const intent = baseIntent(user.account, now, { domain: "x.com", optIn: false, exp: BigInt(now + 3600) });
+    const idToken = privy.mint({ sub: user.did, linked: user.linked, now });
+    const req = toWire(await signedAttestRequest(user.account, intent, idToken, 31337, deployment.multipass));
+    const attested = await (
+      await fetch(`${API}/v1/attest`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(req),
+      })
+    ).json();
+    expect(attested.error).toBeUndefined();
+    expect(fromBytes32(attested.record.domainName)).toBe("x.com");
+    expect(fromBytes32(attested.record.name)).toBe("alice");
+
+    const delivered = await (
+      await fetch(`${API}/v1/cre/delivery`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-delivery-token": "e2e-delivery-token-0123456789" },
+        body: JSON.stringify(attested),
+      })
+    ).json();
+    expect(delivered.ok).toBe(true);
+
+    // The index reads its own write, so the account is named the moment the relay returns.
+    const dash = await (await fetch(`${API}/v1/wallet/${user.account.address}`)).json();
+    expect(dash.links.find((l: { domain: string }) => l.domain === "x.com")).toMatchObject({
+      name: "alice",
+      live: true,
+      ensName: `alice.com.x.www.${deployment.instanceParent}`,
+    });
   });
 
   it("provisions the candidate's vouch instance and lets a verified voucher write under it", async () => {

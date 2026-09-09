@@ -14,6 +14,7 @@ import {
   RESERVED_HANDLES,
   signRecord,
   type SignedDisclosure,
+  PLATFORM_DOMAIN_NAMES,
   type AttestEnv,
   type AttestRequest,
   type AttestResult,
@@ -195,7 +196,15 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     };
   }
 
-  const env = (): AttestEnv => ({
+  /**
+   * What the attester may write into. The deployment decides: a platform mounted at its own DNS name is
+   * `x.com` here, and a mail host is whichever ones were deployed. The flat platform names stay allowed
+   * for a deployment that predates the namespace, where a record is written before any mount exists.
+   */
+  const env = async (): Promise<AttestEnv> => ({
+    platformDomains: [
+      ...new Set([...(await chain.instances()).map((i) => i.domain), ...PLATFORM_DOMAIN_NAMES]),
+    ],
     now: now(),
     chainId: config.CHAIN_ID,
     multipass: config.MULTIPASS,
@@ -272,7 +281,7 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
         req,
         onchain,
         { registrarKey: config.REGISTRAR_KEY, viewcodeKey: config.VIEWCODE_KEY },
-        env()
+        await env()
       );
       return c.json(serialize(result));
     } catch (e) {
@@ -500,7 +509,7 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
       payload: zeroHash,
     };
     try {
-      const signature = await signRecord(record, config.REGISTRAR_KEY, env());
+      const signature = await signRecord(record, config.REGISTRAR_KEY, await env());
       const txHash = await chain.submit(record, signature);
       return c.json({ ok: true, label, wallet, txHash, renewal: onchain.exists });
     } catch (e) {

@@ -44,13 +44,16 @@ contract AddNamespace is Script {
 
     function run() external {
         uint256 pk = vm.envUint("PRIVATE_KEY");
-        factory = AttestationFactory(vm.envAddress("FACTORY"));
-        root = AttestationRegistry(vm.envAddress("REGISTRY"));
-        mp = Multipass(payable(vm.envAddress("MULTIPASS")));
-        inner = IPermissionedResolver(vm.envAddress("PERMISSIONED_RESOLVER"));
+        // A local run points at the deployment file the deploy script wrote; a live one names addresses.
+        string memory file = vm.envOr("DEPLOYMENT_FILE", string(""));
+        string memory json = bytes(file).length > 0 ? vm.readFile(file) : "";
+        factory = AttestationFactory(_address(json, ".factory", "FACTORY"));
+        root = AttestationRegistry(_address(json, ".registry", "REGISTRY"));
+        mp = Multipass(payable(_address(json, ".multipass", "MULTIPASS")));
+        inner = IPermissionedResolver(_address(json, ".permissionedResolver", "PERMISSIONED_RESOLVER"));
         registrar = vm.envAddress("REGISTRAR");
-        rootParent = vm.envString("ROOT_PARENT");
-        rootDomain = bytes32(bytes(vm.envString("ROOT_DOMAIN")));
+        rootParent = _string(json, ".instanceParent", "ROOT_PARENT");
+        rootDomain = bytes32(bytes(_string(json, ".instanceDomain", "ROOT_DOMAIN")));
         operator = vm.addr(pk);
 
         vm.startBroadcast(pk);
@@ -128,6 +131,23 @@ contract AddNamespace is Script {
         if (mp.getDomainState(domain).registrar != address(0)) return;
         mp.initializeDomain(registrar, 0, 0, domain, 0, 0);
         mp.activateDomain(domain);
+    }
+
+    /// @dev The environment wins over the file, so one value can be overridden without editing it.
+    function _address(string memory json, string memory key, string memory envKey) internal view returns (address) {
+        address fromEnv = vm.envOr(envKey, address(0));
+        if (fromEnv != address(0)) return fromEnv;
+        return vm.parseJsonAddress(json, key);
+    }
+
+    function _string(string memory json, string memory key, string memory envKey)
+        internal
+        view
+        returns (string memory)
+    {
+        string memory fromEnv = vm.envOr(envKey, string(""));
+        if (bytes(fromEnv).length > 0) return fromEnv;
+        return vm.parseJsonString(json, key);
     }
 
     function _push(string[] memory list, string memory item) internal pure returns (string[] memory out) {
