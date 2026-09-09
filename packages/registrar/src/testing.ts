@@ -4,6 +4,7 @@ import { stringToBytes, zeroHash, type Hex } from "viem";
 import { privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
 import { base64urlEncode } from "./base64url.js";
 import { intentDomain, signIntent } from "./intent.js";
+import { inviteDomain, signInvite, ZERO_ADDRESS, type Invite, type SignedInvite } from "./invite.js";
 import type { AttestRequest, Intent, Jwk, LinkedAccount } from "./types.js";
 
 /**
@@ -95,10 +96,30 @@ export async function signedAttestRequest(
   intent: Intent,
   idToken: string,
   chainId: number,
-  multipass: Hex
+  multipass: Hex,
+  invite?: SignedInvite
 ): Promise<AttestRequest> {
   const signature = await signIntent(account, intent, intentDomain(chainId, multipass as `0x${string}`));
-  return { idToken, intent, signature };
+  return { idToken, intent, signature, ...(invite ? { invite } : {}) };
+}
+
+/** An invitation from the candidate, as the browser builds it: open unless a voucher is named. */
+export async function signedInvite(
+  candidate: PrivateKeyAccount,
+  handle: string,
+  now: number,
+  chainId: number,
+  multipass: Hex,
+  over: Partial<Invite> = {}
+): Promise<SignedInvite> {
+  const invite: Invite = {
+    handle,
+    voucher: ZERO_ADDRESS,
+    exp: BigInt(now + 7 * 24 * 3600),
+    ...over,
+  };
+  const signature = await signInvite(candidate, invite, inviteDomain(chainId, multipass as `0x${string}`));
+  return { ...invite, signature };
 }
 
 /** JSON wire form of an AttestRequest (bigints as decimal strings) */
@@ -107,5 +128,6 @@ export function toWire(req: AttestRequest) {
     idToken: req.idToken,
     signature: req.signature,
     intent: { ...req.intent, nonce: req.intent.nonce.toString(), exp: req.intent.exp.toString() },
+    ...(req.invite ? { invite: { ...req.invite, exp: req.invite.exp.toString() } } : {}),
   };
 }

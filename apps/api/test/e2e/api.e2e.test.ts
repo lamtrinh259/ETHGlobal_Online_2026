@@ -10,7 +10,14 @@
 import { readFileSync } from "node:fs";
 import { beforeAll, describe, expect, it } from "vitest";
 import { bytesToHex, createPublicClient, http, zeroHash, type Hex } from "viem";
-import { baseIntent, fakePrivy, fakeUser, signedAttestRequest, toWire } from "@ketsuban/registrar/testing";
+import {
+  baseIntent,
+  fakePrivy,
+  fakeUser,
+  signedAttestRequest,
+  signedInvite,
+  toWire,
+} from "@ketsuban/registrar/testing";
 import { eciesDecrypt } from "@ketsuban/registrar";
 import { decodeRecord, MultipassAbi, toBytes32 } from "@peeramid-labs/multipass-client";
 import { APP_ID, PRIVY_SEED } from "./global-setup.js";
@@ -196,18 +203,42 @@ describe("api e2e", () => {
     expect(bobDelivered.vouchInstance).toEqual({ domain: "~bob", created: true });
 
     const statement = toBytes32("worked together 2019-22");
+    const vouchIntent = baseIntent(bob.account, now, {
+      domain: "~alice",
+      handle: "bob",
+      payload: statement,
+      exp: BigInt(now + 3600),
+    });
+    const bobToken = privy.mint({ sub: bob.did, linked: bob.linked, now });
+
+    // A statement needs the candidate's invitation: alice signs one, nobody else can.
+    const uninvited = toWire(
+      await signedAttestRequest(bob.account, vouchIntent, bobToken, 31337, deployment.multipass)
+    );
+    const refused = await post("/v1/attest", uninvited);
+    expect(refused.status).toBe(422);
+    expect((await refused.json()).error).toContain("needs the candidate's invitation");
+
+    const forged = toWire(
+      await signedAttestRequest(
+        bob.account,
+        vouchIntent,
+        bobToken,
+        31337,
+        deployment.multipass,
+        await signedInvite(bob.account, "alice", now, 31337, deployment.multipass)
+      )
+    );
+    expect((await post("/v1/attest", forged)).status).toBe(422);
+
     const vouch = toWire(
       await signedAttestRequest(
         bob.account,
-        baseIntent(bob.account, now, {
-          domain: "~alice",
-          handle: "bob",
-          payload: statement,
-          exp: BigInt(now + 3600),
-        }),
-        privy.mint({ sub: bob.did, linked: bob.linked, now }),
+        vouchIntent,
+        bobToken,
         31337,
-        deployment.multipass
+        deployment.multipass,
+        await signedInvite(user.account, "alice", now, 31337, deployment.multipass)
       )
     );
     const attested = await (await post("/v1/attest", vouch)).json();

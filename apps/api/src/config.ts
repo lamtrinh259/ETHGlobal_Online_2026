@@ -60,6 +60,14 @@ export const configSchema = z.object({
   INDEX_POLL_SECONDS: z.coerce.number().int().positive().default(15),
   /** Block the factory was deployed at; record listing scans logs from here */
   DEPLOY_BLOCK: z.coerce.number().int().nonnegative().default(0),
+  /**
+   * Whether a statement in a vouch domain needs the candidate's signed invitation. On by default:
+   * without it anyone could write into a stranger's vouch domain.
+   */
+  REQUIRE_INVITE: z
+    .string()
+    .default("true")
+    .transform((v) => v !== "false"),
   /** Prefix of per-candidate vouch domains (`~alice`) */
   VOUCH_PREFIX: z.string().min(1).default("~"),
   /** Test-gas the relayer sends once to a wallet holding a live name (wei); 0 disables `POST /v1/gas` */

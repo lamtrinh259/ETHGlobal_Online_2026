@@ -17,6 +17,7 @@ import {
 } from "@chainlink/cre-sdk";
 import {
   attestConfidential,
+  candidateOf,
   verifyPublicLeg,
   type AttestEnv,
   type AttestRequest,
@@ -55,6 +56,10 @@ export const configSchema = z.object({
   }),
   /** Name domains are a deployment argument (e.g. ["kju-is"]) */
   nameDomains: z.array(z.string()).min(1),
+  /** Prefixes of per-candidate vouch domains; default ["~"] */
+  nameDomainPrefixes: z.array(z.string()).optional(),
+  /** Whether a statement in a vouch domain needs the candidate's invitation; default true */
+  requireInvite: z.boolean().optional(),
   platformDomains: z.array(z.string()).optional(),
   termSeconds: z.number().int().positive().optional(),
   secretIds: z.object({ registrarKey: z.string(), viewcodeKey: z.string() }),
@@ -81,6 +86,9 @@ const hex = z.string().regex(/^0x[0-9a-fA-F]*$/);
 const wireSchema = z.object({
   idToken: z.string(),
   signature: hex,
+  invite: z
+    .object({ handle: z.string(), voucher: hex, exp: z.string().regex(/^\d+$/), signature: hex })
+    .optional(),
   intent: z.object({
     wallet: hex,
     domain: z.string(),
@@ -99,6 +107,16 @@ export function parseRequest(input: Uint8Array): AttestRequest {
   return {
     idToken: w.idToken,
     signature: w.signature as Hex,
+    ...(w.invite
+      ? {
+          invite: {
+            handle: w.invite.handle,
+            voucher: w.invite.voucher as Address,
+            exp: BigInt(w.invite.exp),
+            signature: w.invite.signature as Hex,
+          },
+        }
+      : {}),
     intent: {
       wallet: w.intent.wallet as Address,
       domain: w.intent.domain,
@@ -166,21 +184,24 @@ export function serializeResult(r: AttestResult, txHash?: Hex): string {
 }
 
 // ─── Public leg: chain read on the DON ──────────────────────
-export function readOnchain(donRuntime: Runtime<Config>, req: AttestRequest): OnchainState {
+/** One `resolveRecord` call, by wallet or by name, read at the latest block. */
+function resolveRecord(
+  donRuntime: Runtime<Config>,
+  query: { wallet: Address; name: Hex; domain: string }
+): { exists: boolean; record: { nonce: bigint; id: Hex; wallet: Address } } {
   const config = donRuntime.config;
   const network = getNetwork({ chainSelectorName: config.chainSelectorName, isTestnet: true });
   if (!network) throw new Error(`unknown chain ${config.chainSelectorName}`);
   const evm = new cre.capabilities.EVMClient(network.chainSelector.selector);
-
   const data = encodeFunctionData({
     abi: MultipassAbi,
     functionName: "resolveRecord",
     args: [
       {
-        name: zeroHash,
+        name: query.name,
         id: zeroHash,
-        wallet: req.intent.wallet,
-        domainName: toBytes32(req.intent.domain),
+        wallet: query.wallet,
+        domainName: toBytes32(query.domain),
         targetDomain: zeroHash,
       },
     ],
@@ -196,7 +217,27 @@ export function readOnchain(donRuntime: Runtime<Config>, req: AttestRequest): On
     functionName: "resolveRecord",
     data: bytesToHex(reply.data),
   });
-  return { exists, nonce: record.nonce, id: record.id, wallet: record.wallet };
+  return { exists, record };
+}
+
+export function readOnchain(donRuntime: Runtime<Config>, req: AttestRequest): OnchainState {
+  const config = donRuntime.config;
+  const { exists, record } = resolveRecord(donRuntime, {
+    wallet: req.intent.wallet,
+    name: zeroHash,
+    domain: req.intent.domain,
+  });
+  const state: OnchainState = { exists, nonce: record.nonce, id: record.id, wallet: record.wallet };
+
+  // A statement in `~<candidate>` needs that candidate's invitation, so the enclave has to know
+  // which wallet holds their name. Only the chain can say.
+  const prefixes = config.nameDomainPrefixes ?? ["~"];
+  const candidate = candidateOf(req.intent.domain, prefixes);
+  if (!candidate) return state;
+  const root = config.nameDomains[0];
+  if (!root) return state;
+  const held = resolveRecord(donRuntime, { wallet: zeroAddress, name: toBytes32(candidate), domain: root });
+  return { ...state, candidateWallet: held.exists ? held.record.wallet : undefined };
 }
 
 function envFrom(config: Config, now: Date): AttestEnv {
@@ -207,8 +248,10 @@ function envFrom(config: Config, now: Date): AttestEnv {
     eip712: config.eip712,
     privy: { appId: config.privy.appId, verificationKey: config.privy.verificationKey },
     nameDomains: config.nameDomains,
+    nameDomainPrefixes: config.nameDomainPrefixes,
     platformDomains: config.platformDomains,
     termSeconds: config.termSeconds,
+    requireInvite: config.requireInvite,
   };
 }
 

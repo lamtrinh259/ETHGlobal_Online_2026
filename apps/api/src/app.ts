@@ -3,11 +3,13 @@ import { cors } from "hono/cors";
 import { z } from "zod";
 import { zeroHash, type Address, type Hex } from "viem";
 import {
+  candidateOf,
   attest,
   type AttestEnv,
   type AttestRequest,
   type AttestResult,
   type RegisterMessage,
+  type OnchainState,
 } from "@ketsuban/registrar";
 import { decodeRecord, fromBytes32, isOptedIn } from "@peeramid-labs/multipass-client";
 import type { ChainReader, Instance } from "./chain.js";
@@ -29,6 +31,8 @@ export const wireRequest = z.object({
     handle: z.string().default(""),
     payload: hex.default(zeroHash),
   }),
+  /** Vouch domains: the candidate's invitation, as the browser received it */
+  invite: z.object({ handle: z.string(), voucher: hex, exp: decimal, signature: hex }).optional(),
 });
 
 export const wireRecord = z.object({
@@ -61,6 +65,16 @@ export function toRequest(w: z.infer<typeof wireRequest>): AttestRequest {
       handle: w.intent.handle,
       payload: w.intent.payload as Hex,
     },
+    ...(w.invite
+      ? {
+          invite: {
+            handle: w.invite.handle,
+            voucher: w.invite.voucher as Address,
+            exp: BigInt(w.invite.exp),
+            signature: w.invite.signature as Hex,
+          },
+        }
+      : {}),
   };
 }
 
@@ -116,6 +130,18 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     })
   );
 
+  /**
+   * The public leg needs the candidate's wallet for a vouch domain: the invitation has to be signed
+   * by whoever holds that name, and only the chain can say who that is.
+   */
+  async function readFor(req: AttestRequest): Promise<OnchainState> {
+    const onchain = await chain.readOnchain(req.intent.wallet, req.intent.domain);
+    const candidate = candidateOf(req.intent.domain, [config.VOUCH_PREFIX]);
+    if (!candidate || !config.NAME_DOMAINS[0]) return onchain;
+    const status = await chain.nameStatus(config.NAME_DOMAINS[0], candidate);
+    return { ...onchain, candidateWallet: status.live ? (status.wallet ?? undefined) : undefined };
+  }
+
   const env = (): AttestEnv => ({
     now: now(),
     chainId: config.CHAIN_ID,
@@ -123,7 +149,9 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     eip712: { name: config.MULTIPASS_EIP712_NAME, version: config.MULTIPASS_EIP712_VERSION },
     privy: { appId: config.PRIVY_APP_ID, verificationKey: config.PRIVY_VERIFICATION_KEY_JWK },
     nameDomains: config.NAME_DOMAINS,
+    nameDomainPrefixes: [config.VOUCH_PREFIX],
     termSeconds: config.RECORD_TERM_SECONDS,
+    requireInvite: config.REQUIRE_INVITE,
   });
 
   app.get("/healthz", (c) =>
@@ -165,7 +193,7 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     if (!parsed.success) return c.json({ error: "bad request", issues: parsed.error.issues }, 400);
     const req = toRequest(parsed.data);
     try {
-      const onchain = await chain.readOnchain(req.intent.wallet, req.intent.domain);
+      const onchain = await readFor(req);
       const result = await attest(
         req,
         onchain,

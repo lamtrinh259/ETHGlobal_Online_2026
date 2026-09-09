@@ -1,7 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 import { bytesToHex, encodePacked, keccak256, zeroAddress, zeroHash, type Address, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { baseIntent, fakePrivy, fakeUser, signedAttestRequest, toWire } from "@ketsuban/registrar/testing";
+import {
+  baseIntent,
+  fakePrivy,
+  fakeUser,
+  signedAttestRequest,
+  signedInvite,
+  toWire,
+} from "@ketsuban/registrar/testing";
 import { eciesDecrypt, type RegisterMessage } from "@ketsuban/registrar";
 import {
   decodeRecord,
@@ -653,6 +660,84 @@ describe("GET /v1/vouches/:handle", () => {
     expect(chain.nameStatus).not.toHaveBeenCalledWith("kju-is", "carol");
     expect((await app(chain).request("/v1/vouches/Not%20Valid")).status).toBe(400);
     expect((await (await app(chain).request("/v1/vouches/nobody")).json()).vouches).toEqual([]);
+  });
+});
+
+describe("POST /v1/attest — vouch invitations", () => {
+  const vouchIntent = (now: number) =>
+    baseIntent(user.account, now, {
+      domain: "~alice",
+      handle: "bob",
+      payload: toBytes32("worked together"),
+      exp: BigInt(now + 600),
+    });
+
+  /** Alice holds her name, so her wallet is the one that may invite vouchers. */
+  const aliceHolds = { names: { "kju-is/alice": { taken: true, wallet: user.account.address, live: true } } };
+
+  it("refuses a statement with no invitation and accepts one the candidate signed", async () => {
+    const { chain } = fakeChain(aliceHolds);
+    const a = app(chain);
+    const idToken = privy.mint({ sub: user.did, linked: user.linked, now: NOW });
+
+    const bare = toWire(
+      await signedAttestRequest(user.account, vouchIntent(NOW), idToken, 31337, baseEnv.MULTIPASS as Hex)
+    );
+    const refused = await post(a, "/v1/attest", bare);
+    expect(refused.status).toBe(422);
+    expect((await refused.json()).error).toContain("needs the candidate's invitation");
+
+    const invited = toWire(
+      await signedAttestRequest(
+        user.account,
+        vouchIntent(NOW),
+        idToken,
+        31337,
+        baseEnv.MULTIPASS as Hex,
+        await signedInvite(user.account, "alice", NOW, 31337, baseEnv.MULTIPASS as Hex)
+      )
+    );
+    const ok = await post(a, "/v1/attest", invited);
+    expect(ok.status).toBe(200);
+    expect((await ok.json()).record.domainName).toBe(toBytes32("~alice"));
+    expect(chain.nameStatus).toHaveBeenCalledWith("kju-is", "alice");
+  });
+
+  it("refuses an invitation signed by someone who does not hold the candidate's name", async () => {
+    const { chain } = fakeChain(aliceHolds);
+    const idToken = privy.mint({ sub: user.did, linked: user.linked, now: NOW });
+    const wire = toWire(
+      await signedAttestRequest(
+        user.account,
+        vouchIntent(NOW),
+        idToken,
+        31337,
+        baseEnv.MULTIPASS as Hex,
+        await signedInvite(registrar, "alice", NOW, 31337, baseEnv.MULTIPASS as Hex)
+      )
+    );
+    const res = await post(app(chain), "/v1/attest", wire);
+    expect(res.status).toBe(422);
+    expect((await res.json()).error).toBe("invite: not signed by the candidate");
+  });
+
+  it("a deployment may switch invitations off", async () => {
+    const { chain } = fakeChain(aliceHolds);
+    const open = createApp({
+      config: loadConfig({ ...baseEnv, REQUIRE_INVITE: "false" }),
+      chain,
+      now: () => NOW,
+    });
+    const wire = toWire(
+      await signedAttestRequest(
+        user.account,
+        vouchIntent(NOW),
+        privy.mint({ sub: user.did, linked: user.linked, now: NOW }),
+        31337,
+        baseEnv.MULTIPASS as Hex
+      )
+    );
+    expect((await post(open, "/v1/attest", wire)).status).toBe(200);
   });
 });
 

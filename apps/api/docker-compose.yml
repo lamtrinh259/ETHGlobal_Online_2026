@@ -46,6 +46,7 @@ services:
       REGISTRAR_ADDRESS: ${REGISTRAR_ADDRESS:-}
       CORS_ORIGINS: ${CORS_ORIGINS:-*}
       GAS_TOPUP_WEI: ${GAS_TOPUP_WEI:-0}
+      REQUIRE_INVITE: ${REQUIRE_INVITE:-true}
       DELIVERY_TOKEN: ${DELIVERY_TOKEN}
       RECORD_TERM_SECONDS: ${RECORD_TERM_SECONDS:-2592000}
       # Node registrar fallback only; leave unset when the CRE enclave signs.

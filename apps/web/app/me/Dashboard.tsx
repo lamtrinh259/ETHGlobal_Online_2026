@@ -14,6 +14,7 @@ import { ProfileEditor } from "./ProfileEditor";
 import { OwnName } from "./OwnName";
 import { Privacy } from "./Privacy";
 import { LinkAccounts } from "./LinkAccounts";
+import { InviteLink } from "./InviteLink";
 import { needsAttention } from "@/lib/journey";
 import { useWebConfig } from "@/app/providers";
 import { fmtUtc, short } from "@/app/ui";
@@ -152,11 +153,14 @@ export function Dashboard() {
           ) : (
             <p className="muted">reading references…</p>
           )}
-          <p className="muted">Ask someone who worked with you. Paste this:</p>
-          <code data-testid="vouch-request">{vouchRequest(rootName.name, siteUrl, root.parentName)}</code>
-          <p>
-            <CopyButton text={vouchRequest(rootName.name, siteUrl, root.parentName)} label="Copy the ask" />
-          </p>
+          <InviteLink handle={rootName.name} />
+          <details>
+            <summary className="muted">A message to send with it</summary>
+            <code data-testid="vouch-request">{vouchRequest(rootName.name, siteUrl, root.parentName)}</code>
+            <p>
+              <CopyButton text={vouchRequest(rootName.name, siteUrl, root.parentName)} label="Copy the ask" />
+            </p>
+          </details>
         </section>
       )}
 

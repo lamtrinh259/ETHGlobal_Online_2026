@@ -9,7 +9,9 @@ import {
   env,
   makeIntent,
   mintIdToken,
+  makeInvite,
   noRecord,
+  noVouchRecord,
   NOW,
   registrarAccount,
   secrets,
@@ -143,8 +145,13 @@ describe("attest — name domain (kju-is as a config value)", () => {
 describe("attest — vouch instance (~candidate) domain", () => {
   it("treats ~<candidate> as a name domain: voucher handle, keccak(DID), statement", async () => {
     const statement = toBytes32("worked together 2019-22");
-    const req = await signedRequest(makeIntent({ domain: "~alice", handle: "bob", payload: statement }));
-    const res = await attest(req, noRecord, secrets, env);
+    const req = await signedRequest(
+      makeIntent({ domain: "~alice", handle: "bob", payload: statement }),
+      undefined,
+      undefined,
+      await makeInvite()
+    );
+    const res = await attest(req, noVouchRecord, secrets, env);
     expect(res.record.domainName).toBe(toBytes32("~alice"));
     expect(res.record.name).toBe(toBytes32("bob"));
     expect(res.record.id).toBe(keccak256(stringToBytes(DID)));
@@ -161,6 +168,32 @@ describe("attest — vouch instance (~candidate) domain", () => {
         nameDomainPrefixes: [],
       })
     ).rejects.toThrow("unknown domain");
+  });
+
+  it("needs the candidate's invitation: nobody writes into a stranger's vouch domain", async () => {
+    const intent = makeIntent({ domain: "~alice", handle: "bob", payload: toBytes32("hi") });
+    const vouch = (invite?: Awaited<ReturnType<typeof makeInvite>>, onchain = noVouchRecord) =>
+      signedRequest(intent, undefined, undefined, invite).then((req) => verifyPublicLeg(req, onchain, env));
+
+    await expect(vouch()).rejects.toThrow("invite: ~alice needs the candidate's invitation");
+    await expect(vouch(await makeInvite({ handle: "carol" }))).rejects.toThrow("for a different candidate");
+    await expect(vouch(await makeInvite({ exp: BigInt(NOW - 1) }))).rejects.toThrow("invite: expired");
+    await expect(vouch(await makeInvite({ voucher: registrarAccount.address }))).rejects.toThrow(
+      "issued to a different wallet"
+    );
+    await expect(vouch(await makeInvite({}, registrarAccount))).rejects.toThrow("not signed by the candidate");
+    await expect(
+      vouch(await makeInvite(), { ...noVouchRecord, candidateWallet: undefined } as never)
+    ).rejects.toThrow("alice holds no live name to invite from");
+
+    // The open invitation, and one issued to this exact voucher, both pass.
+    await expect(vouch(await makeInvite())).resolves.toBeUndefined();
+    await expect(vouch(await makeInvite({ voucher: userAccount.address }))).resolves.toBeUndefined();
+  });
+
+  it("a deployment may switch invitations off", async () => {
+    const req = await signedRequest(makeIntent({ domain: "~alice", handle: "bob" }));
+    await expect(verifyPublicLeg(req, noRecord, { ...env, requireInvite: false })).resolves.toBeUndefined();
   });
 });
 

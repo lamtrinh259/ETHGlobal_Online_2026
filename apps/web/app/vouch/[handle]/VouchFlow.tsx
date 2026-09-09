@@ -9,6 +9,7 @@ import { LetterForm } from "./LetterForm";
 import { useWebConfig } from "@/app/providers";
 import { fmtUtc } from "@/app/ui";
 import { apiFor, useWalletDashboard } from "@/lib/hooks";
+import type { SignedInvite } from "@ketsuban/registrar";
 import type { Signer } from "@/lib/chain";
 import { VOUCH_PREFIX, voucherProgress, vouchSteps } from "@/lib/journey";
 
@@ -20,7 +21,7 @@ type Stage = "signin" | "onboarding" | "statement" | "done";
  * is a record in the candidate's own vouch domain, so no name of the voucher's own is required first;
  * a held root name is reused as the label, and claiming one is offered after publishing.
  */
-export function VouchFlow({ candidate }: { candidate: string }) {
+export function VouchFlow({ candidate, invite }: { candidate: string; invite?: SignedInvite }) {
   const config = useWebConfig();
   const root = config.instances[0];
   const api = useMemo(() => apiFor(config), [config]);
@@ -94,7 +95,20 @@ export function VouchFlow({ candidate }: { candidate: string }) {
         </section>
       )}
 
-      {!loading && stage === "statement" && root && (
+      {!loading && stage === "statement" && root && !invite && (
+        <section className="card" data-testid="no-invite">
+          <h2>You need {candidate}&apos;s invitation</h2>
+          <p>
+            A vouch domain belongs to its candidate: only someone they invited can write a statement there.
+            Ask {candidate} for their invite link and open it — the rest of this page is unchanged.
+          </p>
+          <p className="muted">
+            They make one from their dashboard in two clicks. It costs them nothing and needs no gas.
+          </p>
+        </section>
+      )}
+
+      {!loading && stage === "statement" && root && invite && (
         <>
           <p className="muted" data-testid="statement-intro">
             A few words is what the name itself carries; the full letter comes next, as a text record. It
@@ -116,6 +130,7 @@ export function VouchFlow({ candidate }: { candidate: string }) {
           <AttestFlow
             fixedDomain={vouchDomain}
             fixedHandle={handle}
+            invite={invite}
             title={onChain.existing ? "Update your reference" : "Write your reference"}
             answerLabel="A few words about them, permanent"
             answerPlaceholder="CTO at Acme 2019-22"

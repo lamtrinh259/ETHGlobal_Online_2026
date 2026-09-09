@@ -1,5 +1,14 @@
 import { zeroHash, type Address, type Hex } from "viem";
-import { INTENT_TYPES, intentDomain, type Intent } from "@ketsuban/registrar";
+import {
+  encodeInvite,
+  INTENT_TYPES,
+  intentDomain,
+  INVITE_TYPES,
+  inviteDomain,
+  type Intent,
+  type Invite,
+  type SignedInvite,
+} from "@ketsuban/registrar";
 import { toBytes32 } from "@peeramid-labs/multipass-client";
 
 export const HANDLE_RE = /^[a-z0-9-]{1,31}$/;
@@ -54,11 +63,28 @@ export function intentTypedData(intent: Intent, chainId: number, multipass: Addr
   };
 }
 
-/** JSON wire form (bigints as decimal strings) */
-export function toWire(intent: Intent, idToken: string, signature: Hex) {
+/** JSON wire form (bigints as decimal strings), with the candidate's invitation when there is one */
+export function toWire(intent: Intent, idToken: string, signature: Hex, invite?: SignedInvite) {
   return {
     idToken,
     signature,
     intent: { ...intent, nonce: intent.nonce.toString(), exp: intent.exp.toString() },
+    ...(invite ? { invite: { ...invite, exp: invite.exp.toString() } } : {}),
   };
+}
+
+/** Typed data for the candidate's invitation; the numbers are strings for the same reason as above. */
+export function inviteTypedData(invite: Invite, chainId: number, multipass: Address) {
+  const d = inviteDomain(chainId, multipass);
+  return {
+    domain: { name: d.name as string, version: d.version as string, chainId, verifyingContract: multipass },
+    types: { Invite: INVITE_TYPES.Invite.map((f) => ({ ...f })) },
+    primaryType: "Invite" as const,
+    message: { ...invite, exp: invite.exp.toString() },
+  };
+}
+
+/** The link a candidate shares: whoever holds it may write one reference for them. */
+export function inviteLink(siteUrl: string, handle: string, invite: SignedInvite): string {
+  return `${siteUrl.replace(/\/$/, "")}/vouch/${handle}?invite=${encodeInvite(invite)}`;
 }

@@ -1,11 +1,19 @@
 import { describe, expect, it, vi } from "vitest";
 import { bytesToHex, recoverTypedDataAddress, stringToBytes, zeroHash, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { eciesEncrypt, recoverIntentSigner, intentDomain } from "@ketsuban/registrar";
+import {
+  decodeInvite,
+  eciesEncrypt,
+  intentDomain,
+  inviteDomain,
+  recoverIntentSigner,
+  recoverInviteSigner,
+  ZERO_ADDRESS,
+} from "@ketsuban/registrar";
 import { toBytes32 } from "@peeramid-labs/multipass-client";
 import { ApiError, createApi } from "@/lib/api";
 import { loadWebConfig } from "@/lib/config";
-import { buildIntent, intentTypedData, toWire } from "@/lib/intent";
+import { buildIntent, intentTypedData, inviteLink, inviteTypedData, toWire } from "@/lib/intent";
 import { fromPrivateKey, loadOrCreateViewKey, loadViewCodes, openViewCode, saveViewCode } from "@/lib/keys";
 
 const env = {
@@ -20,6 +28,25 @@ const env = {
 };
 const NOW = 1_800_000_000;
 const account = privateKeyToAccount("0x000000000000000000000000000000000000000000000000000000000000a11c");
+
+describe("invitations", () => {
+  it("signs an invite the registrar accepts and puts it in a URL-safe link", async () => {
+    const invite = { handle: "alice", voucher: ZERO_ADDRESS, exp: BigInt(NOW + 604800) } as const;
+    const td = inviteTypedData(invite, 11155111, "0x418F82fd0014a4CA402F145978bfaF0555a9cA06");
+    expect(td.message.exp).toBe(String(invite.exp));
+    expect(() => JSON.stringify(td)).not.toThrow();
+
+    const signature = await account.signTypedData(td as never);
+    expect(
+      await recoverInviteSigner(invite, signature, inviteDomain(11155111, td.domain.verifyingContract))
+    ).toBe(account.address);
+
+    const link = inviteLink("https://app.example/", "alice", { ...invite, signature });
+    expect(link.startsWith("https://app.example/vouch/alice?invite=")).toBe(true);
+    const token = new URL(link).searchParams.get("invite")!;
+    expect(decodeInvite(token)).toEqual({ ...invite, signature });
+  });
+});
 
 describe("view codes", () => {
   it("keeps opened view codes per domain and survives garbage in storage", () => {

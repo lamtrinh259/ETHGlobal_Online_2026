@@ -1,5 +1,6 @@
-import { recoverTypedDataAddress, type Address, type Hex, type TypedDataDomain } from "viem";
+import { bytesToString, recoverTypedDataAddress, stringToBytes, type Address, type Hex, type TypedDataDomain } from "viem";
 import type { PrivateKeyAccount } from "viem/accounts";
+import { base64urlDecode, base64urlEncode } from "./base64url.js";
 
 /**
  * A candidate's invitation to be vouched for. Without it anyone could write a statement into a
@@ -58,14 +59,17 @@ export async function signInvite(
   return account.signTypedData({ domain, types: INVITE_TYPES, primaryType: "Invite", message: invite });
 }
 
-/** URL-safe transport: the candidate shares this in `/vouch/<handle>?invite=…` */
+/**
+ * URL-safe transport: the candidate shares this in `/vouch/<handle>?invite=…`. Encoded with the
+ * base64url helpers the JWT path already uses, so it works in the browser and in QuickJS alike.
+ */
 export function encodeInvite(invite: SignedInvite): string {
   const json = JSON.stringify({ ...invite, exp: invite.exp.toString() });
-  return btoa(json).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return base64urlEncode(stringToBytes(json));
 }
 
 export function decodeInvite(token: string): SignedInvite {
-  const json = atob(token.replace(/-/g, "+").replace(/_/g, "/"));
+  const json = bytesToString(base64urlDecode(token));
   const raw = JSON.parse(json) as { handle: string; voucher: Address; exp: string; signature: Hex };
   if (typeof raw.handle !== "string" || typeof raw.voucher !== "string" || typeof raw.signature !== "string") {
     throw new Error("invite: malformed");

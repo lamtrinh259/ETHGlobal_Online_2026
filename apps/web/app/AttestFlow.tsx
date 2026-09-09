@@ -9,6 +9,7 @@ import {
   useWallets,
 } from "@privy-io/react-auth";
 import type { Address, Hex } from "viem";
+import type { SignedInvite } from "@ketsuban/registrar";
 import { PLATFORM_DOMAIN_NAMES } from "@ketsuban/registrar";
 import { fromBytes32 } from "@peeramid-labs/multipass-client";
 import { apiFor, useAttest, useDeliver, useNameStatus, useNonce } from "@/lib/hooks";
@@ -32,6 +33,8 @@ type Props = {
   answerPlaceholder?: string;
   /** Sign-in only: render the gate and nothing else */
   hideForm?: boolean;
+  /** Vouch domains: the candidate's invitation, from the link they shared */
+  invite?: SignedInvite;
   /** Only platform (linked-account) domains in the picker */
   platformsOnly?: boolean;
   /** Restrict the platform picker to these domains (e.g. the ones the user has actually linked) */
@@ -53,6 +56,7 @@ export function AttestFlow({
   answerLabel,
   answerPlaceholder,
   hideForm,
+  invite,
   platformsOnly,
   domainOptions,
   allowLinking,
@@ -144,7 +148,7 @@ export function AttestFlow({
         }
       );
       setSigning(false);
-      const attested = await attest.mutateAsync(toWire(intent, identityToken, signature as Hex));
+      const attested = await attest.mutateAsync(toWire(intent, identityToken, signature as Hex, invite));
       if (attested.viewCode) {
         const code = openViewCode(viewKey, attested.viewCode);
         setViewCode(code);

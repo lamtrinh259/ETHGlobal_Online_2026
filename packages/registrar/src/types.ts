@@ -1,5 +1,6 @@
 import type { Address, Hex } from "viem";
 import type { RegisterMessage } from "@peeramid-labs/multipass-client";
+import type { SignedInvite } from "./invite.js";
 
 /**
  * Wallet-signed EIP-712 intent (spec B.2 / B.4). The user's embedded wallet
@@ -60,6 +61,12 @@ export type OnchainState = {
   nonce: bigint;
   id: Hex;
   wallet: Address;
+  /**
+   * Vouch domains only: the wallet holding the candidate's name in the root name domain. The invite
+   * must be signed by it, so a statement can only be written into a vouch domain by someone the
+   * candidate asked. Zero address when the candidate holds no live name.
+   */
+  candidateWallet?: Address;
 };
 
 /** Vault-held secrets; in the enclave these exist only for the duration of the call */
@@ -94,12 +101,19 @@ export type AttestEnv = {
   platformDomains?: readonly string[];
   /** Record term in seconds; default 30 days */
   termSeconds?: number;
+  /**
+   * Whether a record in a vouch domain needs the candidate's signed invitation. Default true:
+   * without it anyone could write a statement into a stranger's vouch domain.
+   */
+  requireInvite?: boolean;
 };
 
 export type AttestRequest = {
   idToken: string;
   intent: Intent;
   signature: Hex;
+  /** Required for vouch domains unless `AttestEnv.requireInvite` is false: the candidate's invitation */
+  invite?: SignedInvite;
 };
 
 /** Deterministic ECIES box carrying the view code to the user (B.4 `eciesEncrypt`) */

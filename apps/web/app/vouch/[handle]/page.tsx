@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { decodeInvite, type SignedInvite } from "@ketsuban/registrar";
 import { createApi } from "@/lib/api";
 import { loadWebConfig } from "@/lib/config";
 import { HANDLE_RE } from "@/lib/profile";
@@ -7,7 +8,7 @@ import { VouchFlow } from "./VouchFlow";
 
 export const dynamic = "force-dynamic";
 
-type Params = { params: Promise<{ handle: string }> };
+type Params = { params: Promise<{ handle: string }>; searchParams: Promise<{ invite?: string }> };
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { handle } = await params;
@@ -19,8 +20,9 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
  * context → write and sign → receive a persistent name. Steps 3 and 5 depend on the World Selfie
  * Check partnership and the per-candidate vouch instance; they are shown honestly as pending.
  */
-export default async function VouchPage({ params }: Params) {
+export default async function VouchPage({ params, searchParams }: Params) {
   const { handle: raw } = await params;
+  const { invite: token } = await searchParams;
   const handle = decodeURIComponent(raw).toLowerCase();
   const config = loadWebConfig();
   const root = config.instances[0];
@@ -32,6 +34,13 @@ export default async function VouchPage({ params }: Params) {
         </p>
       </section>
     );
+  }
+  // A malformed or truncated link is simply no invitation; the flow says what to do about it.
+  let invite: SignedInvite | undefined;
+  try {
+    invite = token ? decodeInvite(token) : undefined;
+  } catch {
+    invite = undefined;
   }
   const api = createApi(config.apiUrl, config.attestUrl);
   const [status, vouches] = await Promise.all([
@@ -64,7 +73,7 @@ export default async function VouchPage({ params }: Params) {
           . Five minutes. Nothing you sign here can be deleted — only revoked, visibly.
         </p>
       </section>
-      <VouchFlow candidate={handle} />
+      <VouchFlow candidate={handle} invite={invite} />
     </>
   );
 }

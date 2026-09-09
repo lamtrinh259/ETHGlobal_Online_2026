@@ -8,6 +8,18 @@ export {
   DEFAULT_NAME_DOMAIN_PREFIXES,
 } from "./attest.js";
 export { INTENT_TYPES, intentDomain, recoverIntentSigner, signIntent } from "./intent.js";
+export {
+  candidateOf,
+  decodeInvite,
+  encodeInvite,
+  INVITE_TYPES,
+  inviteDomain,
+  recoverInviteSigner,
+  signInvite,
+  ZERO_ADDRESS,
+  type Invite,
+  type SignedInvite,
+} from "./invite.js";
 export { verifyEs256Jwt, jwkToPublicKey } from "./jwt.js";
 export {
   PLATFORM_DOMAINS,

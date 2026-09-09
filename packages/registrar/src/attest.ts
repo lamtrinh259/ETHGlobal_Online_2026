@@ -20,6 +20,7 @@ import {
 } from "./accounts.js";
 import { eciesEncrypt } from "./ecies.js";
 import { intentDomain, recoverIntentSigner } from "./intent.js";
+import { candidateOf, inviteDomain, recoverInviteSigner, ZERO_ADDRESS } from "./invite.js";
 import { verifyEs256Jwt } from "./jwt.js";
 import type { AttestEnv, AttestRequest, AttestResult, OnchainState, RegistrarSecrets } from "./types.js";
 
@@ -69,6 +70,43 @@ export async function verifyPublicLeg(
   if (intent.nonce <= onchainNonce) throw new Error("intent: nonce not increasing");
   if (onchain.exists && onchain.wallet.toLowerCase() !== intent.wallet.toLowerCase()) {
     throw new Error("record: wallet mismatch");
+  }
+
+  await verifyInvite(req, onchain, env);
+}
+
+/**
+ * A vouch domain belongs to its candidate: only someone they invited may write a statement there.
+ * The invitation is signed by the wallet that holds the candidate's name, which the caller reads on
+ * chain, so nothing here trusts the browser.
+ */
+export async function verifyInvite(req: AttestRequest, onchain: OnchainState, env: AttestEnv): Promise<void> {
+  const prefixes = env.nameDomainPrefixes ?? DEFAULT_NAME_DOMAIN_PREFIXES;
+  const candidate = candidateOf(req.intent.domain, prefixes);
+  if (candidate === undefined) return;
+  if (env.requireInvite === false) return;
+
+  const invite = req.invite;
+  if (!invite) throw new Error(`invite: ${req.intent.domain} needs the candidate's invitation`);
+  if (invite.handle !== candidate) throw new Error("invite: for a different candidate");
+  if (invite.exp <= BigInt(env.now)) throw new Error("invite: expired");
+  if (
+    invite.voucher.toLowerCase() !== ZERO_ADDRESS &&
+    invite.voucher.toLowerCase() !== req.intent.wallet.toLowerCase()
+  ) {
+    throw new Error("invite: issued to a different wallet");
+  }
+  const candidateWallet = onchain.candidateWallet;
+  if (!candidateWallet || candidateWallet.toLowerCase() === ZERO_ADDRESS) {
+    throw new Error(`invite: ${candidate} holds no live name to invite from`);
+  }
+  const signer = await recoverInviteSigner(
+    { handle: invite.handle, voucher: invite.voucher, exp: invite.exp },
+    invite.signature,
+    inviteDomain(env.chainId, env.multipass)
+  );
+  if (signer.toLowerCase() !== candidateWallet.toLowerCase()) {
+    throw new Error("invite: not signed by the candidate");
   }
 }
 

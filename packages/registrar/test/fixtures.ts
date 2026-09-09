@@ -1,6 +1,7 @@
 import { zeroHash, type Address, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { intentDomain, signIntent } from "../src/intent.js";
+import { inviteDomain, signInvite, ZERO_ADDRESS, type Invite, type SignedInvite } from "../src/invite.js";
 import { fakePrivy } from "../src/testing.js";
 import type { AttestEnv, Intent, Jwk, LinkedAccount, RegistrarSecrets } from "../src/types.js";
 
@@ -83,9 +84,33 @@ export function makeIntent(over: Partial<Intent> = {}): Intent {
   };
 }
 
-export async function signedRequest(intent: Intent, idToken = mintIdToken(), signer = userAccount) {
+export async function signedRequest(
+  intent: Intent,
+  idToken = mintIdToken(),
+  signer = userAccount,
+  invite?: SignedInvite
+) {
   const signature: Hex = await signIntent(signer, intent, intentDomain(CHAIN_ID, MULTIPASS));
-  return { idToken, intent, signature };
+  return { idToken, intent, signature, ...(invite ? { invite } : {}) };
 }
+
+/** The candidate's wallet in these fixtures: the same account, since one test user plays both parts. */
+export const candidateAccount = userAccount;
+
+/** An invitation from the candidate, open to anyone unless `voucher` is given. */
+export async function makeInvite(over: Partial<Invite> = {}, signer = candidateAccount): Promise<SignedInvite> {
+  const invite: Invite = { handle: "alice", voucher: ZERO_ADDRESS, exp: BigInt(NOW + 3600), ...over };
+  const signature = await signInvite(signer, invite, inviteDomain(CHAIN_ID, MULTIPASS));
+  return { ...invite, signature };
+}
+
+/** On-chain state for a vouch domain: no record yet, and the candidate holds their name. */
+export const noVouchRecord = {
+  exists: false,
+  nonce: 0n,
+  id: zeroHash,
+  wallet: userAccount.address,
+  candidateWallet: candidateAccount.address,
+} as const;
 
 export const noRecord = { exists: false, nonce: 0n, id: zeroHash, wallet: userAccount.address } as const;

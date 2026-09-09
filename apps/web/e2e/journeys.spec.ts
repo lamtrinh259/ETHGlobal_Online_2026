@@ -75,3 +75,12 @@ test("the header carries the identity, not the forms", async ({ page }) => {
   await expect(page.getByTestId("who")).toHaveCount(0);
   await expect(page.locator("main")).not.toContainText("signed in as");
 });
+
+test("a vouch page with no invitation says so instead of offering the form", async ({ page }) => {
+  await page.goto("/vouch/alice");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Vouch for");
+  // Behind the sign-in gate there is no form either way; the steps still explain the journey.
+  await expect(page.locator(".journey li")).toHaveCount(3);
+  await page.goto("/vouch/alice?invite=not-a-real-token");
+  await expect(page.locator(".journey li")).toHaveCount(3);
+});

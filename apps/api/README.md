@@ -19,6 +19,10 @@ CORS: `CORS_ORIGINS` (comma list, default `*`) — set it to the web app origin 
 | `GET /v1/wallet/:address` | A wallet's names, linked-account records and references given (its dashboard). |
 | `GET /v1/vouches/:handle` | Every reference written under the candidate: records in the `~<handle>` vouch domain (Registered/Renewed logs from `DEPLOY_BLOCK`, current state per id, liveness), each live one with the voucher's standing and the long-form `letter` they wrote as a `description` text record. |
 
+A statement in a vouch domain (`~alice`) is refused unless the request carries an invitation signed by
+the wallet that holds `alice` in the root name domain (`REQUIRE_INVITE`, on by default). The attest
+route reads that wallet on chain, so nothing about the invitation is taken on trust from the browser.
+
 Vouch instances: when a delivery registers a record in the root name domain (`NAME_DOMAINS[0]`), the relay provisions
 `~<handle>` — Multipass domain (fee 0, registrar `REGISTRAR_ADDRESS`) → `AttestationFactory.create` → root
 `setSubregistry(handle)` — so `bob.alice.<root>` is a real ENS name. Needs `REGISTRY`, `PERMISSIONED_RESOLVER`
