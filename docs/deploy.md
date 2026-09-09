@@ -115,6 +115,19 @@ curl -s https://<api-host>/v1/instances
 curl -s https://<api-host>/v1/verify/<handle>.<instance>.eth
 ```
 
+## Environment: one file per app
+
+`.secrets/` holds exactly two files, both gitignored and both generated from the deployment's real
+values: `api.env` for `apps/api` and `web.env` for `apps/web`. Paste a whole file into that
+application's Coolify environment and redeploy; nothing else needs assembling by hand. The committed
+`.env.example` files next to each app describe the same variables without values.
+
+Two keys matter and they are different roles. The registrar signs records and must be the key every
+Multipass domain names — `0x8583AD4a0F59Ba45C7E201318C6F774F31f7bbC8` on this deployment. The relayer
+pays gas and must own Multipass, the factory and the root registry, because provisioning a candidate's
+vouch instance is an owner action — `0xF0121f93b1a1bAd73AdDC316B57684bD93D3254e` here. `GET /v1/preflight`
+checks both against the chain and names whichever is wrong.
+
 ## Chainlink CRE write path
 
 The workflow writes the record itself: the nodes sign the payload and the KeystoneForwarder calls
