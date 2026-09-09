@@ -39,7 +39,11 @@ export function Accounts({ links, handle, awaiting, onPublished }: Props) {
     // A record written before the DNS namespace lives in the flat domain; the row must show it rather
     // than calling the account unattested while the rest of the page lists it.
     const candidates = domainsFor(a, domains);
-    return { ...a, target: candidates[0], onChain: candidates.map((d) => live.get(d)).find(Boolean) };
+    const onChain = candidates.map((d) => live.get(d)).find(Boolean);
+    // Attested before this deployment had a namespace for it: the record stands, but nothing names it.
+    // Attesting again in the DNS domain is what gives it one.
+    const rename = onChain && !onChain.ensName && candidates[0] !== onChain.domain ? candidates[0] : undefined;
+    return { ...a, target: candidates[0], onChain, rename };
   });
 
   const connectors = [
@@ -77,6 +81,15 @@ export function Accounts({ links, handle, awaiting, onPublished }: Props) {
                       "attested · private · claim your name below and this gets one too"
                     ) : (
                       "attested · private"
+                    )}
+                    {a.rename && (
+                      <button
+                        className="linkish"
+                        onClick={() => setAttesting(a.rename)}
+                        data-testid={`rename-${a.domain}`}
+                      >
+                        give it a name
+                      </button>
                     )}
                   </span>
                 ) : !a.target ? (

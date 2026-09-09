@@ -89,6 +89,24 @@ describe("Accounts", () => {
     expect(screen.queryByTestId("attest-google")).toBeNull();
   });
 
+  it("offers a name to an account attested before the namespace existed", () => {
+    // The flat record stands and stays private; attesting again under `google.com` is what names it.
+    instances = [
+      instance("ketsuban", "ketsuban.eth"),
+      instance("google", "google.ketsuban.eth"),
+      instance("google.com", "com.google.www.ketsuban.eth"),
+    ];
+    render(
+      <Accounts
+        links={[link("google", { optedIn: true, ensName: null })]}
+        handle="alice"
+        onPublished={vi.fn()}
+      />
+    );
+    expect(screen.getByTestId("account-google")).toHaveTextContent("attested · private");
+    expect(screen.getByTestId("rename-google")).toHaveTextContent("give it a name");
+  });
+
   it("says a private account gets its name once the person claims one", () => {
     // The private branch names an account after its holder, so without a handle there is nothing to
     // name it after. Saying that beats a bare "private" the person cannot act on.

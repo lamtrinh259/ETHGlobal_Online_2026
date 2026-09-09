@@ -682,6 +682,10 @@ textarea:focus {
   border-color: var(--flame);
   color: var(--flame);
 }
+/* Pending waits on something outside this deployment, so it reads as quiet rather than as next. */
+.dash-pending {
+  opacity: 0.72;
+}
 .dash-step h2 {
   margin: 2px 0 4px;
   font-size: 16px;

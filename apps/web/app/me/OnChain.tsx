@@ -70,18 +70,10 @@ export function OnChain({ api, wallet, dash }: Props) {
             account here.
           </p>
           {reverse.data.names.length > 1 && (
-            <ul className="acct" data-testid="reverse-names">
-              {reverse.data.names.map((n) => (
-                <li key={n.name}>
-                  <span className="acct-who">
-                    <code>{n.name}</code>
-                  </span>
-                  <small className="muted">
-                    {n.kind === "private" ? "private branch" : n.kind === "account" ? n.domain : "your name"}
-                  </small>
-                </li>
-              ))}
-            </ul>
+            <p className="muted" data-testid="reverse-names">
+              The same read finds {reverse.data.names.length} names for this address — the ones above —
+              because each is a record this wallet holds, not an entry someone made about it.
+            </p>
           )}
         </div>
       ) : (

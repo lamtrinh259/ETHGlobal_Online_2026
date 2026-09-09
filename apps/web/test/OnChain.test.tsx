@@ -65,9 +65,7 @@ describe("OnChain", () => {
     expect(names).toHaveTextContent("you are there, not which account");
     expect(names).toHaveTextContent("x, in the open");
     // Asked the other way round, the address answers to all of them.
-    await waitFor(() =>
-      expect(screen.getByTestId("reverse-names")).toHaveTextContent("alice_x.com.x.www.ketsuban.eth")
-    );
+    await waitFor(() => expect(screen.getByTestId("reverse-names")).toHaveTextContent("finds 2 names"));
   });
 
   it("lists every readable name, says why a private account has none, and shows the reverse answer", async () => {

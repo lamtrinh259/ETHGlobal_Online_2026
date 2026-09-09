@@ -15,7 +15,7 @@ import { vouchRequest } from "@/lib/profile";
 import { Step } from "@/app/Step";
 import { AttestFlow } from "@/app/AttestFlow";
 import { Modal } from "@/app/Modal";
-import { questionFor } from "@/lib/questions";
+import { questionFor, questionTitle } from "@/lib/questions";
 import { Accounts } from "./Accounts";
 import { InviteLink } from "./InviteLink";
 import { OwnName } from "./OwnName";
@@ -139,7 +139,7 @@ export function Dashboard() {
         </section>
       )}
 
-      <Step n={1} title="Prove you are one real person" state="todo">
+      <Step n={1} title="Prove you are one real person" state="pending">
         <p className="muted" data-testid="humanity">
           A short face scan through World, so one person cannot run ten accounts. Partner access is pending,
           so this stays open and nothing below waits on it.
@@ -199,21 +199,30 @@ export function Dashboard() {
         )}
       </Step>
 
+      {handle && rootRow && (
+        <Step n={4} title="Your profile" state="now">
+          <ProfileEditor api={api} name={rootRow.ensName} getSigner={getSigner} />
+        </Step>
+      )}
+
       {handle && subjectRows.length > 0 && (
-        <Step n={4} title="Your answers" state={answered.length === subjectRows.length ? "done" : "now"}>
+        <Step n={5} title="Your answers" state={answered.length === subjectRows.length ? "done" : "now"}>
           <p className="muted">Each answer is its own permanent name under yours.</p>
           <ul className="acct" data-testid="answers">
             {subjectRows.map((r) => (
               <li key={r.domain} data-testid={`answer-${r.domain}`}>
-                <span className="acct-who">{r.live?.payload ? `“${r.live.payload}”` : "not answered"}</span>
-                <small className="muted">{r.domain}</small>
+                {/* The question, not the domain it lives in: nobody outside this repo knows `kju-is`. */}
+                <span className="acct-who">{questionTitle(r.domain)}</span>
+                <small className="muted">
+                  {r.live?.payload ? `“${r.live.payload}”` : "not answered"} · {r.ensName}
+                </small>
                 <span className="acct-state">
                   <button
                     className="linkish"
                     onClick={() =>
                       setPublishing({
                         domain: r.domain,
-                        title: `Answer ${r.domain}`,
+                        title: questionTitle(r.domain),
                         answer: questionFor(r.domain),
                       })
                     }
@@ -227,7 +236,7 @@ export function Dashboard() {
         </Step>
       )}
 
-      <Step n={5} title="References" state={liveVouchers.length > 0 ? "done" : handle ? "now" : "todo"}>
+      <Step n={6} title="References" state={liveVouchers.length > 0 ? "done" : handle ? "now" : "todo"}>
         {handle ? (
           <>
             <p>
@@ -347,7 +356,6 @@ export function Dashboard() {
 
         {handle && rootRow && (
           <>
-            <ProfileEditor api={api} name={rootRow.ensName} getSigner={getSigner} />
             <OwnName
               api={api}
               wallet={wallet}

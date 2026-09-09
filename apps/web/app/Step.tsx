@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-export type StepState = "done" | "now" | "todo";
+export type StepState = "done" | "now" | "todo" | "pending";
 
 /**
  * One numbered group with one subject. Shared by the profile and the claim journey so a candidate
@@ -20,7 +20,8 @@ export function Step({
   return (
     <section className={`card dash-step dash-${state}`} data-testid={`step-${n}`}>
       <span className="dash-num" aria-hidden>
-        {state === "done" ? "✓" : n}
+        {/* Pending is not a step someone can take: it waits on something outside this deployment. */}
+        {state === "done" ? "✓" : state === "pending" ? "…" : n}
       </span>
       <div>
         <h2>{title}</h2>
