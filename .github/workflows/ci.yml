@@ -11,6 +11,8 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+    # A hung test run would otherwise burn an hour of runner time before anyone noticed.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
@@ -32,10 +34,16 @@ jobs:
       - run: pnpm --filter "./packages/**" run build
       - run: pnpm -w lint
       - run: pnpm -w typecheck
-      - run: pnpm -w test
+      # One step per package: a recursive run that hangs says nothing about which package hung.
+      - run: pnpm --filter @ketsuban/registrar test
+      - run: pnpm --filter @ketsuban/contracts test
+      - run: pnpm --filter @ketsuban/cre-attest test
+      - run: pnpm --filter @ketsuban/api test
+      - run: pnpm --filter @ketsuban/web test
 
   e2e:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
