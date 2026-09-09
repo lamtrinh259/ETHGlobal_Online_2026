@@ -6,7 +6,7 @@ test("verify page frames an unreachable API as an error card", async ({ page }) 
   await page.goto("/v/alice.ketsuban.eth");
   await expect(page.getByRole("heading", { name: "alice.ketsuban.eth" })).toBeVisible();
   await expect(page.locator("main [role=alert]")).toHaveText("fetch failed");
-  await expect(page.locator(".sh-top")).toBeVisible();
+  await expect(page.locator(".sh-side")).toBeAttached();
 });
 
 test("unknown routes get the not-found card", async ({ page }) => {

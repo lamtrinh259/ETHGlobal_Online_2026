@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { linkedDomains, whoAmI } from "@/lib/identity";
+import { connectedAccounts, linkedDomains, whoAmI } from "@/lib/identity";
 
 const WALLET = "0xD70B1f4b1cD2Cb2Dd6e4f0F5b0f7c1F2a3b494a0";
 
@@ -28,5 +28,26 @@ describe("linkedDomains", () => {
     ).toEqual(["x", "telegram", "email"]);
     expect(linkedDomains({ id: "did:privy:x" })).toEqual([]);
     expect(linkedDomains(undefined)).toEqual([]);
+  });
+});
+
+describe("connectedAccounts", () => {
+  it("labels each account the way its owner knows it, not by platform", () => {
+    expect(
+      connectedAccounts({
+        twitter: { username: "peersky" },
+        google: { email: "tim@peeramid.xyz" },
+        github: { username: "peersky-gh" },
+        telegram: { username: "tg" },
+      })
+    ).toEqual([
+      { domain: "x", label: "@peersky" },
+      { domain: "github", label: "peersky-gh" },
+      { domain: "telegram", label: "@tg" },
+      { domain: "google", label: "tim@peeramid.xyz" },
+    ]);
+    expect(connectedAccounts({ email: { address: "a@b.c" } })).toEqual([{ domain: "email", label: "a@b.c" }]);
+    expect(connectedAccounts({ twitter: { username: null } })).toEqual([]);
+    expect(connectedAccounts(undefined)).toEqual([]);
   });
 });

@@ -140,15 +140,15 @@ export type StepState = "done" | "now" | "todo" | "pending";
 export type JourneyStep = { id: string; label: string; detail: string; state: StepState };
 
 /**
- * The voucher's four steps in their own words (spec §3.3). A reference is a record in the candidate's
- * own vouch domain, so the voucher needs no name of their own first: claiming one is the follow-up CTA.
- * `humanity` is the World Selfie Check gate, shown as pending until partner access lands.
+ * The voucher's three steps. Attesting the accounts they worked from is onboarding, done once on the
+ * profile, not per candidate: vouching for someone is proving you are one real person and writing the
+ * reference. `humanity` is the World Selfie Check gate, shown as pending until partner access lands.
  */
 export function vouchSteps(
   candidate: string,
-  at: { authenticated: boolean; linked: boolean; published: boolean }
+  at: { authenticated: boolean; published: boolean }
 ): JourneyStep[] {
-  const stage = !at.authenticated ? "signin" : at.published ? "done" : !at.linked ? "work" : "write";
+  const stage = !at.authenticated ? "signin" : at.published ? "done" : "write";
   const mark = (mine: string, done: boolean): StepState => (done ? "done" : stage === mine ? "now" : "todo");
   return [
     {
@@ -165,17 +165,10 @@ export function vouchSteps(
       state: "pending",
     },
     {
-      id: "work",
-      label: `Show how you know ${candidate}`,
-      detail:
-        "Pick the account you worked from among the ones you signed in with. Checked inside a secure enclave; it stays masked unless you hand someone a view code.",
-      state: mark("work", at.linked),
-    },
-    {
       id: "write",
-      label: "Write and sign the reference",
+      label: `Write and sign the reference for ${candidate}`,
       detail:
-        "Pick the name you sign as, then 31 characters, for example “CTO at Acme 2019-22”. Permanent: you can update or withdraw it later, never delete it.",
+        "Pick the name you sign as, then a few words, and a letter if you have more to say. Permanent: you can update or withdraw it later, never delete it.",
       state: mark("write", at.published),
     },
   ];

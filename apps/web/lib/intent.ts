@@ -39,14 +39,18 @@ export function buildIntent(i: IntentInput): Intent {
   };
 }
 
-/** Typed-data request for `signTypedData` (mutable copies — wallet SDKs type `types` as mutable) */
+/**
+ * Typed-data request for `signTypedData`. Two things matter here: `types` is copied because wallet
+ * SDKs type it as mutable, and the numbers are decimal strings because the wallet serialises the
+ * message as JSON, which cannot carry a BigInt. EIP-712 encodes both forms identically.
+ */
 export function intentTypedData(intent: Intent, chainId: number, multipass: Address) {
   const d = intentDomain(chainId, multipass);
   return {
     domain: { name: d.name as string, version: d.version as string, chainId, verifyingContract: multipass },
     types: { Intent: INTENT_TYPES.Intent.map((f) => ({ ...f })) },
     primaryType: "Intent" as const,
-    message: intent,
+    message: { ...intent, nonce: intent.nonce.toString(), exp: intent.exp.toString() },
   };
 }
 

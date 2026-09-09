@@ -33,6 +33,33 @@ test("landing renders the shell and the three doors without horizontal overflow"
   await noOverflow(page);
 });
 
+test("the nav is a sidebar on a wide screen and a drawer on a narrow one", async ({ page, isMobile }) => {
+  await page.goto("/");
+  const side = page.locator(".sh-side");
+  const burger = page.getByRole("button", { name: "Menu", exact: true });
+
+  if (isMobile) {
+    // Closed drawer: off-screen and out of the a11y tree, so its links are not reachable.
+    await expect(burger).toBeVisible();
+    await expect(side).toHaveAttribute("inert", "");
+    await burger.click();
+    await expect(side).not.toHaveAttribute("inert", "");
+    await expect(page.getByRole("dialog", { name: "Menu" })).toBeVisible();
+    await side.getByRole("link", { name: "Verify" }).click();
+    await expect(page).toHaveURL(/\/verify$/);
+    // A route change closes it again.
+    await expect(side).toHaveAttribute("inert", "");
+    await burger.click();
+    await page.keyboard.press("Escape");
+    await expect(side).toHaveAttribute("inert", "");
+  } else {
+    await expect(burger).toBeHidden();
+    await expect(side).not.toHaveAttribute("inert", "");
+    await expect(side.getByRole("link", { name: "Verify" })).toBeVisible();
+  }
+  await noOverflow(page);
+});
+
 test("theme toggle persists and stamps <html>", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Light" }).click();

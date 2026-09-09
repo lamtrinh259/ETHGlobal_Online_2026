@@ -6,14 +6,13 @@ import { usePrivy, useWallets } from "@privy-io/react-auth";
 import type { Address } from "viem";
 import { AttestFlow, type Published } from "@/app/AttestFlow";
 import { LetterForm } from "./LetterForm";
-import { WorkContext } from "./WorkContext";
 import { useWebConfig } from "@/app/providers";
 import { fmtUtc } from "@/app/ui";
 import { apiFor, useWalletDashboard } from "@/lib/hooks";
 import type { Signer } from "@/lib/chain";
 import { VOUCH_PREFIX, voucherProgress, vouchSteps } from "@/lib/journey";
 
-type Stage = "signin" | "work" | "statement" | "done";
+type Stage = "signin" | "onboarding" | "statement" | "done";
 
 /**
  * Sequenced voucher steps, resumed from the wallet's on-chain records so a reload never repeats a
@@ -41,11 +40,16 @@ export function VouchFlow({ candidate }: { candidate: string }) {
   const dash = useWalletDashboard(api, authenticated ? wallet : undefined);
   const onChain = voucherProgress(dash.data, root?.domain ?? "", candidate);
 
-  const [linked, setLinked] = useState(false);
   const [published, setPublished] = useState<Published>();
-  const isLinked = linked || onChain.linked;
+  const isLinked = onChain.linked;
   const handle = onChain.named;
-  const stage: Stage = !authenticated ? "signin" : published ? "done" : !isLinked ? "work" : "statement";
+  const stage: Stage = !authenticated
+    ? "signin"
+    : published
+      ? "done"
+      : !isLinked
+        ? "onboarding"
+        : "statement";
   const vouchDomain = `${VOUCH_PREFIX}${candidate}`;
   const loading = !ready || (authenticated && !!wallet && dash.isPending);
 
@@ -53,7 +57,7 @@ export function VouchFlow({ candidate }: { candidate: string }) {
     <>
       <p className="muted">Five minutes. Four signatures, no fees. Here is the whole thing:</p>
       <ol className="journey" aria-label="Progress">
-        {vouchSteps(candidate, { authenticated, linked: isLinked, published: !!published }).map((step) => (
+        {vouchSteps(candidate, { authenticated, published: !!published }).map((step) => (
           <li key={step.id} className={step.state}>
             <span>
               <span className="j-label">
@@ -71,8 +75,23 @@ export function VouchFlow({ candidate }: { candidate: string }) {
 
       {!loading && stage === "signin" && <AttestFlow fixedDomain="x" title="Sign in to begin" hideForm />}
 
-      {!loading && stage === "work" && (
-        <WorkContext candidate={candidate} onPublished={() => setLinked(true)} />
+      {!loading && stage === "onboarding" && (
+        <section className="card" data-testid="onboarding-gate">
+          <h2>Finish your onboarding first</h2>
+          <p>
+            A reference carries weight because the person writing it has shown how they know the candidate.
+            That is a one-time step on your profile, not something you repeat for every person you vouch for.
+          </p>
+          <p className="muted">
+            Connect the account you worked from and attest it once. Come back here afterwards and this page
+            picks up where you left off.
+          </p>
+          <p>
+            <Link href="/me#link" className="primary">
+              Complete your onboarding →
+            </Link>
+          </p>
+        </section>
       )}
 
       {!loading && stage === "statement" && root && (

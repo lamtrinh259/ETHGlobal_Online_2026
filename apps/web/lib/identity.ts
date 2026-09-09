@@ -47,3 +47,18 @@ export function linkedDomains(user: LinkedAccounts | null | undefined): string[]
   ];
   return pairs.filter(([, v]) => !!v).map(([k]) => k);
 }
+
+/** A connected account with the label a person recognises: the handle or address, never the platform. */
+export type ConnectedAccount = { domain: string; label: string };
+
+export function connectedAccounts(user: LinkedAccounts | null | undefined): ConnectedAccount[] {
+  const pairs: [string, string | null | undefined][] = [
+    ["x", user?.twitter?.username ? `@${user.twitter.username}` : null],
+    ["github", user?.github?.username],
+    ["telegram", user?.telegram?.username ? `@${user.telegram.username}` : null],
+    ["discord", user?.discord?.username],
+    ["google", user?.google?.email],
+    ["email", user?.email?.address],
+  ];
+  return pairs.filter(([, label]) => !!label).map(([domain, label]) => ({ domain, label: label as string }));
+}

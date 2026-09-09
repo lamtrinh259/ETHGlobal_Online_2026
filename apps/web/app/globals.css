@@ -82,28 +82,32 @@ code {
   color: var(--text-secondary);
 }
 
-/* ── shell ── */
+/* ── shell: left sidebar on a wide screen, full-screen drawer on a narrow one ── */
 .sh-root {
   min-height: 100dvh;
   display: flex;
-  flex-direction: column;
 }
-.sh-top {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-md);
-  padding: calc(var(--sp-sm) + var(--safe-top)) var(--sp-md) var(--sp-sm);
-  border-bottom: 1px solid var(--border);
-  background: var(--panel);
+.sh-side {
+  flex: none;
+  width: 216px;
   position: sticky;
   top: 0;
-  z-index: 5;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--sp-md) var(--sp-sm);
+  border-right: 1px solid var(--border);
+  background: var(--panel);
 }
 .sh-brand {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   text-decoration: none;
+}
+.sh-brandSide {
+  padding: 6px 8px 12px;
 }
 .sh-logo {
   filter: invert(var(--logo-invert));
@@ -128,32 +132,127 @@ code {
 }
 .sh-nav {
   display: flex;
-  gap: var(--sp-sm);
-  margin-left: auto;
+  flex-direction: column;
+  gap: 2px;
 }
 .sh-navLink {
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
   text-decoration: none;
   color: var(--text-secondary);
-  padding: 4px 8px;
-  border-radius: var(--radius-sm);
+  font-weight: 600;
 }
 .sh-navLink.sh-on,
 .sh-navLink:hover {
   color: var(--flame);
   background: var(--panel-2);
 }
+.sh-sideFoot {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-sm);
+  padding-top: var(--sp-sm);
+  border-top: 1px solid var(--border);
+}
+.sh-note {
+  font-size: 11px;
+  line-height: 1.4;
+}
 .sh-body {
+  flex: 1;
+  min-width: 0;
   width: 100%;
   max-width: var(--maxw);
   margin: 0 auto;
   padding: var(--sp-lg) var(--sp-md) calc(var(--sp-xl) + var(--safe-bottom));
-  flex: 1;
 }
-.sh-foot {
-  font-size: 12px;
-  padding: var(--sp-sm) var(--sp-md);
-  border-top: 1px solid var(--border);
-  text-align: center;
+.sh-mobtop,
+.sh-close {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .sh-root {
+    flex-direction: column;
+  }
+  .sh-mobtop {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-sm);
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    padding: calc(var(--sp-sm) + var(--safe-top)) var(--sp-md) var(--sp-sm);
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+  }
+  .sh-mobtop .sh-who {
+    margin-left: auto;
+  }
+  .sh-mobtop .th-toggle {
+    flex: none;
+  }
+  .sh-burger {
+    flex: none;
+    display: inline-grid;
+    place-items: center;
+    /* 44px tap target; the glyph stays 20px */
+    min-width: 44px;
+    min-height: 44px;
+    padding: 4px;
+    margin-left: -6px;
+    font-size: 20px;
+    line-height: 1;
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+  }
+  .sh-side {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100dvh;
+    z-index: 40;
+    border-right: none;
+    background: var(--bg);
+    transform: translateX(-100%);
+    padding: calc(var(--sp-lg) + var(--safe-top)) var(--sp-md) calc(var(--sp-lg) + var(--safe-bottom));
+  }
+  .sh-sideOpen {
+    transform: translateX(0);
+  }
+  .sh-close {
+    display: grid;
+    place-items: center;
+    position: absolute;
+    top: calc(6px + var(--safe-top));
+    right: 8px;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 4px;
+    font-size: 22px;
+    line-height: 1;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+  }
+  .sh-navLink {
+    font-size: 17px;
+    min-height: 48px;
+  }
+  .sh-body {
+    padding: var(--sp-md) var(--sp-md) calc(var(--sp-lg) + var(--safe-bottom));
+    max-width: none;
+  }
+}
+@media (max-width: 900px) and (prefers-reduced-motion: no-preference) {
+  .sh-side {
+    transition: transform 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
 }
 
 /* ── theme toggle ── */

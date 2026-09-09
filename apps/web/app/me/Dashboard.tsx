@@ -13,7 +13,7 @@ import type { Signer } from "@/lib/chain";
 import { ProfileEditor } from "./ProfileEditor";
 import { OwnName } from "./OwnName";
 import { Privacy } from "./Privacy";
-import { AttestFlow } from "@/app/AttestFlow";
+import { LinkAccounts } from "./LinkAccounts";
 import { needsAttention } from "@/lib/journey";
 import { useWebConfig } from "@/app/providers";
 import { fmtUtc, short } from "@/app/ui";
@@ -205,10 +205,10 @@ export function Dashboard() {
         </>
       )}
 
-      <section className="card" data-testid="dash-links" id="link">
-        <h2>Linked accounts</h2>
+      <section className="card" data-testid="dash-links">
+        <h2>Attested accounts</h2>
         {d.links.length === 0 ? (
-          <p>None yet — verifiers count live links. Add one below.</p>
+          <p className="muted">None on chain yet — attest one below.</p>
         ) : (
           <ul>
             {d.links.map((l) => (
@@ -219,13 +219,9 @@ export function Dashboard() {
             ))}
           </ul>
         )}
-        <AttestFlow
-          platformsOnly
-          allowLinking
-          title="Link an account"
-          onPublished={() => void dash.refetch()}
-        />
       </section>
+
+      <LinkAccounts links={d.links} onPublished={() => void dash.refetch()} />
 
       {rootName && <Privacy links={d.links} handle={rootName.name} />}
 

@@ -92,11 +92,18 @@ describe("intent", () => {
       payload: toBytes32("terrible dictator"),
     });
     const td = intentTypedData(intent, 11155111, "0x418F82fd0014a4CA402F145978bfaF0555a9cA06");
-    const signature = await account.signTypedData(td);
+    // viem types uint fields as bigint|number; EIP-712 hashing accepts a decimal string and
+    // produces the identical hash, which is what lets the wallet JSON-serialise the message.
+    const signature = await account.signTypedData(td as never);
     expect(
       await recoverIntentSigner(intent, signature, intentDomain(11155111, td.domain.verifyingContract!))
     ).toBe(account.address);
-    expect(await recoverTypedDataAddress({ ...td, signature })).toBe(account.address);
+    expect(await recoverTypedDataAddress({ ...td, signature } as never)).toBe(account.address);
+    // The wallet JSON-serialises the message, so nothing in it may be a BigInt.
+    expect(Object.values(td.message).some((v) => typeof v === "bigint")).toBe(false);
+    expect(() => JSON.stringify(td)).not.toThrow();
+    expect(td.message.nonce).toBe(String(intent.nonce));
+    expect(td.message.exp).toBe(String(NOW + 600));
   });
 
   it("builds a platform intent with empty handle/payload and honours ttl", () => {
