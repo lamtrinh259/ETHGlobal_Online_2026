@@ -257,7 +257,9 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     const parsed = wireDelivery.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return c.json({ ok: false, error: "bad request", issues: parsed.error.issues }, 400);
     try {
-      const txHash = await chain.submit(toRecord(parsed.data.record), parsed.data.signature as Hex);
+      const record = toRecord(parsed.data.record);
+      await ensureVouchDomain(record);
+      const txHash = await chain.submit(record, parsed.data.signature as Hex);
       return c.json({ ok: true, txHash });
     } catch (e) {
       return c.json({ ok: false, error: (e as Error).message }, 502);
@@ -295,6 +297,21 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
       return c.json({ ok: false, error: (e as Error).message }, 502);
     }
   });
+
+  /**
+   * A reference for someone who has not claimed a name yet has nowhere to land: the candidate's vouch
+   * instance is created when their own name arrives. An organisation writes before that, so the
+   * instance follows the signed record rather than the name. The registrar already approved the write,
+   * which for an uninvited one means the writer is an onboarded organisation.
+   */
+  async function ensureVouchDomain(record: RegisterMessage): Promise<void> {
+    const domain = fromBytes32(record.domainName);
+    const candidate = candidateOf(domain, [config.VOUCH_PREFIX]);
+    if (!candidate) return;
+    const known = (await chain.instances()).some((i) => i.domain === domain);
+    if (known) return;
+    await chain.ensureVouchInstance(candidate);
+  }
 
   /**
    * Onboard an organisation: give a wallet a record in `ORG_DOMAIN` so it can issue references

@@ -858,6 +858,32 @@ describe("GET /v1/nonce — readiness", () => {
 });
 
 describe("POST /v1/submit", () => {
+  it("creates the vouch instance a reference needs when the candidate has no name yet", async () => {
+    const { chain, state, submitted } = fakeChain();
+    const record = {
+      name: toBytes32("acme-university"),
+      id: toBytes32("acme"),
+      domainName: toBytes32("~nobody"),
+      validUntil: String(NOW + 3600),
+      nonce: "1",
+      wallet: user.account.address,
+      payload: toBytes32("graduated 2021"),
+    };
+    const res = await post(app(chain), "/v1/submit", { record, signature: "0xabc" });
+    expect(res.status).toBe(200);
+    // The instance follows the signed record: an organisation writes before the candidate exists.
+    expect(state.instancesCreated).toEqual(["nobody"]);
+    expect(submitted).toHaveLength(1);
+
+    // A record in a domain that already has an instance provisions nothing.
+    const known = fakeChain();
+    await post(app(known.chain), "/v1/submit", {
+      record: { ...record, domainName: toBytes32("kju-is") },
+      signature: "0xabc",
+    });
+    expect(known.state.instancesCreated).toEqual([]);
+  });
+
   it("relays a registrar-signed record with no token, and reports a chain failure", async () => {
     const { chain, submitted } = fakeChain();
     const attested = await (await post(app(chain), "/v1/attest", await wireRequest())).json();

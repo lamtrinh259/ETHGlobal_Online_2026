@@ -65,7 +65,7 @@ export default async function VouchPage({ params, searchParams }: Params) {
               ? `claimed · ${live ?? "?"} live reference${live === 1 ? "" : "s"} so far`
               : status.taken
                 ? "this name has expired — ask the candidate to renew before you vouch"
-                : "not claimed yet — the candidate must claim their name before references can attach"}
+                : "not claimed yet — an organisation can write now and the letter waits for them"}
           </p>
         )}
         <p>

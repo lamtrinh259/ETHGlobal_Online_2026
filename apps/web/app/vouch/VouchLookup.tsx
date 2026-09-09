@@ -24,8 +24,9 @@ export function VouchLookup() {
   }, [clean]);
   const status = useNameStatus(api, root?.domain ?? "", debounced);
   const fresh = status.data?.handle === clean ? status.data : undefined;
-  // API unreachable → let the voucher through; the flow itself will report the real error.
-  const blocked = !!fresh && !fresh.live;
+  // Unclaimed is not a dead end: an onboarded organisation writes to a handle nobody holds yet, and the
+  // flow itself decides. An expired name is different — a reference has nothing live to hang on.
+  const blocked = !!fresh && fresh.taken && !fresh.live;
   const canGo = HANDLE_RE.test(clean) && !blocked;
 
   return (
@@ -72,8 +73,8 @@ export function VouchLookup() {
               <code>
                 {clean}.{root.parentName}
               </code>{" "}
-              yet. Send them <code>{typeof window === "undefined" ? "" : window.location.origin}/claim</code>{" "}
-              first.
+              yet. An organisation can write anyway and the letter waits for them; anyone else should send
+              them <code>{typeof window === "undefined" ? "" : window.location.origin}/claim</code> first.
             </>
           )}
         </p>

@@ -52,12 +52,22 @@ test("vouch lookup routes to the candidate when the API cannot answer, and block
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page).toHaveURL(/\/vouch\/alice$/);
 
+  // Unclaimed is allowed through: an organisation writes before the candidate exists.
   await page.route("**/v1/name/*/nobody", (route) =>
     route.fulfill({ json: { domain: "ketsuban", handle: "nobody", taken: false, wallet: null, live: false } })
   );
   await page.goto("/vouch");
   await page.getByLabel("handle").fill("nobody");
-  await expect(page.getByTestId("lookup-status")).toContainText("Nobody has claimed");
+  await expect(page.getByTestId("lookup-status")).toContainText("An organisation can write anyway");
+  await expect(page.getByRole("button", { name: "Continue" })).toBeEnabled();
+
+  // An expired name is a dead end: a reference needs something live to hang on.
+  await page.route("**/v1/name/*/lapsed", (route) =>
+    route.fulfill({ json: { domain: "ketsuban", handle: "lapsed", taken: true, wallet: null, live: false } })
+  );
+  await page.goto("/vouch");
+  await page.getByLabel("handle").fill("lapsed");
+  await expect(page.getByTestId("lookup-status")).toContainText("has expired");
   await expect(page.getByRole("button", { name: "Continue" })).toBeDisabled();
 });
 
