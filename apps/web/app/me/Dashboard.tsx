@@ -323,7 +323,7 @@ export function Dashboard() {
       )}
 
       <details className="advanced" data-testid="advanced">
-        <summary>Advanced: gas, ENS records, your own .eth, view codes</summary>
+        <summary>Advanced: gas, your own .eth, view codes</summary>
 
         <section className="card" data-testid="dash-gas">
           <h3>Gas</h3>
