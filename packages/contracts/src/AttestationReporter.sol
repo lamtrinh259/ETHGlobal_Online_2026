@@ -38,15 +38,36 @@ contract AttestationReporter is IReceiver {
     /**
      * @param metadata Forwarder-supplied execution metadata; kept in the event for audit.
      * @param report `abi.encode(LibMultipass.Record, bytes registrarSig)`, as the workflow encodes it.
+     *
+     * A first record goes through the bridge, which also grants the wallet its profile keys. A later
+     * one is a renewal: Multipass splits those, `register` reverts with `recordExists`, and renewing
+     * needs no privileges, so it goes straight to Multipass and the grants stay as they were.
      */
     function onReport(bytes calldata metadata, bytes calldata report) external {
         if (msg.sender != FORWARDER) revert UnauthorizedForwarder(msg.sender);
         (LibMultipass.Record memory rec, bytes memory registrarSig) =
             abi.decode(report, (LibMultipass.Record, bytes));
-        // The bridge decides between registration and renewal, and prices it accordingly.
-        uint256 fee = BRIDGE.feeFor(rec);
+        LibMultipass.NameQuery memory query = LibMultipass.NameQuery({
+            domainName: rec.domainName,
+            wallet: address(0),
+            name: bytes32(0),
+            id: rec.id,
+            targetDomain: bytes32(0)
+        });
+        (bool exists,) = MP.resolveRecord(query);
+        LibMultipass.Domain memory domain = MP.getDomainState(rec.domainName);
+        uint256 fee = exists ? domain.renewalFee : domain.fee;
         if (fee > address(this).balance) revert FeeNotFunded(fee, address(this).balance);
-        BRIDGE.submitRecord{value: fee}(rec, registrarSig);
+        if (exists) {
+            MP.renewRecord{value: fee}(query, rec, registrarSig);
+        } else {
+            BRIDGE.verify{value: fee}(
+                rec,
+                registrarSig,
+                LibMultipass.NameQuery(bytes32(0), address(0), bytes32(0), bytes32(0), bytes32(0)),
+                ""
+            );
+        }
         emit Reported(rec.id, rec.domainName, fee, metadata);
     }
 

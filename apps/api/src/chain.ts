@@ -116,26 +116,62 @@ export class Chain {
   }
 
   /**
-   * Hand a registrar-signed record to the bridge, which registers it or renews it: Multipass splits
-   * those into two entry points and `register` reverts with `recordExists` on a second write, so the
-   * relay must not pick one itself. The bridge also prices it, registration fee or renewal fee.
+   * Relay a registrar-signed record. Multipass splits registration from renewal and `register` reverts
+   * with `recordExists` on a second write, so the route depends on what is already there: a first
+   * record goes through the bridge, which also grants the wallet its profile keys, and a renewal goes
+   * straight to Multipass, which needs no privileges and leaves those grants alone.
    */
   async submit(record: RegisterMessage, signature: Hex): Promise<Hex> {
-    const fee = await this.publicClient.readContract({
-      address: this.config.BRIDGE,
-      abi: bridgeAbi,
-      functionName: "feeFor",
-      args: [record],
-    });
-    const hash = await this.walletClient.writeContract({
-      chain: this.walletClient.chain,
-      account: this.walletClient.account!,
-      address: this.config.BRIDGE,
-      abi: bridgeAbi,
-      functionName: "submitRecord",
-      args: [record, signature],
-      value: fee,
-    });
+    const query = {
+      domainName: record.domainName,
+      wallet: zeroAddress,
+      name: zeroHash,
+      id: record.id,
+      targetDomain: zeroHash,
+    } as const;
+    const [[exists], domain] = await Promise.all([
+      this.publicClient.readContract({
+        address: this.config.MULTIPASS,
+        abi: MultipassAbi,
+        functionName: "resolveRecord",
+        args: [query],
+      }),
+      this.publicClient.readContract({
+        address: this.config.MULTIPASS,
+        abi: MultipassAbi,
+        functionName: "getDomainState",
+        args: [record.domainName],
+      }),
+    ]);
+    const common = { chain: this.walletClient.chain, account: this.walletClient.account! } as const;
+    const hash = exists
+      ? await this.walletClient.writeContract({
+          ...common,
+          address: this.config.MULTIPASS,
+          abi: MultipassAbi,
+          functionName: "renewRecord",
+          args: [query, record, signature],
+          value: domain.renewalFee,
+        })
+      : await this.walletClient.writeContract({
+          ...common,
+          address: this.config.BRIDGE,
+          abi: bridgeAbi,
+          functionName: "verify",
+          args: [
+            record,
+            signature,
+            {
+              domainName: zeroHash,
+              wallet: zeroAddress,
+              name: zeroHash,
+              id: zeroHash,
+              targetDomain: zeroHash,
+            },
+            "0x",
+          ],
+          value: domain.fee,
+        });
     const receipt = await this.publicClient.waitForTransactionReceipt({ hash });
     if (receipt.status !== "success") throw new Error(`verify reverted in ${hash}`);
     // Read-your-writes: the record this call created must be visible to the next request.

@@ -11,45 +11,6 @@ import {BaseTest} from "./Base.t.sol";
 contract AttestationBridgeTest is BaseTest {
     string internal constant NAME = "alice.acme-alumni.eth";
 
-    // ---------- submitRecord: register, then renew ----------
-
-    function test_submitRecord_registersThenRenews() public {
-        LibMultipass.Record memory first = record(INSTANCE, alice, b32("alice"), b32("id"), 1, b32("first"));
-        vm.prank(alice);
-        bridge.submitRecord(first, signRecord(first));
-
-        (bool ok, LibMultipass.Record memory stored) =
-            mp.resolveRecord(LibMultipass.NameQuery(INSTANCE, alice, bytes32(0), bytes32(0), bytes32(0)));
-        assertTrue(ok);
-        assertEq(stored.payload, b32("first"));
-        assertTrue(inner.hasTextGrant(dns(NAME), "avatar", alice));
-
-        // The second write for the same id must renew: `register` would revert with recordExists.
-        LibMultipass.Record memory second = record(INSTANCE, alice, b32("alice"), b32("id"), 2, b32("second"));
-        vm.prank(alice);
-        bridge.submitRecord(second, signRecord(second));
-
-        (, stored) = mp.resolveRecord(LibMultipass.NameQuery(INSTANCE, alice, bytes32(0), bytes32(0), bytes32(0)));
-        assertEq(stored.payload, b32("second"), "the live statement is the newest one");
-        assertEq(stored.nonce, 2);
-    }
-
-    function test_submitRecord_chargesRegistrationThenRenewalFee() public {
-        LibMultipass.Record memory first = record(X, alice, b32("alice_x"), b32("1"), 1, bytes32(0));
-        assertEq(bridge.feeFor(first), X_FEE, "a first write costs the registration fee");
-
-        vm.deal(alice, 1 ether);
-        vm.prank(alice);
-        bridge.submitRecord{value: X_FEE}(first, signRecord(first));
-
-        LibMultipass.Record memory second = record(X, alice, b32("alice_x"), b32("1"), 2, bytes32(0));
-        uint256 renewal = bridge.feeFor(second);
-        uint256 before = treasury.balance;
-        vm.prank(alice);
-        bridge.submitRecord{value: renewal}(second, signRecord(second));
-        assertEq(treasury.balance - before, renewal, "a renewal costs the renewal fee");
-    }
-
     // ---------- verify ----------
 
     function test_verify_registersAndGrantsFourTextKeys() public {

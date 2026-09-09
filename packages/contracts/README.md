@@ -38,6 +38,8 @@ every other address alone.
 
 Multipass splits the two: `register` reverts with `recordExists` once a record exists for that
 `(domainName, id)`, and a renewal must go through `renewRecord` with a query that resolves it.
-`AttestationBridge.submitRecord` routes between them and `feeFor` prices it (registration fee or
-renewal fee), so every writer — the browser relay and the DON report alike — makes one call and a
-candidate re-answering, a voucher updating a statement, or a voucher withdrawing one all work.
+Both writers route on what is already on chain: a first record goes through `AttestationBridge.verify`,
+which also grants the wallet its profile keys, and a renewal goes straight to `Multipass.renewRecord`,
+which needs no privileges and leaves those grants alone. The relay does this in TypeScript and
+`AttestationReporter` does it in the report path, so a candidate re-answering, a voucher updating a
+statement, and a voucher withdrawing one all work against a bridge that predates them.
