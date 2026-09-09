@@ -43,6 +43,15 @@ export function ProfileCard({ p, rootParent, policy }: { p: Profile; rootParent:
           </div>
         )}
 
+      {!p.identity && p.vouches.some((v) => v.live) && (
+        <p className="warning" data-testid="waiting">
+          Nobody holds this name yet, and {p.vouches.filter((v) => v.live).length} reference
+          {p.vouches.filter((v) => v.live).length === 1 ? " is" : "s are"} already written for it. If this is
+          you, <Link href="/claim">claim the name</Link> and they attach to it — an organisation can write a
+          letter before the person has heard of us.
+        </p>
+      )}
+
       {policy && (
         <p className="muted" data-testid="policy-line">
           Policy: {describePolicy(policy)}

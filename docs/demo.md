@@ -83,13 +83,25 @@ how a verifier judges the person speaking, not just the sentence.
 Two rules the UI enforces before a wallet signs anything: only someone the candidate invited can write
 a reference for them, and a domain that cannot be written disables the button with the reason.
 
-## 5. What a withdrawal looks like
+## 5. A letter before the person
+
+An onboarded organisation — a university, a former employer — writes a reference for a handle nobody
+has claimed. The relay creates the candidate's vouch instance from that signed record, so the letter
+lands with nothing else in place. `/p/<handle>` then shows the letters waiting and invites whoever owns
+that handle to claim it:
+
+```bash
+curl -s -H "x-org-token: $ORG_TOKEN" -H 'content-type: application/json' \
+  -d '{"wallet":"0x…","label":"acme-university"}' $API/v1/org | jq
+```
+
+## 6. What a withdrawal looks like
 
 A voucher can withdraw. The record stays, the old statement stays in the history, and the live
 statement becomes `withdrawn`, which stops counting towards a verifier's minimum and reads as
 "withdrawn by the voucher" on the page. Nothing disappears.
 
-## 6. Chainlink CRE
+## 7. Chainlink CRE
 
 `packages/cre` holds one workflow with two triggers: an HTTP trigger whose handler runs inside a Nitro
 enclave and signs the record as registrar, and an EVM log trigger on `Registered` that provisions a

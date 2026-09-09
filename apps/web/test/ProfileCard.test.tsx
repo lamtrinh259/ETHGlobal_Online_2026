@@ -129,6 +129,22 @@ describe("ProfileCard", () => {
     expect(screen.getByTestId("vouches")).not.toHaveTextContent("“withdrawn”");
   });
 
+  it("tells an unclaimed handle that letters are already waiting for it", () => {
+    render(<ProfileCard p={{ ...profile, identity: undefined, wallet: null }} rootParent="ketsuban.eth" />);
+    const waiting = screen.getByTestId("waiting");
+    expect(waiting).toHaveTextContent("1 reference is already written for it");
+    expect(waiting.querySelector("a")).toHaveAttribute("href", "/claim");
+
+    // Nothing to claim, nothing to say: with no live reference there is no banner.
+    const { container } = render(
+      <ProfileCard
+        p={{ ...profile, identity: undefined, wallet: null, vouches: [profile.vouches[1]] }}
+        rootParent="ketsuban.eth"
+      />
+    );
+    expect(container.querySelector("[data-testid=waiting]")).toBeNull();
+  });
+
   it("renders an unclaimed page", () => {
     render(
       <ProfileCard p={{ ...profile, wallet: null, answers: [], links: [] }} rootParent="ketsuban.eth" />
