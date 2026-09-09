@@ -50,11 +50,15 @@ curl -s $API/v1/ens/alice.ketsuban.eth | jq '{resolver, addr, answer: .texts["ke
 That endpoint reads through the ENSv2 UniversalResolver. Anyone can do the same with `cast` and never
 speak to this service:
 
-A live example, written under the namespace and readable by anyone:
+A live example, written under the namespace and readable by anyone — and beside it the names that must
+**not** answer, because a resolver serves its own children only:
 
 ```
-demo.com.x.www.ketsuban.eth  ->  0xF0121f93b1a1bAd73AdDC316B57684bD93D3254e
-                                 answered by the x.com resolver 0xDD5098B0bEEA8D0b2615496a7396D6CE32B42f43
+demo.com.x.www.ketsuban.eth         ->  0xF0121f93b1a1bAd73AdDC316B57684bD93D3254e
+                                        via the x.com resolver 0x4b3e0eaE64b843537BFE49e9344fd2eb75c97A59
+nobody.com.x.www.ketsuban.eth       ->  0x0
+foo.demo.com.x.www.ketsuban.eth     ->  0x0
+alice.anything.ketsuban.eth         ->  0x0
 ```
 
 ```bash
@@ -70,11 +74,15 @@ A reference is `<voucher>.<candidate>.<root>`, so the same call works for `bob.a
 An attested account is a name too. A platform is mounted at the DNS name it is, so a public handle
 resolves on its own (see [the namespace](namespace.md)):
 
-A live example, written under the namespace and readable by anyone:
+A live example, written under the namespace and readable by anyone — and beside it the names that must
+**not** answer, because a resolver serves its own children only:
 
 ```
-demo.com.x.www.ketsuban.eth  ->  0xF0121f93b1a1bAd73AdDC316B57684bD93D3254e
-                                 answered by the x.com resolver 0xDD5098B0bEEA8D0b2615496a7396D6CE32B42f43
+demo.com.x.www.ketsuban.eth         ->  0xF0121f93b1a1bAd73AdDC316B57684bD93D3254e
+                                        via the x.com resolver 0x4b3e0eaE64b843537BFE49e9344fd2eb75c97A59
+nobody.com.x.www.ketsuban.eth       ->  0x0
+foo.demo.com.x.www.ketsuban.eth     ->  0x0
+alice.anything.ketsuban.eth         ->  0x0
 ```
 
 ```bash
