@@ -20,7 +20,7 @@ import { Accounts } from "./Accounts";
 import { InviteLink } from "./InviteLink";
 import { OwnName } from "./OwnName";
 import { OnChain } from "./OnChain";
-import { Privacy } from "./Privacy";
+import { ReadPermission } from "./ReadPermission";
 import { ProfileEditor } from "./ProfileEditor";
 
 /**
@@ -271,6 +271,8 @@ export function Dashboard() {
 
       <OnChain api={api} wallet={wallet} dash={d} />
 
+      {rootRow?.live && <ReadPermission api={api} links={d.links} name={rootRow.ensName} />}
+
       {publishing && (
         <Modal title={publishing.title} onClose={() => setPublishing(undefined)}>
           <AttestFlow
@@ -327,7 +329,6 @@ export function Dashboard() {
               handle={handle}
               getSigner={getSigner}
             />
-            <Privacy links={d.links} handle={handle} />
           </>
         )}
 

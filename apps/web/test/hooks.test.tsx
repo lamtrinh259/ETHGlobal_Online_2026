@@ -80,6 +80,14 @@ function fakeApi(): Api {
     })),
     gas: vi.fn(async () => ({ hash: "0xhash3" as Hex, amount: "1" })),
     contracts: vi.fn(async () => ({ instances: [], bridge: WALLET, permissionedResolver: WALLET })),
+    enclaveKey: vi.fn(async () => ({ address: WALLET, publicKey: `0x04${"11".repeat(64)}` as Hex })),
+    disclose: vi.fn(async () => ({ ok: true as const, expiresAt: "2027-01-01T00:00:00.000Z" })),
+    disclosed: vi.fn(async (name: string, domain: string) => ({
+      name,
+      domain,
+      disclosed: { handle: "alice_x", platformId: "1" },
+      warning: "w",
+    })),
     reverse: vi.fn(async (address: string) => ({
       address,
       name: "alice.ketsuban.eth",

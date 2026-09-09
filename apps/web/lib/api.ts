@@ -120,6 +120,15 @@ export const profileSchema = z.object({
 });
 export type ProfileRead = z.infer<typeof profileSchema>;
 
+export const enclaveKeySchema = z.object({ address: address, publicKey: hex });
+export const disclosedSchema = z.object({
+  name: z.string(),
+  domain: z.string(),
+  disclosed: z.object({ handle: z.string(), platformId: z.string() }),
+  warning: z.string(),
+});
+export type Disclosed = z.infer<typeof disclosedSchema>;
+
 export const reverseSchema = z.object({
   address: z.string(),
   name: z.string().nullable(),
@@ -267,6 +276,31 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
 
     async contracts(): Promise<Contracts> {
       return contractsSchema.parse(await readJson(await call(`${base}/v1/instances`)));
+    },
+
+    /** The key a view code is encrypted to, so only the enclave can open a disclosure. */
+    async enclaveKey(): Promise<{ address: Address; publicKey: Hex }> {
+      return enclaveKeySchema.parse(await readJson(await call(`${base}/v1/enclave-key`)));
+    },
+
+    /** Hand the attester a candidate-signed permission to read one masked account. */
+    async disclose(wire: object): Promise<{ ok: true; expiresAt: string }> {
+      const res = await call(`${base}/v1/disclose`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(wire),
+      });
+      return (await readJson(res)) as { ok: true; expiresAt: string };
+    },
+
+    /** Read a masked account the candidate allowed; `reader` must match a grant addressed to one wallet. */
+    async disclosed(name: string, domain: string, reader?: string): Promise<Disclosed> {
+      const q = reader ? `?reader=${reader}` : "";
+      return disclosedSchema.parse(
+        await readJson(
+          await call(`${base}/v1/disclose/${encodeURIComponent(name)}/${encodeURIComponent(domain)}${q}`)
+        )
+      );
     },
 
     async reverse(address: string): Promise<ReverseRead> {

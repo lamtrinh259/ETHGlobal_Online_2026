@@ -122,13 +122,27 @@ curl -s -H "x-org-token: $ORG_TOKEN" -H 'content-type: application/json' \
   -d '{"wallet":"0x…","label":"acme-university"}' $API/v1/org | jq
 ```
 
-## 7. What a withdrawal looks like
+## 7. Opening a private account for one verifier
+
+A private account proves control without naming the account. When the candidate wants one verifier to
+read it, they sign a permission from their profile: the view code travels encrypted to the registrar's
+public key, which lives in the enclave, so the answer is given there and the handle is never published.
+
+```bash
+curl -s $API/v1/enclave-key | jq            # what a candidate encrypts to
+curl -s "$API/v1/disclose/alice.ketsuban.eth/x" | jq
+```
+
+The link the candidate hands over is `/v/alice.ketsuban.eth?reveal=x`. Without a live permission the
+same page says so instead of showing anything.
+
+## 8. What a withdrawal looks like
 
 A voucher can withdraw. The record stays, the old statement stays in the history, and the live
 statement becomes `withdrawn`, which stops counting towards a verifier's minimum and reads as
 "withdrawn by the voucher" on the page. Nothing disappears.
 
-## 8. Chainlink CRE
+## 9. Chainlink CRE
 
 `packages/cre` holds one workflow with two triggers: an HTTP trigger whose handler runs inside a Nitro
 enclave and signs the record as registrar, and an EVM log trigger on `Registered` that provisions a
