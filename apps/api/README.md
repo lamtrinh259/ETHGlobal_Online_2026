@@ -53,6 +53,14 @@ snapshot is rewritten atomically after every tick, so a restart resumes from the
 A snapshot older than `DEPLOY_BLOCK` is ignored, which is how a redeploy against new contracts starts
 clean.
 
+## What the docker e2e covers
+
+`test/e2e/api.e2e.test.ts` drives a real chain: anvil, the contracts deployed by `DeployLocal.s.sol`,
+and this service's image. Besides the API's own routes it exercises the two writes only a browser
+makes, because a wrong role grant would otherwise pass every test: the wallet writing its own ENS
+profile text record, and `linkOwnName` aliasing a `.eth` name onto a record. It also covers a renewal,
+a withdrawal, and a wallet with no role being refused.
+
 ## Troubleshooting a deploy
 
 A missing or malformed variable makes the container exit 1 with one line per problem

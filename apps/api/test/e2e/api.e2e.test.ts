@@ -9,7 +9,18 @@
  */
 import { readFileSync } from "node:fs";
 import { beforeAll, describe, expect, it } from "vitest";
-import { bytesToHex, createPublicClient, http, zeroHash, type Hex } from "viem";
+import {
+  bytesToHex,
+  createPublicClient,
+  createWalletClient,
+  http,
+  namehash,
+  parseAbi,
+  zeroAddress,
+  zeroHash,
+  type Hex,
+} from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 import {
   baseIntent,
   fakePrivy,
@@ -28,7 +39,26 @@ const privy = fakePrivy(APP_ID, PRIVY_SEED);
 const USER_KEY = "0x000000000000000000000000000000000000000000000000000000000000a11c" as const;
 const user = fakeUser(USER_KEY, "alice");
 
-let deployment: { multipass: Hex; instanceDomain: string; instanceParent: string };
+let deployment: {
+  multipass: Hex;
+  instanceDomain: string;
+  instanceParent: string;
+  bridge: Hex;
+  permissionedResolver: Hex;
+  ethRegistry: Hex;
+};
+
+/** anvil account 0: the DeployLocal deployer, which owns the mock `.eth` registry. */
+const DEPLOYER_KEY = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" as const;
+const anvil = {
+  id: 31337,
+  name: "anvil",
+  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+  rpcUrls: { default: { http: [RPC] } },
+} as const;
+
+const walletFor = (key: Hex) =>
+  createWalletClient({ account: privateKeyToAccount(key), chain: anvil, transport: http(RPC) });
 
 async function waitFor(url: string, tries = 60) {
   for (let i = 0; i < tries; i++) {
@@ -387,6 +417,97 @@ describe("api e2e", () => {
     const unknown = await call("nobody");
     expect(unknown.status).toBe(403);
     expect((await unknown.json()).error).toContain("holds no live record");
+  });
+
+  /**
+   * Two writes only the browser makes: the profile text records the bridge granted the wallet, and
+   * the `.eth` alias. Nothing in the API exercises either, so without this the grants could be wrong
+   * and every test would still pass.
+   */
+  it("lets the record's own wallet write its ENS profile, because the bridge granted it", async () => {
+    const resolver = parseAbi([
+      "function setText(bytes32 node, string key, string value)",
+      "function hasTextGrant(bytes name, string key, address account) view returns (bool)",
+    ]);
+    const name = `alice.${deployment.instanceParent}`;
+    const rpc = createPublicClient({ chain: anvil, transport: http(RPC) });
+    const dns = (n: string) =>
+      `0x${n
+        .split(".")
+        .map((l) => l.length.toString(16).padStart(2, "0") + Buffer.from(l).toString("hex"))
+        .join("")}00` as Hex;
+
+    expect(
+      await rpc.readContract({
+        address: deployment.permissionedResolver,
+        abi: resolver,
+        functionName: "hasTextGrant",
+        args: [dns(name), "description", user.account.address],
+      })
+    ).toBe(true);
+
+    // Alice was funded by the gas top-up earlier in this suite, so she can send this herself.
+    const hash = await walletFor(USER_KEY).writeContract({
+      address: deployment.permissionedResolver,
+      abi: resolver,
+      functionName: "setText",
+      args: [namehash(name), "description", "infra lead at Acme"],
+    });
+    expect((await rpc.waitForTransactionReceipt({ hash })).status).toBe("success");
+
+    const verified = await (await fetch(`${API}/v1/verify/${name}`)).json();
+    expect(verified.profile.description).toBe("infra lead at Acme");
+
+    // A wallet holding no role on that name cannot write it. The deployer can: it keeps the
+    // resolver's root roles by design, which is how the bridge was granted anything in the first place.
+    const stranger = "0x000000000000000000000000000000000000000000000000000000000000b0bb" as const;
+    await expect(
+      walletFor(stranger).writeContract({
+        address: deployment.permissionedResolver,
+        abi: resolver,
+        functionName: "setText",
+        args: [namehash(name), "description", "not mine to write"],
+      })
+    ).rejects.toThrow(/Unauthorized|revert/i);
+  });
+
+  it("aliases a wallet's own .eth name onto its record through the bridge", async () => {
+    const rpc = createPublicClient({ chain: anvil, transport: http(RPC) });
+    const ethRegistry = parseAbi([
+      "function setLabel(string label, address owner, address sub, address resolver)",
+    ]);
+    const bridge = parseAbi(["function linkOwnName(bytes32 domain, string label)"]);
+    const resolver = parseAbi(["function getAlias(bytes fromName) view returns (bytes)"]);
+
+    // Alice owns `alice.eth` on the mock registry the local deployment uses.
+    const labelled = await walletFor(DEPLOYER_KEY).writeContract({
+      address: deployment.ethRegistry,
+      abi: ethRegistry,
+      functionName: "setLabel",
+      args: ["alice", user.account.address, zeroAddress, zeroAddress],
+    });
+    expect((await rpc.waitForTransactionReceipt({ hash: labelled })).status).toBe("success");
+
+    const hash = await walletFor(USER_KEY).writeContract({
+      address: deployment.bridge,
+      abi: bridge,
+      functionName: "linkOwnName",
+      args: [toBytes32(deployment.instanceDomain), "alice"],
+    });
+    expect((await rpc.waitForTransactionReceipt({ hash })).status).toBe("success");
+
+    const dns = (n: string) =>
+      `0x${n
+        .split(".")
+        .map((l) => l.length.toString(16).padStart(2, "0") + Buffer.from(l).toString("hex"))
+        .join("")}00` as Hex;
+    const target = await rpc.readContract({
+      address: deployment.permissionedResolver,
+      abi: resolver,
+      functionName: "getAlias",
+      args: [dns(`${deployment.instanceDomain}.alice.eth`)],
+    });
+    expect(target).toBe(dns(`alice.${deployment.instanceParent}`));
   });
 
   it("rejects a replayed record", async () => {
