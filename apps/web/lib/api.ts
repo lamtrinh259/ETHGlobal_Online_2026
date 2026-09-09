@@ -24,6 +24,8 @@ export type AttestResult = z.infer<typeof attestResultSchema>;
 export const verifySchema = z.object({
   name: z.string(),
   instance: z.object({ domain: z.string(), parentName: z.string() }),
+  /** Which half of the namespace this name lives in: the open one, or the private mirror */
+  branch: z.enum(["open", "private"]).optional(),
   status: z.enum(["active", "inactive"]),
   wallet: z.string().nullable(),
   answer: z.string().nullable(),

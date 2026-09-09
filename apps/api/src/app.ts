@@ -1031,6 +1031,10 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     return {
       name,
       instance: { domain: instance.domain, parentName: instance.parentName },
+      // A name in the private branch is a narrower claim: this person has an account in that domain,
+      // and the account itself stays behind a view code. A verifier should be told which they are
+      // reading rather than inferring it from the shape of the name.
+      branch: located.masked ? ("private" as const) : ("open" as const),
       status: active ? "active" : "inactive",
       wallet: active ? wallet : null,
       answer: active ? answer : null,

@@ -22,6 +22,26 @@ const base: Verification = {
 };
 
 describe("VerifyCard", () => {
+  it("says what a private-branch name claims, which is less than it appears to", () => {
+    render(
+      <VerifyCard
+        v={{
+          ...base,
+          name: "alice.com.discord.private-www.ketsuban.eth",
+          instance: { domain: "discord.com", parentName: "com.discord.private-www.ketsuban.eth" },
+          branch: "private",
+        }}
+      />
+    );
+    expect(screen.getByTestId("private-branch")).toHaveTextContent("holds an account there and nothing else");
+    expect(screen.getByTestId("private-branch")).toHaveTextContent("behind a view code");
+  });
+
+  it("says nothing of the sort for a name in the open", () => {
+    render(<VerifyCard v={{ ...base, branch: "open" }} />);
+    expect(screen.queryByTestId("private-branch")).toBeNull();
+  });
+
   it("shows the name each account answers at, so a verifier can read it back themselves", () => {
     render(
       <VerifyCard

@@ -613,6 +613,7 @@ describe("GET /v1/verify/:name", () => {
     expect(body).toEqual({
       name: "nobody.kju-is.eth",
       instance: { domain: "kju-is", parentName: "kju-is.eth" },
+      branch: "open",
       status: "inactive",
       wallet: null,
       answer: null,
@@ -1554,6 +1555,7 @@ describe("a name in the private branch", () => {
     const name = `alice.${xComInstance.maskedParentName}`;
     const body = await (await app(chain).request(`/v1/verify/${name}`)).json();
     expect(body.status).toBe("active");
+    expect(body.branch).toBe("private");
     expect(body.wallet).toBe(user.account.address);
     expect(body.answer).toBe("terrible dictator");
     // Read through the mirror's resolver, not the platform's open one.
@@ -1606,6 +1608,7 @@ describe("what a verifier is shown without asking", () => {
       },
     });
     const body = await (await app(chain).request(`/v1/verify/alice.${instance.parentName}`)).json();
+    expect(body.branch).toBe("open");
     expect(body.evidence).toContain("x_account_control");
     // A name the verifier can check for themselves, in any ENS client.
     expect(body.links).toContainEqual({

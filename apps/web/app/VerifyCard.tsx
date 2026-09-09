@@ -15,6 +15,14 @@ export function VerifyCard({ v }: { v: Verification }) {
           instance <code>{v.instance.domain}</code> under <code>{v.instance.parentName}</code>
         </small>
       </p>
+      {/* A private-branch name is a narrower claim than it looks: the account behind it stays masked. */}
+      {v.branch === "private" && (
+        <p className="muted" data-testid="private-branch">
+          This name is in the private branch of <code>{v.instance.domain}</code>. It says the person below
+          holds an account there and nothing else: which account it is stays behind a view code, and the
+          records shown are their own.
+        </p>
+      )}
       {active && (
         <dl className="kv">
           <dt>wallet</dt>
