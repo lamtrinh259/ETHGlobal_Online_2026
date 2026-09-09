@@ -43,6 +43,12 @@ jobs:
       - name: api tests
         timeout-minutes: 6
         run: pnpm --filter @ketsuban/api test
+      # Runs only when the step above timed out: vitest names the handle that keeps the worker alive.
+      - name: api tests, naming what holds the process open
+        if: failure()
+        timeout-minutes: 5
+        continue-on-error: true
+        run: pnpm --filter @ketsuban/api exec vitest run --reporter=hanging-process --no-coverage
       - name: web tests
         timeout-minutes: 8
         run: pnpm --filter @ketsuban/web test
