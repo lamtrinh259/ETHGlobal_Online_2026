@@ -80,6 +80,15 @@ const xInstance: Instance = {
   parentLabel: "x",
 };
 
+/** The same platform mounted at its DNS name, with the private branch the mirror gives it. */
+const xComInstance: Instance = {
+  ...instance,
+  domain: "x.com",
+  parentName: "com.x.www.kju-is.eth",
+  parentLabel: "com",
+  maskedParentName: "com.x.private-www.kju-is.eth",
+};
+
 /** A provisioned vouch instance for alice, as the relay creates it. */
 const vouchInstance: Instance = {
   ...instance,
@@ -1427,6 +1436,61 @@ describe("GET /v1/reverse/:address", () => {
 });
 
 describe("GET /v1/wallet/:address", () => {
+  it("names a masked account after the person who holds it", async () => {
+    // The account's own name is a one-time pad over the handle, so the private branch names the person:
+    // the row says an account exists on X and never which one.
+    const masked = {
+      domain: "x.com",
+      name: "\u009f\u00c2\u00ab",
+      id: toBytes32("masked"),
+      wallet: user.account.address,
+      payload: toBytes32("commitment"),
+      validUntil: 1_800_000_000n,
+      nonce: 1n,
+      live: true,
+    };
+    const held = {
+      ...masked,
+      domain: "kju-is",
+      name: "alice",
+      id: toBytes32("alice"),
+      payload: toBytes32("hi"),
+    };
+    const { chain } = fakeChain({
+      instances: [instance, xComInstance],
+      byWallet: [held, masked],
+    });
+    const body = await (await app(chain).request(`/v1/wallet/${user.account.address}`)).json();
+    expect(body.links).toHaveLength(1);
+    expect(body.links[0]).toMatchObject({
+      domain: "x.com",
+      optedIn: true,
+      ensName: "alice.com.x.private-www.kju-is.eth",
+      nameless: null,
+    });
+  });
+
+  it("says a masked account is private when nothing names it", async () => {
+    // No private branch deployed, or no name held: the row must not invent one.
+    const { chain } = fakeChain({
+      instances: [instance, xInstance],
+      byWallet: [
+        {
+          domain: "x",
+          name: "\u009f",
+          id: toBytes32("masked"),
+          wallet: user.account.address,
+          payload: toBytes32("commitment"),
+          validUntil: 1_800_000_000n,
+          nonce: 1n,
+          live: true,
+        },
+      ],
+    });
+    const body = await (await app(chain).request(`/v1/wallet/${user.account.address}`)).json();
+    expect(body.links[0]).toMatchObject({ ensName: null, nameless: "private" });
+  });
+
   it("splits a wallet's records into names, links and references given", async () => {
     const rec = (
       domain: string,

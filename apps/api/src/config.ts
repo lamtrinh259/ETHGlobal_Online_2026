@@ -19,6 +19,8 @@ export const configSchema = z.object({
   MULTIPASS_EIP712_VERSION: z.string().default("1.0.0"),
   BRIDGE: address,
   FACTORY: address,
+  /** A later factory carrying the DNS namespace, when the first one is too old to have built it */
+  NAMESPACE_FACTORY: address.optional(),
   /** Relayer key that submits `bridge.verify`; a Privy server wallet replaces it in production */
   RELAYER_KEY: hex,
   PRIVY_APP_ID: z.string(),
@@ -152,6 +154,7 @@ const deploymentFile = z.object({
   multipass: address,
   bridge: address,
   factory: address,
+  namespaceFactory: address.optional(),
   registry: address.optional(),
   permissionedResolver: address.optional(),
   universalResolver: address.optional(),
@@ -170,6 +173,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
       MULTIPASS: d.multipass,
       BRIDGE: d.bridge,
       FACTORY: d.factory,
+      ...(d.namespaceFactory ? { NAMESPACE_FACTORY: d.namespaceFactory } : {}),
       ...(d.registry ? { REGISTRY: d.registry } : {}),
       ...(d.permissionedResolver ? { PERMISSIONED_RESOLVER: d.permissionedResolver } : {}),
       ...(d.universalResolver ? { UNIVERSAL_RESOLVER: d.universalResolver } : {}),

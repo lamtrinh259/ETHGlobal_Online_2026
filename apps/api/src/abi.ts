@@ -30,6 +30,7 @@ export const factoryAbi = withErrors(
     "function domains() view returns (bytes32[])",
     "function isInstance(bytes32 domain) view returns (bool)",
     "function create(bytes32 domain, address parent, string parentLabel, string parentName, address inner) returns (address registry, address resolver)",
+    "function mirror(bytes32 domain) view returns (Instance)",
   ])
 );
 

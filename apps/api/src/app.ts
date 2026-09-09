@@ -617,6 +617,9 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     if (!/^0x[0-9a-fA-F]{40}$/.test(address)) return c.json({ error: "bad address" }, 400);
     const instances = await chain.instances();
     const parentOf = new Map(instances.map((i) => [i.domain, i.parentName]));
+    const maskedParentOf = new Map(
+      instances.filter((i) => i.maskedParentName).map((i) => [i.domain, i.maskedParentName as string])
+    );
     // Every platform domain has its own instance now, so an instance no longer means "a name domain".
     // Classify by configuration, which is what decides whether a record carries a handle and an answer.
     const isNameDomain = (d: string) => config.NAME_DOMAINS.includes(d);
@@ -664,12 +667,17 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
           // An email address cannot: `@` and `.` separate labels, they are not characters in one.
           // Underscores are fine in an ENS label and common in platform handles; `@` and `.` are not.
           const label = /^[a-z0-9_-]{1,63}$/.test(r.name.toLowerCase()) ? r.name.toLowerCase() : null;
+          // A masked account has no readable name of its own, so the private branch names the person:
+          // `alice.com.x.private-www.<root>` says the holder of `alice.<root>` has an account there.
+          const maskedParent = maskedParentOf.get(r.domain);
+          const held = records.find((k) => k.live && isNameDomain(k.domain))?.name;
+          const maskedName = optedIn && maskedParent && held ? `${held}.${maskedParent}` : null;
           return {
             ...fmt(r),
             optedIn,
-            ensName: parent && !optedIn && label ? `${label}.${parent}` : null,
+            ensName: (parent && !optedIn && label ? `${label}.${parent}` : maskedName) ?? null,
             // Why there is no name, when there is none: privacy, or a handle that cannot be a label.
-            nameless: optedIn ? "private" : label ? null : "not-a-label",
+            nameless: maskedName ? null : optedIn ? "private" : label ? null : "not-a-label",
           };
         }),
       given: records

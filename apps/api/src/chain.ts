@@ -41,6 +41,8 @@ export type Instance = {
   resolver: Address;
   parentName: string;
   parentLabel: string;
+  /** Where a masked record in this domain is named, when the deployment has a private branch */
+  maskedParentName?: string;
 };
 
 /** DNS-encode a name for ENSIP-10 `resolve(bytes,bytes)` */
@@ -92,26 +94,48 @@ export class Chain {
     return { exists, nonce: record.nonce, id: record.id, wallet: record.wallet };
   }
 
+  /**
+   * Every mount this deployment has. A deployment can run two factories: the one that made the root
+   * instance, and a later one carrying the DNS namespace, which the first is too old to build. The
+   * later factory wins for a domain both know, and only it answers about private mirrors.
+   */
   async instances(): Promise<Instance[]> {
+    const factories = [this.config.FACTORY, this.config.NAMESPACE_FACTORY].filter(
+      (a): a is Address => !!a
+    );
+    const found = new Map<string, Instance>();
+    for (const factory of factories) {
+      for (const instance of await this.instancesOf(factory)) found.set(instance.domain, instance);
+    }
+    return [...found.values()];
+  }
+
+  private async instancesOf(factory: Address): Promise<Instance[]> {
     const domains = await this.publicClient.readContract({
-      address: this.config.FACTORY,
+      address: factory,
       abi: factoryAbi,
       functionName: "domains",
     });
     return Promise.all(
       domains.map(async (d) => {
-        const i = await this.publicClient.readContract({
-          address: this.config.FACTORY,
-          abi: factoryAbi,
-          functionName: "instance",
-          args: [d],
-        });
+        const [i, masked] = await Promise.all([
+          this.publicClient.readContract({
+            address: factory,
+            abi: factoryAbi,
+            functionName: "instance",
+            args: [d],
+          }),
+          this.publicClient
+            .readContract({ address: factory, abi: factoryAbi, functionName: "mirror", args: [d] })
+            .catch(() => undefined),
+        ]);
         return {
           domain: fromBytes32(d),
           registry: i.registry,
           resolver: i.resolver,
           parentName: i.parentName,
           parentLabel: i.parentLabel,
+          ...(masked && masked.registry !== zeroAddress ? { maskedParentName: masked.parentName } : {}),
         };
       })
     );

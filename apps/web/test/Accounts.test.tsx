@@ -57,6 +57,20 @@ describe("Accounts", () => {
     expect(screen.getByTestId("attest-x")).toBeVisible();
   });
 
+  it("names a private account after the person, and still calls it private", () => {
+    // The name says the holder of alice.ketsuban.eth is on Google. Which account it is stays masked.
+    render(
+      <Accounts
+        links={[link("google.com", { optedIn: true, ensName: "alice.com.google.private-www.ketsuban.eth" })]}
+        onPublished={vi.fn()}
+      />
+    );
+    const row = screen.getByTestId("account-google");
+    expect(row).toHaveTextContent("alice.com.google.private-www.ketsuban.eth");
+    expect(row).toHaveTextContent("private");
+    expect(row).not.toHaveTextContent("public");
+  });
+
   it("says so when this deployment has no namespace for an account", () => {
     // Nobody deploys every mail host. Saying it here beats a revert after the person has signed.
     instances = [instance("ketsuban", "ketsuban.eth"), instance("x.com", "com.x.www.ketsuban.eth")];
