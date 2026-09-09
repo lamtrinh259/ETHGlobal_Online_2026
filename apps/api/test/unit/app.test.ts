@@ -62,6 +62,9 @@ const baseEnv = {
   REGISTRAR_KEY: "0x000000000000000000000000000000000000000000000000000000000000b0b0",
   VIEWCODE_KEY: "0x1111111111111111111111111111111111111111111111111111111111111111",
   DELIVERY_TOKEN: "0123456789abcdef0123456789abcdef",
+  // Keep the persistent stores in memory: the default is the container's `/data`, and a test that logs
+  // `EACCES: mkdir '/data'` reads like a failure while asserting the opposite.
+  DATA_DIR: "",
 };
 
 const instance: Instance = {
