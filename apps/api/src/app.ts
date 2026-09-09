@@ -206,6 +206,23 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     }
   });
 
+  /**
+   * Submit a registrar-signed record from a browser. No secret: the record is only accepted because
+   * the registrar signed it, so relaying someone else's signed record writes exactly what they asked
+   * for and nothing more. The token-gated delivery route stays for the enclave, which also asks for
+   * the candidate's vouch instance to be provisioned.
+   */
+  app.post("/v1/submit", async (c) => {
+    const parsed = wireDelivery.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) return c.json({ ok: false, error: "bad request", issues: parsed.error.issues }, 400);
+    try {
+      const txHash = await chain.submit(toRecord(parsed.data.record), parsed.data.signature as Hex);
+      return c.json({ ok: true, txHash });
+    } catch (e) {
+      return c.json({ ok: false, error: (e as Error).message }, 502);
+    }
+  });
+
   /** CRE external delivery: submit a registrar-signed record through the bridge. */
   app.post("/v1/cre/delivery", async (c) => {
     if (config.DELIVERY_TOKEN && c.req.header("x-delivery-token") !== config.DELIVERY_TOKEN) {

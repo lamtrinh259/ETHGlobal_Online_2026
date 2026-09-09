@@ -1,26 +1,53 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
-import type { Address } from "viem";
-import { apiFor, useGasTopup, useVouches, useWalletDashboard } from "@/lib/hooks";
+import { formatEther, type Address } from "viem";
 import { WITHDRAWN } from "@ketsuban/registrar";
-import { nameRows } from "@/lib/journey";
-import { vouchRequest } from "@/lib/profile";
+import { useWebConfig } from "@/app/providers";
 import { CopyButton } from "@/app/CopyButton";
-import { formatEther } from "viem";
+import { fmtUtc, short } from "@/app/ui";
+import { apiFor, useGasTopup, useVouches, useWalletDashboard } from "@/lib/hooks";
 import type { Signer } from "@/lib/chain";
-import { ProfileEditor } from "./ProfileEditor";
+import { nameRows, needsAttention } from "@/lib/journey";
+import { vouchRequest } from "@/lib/profile";
+import { Accounts } from "./Accounts";
+import { InviteLink } from "./InviteLink";
 import { OwnName } from "./OwnName";
 import { Privacy } from "./Privacy";
-import { LinkAccounts } from "./LinkAccounts";
-import { InviteLink } from "./InviteLink";
-import { needsAttention } from "@/lib/journey";
-import { useWebConfig } from "@/app/providers";
-import { fmtUtc, short } from "@/app/ui";
+import { ProfileEditor } from "./ProfileEditor";
 
-/** Candidate/voucher status board (spec §3.2 "Track"): what this wallet holds and what it gave. */
+/** One subject per group, numbered, with its state on the number. */
+function Step({
+  n,
+  title,
+  state,
+  children,
+}: {
+  n: number;
+  title: string;
+  state: "done" | "now" | "todo";
+  children: ReactNode;
+}) {
+  return (
+    <section className={`card dash-step dash-${state}`} data-testid={`step-${n}`}>
+      <span className="dash-num" aria-hidden>
+        {state === "done" ? "✓" : n}
+      </span>
+      <div>
+        <h2>{title}</h2>
+        {children}
+      </div>
+    </section>
+  );
+}
+
+/**
+ * The candidate's and voucher's own page, as a sequence rather than a pile: who you are, what you
+ * answered, which accounts back you, and the references. Everything that is plumbing — gas, ENS text
+ * records, aliases, view codes — sits under "Advanced", because it is not how anyone starts.
+ */
 export function Dashboard() {
   const config = useWebConfig();
   const api = useMemo(() => apiFor(config), [config]);
@@ -37,22 +64,26 @@ export function Dashboard() {
       chainId: config.chainId,
     };
   };
+
   const dash = useWalletDashboard(api, wallet);
   const gas = useGasTopup(wallet);
   const rows = nameRows(dash.data, config.instances);
-  const rootLive = rows[0]?.live ? rows[0].ensName.split(".")[0] : undefined;
-  const received = useVouches(api, rootLive);
+  const root = config.instances[0];
+  const [rootRow, ...subjectRows] = rows;
+  const handle = rootRow?.live ? rootRow.ensName.split(".")[0] : undefined;
+  const received = useVouches(api, handle);
   const liveVouchers = [
-    ...new Set((received.data?.vouches ?? []).filter((v) => v.live).map((v) => v.voucher)),
+    ...new Set(
+      (received.data?.vouches ?? []).filter((v) => v.live && v.statement !== WITHDRAWN).map((v) => v.voucher)
+    ),
   ];
   const siteUrl = typeof window === "undefined" ? "" : window.location.origin;
-  const root = config.instances[0];
 
   if (!ready) return <p className="muted">loading…</p>;
   if (!authenticated) {
     return (
       <div className="card">
-        <p className="muted">Sign in to see your names.</p>
+        <p className="muted">Sign in to see your page.</p>
         <button onClick={login} className="primary" data-testid="signin">
           Sign in
         </button>
@@ -67,9 +98,11 @@ export function Dashboard() {
       </p>
     );
   }
+
   const d = dash.data!;
-  const rootName = d.names.find((n) => n.domain === root?.domain);
   const attention = needsAttention(d, Date.now());
+  const liveLinks = d.links.filter((l) => l.live);
+  const answered = subjectRows.filter((r) => r.live?.payload);
 
   return (
     <>
@@ -90,49 +123,59 @@ export function Dashboard() {
           </ul>
         </section>
       )}
-      <section className="card" data-testid="dash-names">
-        <h2>Names</h2>
-        <p className="muted">
-          wallet <code>{wallet && short(wallet)}</code>
-        </p>
-        {rows.length === 0 ? (
+
+      <Step n={1} title="Your name" state={handle ? "done" : "now"}>
+        {handle && rootRow ? (
           <p>
-            No name yet. <Link href="/claim">Claim one →</Link>
+            <Link href={`/p/${handle}`}>
+              <code>{rootRow.ensName}</code>
+            </Link>{" "}
+            <small className="muted">
+              live until {fmtUtc(rootRow.live!.validUntil)} · <Link href={rootRow.href}>renew</Link>
+            </small>
           </p>
         ) : (
-          <dl className="kv">
-            {rows.map((r) => (
-              <div key={r.domain} className="kv-row" data-testid={`name-${r.domain}`}>
-                <dt>{r.live ? <Link href={`/v/${r.ensName}`}>{r.ensName}</Link> : r.ensName}</dt>
-                <dd>
-                  {r.live ? (
-                    <>
-                      {r.live.payload ? `“${r.live.payload}” · ` : ""}
-                      <span className="muted">live</span> until {fmtUtc(r.live.validUntil)} · nonce{" "}
-                      {r.live.nonce} · <Link href={r.href}>{r.live.payload ? "change" : "renew"} →</Link>
-                    </>
-                  ) : (
-                    <>
-                      <span className="error">{r.expired ? "expired" : "not answered"}</span> ·{" "}
-                      <Link href={r.href}>{r.expired ? "renew" : "answer now"} →</Link>
-                    </>
-                  )}
-                </dd>
-              </div>
-            ))}
-          </dl>
-        )}
-        {rootName && (
           <p>
-            <Link href={`/p/${rootName.name}`}>Your reference page →</Link>
+            Nobody can vouch for you until you have a name.{" "}
+            <Link href="/claim" className="primary">
+              Claim yours →
+            </Link>
           </p>
         )}
-      </section>
+      </Step>
 
-      {rootName && root && (
-        <section className="card" data-testid="dash-references">
-          <h2>References</h2>
-          {received.data ? (
+      {handle && subjectRows.length > 0 && (
+        <Step n={2} title="Your answers" state={answered.length === subjectRows.length ? "done" : "now"}>
+          <p className="muted">Each answer is its own permanent name under yours.</p>
+          <ul className="acct" data-testid="answers">
+            {subjectRows.map((r) => (
+              <li key={r.domain} data-testid={`answer-${r.domain}`}>
+                <span className="acct-who">{r.live?.payload ? `“${r.live.payload}”` : "not answered"}</span>
+                <small className="muted">{r.domain}</small>
+                <span className="acct-state">
+                  <Link href={r.href}>{r.live ? "change" : "answer now"}</Link>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Step>
+      )}
+
+      <Step
+        n={handle && subjectRows.length > 0 ? 3 : 2}
+        title="Your accounts"
+        state={liveLinks.length > 0 ? "done" : "now"}
+      >
+        <Accounts links={d.links} onPublished={() => void dash.refetch()} />
+      </Step>
+
+      <Step
+        n={handle && subjectRows.length > 0 ? 4 : 3}
+        title="References"
+        state={liveVouchers.length > 0 ? "done" : handle ? "now" : "todo"}
+      >
+        {handle ? (
+          <>
             <p>
               {liveVouchers.length === 0 ? (
                 <>
@@ -151,124 +194,116 @@ export function Dashboard() {
                 </>
               )}
             </p>
-          ) : (
-            <p className="muted">reading references…</p>
-          )}
-          <InviteLink handle={rootName.name} />
-          <details>
-            <summary className="muted">A message to send with it</summary>
-            <code data-testid="vouch-request">{vouchRequest(rootName.name, siteUrl, root.parentName)}</code>
-            <p>
-              <CopyButton text={vouchRequest(rootName.name, siteUrl, root.parentName)} label="Copy the ask" />
-            </p>
-          </details>
-        </section>
-      )}
-
-      {rootName && root && (
-        <>
-          <section className="card" data-testid="dash-gas">
-            <h2>Gas</h2>
-            <p className="muted">
-              The two actions below are transactions your wallet sends itself. Balance:{" "}
-              <code>{formatEther(BigInt(d.balance))} ETH</code>
-              {BigInt(d.balance) === 0n && " — empty"}.
-            </p>
-            {d.gasTopup.available && (
-              <button
-                className="primary"
-                onClick={() => gas.mutate(api)}
-                disabled={gas.isPending}
-                data-testid="gas-topup"
-              >
-                {gas.isPending ? "sending…" : `Get ${formatEther(BigInt(d.gasTopup.amount))} test ETH`}
-              </button>
-            )}
-            {gas.error && (
-              <p className="error" role="alert">
-                {gas.error.message}
+            <InviteLink handle={handle} />
+            <details>
+              <summary className="muted">A message to send with it</summary>
+              <code data-testid="vouch-request">{vouchRequest(handle, siteUrl, root?.parentName ?? "")}</code>
+              <p>
+                <CopyButton
+                  text={vouchRequest(handle, siteUrl, root?.parentName ?? "")}
+                  label="Copy the ask"
+                />
               </p>
-            )}
-            {gas.isSuccess && (
-              <p className="muted">
-                sent · tx <code>{gas.data.hash}</code>
-              </p>
-            )}
-            {!d.gasTopup.enabled && BigInt(d.balance) === 0n && (
-              <p className="muted">Fund this address from a Sepolia faucet before saving.</p>
-            )}
-          </section>
-          <ProfileEditor api={api} name={rootName.ensName} getSigner={getSigner} />
-          <OwnName
-            api={api}
-            wallet={wallet}
-            domain={root.domain}
-            parentLabel={root.parentLabel}
-            handle={rootName.name}
-            getSigner={getSigner}
-          />
-        </>
-      )}
-
-      <section className="card" data-testid="dash-links">
-        <h2>Attested accounts</h2>
-        {d.links.length === 0 ? (
-          <p className="muted">None on chain yet — attest one below.</p>
+            </details>
+          </>
         ) : (
-          <ul>
-            {d.links.map((l) => (
-              <li key={`${l.domain}:${l.name}`}>
-                <code>{l.domain}</code> {l.optedIn ? "masked" : l.name} ·{" "}
-                <span className={l.live ? "muted" : "error"}>{l.live ? "live" : "expired"}</span>
-              </li>
-            ))}
-          </ul>
+          <p className="muted">Claim your name first; references attach to it.</p>
         )}
-      </section>
 
-      <LinkAccounts links={d.links} onPublished={() => void dash.refetch()} />
+        {d.given.length > 0 && (
+          <>
+            <h3>References you gave</h3>
+            <ul className="vouches" data-testid="dash-given">
+              {d.given.map((g) => (
+                <li key={`${g.domain}:${g.nonce}`} className={g.live ? "live" : "expired"}>
+                  <span className="vouch-who">
+                    for <Link href={`/p/${g.candidate}`}>{g.candidate}</Link>
+                  </span>
+                  <span className="vouch-what">
+                    {g.payload === WITHDRAWN ? "withdrawn" : `“${g.payload}”`}
+                  </span>
+                  <span className="vouch-meta muted">
+                    {g.live ? "live" : "expired"} · until {fmtUtc(g.validUntil)} ·{" "}
+                    <Link href={`/vouch/${g.candidate}`}>update</Link>
+                    {g.live && g.payload !== WITHDRAWN && (
+                      <>
+                        {" · "}
+                        <Link href={`/vouch/${g.candidate}?withdraw=1`}>withdraw</Link>
+                      </>
+                    )}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </Step>
 
-      {rootName && <Privacy links={d.links} handle={rootName.name} />}
+      <details className="advanced" data-testid="advanced">
+        <summary>Advanced: gas, ENS records, your own .eth, view codes</summary>
 
-      <section className="card" data-testid="dash-given">
-        <h2>References you gave</h2>
-        <p className="muted">
-          Your vouching history is your asset: every entry is a permanent name that carries your standing.
-        </p>
-        {d.given.length === 0 ? (
-          <p>
-            None yet. <Link href="/vouch">Vouch for someone →</Link>
+        <section className="card" data-testid="dash-gas">
+          <h3>Gas</h3>
+          <p className="muted">
+            Wallet <code>{wallet && short(wallet)}</code> holds{" "}
+            <code>{formatEther(BigInt(d.balance))} ETH</code>. Writing ENS records or an alias is a
+            transaction you send yourself; everything else is relayed for you.
           </p>
-        ) : (
-          <ul className="vouches">
-            {d.given.map((g) => (
-              <li key={`${g.domain}:${g.nonce}`} className={g.live ? "live" : "expired"}>
-                <span className="vouch-who">
-                  for <Link href={`/p/${g.candidate}`}>{g.candidate}</Link>
-                  {g.ensName && (
-                    <>
-                      {" "}
-                      · <code>{g.ensName}</code>
-                    </>
-                  )}
-                </span>
-                <span className="vouch-what">“{g.payload}”</span>
-                <span className="vouch-meta muted">
-                  {g.live ? "live" : "expired"} · until {fmtUtc(g.validUntil)} ·{" "}
-                  <Link href={`/vouch/${g.candidate}`}>update</Link>
-                  {g.live && g.payload !== WITHDRAWN && (
-                    <>
-                      {" · "}
-                      <Link href={`/vouch/${g.candidate}?withdraw=1`}>withdraw</Link>
-                    </>
-                  )}
-                  {g.payload === WITHDRAWN && " · withdrawn"}
-                </span>
-              </li>
-            ))}
-          </ul>
+          {d.gasTopup.available && (
+            <button
+              className="primary"
+              onClick={() => gas.mutate(api)}
+              disabled={gas.isPending}
+              data-testid="gas-topup"
+            >
+              {gas.isPending ? "sending…" : `Get ${formatEther(BigInt(d.gasTopup.amount))} test ETH`}
+            </button>
+          )}
+          {gas.error && (
+            <p className="error" role="alert">
+              {gas.error.message}
+            </p>
+          )}
+          {gas.isSuccess && (
+            <p className="muted">
+              sent · tx <code>{gas.data.hash}</code>
+            </p>
+          )}
+        </section>
+
+        {handle && rootRow && (
+          <>
+            <ProfileEditor api={api} name={rootRow.ensName} getSigner={getSigner} />
+            <OwnName
+              api={api}
+              wallet={wallet}
+              domain={root!.domain}
+              parentLabel={root!.parentLabel}
+              handle={handle}
+              getSigner={getSigner}
+            />
+            <Privacy links={d.links} handle={handle} />
+          </>
         )}
-      </section>
+
+        <section className="card">
+          <h3>Every record this wallet holds</h3>
+          <dl className="kv">
+            {[...d.names, ...d.links].map((r) => (
+              <div key={`${r.domain}:${r.nonce}`} className="kv-row">
+                <dt>
+                  <code>{r.domain}</code>
+                </dt>
+                <dd>
+                  {r.payload ? `“${r.payload}” · ` : ""}
+                  <span className={r.live ? "muted" : "error"}>{r.live ? "live" : "expired"}</span> until{" "}
+                  {fmtUtc(r.validUntil)} · nonce {r.nonce}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      </details>
       <p className="warning">{d.warning}</p>
     </>
   );

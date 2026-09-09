@@ -214,7 +214,9 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
 
     /** Hand a signed record to the relay, which pays and submits `bridge.verify` */
     async deliver(result: AttestResult, deliveryToken?: string): Promise<{ ok: true; txHash: Hex }> {
-      const res = await call(`${base}/v1/cre/delivery`, {
+      // The browser uses the token-free relay; the delivery route belongs to the enclave.
+      const path = deliveryToken ? "/v1/cre/delivery" : "/v1/submit";
+      const res = await call(`${base}${path}`, {
         method: "POST",
         headers: {
           "content-type": "application/json",

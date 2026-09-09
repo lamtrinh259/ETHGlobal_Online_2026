@@ -742,6 +742,28 @@ describe("POST /v1/attest — vouch invitations", () => {
   });
 });
 
+describe("POST /v1/submit", () => {
+  it("relays a registrar-signed record with no token, and reports a chain failure", async () => {
+    const { chain, submitted } = fakeChain();
+    const attested = await (await post(app(chain), "/v1/attest", await wireRequest())).json();
+    const res = await post(app(chain), "/v1/submit", attested);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ ok: true });
+    expect(submitted).toHaveLength(1);
+    expect(submitted[0].record.domainName).toBe(toBytes32("x"));
+
+    expect((await post(app(chain), "/v1/submit", { nope: true })).status).toBe(400);
+
+    const broken = fakeChain();
+    broken.chain.submit = vi.fn(async () => {
+      throw new Error("verify reverted");
+    });
+    const failed = await post(app(broken.chain), "/v1/submit", attested);
+    expect(failed.status).toBe(502);
+    expect((await failed.json()).error).toBe("verify reverted");
+  });
+});
+
 describe("POST /v1/provision", () => {
   it("provisions the vouch instance for a live handle, is idempotent, and refuses the rest", async () => {
     const { chain, state } = fakeChain({

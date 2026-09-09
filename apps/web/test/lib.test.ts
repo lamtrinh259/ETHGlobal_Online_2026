@@ -235,7 +235,8 @@ describe("api client", () => {
     const { fn, calls } = fetchMock({
       "http://api.test/v1/nonce": { body: { exists: true, nonce: "2", next: "3" } },
       "http://api.test/v1/attest": { body: result },
-      "http://api.test/v1/cre/delivery": { body: { ok: true, txHash: `0x${"ab".repeat(32)}` } },
+      "http://api.test/v1/submit": { body: { ok: true, txHash: `0x${"ab".repeat(32)}` } },
+      "http://api.test/v1/cre/delivery": { body: { ok: true, txHash: `0x${"cd".repeat(32)}` } },
       "http://api.test/v1/verify/alice.ketsuban.eth": { body: verification },
       "http://api.test/v1/ens/alice.ketsuban.eth?keys=ketsuban%3Aanswer": {
         body: {
@@ -348,8 +349,13 @@ describe("api client", () => {
     expect(calls[1].init?.method).toBe("POST");
     expect(JSON.parse(calls[1].init?.body as string)).toEqual({ a: 1 });
 
-    expect(await api.deliver(result, "tok")).toEqual({ ok: true, txHash: `0x${"ab".repeat(32)}` });
-    expect((calls[2].init?.headers as Record<string, string>)["x-delivery-token"]).toBe("tok");
+    // A browser has no delivery token and uses the open relay; the enclave's route needs one.
+    expect(await api.deliver(result)).toEqual({ ok: true, txHash: `0x${"ab".repeat(32)}` });
+    expect(await api.deliver(result, "tok")).toEqual({ ok: true, txHash: `0x${"cd".repeat(32)}` });
+    const open = calls.find((c) => c.url.endsWith("/v1/submit"))!;
+    const gated = calls.find((c) => c.url.endsWith("/v1/cre/delivery"))!;
+    expect((open.init?.headers as Record<string, string>)["x-delivery-token"]).toBeUndefined();
+    expect((gated.init?.headers as Record<string, string>)["x-delivery-token"]).toBe("tok");
 
     expect(await api.verify("alice.ketsuban.eth", { links: ["x"], viewCode: "0x02" })).toEqual(verification);
     const profile = await api.profile("alice", { links: ["x"] });
@@ -382,7 +388,9 @@ describe("api client", () => {
       hash: `0x${"cc".repeat(32)}`,
       amount: "2000000000000000",
     });
-    expect(calls[3].url).toBe("http://api.test/v1/verify/alice.ketsuban.eth?links=x&viewCode=0x02");
+    expect(
+      calls.some((c) => c.url === "http://api.test/v1/verify/alice.ketsuban.eth?links=x&viewCode=0x02")
+    ).toBe(true);
   });
 
   it("surfaces API errors with status and message and rejects malformed payloads", async () => {

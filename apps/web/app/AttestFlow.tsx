@@ -79,7 +79,8 @@ export function AttestFlow({
   );
   const [handle, setHandle] = useState(fixedHandle ?? "");
   const [answer, setAnswer] = useState(answerValue ?? "");
-  const [optIn, setOptIn] = useState(false);
+  // A linked account is masked by default: the commitment proves control, the handle stays private.
+  const [optIn, setOptIn] = useState(!fixedDomain || !config.nameDomains.includes(fixedDomain));
   const [signing, setSigning] = useState(false);
   const [signError, setSignError] = useState<string>();
   const [viewCode, setViewCode] = useState<Hex>();
@@ -192,17 +193,6 @@ export function AttestFlow({
   return (
     <div className="card">
       {title && <h2>{title}</h2>}
-      <p className="row muted">
-        <span>
-          wallet <code>{wallet ? short(wallet) : "creating…"}</code>
-        </span>
-        {nonce.data && (
-          <span>
-            {nonce.data.exists ? `renewal · next nonce ${nonce.data.next}` : "first record in this domain"}
-          </span>
-        )}
-      </p>
-
       {!isNameDomain && allowLinking && (
         <fieldset>
           <legend>Link an account</legend>
@@ -217,18 +207,8 @@ export function AttestFlow({
       )}
 
       <fieldset>
-        <legend>Record</legend>
-        {fixedDomain ? (
-          <p className="muted">
-            domain <code>{domain}</code>
-            {parentName && (
-              <>
-                {" "}
-                → <code>{parentName}</code>
-              </>
-            )}
-          </p>
-        ) : (
+        <legend className={fixedDomain ? "visually-hidden" : ""}>Record</legend>
+        {fixedDomain ? null : (
           <label>
             domain{" "}
             <select value={domain} onChange={(e) => setDomain(e.target.value)} aria-label="domain">
@@ -291,8 +271,8 @@ export function AttestFlow({
           </>
         ) : (
           <label>
-            <input type="checkbox" checked={optIn} onChange={(e) => setOptIn(e.target.checked)} /> keep handle
-            and platform id private (view code)
+            <input type="checkbox" checked={optIn} onChange={(e) => setOptIn(e.target.checked)} /> keep the
+            account private — the chain records that you control one, not which
           </label>
         )}
       </fieldset>

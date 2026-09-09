@@ -60,7 +60,7 @@ test("vouch lookup routes to the candidate when the API cannot answer, and block
 
 test("the dashboard is behind the sign-in gate", async ({ page }) => {
   await page.goto("/me");
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Your names");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Your page");
   await expect(page.getByTestId("signin")).toBeVisible({ timeout: 20000 });
 });
 
