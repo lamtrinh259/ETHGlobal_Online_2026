@@ -105,6 +105,23 @@ describe("/v/<name> with an opened account", () => {
     await waitFor(() => expect(screen.getByTestId("revealed")).toHaveTextContent("@alice_x"));
   });
 
+  it("says which wallet a link was addressed to, instead of showing an empty answer", async () => {
+    // The address in the link is not a permission — the grant is — but without it a reader signed in as
+    // the wrong wallet, or not at all, sees only that nothing opened.
+    state.disclosed = null;
+    state.reader = undefined;
+    await renderPage({ reveal: "x", for: "0xd70B5E8A232Bf67F64658cbDDebe32e1443894a0" });
+    await waitFor(() =>
+      expect(screen.getByTestId("revealed")).toHaveTextContent("Sign in with that wallet")
+    );
+
+    state.reader = "0xEE4811b9462956C9C3535E79c08776D769CA9F3a";
+    await renderPage({ reveal: "x", for: "0xd70B5E8A232Bf67F64658cbDDebe32e1443894a0" });
+    await waitFor(() =>
+      expect(screen.getAllByTestId("revealed")[1]).toHaveTextContent("Only the addressed wallet")
+    );
+  });
+
   it("shows nothing about disclosure when none was asked for", async () => {
     state.disclosed = null;
     state.reader = undefined;

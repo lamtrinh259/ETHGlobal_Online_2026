@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 type Params = {
   params: Promise<{ name: string }>;
-  searchParams: Promise<{ viewCode?: string; links?: string; reveal?: string }>;
+  searchParams: Promise<{ viewCode?: string; links?: string; reveal?: string; for?: string }>;
 };
 
 // Server component so a shared link unfurls with the name and its state (crawlers run no JS).
@@ -23,7 +23,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 
 export default async function VerifyPage({ params, searchParams }: Params) {
   const { name } = await params;
-  const { viewCode, links, reveal } = await searchParams;
+  const { viewCode, links, reveal, for: addressedTo } = await searchParams;
   const config = loadWebConfig();
   const api = createApi(config.apiUrl, config.attestUrl);
   const decoded = decodeURIComponent(name);
@@ -39,7 +39,7 @@ export default async function VerifyPage({ params, searchParams }: Params) {
     return (
       <>
         <VerifyCard v={v} />
-        {reveal && <Revealed name={decoded} domain={reveal} />}
+        {reveal && <Revealed name={decoded} domain={reveal} audience={addressedTo} />}
         <EnsProof ens={ens} name={decoded} />
       </>
     );

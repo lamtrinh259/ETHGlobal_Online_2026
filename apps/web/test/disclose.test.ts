@@ -66,5 +66,9 @@ describe("building a disclosure", () => {
     expect(revealLink("https://app.example/", "alice.ketsuban.eth", "x")).toBe(
       "https://app.example/v/alice.ketsuban.eth?reveal=x"
     );
+    // An addressed link carries the wallet it is for, so the page can say who has to be signed in.
+    expect(revealLink("https://app.example", "alice.ketsuban.eth", "x.com", "0xabc")).toBe(
+      "https://app.example/v/alice.ketsuban.eth?reveal=x.com&for=0xabc"
+    );
   });
 });

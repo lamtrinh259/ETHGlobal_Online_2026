@@ -55,8 +55,11 @@ export function toDisclosureWire(
 }
 
 /** The link a candidate hands over: the verification card, with one account opened. */
-export function revealLink(siteUrl: string, name: string, domain: string): string {
-  return `${siteUrl.replace(/\/$/, "")}/v/${name}?reveal=${encodeURIComponent(domain)}`;
+export function revealLink(siteUrl: string, name: string, domain: string, audience?: string): string {
+  // Carrying the audience is not a permission — the grant is what binds — but it lets the page say
+  // which wallet has to be signed in, instead of showing a reader an empty answer.
+  const to = audience ? `&for=${audience}` : "";
+  return `${siteUrl.replace(/\/$/, "")}/v/${name}?reveal=${encodeURIComponent(domain)}${to}`;
 }
 
 function hexToBytes32(value: Hex): Uint8Array {

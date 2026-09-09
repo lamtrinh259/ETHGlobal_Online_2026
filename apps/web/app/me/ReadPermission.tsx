@@ -186,9 +186,12 @@ export function ReadPermission({ api, links, name }: Props) {
             )}
             , until {new Date(granted.expiresAt).toUTCString()}.
           </p>
-          <code>{revealLink(siteUrl, name, granted.domain)}</code>
+          <code>{revealLink(siteUrl, name, granted.domain, granted.audience)}</code>
           <p>
-            <CopyButton text={revealLink(siteUrl, name, granted.domain)} label="Copy the link" />
+            <CopyButton
+              text={revealLink(siteUrl, name, granted.domain, granted.audience)}
+              label="Copy the link"
+            />
           </p>
         </div>
       )}
