@@ -175,3 +175,28 @@ cd packages/cre && cre workflow simulate attest --target staging-settings \
 
 Ketsuban attests that accountable humans stood behind a claim. It is not identity, employment, safety,
 nationality or affiliation verification, and it never labels a person.
+
+## 5. Signed inside an enclave
+
+The attester runs as a Chainlink CRE Confidential Workflow: the identity token, the view code and the
+registrar key never leave the TEE, and what comes out is a signed record anyone can check. The simulator
+runs the same binary, so the whole path is reproducible without deployment access:
+
+```bash
+pnpm --filter @ketsuban/cre-attest fixtures     # writes fixtures + config.local.json
+pnpm --filter @ketsuban/cre-attest simulate     # a flat platform record
+pnpm --filter @ketsuban/cre-attest simulate:dns # a record in the DNS namespace
+```
+
+The DNS run signs a record for `x.com` named `alice` — the label the account takes in
+`com.x.www.ketsuban.eth`. The private run (`fixtures/dns-private.json`) signs the same account masked: the
+name on chain is a one-time pad, the payload is the view-code commitment, and the view code itself comes
+back encrypted to the person's key.
+
+```
+name       0x707cb09c…   the handle, masked
+payload    0xa11185aa…   commitment to the view code
+viewCode   {ephemeralPubkey, nonce, ciphertext}   readable only by the wallet that asked
+```
+
+Deployment needs Confidential Workflows access (`cre account access`); everything above runs without it.

@@ -2,7 +2,10 @@
  * Writes a simulation fixture: a request signed by a throwaway wallet with an identity token
  * from a fake Privy issuer whose JWK is written into config.local.json. Simulation-only.
  *
- *   bun run scripts/make-fixture.ts [name|optin|vouch <candidate> <voucher> "<statement>"]
+ *   bun run scripts/make-fixture.ts [name|optin|dns|dns-private|vouch <candidate> <voucher> "<statement>"]
+ *
+ * Each mode writes `fixtures/<mode>.json`, and the default one is also written as `fixtures/request.json`
+ * so `pnpm simulate` keeps working with no arguments.
  *
  * NONCE=<n> overrides the intent nonce: a record that already exists on the target chain needs the
  * next one, and the enclave checks that before it signs.
@@ -24,8 +27,11 @@ const [domain, handle, payload] =
     ? [cfg.nameDomains[0], "alice", toBytes32("terrible dictator")]
     : mode === "vouch"
       ? [`~${process.argv[3]}`, process.argv[4] ?? "bob", toBytes32(process.argv[5] ?? "worked together 2019-22")]
-      : ["x", "", undefined];
-const optIn = mode === "optin";
+      : // A platform is a DNS name in this namespace, and the enclave signs into it the same way.
+        mode === "dns" || mode === "dns-private"
+        ? ["x.com", "", undefined]
+        : ["x", "", undefined];
+const optIn = mode === "optin" || mode === "dns-private";
 const intent = baseIntent(user.account, now, {
   domain,
   handle,
@@ -37,9 +43,11 @@ const intent = baseIntent(user.account, now, {
 const idToken = privy.mint({ sub: user.did, linked: user.linked, now, ttlSeconds: 7 * 86400 });
 const req = await signedAttestRequest(user.account, intent, idToken, cfg.chainId, cfg.multipass as Hex);
 
-writeFileSync(new URL("../fixtures/request.json", import.meta.url), JSON.stringify(toWire(req), null, 2) + "\n");
+const wire = JSON.stringify(toWire(req), null, 2) + "\n";
+writeFileSync(new URL(`../fixtures/${mode}.json`, import.meta.url), wire);
+if (mode === "platform") writeFileSync(new URL("../fixtures/request.json", import.meta.url), wire);
 writeFileSync(
   new URL("../config.local.json", import.meta.url),
   JSON.stringify({ ...cfg, privy: { appId: privy.appId, verificationKey: privy.jwk } }, null, 2) + "\n"
 );
-console.log(`fixture for ${user.account.address} domain=${domain} optIn=${optIn} → fixtures/request.json, config.local.json`);
+console.log(`fixture for ${user.account.address} domain=${domain} optIn=${optIn} → fixtures/${mode}.json, config.local.json`);
