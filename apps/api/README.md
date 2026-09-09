@@ -26,6 +26,13 @@ Vouch instances: when a delivery registers a record in the root name domain (`NA
 
 See `src/config.ts`. Addresses come from env or from a forge deployment artifact via `DEPLOYMENT_FILE`.
 
+## Troubleshooting a deploy
+
+A missing or malformed variable makes the container exit 1 with one line per problem
+(`config error · RELAYER_KEY: missing`), so the deploy log names what to set. Traefik answering
+`503 no available server` with its default certificate means no container is running: read the
+application log, not the proxy.
+
 ## Deploy (Coolify)
 
 `docker-compose.yml` is the production compose: dedicated project `ketsuban-api`, named network `ketsuban_api`, no host

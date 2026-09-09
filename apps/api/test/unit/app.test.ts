@@ -12,7 +12,7 @@ import {
 } from "@peeramid-labs/multipass-client";
 import { createApp, locate, WARNING } from "../../src/app.js";
 import type { ChainReader, Instance, ListedRecord } from "../../src/chain.js";
-import { loadConfig } from "../../src/config.js";
+import { explainConfigError, loadConfig } from "../../src/config.js";
 
 const NOW = 1_800_000_000;
 const USER_KEY = "0x000000000000000000000000000000000000000000000000000000000000a11c" as const;
@@ -179,6 +179,19 @@ describe("config", () => {
         DEPLOYMENT_FILE: new URL("./deployment.fixture.json", import.meta.url).pathname,
       }).CHAIN_ID
     ).toBe(1);
+  });
+
+  it("explains a config failure variable by variable", () => {
+    const err = (() => {
+      try {
+        loadConfig({ ...baseEnv, RPC_URL: undefined, MULTIPASS: "nope" });
+        return undefined;
+      } catch (e) {
+        return e;
+      }
+    })();
+    expect(explainConfigError(err)).toEqual(["RPC_URL: missing", "MULTIPASS: Invalid"]);
+    expect(explainConfigError(new Error("boom"))).toEqual(["boom"]);
   });
 
   it("rejects a malformed JWK and a missing RPC", () => {

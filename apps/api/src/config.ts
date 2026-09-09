@@ -95,6 +95,21 @@ export type Config = Omit<
   REGISTRAR_ADDRESS?: Address;
 };
 
+/**
+ * Turn a config failure into lines an operator can act on: which variable, and what was wrong.
+ * A container that dies silently on a missing secret is the hardest deployment bug to read.
+ */
+export function explainConfigError(err: unknown): string[] {
+  if (err instanceof z.ZodError) {
+    return err.issues.map((i) => {
+      const key = i.path.join(".") || "(root)";
+      const missing = i.code === "invalid_type" && "received" in i && i.received === "undefined";
+      return `${key}: ${missing ? "missing" : i.message}`;
+    });
+  }
+  return [(err as Error)?.message ?? String(err)];
+}
+
 /** Addresses written by the forge deploy scripts (`deployments/<chainId>.json`, `local.json`) */
 const deploymentFile = z.object({
   chainId: z.number().int(),
