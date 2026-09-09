@@ -320,7 +320,9 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
 
     /** What a name would claim here, whether or not anything resolves at it. */
     async explain(name: string): Promise<z.infer<typeof explainSchema>> {
-      return explainSchema.parse(await readJson(await call(`${base}/v1/explain/${encodeURIComponent(name)}`)));
+      return explainSchema.parse(
+        await readJson(await call(`${base}/v1/explain/${encodeURIComponent(name)}`))
+      );
     },
 
     /** Who owns a `.eth` label on the registry the bridge checks; `null` owner means nobody here does. */
