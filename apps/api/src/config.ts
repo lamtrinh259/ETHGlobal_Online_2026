@@ -31,6 +31,8 @@ export const configSchema = z.object({
   ETH_NAME_DURATION: z.coerce.number().int().positive().default(2_419_200),
   /** The registrar's minimum commitment age, waited out between the two steps */
   COMMITMENT_WAIT_SECONDS: z.coerce.number().int().nonnegative().default(60),
+  /** How long a commitment stays usable; past this the registrar reverts and a new one is needed */
+  COMMITMENT_MAX_AGE_SECONDS: z.coerce.number().int().positive().default(300),
   /** Relayer key that submits `bridge.verify`; a Privy server wallet replaces it in production */
   RELAYER_KEY: hex,
   PRIVY_APP_ID: z.string(),

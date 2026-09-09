@@ -48,6 +48,15 @@ unreadable and cannot be a label anyone would ask for. So the mirror names the *
 wallet must hold a live masked record in the platform domain. The open branch under `www` refuses to
 answer for a masked record at all, so the two never leak into each other.
 
+The mirror reads the **root** instance, so the private name is an exact alias of the person's own name:
+`alice.com.discord.private-www.ketsuban.eth` answers with the same address, the same answer and the same
+profile records as `alice.ketsuban.eth`. It exists only while both records are live, which is what makes
+it a statement — this person is on Discord — rather than a redirect.
+
+Nothing about the account itself is published. The stored name is `maskName(handle, viewCode)`, a
+one-time pad over the handle exactly as the platform writes it, discriminator and all: `slayer69` and
+`peersky#0` are equally invisible, and a view code is the only thing that opens either.
+
 ## Reserved labels
 
 `www`, `@`, `private-www` and `private@` are mounted at the root, so nobody can be called them. The flat

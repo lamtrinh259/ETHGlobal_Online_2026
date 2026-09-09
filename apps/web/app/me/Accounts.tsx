@@ -11,6 +11,8 @@ import { apiFor, useContracts } from "@/lib/hooks";
 
 type Props = {
   links: WalletDashboard["links"];
+  /** The handle this wallet holds, if any: a private account is named after it */
+  handle?: string;
   /** The domain of a record that was published and has not reached the index yet */
   awaiting?: string;
   onPublished: (domain: string) => void;
@@ -20,7 +22,7 @@ type Props = {
  * One card for one subject: the accounts that show how you know the people you vouch for. Connecting
  * is a Privy step, attesting is a signature, and both live on the same row so the state is obvious.
  */
-export function Accounts({ links, awaiting, onPublished }: Props) {
+export function Accounts({ links, handle, awaiting, onPublished }: Props) {
   const config = useWebConfig();
   const api = useMemo(() => apiFor(config), [config]);
   // What the deployment actually holds, read from the chain through the API. The browser's own config
@@ -65,7 +67,9 @@ export function Accounts({ links, awaiting, onPublished }: Props) {
                         <code>{onChain.ensName}</code> · {onChain.optedIn ? "private" : "public"}
                       </>
                     ) : onChain.nameless === "not-a-label" ? (
-                      "attested · public, but an email address cannot be an ENS label"
+                      "attested · public, but this handle cannot be an ENS label"
+                    ) : onChain.optedIn && !handle ? (
+                      "attested · private · claim your name below and this gets one too"
                     ) : (
                       "attested · private"
                     )}

@@ -149,6 +149,7 @@ export function Dashboard() {
       <Step n={2} title="Your accounts" state={liveLinks.length > 0 ? "done" : "now"}>
         <Accounts
           links={d.links}
+          handle={handle}
           awaiting={awaiting}
           onPublished={(domain) => {
             setAwaiting(domain);

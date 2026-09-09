@@ -311,7 +311,7 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ label, wallet }),
         })
-      )) as { label: string; readyAt?: number; owner?: string; txHash?: string };
+      )) as { label: string; readyAt?: number; retryAt?: number; owner?: string; txHash?: string };
     },
 
     /** The key a view code is encrypted to, so only the enclave can open a disclosure. */

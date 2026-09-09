@@ -78,6 +78,15 @@ describe("Accounts", () => {
     expect(row).not.toHaveTextContent("public");
   });
 
+  it("says a private account gets its name once the person claims one", () => {
+    // The private branch names an account after its holder, so without a handle there is nothing to
+    // name it after. Saying that beats a bare "private" the person cannot act on.
+    render(
+      <Accounts links={[link("google.com", { optedIn: true, ensName: null })]} onPublished={vi.fn()} />
+    );
+    expect(screen.getByTestId("account-google")).toHaveTextContent("claim your name below");
+  });
+
   it("still offers to attest into a namespace nobody has deployed yet", () => {
     // Nobody can deploy every mail host up front, so the relay mounts one during the attestation. The
     // row offers the action rather than turning the person away.

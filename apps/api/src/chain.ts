@@ -482,22 +482,49 @@ export class Chain {
    * The relay pays, in a token it can mint, which is only true of a test chain.
    */
   async ethNameCommit(label: string, owner: Address): Promise<{ readyAt: number }> {
+    return { readyAt: this.readyAt((await this.usableCommitment(label, owner)).at) };
+  }
+
+  /**
+   * The commitment for this registration, made fresh when there is none or the one on chain has aged
+   * out of the registrar's window. Outside that window `register` reverts with no reason at all, so the
+   * age is checked here rather than discovered as a failure someone has already paid for.
+   */
+  private async usableCommitment(label: string, owner: Address): Promise<{ at: number }> {
     const registrar = this.requireRegistrar();
     const commitment = await this.publicClient.readContract({
       address: registrar,
       abi: ethRegistrarAbi,
       functionName: "makeCommitment",
-      args: [label, owner, this.nameSecret(label, owner), zeroAddress, zeroAddress, this.nameDuration(), zeroHash],
+      args: [
+        label,
+        owner,
+        this.nameSecret(label, owner),
+        zeroAddress,
+        this.nameResolver(),
+        this.nameDuration(),
+        zeroHash,
+      ],
     });
-    const already = await this.publicClient.readContract({
-      address: registrar,
-      abi: ethRegistrarAbi,
-      functionName: "commitmentAt",
-      args: [commitment],
-    });
-    const at =
-      already > 0n ? Number(already) : await this.commitNow(registrar, commitment);
-    return { readyAt: at + this.config.COMMITMENT_WAIT_SECONDS };
+    const already = Number(
+      await this.publicClient.readContract({
+        address: registrar,
+        abi: ethRegistrarAbi,
+        functionName: "commitmentAt",
+        args: [commitment],
+      })
+    );
+    const usable = already > 0 && this.now() - already < this.config.COMMITMENT_MAX_AGE_SECONDS;
+    return { at: usable ? already : await this.commitNow(registrar, commitment) };
+  }
+
+  /** A few seconds of slack: block timestamps lag wall clock, and one second early is a revert. */
+  private readyAt(committedAt: number): number {
+    return committedAt + this.config.COMMITMENT_WAIT_SECONDS + 15;
+  }
+
+  private now(): number {
+    return Math.floor(Date.now() / 1000);
   }
 
   private async commitNow(registrar: Address, commitment: Hex): Promise<number> {
@@ -516,8 +543,14 @@ export class Chain {
     return Number(at);
   }
 
-  async ethNameRegister(label: string, owner: Address): Promise<{ owner: Address; txHash: Hex }> {
+  async ethNameRegister(
+    label: string,
+    owner: Address
+  ): Promise<{ owner: Address; txHash: Hex } | { retryAt: number }> {
     const registrar = this.requireRegistrar();
+    // Too new or aged out: the caller waits rather than paying for a revert with nothing to read.
+    const readyAt = this.readyAt((await this.usableCommitment(label, owner)).at);
+    if (this.now() < readyAt) return { retryAt: readyAt };
     const token = this.config.PAYMENT_TOKEN;
     if (!token) throw new Error("registering a name needs PAYMENT_TOKEN");
     const duration = this.nameDuration();
@@ -550,16 +583,33 @@ export class Chain {
       functionName: "approve",
       args: [registrar, price],
     });
-    const txHash = await this.walletClient.writeContract({
-      chain: this.walletClient.chain,
+    // Simulate first: gas estimation on a revert often comes back without the reason attached, and
+    // "register reverted" tells the person nothing about waiting a few more seconds.
+    const call = {
       account: this.walletClient.account!,
       address: registrar,
       abi: ethRegistrarAbi,
       functionName: "register",
-      args: [label, owner, this.nameSecret(label, owner), zeroAddress, zeroAddress, duration, token, zeroHash],
+      args: [label, owner, this.nameSecret(label, owner), zeroAddress, this.nameResolver(), duration, token, zeroHash],
+    } as const;
+    await this.publicClient.simulateContract(call);
+    const txHash = await this.walletClient.writeContract({
+      ...call,
+      chain: this.walletClient.chain,
     });
     await this.wait(txHash);
     return { owner, txHash };
+  }
+
+  /**
+   * The resolver a registered name starts with. The registrar reverts, with no reason, when both the
+   * subregistry and the resolver are zero, and the stock PermissionedResolver is the useful answer: the
+   * name works from the moment it is registered.
+   */
+  private nameResolver(): Address {
+    const resolver = this.config.PERMISSIONED_RESOLVER;
+    if (!resolver) throw new Error("registering a name needs PERMISSIONED_RESOLVER");
+    return resolver;
   }
 
   private requireRegistrar(): Address {

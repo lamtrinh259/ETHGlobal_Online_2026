@@ -93,12 +93,19 @@ export function useClaimEthName(api: Api, onDone: () => void) {
   const mutation = useMutation({
     mutationFn: async ({ label, wallet }: { label: string; wallet: Address }) => {
       const committed = await api.claimEthName(label, wallet, "commit");
-      const readyAt = (committed.readyAt ?? 0) * 1000;
-      setWaitingUntil(readyAt);
-      const left = readyAt - Date.now();
-      if (left > 0) await new Promise((r) => setTimeout(r, left + 2000));
-      setWaitingUntil(undefined);
-      return api.claimEthName(label, wallet, "finish");
+      let readyAt = (committed.readyAt ?? 0) * 1000;
+      // The registrar's window has a floor and a ceiling; the relay says when to come back, and says it
+      // again if the commitment aged out while we waited.
+      for (let attempt = 0; attempt < 3; attempt++) {
+        setWaitingUntil(readyAt);
+        const left = readyAt - Date.now();
+        if (left > 0) await new Promise((r) => setTimeout(r, left + 1000));
+        setWaitingUntil(undefined);
+        const done = await api.claimEthName(label, wallet, "finish");
+        if (!done.retryAt) return done;
+        readyAt = done.retryAt * 1000;
+      }
+      throw new Error("the registrar kept asking us to wait; try again in a minute");
     },
     onSuccess: onDone,
     onError: () => setWaitingUntil(undefined),

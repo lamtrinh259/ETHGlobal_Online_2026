@@ -352,8 +352,10 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     const req = await nameRequest(c);
     if ("error" in req) return req.error;
     try {
-      const { owner, txHash } = await chain.ethNameRegister(req.label, req.wallet);
-      return c.json({ label: req.label, owner, txHash });
+      const done = await chain.ethNameRegister(req.label, req.wallet);
+      // The commitment is not usable yet — too new, or aged out and replaced. Come back at `retryAt`.
+      if ("retryAt" in done) return c.json({ label: req.label, retryAt: done.retryAt }, 202);
+      return c.json({ label: req.label, owner: done.owner, txHash: done.txHash });
     } catch (e) {
       return c.json({ error: explainRevert(e) }, 502);
     }

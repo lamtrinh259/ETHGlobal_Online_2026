@@ -215,3 +215,16 @@ curl -s $API/healthz | jq .config
 
 Most deployment problems are one variable naming the wrong contract, and this is how to see that without
 shell access to the container. `GET /v1/preflight` goes further and checks the chain agrees.
+
+## Handing someone a test `.eth`
+
+`linkOwnName` only accepts a label the caller owns on the ENSv2 registry, which on a test deployment
+nobody does. `POST /v1/eth-name` registers one for a wallet that already holds a name here, and
+`POST /v1/eth-name/finish` completes it once the registrar's commitment has aged; the relay pays in the
+mock payment token, which it mints. It needs `ETH_REGISTRAR`, `PAYMENT_TOKEN` and `PERMISSIONED_RESOLVER`.
+
+Two details the registrar does not document: `register` reverts with **no reason at all** when both the
+subregistry and the resolver are zero, so a resolver is always passed; and the commitment is only usable
+inside a window, roughly a minute after it was made until a few minutes later. Outside that window the
+revert is again empty, so the relay checks the age itself and answers `202 {retryAt}` rather than
+spending on a call that cannot succeed.

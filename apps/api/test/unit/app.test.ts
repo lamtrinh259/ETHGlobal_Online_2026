@@ -1619,6 +1619,21 @@ describe("POST /v1/eth-name", () => {
     expect(await done.json()).toMatchObject({ label: "alice-test", owner: user.account.address });
   });
 
+  it("asks the caller to come back when the commitment is not usable yet", async () => {
+    // The registrar's window has a floor and a ceiling, and outside it `register` reverts with nothing
+    // to read. The relay says when to try again instead of spending on that.
+    const { chain } = fakeChain({ byWallet: [held] });
+    chain.ethLabelOwner = vi.fn(async () => zeroAddress);
+    chain.ethNameRegister = vi.fn(async () => ({ retryAt: NOW + 75 }));
+    const res = await app(chain, env2).request("/v1/eth-name/finish", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ label: "alice-test", wallet: user.account.address }),
+    });
+    expect(res.status).toBe(202);
+    expect(await res.json()).toEqual({ label: "alice-test", retryAt: NOW + 75 });
+  });
+
   it("only for someone this deployment already knows, and only for a free label", async () => {
     const { chain } = fakeChain({ byWallet: [] });
     chain.ethLabelOwner = vi.fn(async () => zeroAddress);
