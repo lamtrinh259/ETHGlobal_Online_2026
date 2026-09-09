@@ -90,6 +90,7 @@ Sepolia addresses and placeholders for the secrets:
 |---|---|
 | `RPC_URL`, `CHAIN_ID` | Sepolia RPC, `11155111` |
 | `MULTIPASS`, `BRIDGE`, `FACTORY` | from `deployments/11155111.json` |
+| `NAMESPACE_FACTORY` | `0xf9B9691818bA23315Fb9E2F89ffA0866bdd549E1` — the factory holding the DNS namespace, without which platform accounts have no name |
 | `RELAYER_KEY` | funded relayer EOA (Privy server wallet later) |
 | `PRIVY_APP_ID`, `PRIVY_VERIFICATION_KEY_JWK` | app id, P-256 JWK from the JWKS endpoint |
 | `NAME_DOMAINS` | comma-separated instance domains |
@@ -179,3 +180,25 @@ under this deployment, so text records and aliases here are not safe against who
 Multipass ownership and the registrar are on the current operator, so records themselves cannot be
 forged. Fixing it means a fresh resolver proxy and fresh instances, which changes every instance
 address; until then treat this deployment as a demo.
+
+## The DNS namespace
+
+Sepolia carries two factories. The original one made the root instance and the flat platform mounts;
+`0xf9B9691818bA23315Fb9E2F89ffA0866bdd549E1` carries the DNS namespace described in
+[namespace.md](namespace.md), because the first predates `createMirror` and cannot build it. The bridge
+keeps using the original and skips quietly for domains it does not know, so records written into the new
+instances go through unchanged. The API reads both, and the later one wins for a domain both know.
+
+Adding a platform or a mail host later is one re-runnable command:
+
+```bash
+DEPLOYMENT_FILE=deployments/11155111.json FACTORY=0xf9B9691818bA23315Fb9E2F89ffA0866bdd549E1 \
+REGISTRAR=0x8583AD4a0F59Ba45C7E201318C6F774F31f7bbC8 PRIVATE_KEY=$OPERATOR_KEY \
+WWW_NAMES=reddit.com AT_NAMES=proton.me \
+forge script script/AddNamespace.s.sol --rpc-url $SEPOLIA_RPC --broadcast
+```
+
+Deployed so far: `x.com`, `github.com`, `google.com`, `discord.com`, `linkedin.com`, `t.me` under `www`,
+and `gmail.com`, `peeramid.xyz` under the at-sign level, each with its private mirror. The whole set cost
+about 0.054 ETH. Every domain's registrar is `0x8583AD4a0F59Ba45C7E201318C6F774F31f7bbC8`, so the API
+signs for them only once its `REGISTRAR_KEY` is the key deriving that address.
