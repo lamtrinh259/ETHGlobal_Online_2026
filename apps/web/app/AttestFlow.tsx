@@ -16,6 +16,7 @@ import { apiFor, useAttest, useDeliver, useNameStatus, useNonce } from "@/lib/ho
 import { isNameDomainFor, parentNameFor } from "@/lib/journey";
 import { buildIntent, intentTypedData, toWire } from "@/lib/intent";
 import { loadOrCreateViewKey, openViewCode, saveViewCode } from "@/lib/keys";
+import { Switch } from "./Switch";
 import { useWebConfig } from "./providers";
 import { fmtUtc, short } from "./ui";
 
@@ -270,10 +271,16 @@ export function AttestFlow({
             </label>
           </>
         ) : (
-          <label>
-            <input type="checkbox" checked={optIn} onChange={(e) => setOptIn(e.target.checked)} /> keep the
-            account private — the chain records that you control one, not which
-          </label>
+          <Switch
+            checked={optIn}
+            onChange={setOptIn}
+            label="Keep my handle private"
+            hint={
+              optIn
+                ? "On: the record proves you control an account here, and you decide who can read which one."
+                : "Off: your handle is written in the clear and anyone can read it."
+            }
+          />
         )}
       </fieldset>
 
@@ -304,7 +311,11 @@ export function AttestFlow({
       )}
       {result && (
         <div className="done" data-testid="published">
-          {txHash ? (
+          {deliver.error ? (
+            <p>
+              <strong>Signed, but not written.</strong> The relay refused it, so nothing changed on chain.
+            </p>
+          ) : txHash ? (
             <p>
               <strong>Published.</strong>{" "}
               {isNameDomain && parentName ? (

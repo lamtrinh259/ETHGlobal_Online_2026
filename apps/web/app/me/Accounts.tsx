@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useLinkAccount, usePrivy } from "@privy-io/react-auth";
 import { AttestFlow } from "@/app/AttestFlow";
+import { Modal } from "@/app/Modal";
 import type { WalletDashboard } from "@/lib/api";
 import { connectedAccounts } from "@/lib/identity";
 
@@ -72,15 +73,20 @@ export function Accounts({ links, onPublished }: Props) {
       )}
 
       {attesting && (
-        <AttestFlow
-          key={attesting}
-          fixedDomain={attesting}
+        <Modal
           title={`Attest ${connected.find((a) => a.domain === attesting)?.label ?? attesting}`}
-          onPublished={() => {
-            setAttesting(undefined);
-            onPublished();
-          }}
-        />
+          onClose={() => setAttesting(undefined)}
+        >
+          <AttestFlow
+            key={attesting}
+            fixedDomain={attesting}
+            title=""
+            onPublished={() => {
+              setAttesting(undefined);
+              onPublished();
+            }}
+          />
+        </Modal>
       )}
     </div>
   );

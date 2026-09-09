@@ -16,6 +16,8 @@ identity is Privy (embedded wallet, identity token); the view-code key stays on 
 | `/v/<name>` | anyone | One name's verification card, server-rendered (`generateMetadata` for unfurls). `?viewCode=0x…&links=x` discloses opted-in links. Both this and `/p/<handle>` cross-check the name through the ENSv2 UniversalResolver (`EnsProof`). |
 | `/api/health` | ops | Readiness probe for the container HEALTHCHECK. |
 
+Attesting an account happens in a `Modal`: signing is a decision that interrupts, not a section of the
+page. Privacy is a `Switch`, on by default, worded as what it does — you decide who can read your handle.
 `Step` is the shared numbered group used by the profile and the claim journey. `AttestFlow` disables publishing when `GET /v1/nonce` reports the domain cannot be written (not
 initialised, not active, or this attester is not its registrar) and shows that reason, so nobody signs
 into a revert. `AttestFlow` is the single publishing component — it checks handle availability as you type (`GET /v1/name/:domain/:handle`)

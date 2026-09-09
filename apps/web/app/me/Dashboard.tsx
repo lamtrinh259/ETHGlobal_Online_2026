@@ -204,7 +204,14 @@ export function Dashboard() {
             </details>
           </>
         ) : (
-          <p className="muted">Claim your name first; references attach to it.</p>
+          <>
+            <p className="muted">References attach to a name, so that comes first.</p>
+            <p>
+              <Link href="/claim" className="primary">
+                Claim your name →
+              </Link>
+            </p>
+          </>
         )}
 
         {d.given.length > 0 && (
