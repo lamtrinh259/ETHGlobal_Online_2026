@@ -265,6 +265,49 @@ describe("api e2e", () => {
     });
   });
 
+  it("names a private account after the person, and answers for it as the private branch", async () => {
+    // The account itself is a one-time pad on chain. The name says the holder of alice.<root> is on
+    // Telegram and stops there, which is the whole claim a verifier gets.
+    const now = Math.floor(Date.now() / 1000);
+    const intent = baseIntent(user.account, now, {
+      domain: "t.me",
+      optIn: true,
+      exp: BigInt(now + 3600),
+    });
+    const idToken = privy.mint({ sub: user.did, linked: user.linked, now });
+    const req = toWire(await signedAttestRequest(user.account, intent, idToken, 31337, deployment.multipass));
+    const attested = await (
+      await fetch(`${API}/v1/attest`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(req),
+      })
+    ).json();
+    expect(attested.error).toBeUndefined();
+    expect(attested.record.payload).not.toBe(`0x${"00".repeat(32)}`);
+
+    await (
+      await fetch(`${API}/v1/cre/delivery`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-delivery-token": "e2e-delivery-token-0123456789" },
+        body: JSON.stringify(attested),
+      })
+    ).json();
+
+    const dash = await (await fetch(`${API}/v1/wallet/${user.account.address}`)).json();
+    const link = dash.links.find((l: { domain: string }) => l.domain === "t.me");
+    const privateName = `alice.me.t.private-www.${deployment.instanceParent}`;
+    expect(link).toMatchObject({ optedIn: true, ensName: privateName });
+    // Nothing readable about the account is published: the stored name is the pad.
+    expect(link.name).toBe("");
+
+    const read = await (await fetch(`${API}/v1/verify/${privateName}`)).json();
+    expect(read).toMatchObject({ branch: "private", status: "active", wallet: user.account.address });
+    // The open branch has nothing to say about her: she never attested one there.
+    const open = await (await fetch(`${API}/v1/verify/alice.me.t.www.${deployment.instanceParent}`)).json();
+    expect(open.status).toBe("inactive");
+  });
+
   it("mounts a namespace nobody deployed, on demand, for an ordinary mail host", async () => {
     // `nowhere.test` is in no deploy list. A person with an address there attests, and the relay builds
     // the levels, the instance and the mirror before handing back the signature.
