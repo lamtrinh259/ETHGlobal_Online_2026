@@ -126,7 +126,9 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     termSeconds: config.RECORD_TERM_SECONDS,
   });
 
-  app.get("/healthz", (c) => c.json({ ok: true, relayer: chain.relayer, chainId: config.CHAIN_ID }));
+  app.get("/healthz", (c) =>
+    c.json({ ok: true, relayer: chain.relayer, chainId: config.CHAIN_ID, index: chain.indexStatus() })
+  );
 
   /** Instances plus the two contracts a wallet writes to directly (profile records, own-name alias). */
   app.get("/v1/instances", async (c) =>

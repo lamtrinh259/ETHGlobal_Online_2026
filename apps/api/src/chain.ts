@@ -18,6 +18,8 @@ import { privateKeyToAccount } from "viem/accounts";
 import { MultipassAbi, fromBytes32, toBytes32 } from "@peeramid-labs/multipass-client";
 import type { OnchainState, RegisterMessage } from "@ketsuban/registrar";
 import { bridgeAbi, factoryAbi, registryAbi, resolverAbi } from "./abi.js";
+import { RpcSource } from "./logs.js";
+import { Indexer, type IndexStatus, type IndexedRecord } from "./indexer.js";
 import type { Config } from "./config.js";
 
 /** One Multipass record as seen in Registered/Renewed logs, with its current liveness */
@@ -54,6 +56,7 @@ export function dnsEncode(name: string): Hex {
 /** Everything the API reads from or writes to the chain, behind one object so tests can fake it */
 export class Chain {
   readonly publicClient: PublicClient;
+  readonly indexer: Indexer;
   readonly walletClient: WalletClient;
   readonly relayer: Address;
 
@@ -69,6 +72,12 @@ export class Chain {
     this.relayer = account.address;
     this.publicClient = createPublicClient({ chain, transport });
     this.walletClient = createWalletClient({ chain, transport, account });
+    this.indexer = new Indexer(
+      new RpcSource(this.publicClient, BigInt(config.RPC_LOG_WINDOW)),
+      config.MULTIPASS,
+      BigInt(config.DEPLOY_BLOCK),
+      { dataDir: config.DATA_DIR || undefined }
+    );
   }
 
   async readOnchain(wallet: Address, domain: string): Promise<OnchainState> {
@@ -131,6 +140,10 @@ export class Chain {
     });
     const receipt = await this.publicClient.waitForTransactionReceipt({ hash });
     if (receipt.status !== "success") throw new Error(`verify reverted in ${hash}`);
+    // Read-your-writes: the record this call created must be visible to the next request.
+    await this.indexer
+      .catchUp(receipt.blockNumber)
+      .catch((err) => console.error(`index catch-up failed · ${err.message}`));
     return hash;
   }
 
@@ -253,102 +266,30 @@ export class Chain {
     return hash;
   }
 
+  /** Records this wallet holds, from the index. */
   async listRecordsByWallet(wallet: Address): Promise<(ListedRecord & { domain: string })[]> {
-    const fromBlock = BigInt(this.config.DEPLOY_BLOCK);
-    const logs = await this.publicClient.getLogs({
-      address: this.config.MULTIPASS,
-      event: getAbiItem({ abi: MultipassAbi, name: "Registered" }),
-      fromBlock,
-      toBlock: "latest",
-    });
-    const w = wallet.toLowerCase();
-    const seen = new Set<string>();
-    const out: (ListedRecord & { domain: string })[] = [];
-    for (const l of logs) {
-      const rec = l.args.NewRecord;
-      if (!rec || rec.wallet.toLowerCase() !== w) continue;
-      const domain = fromBytes32(l.args.domainName as Hex);
-      const key = `${domain}:${rec.id}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      const [ok, r] = await this.publicClient.readContract({
-        address: this.config.MULTIPASS,
-        abi: MultipassAbi,
-        functionName: "resolveRecord",
-        args: [
-          {
-            name: zeroHash,
-            id: rec.id,
-            wallet: zeroAddress,
-            domainName: l.args.domainName as Hex,
-            targetDomain: zeroHash,
-          },
-        ],
-      });
-      if (!ok || r.wallet.toLowerCase() !== w) continue;
-      out.push({
-        domain,
-        name: fromBytes32(r.name),
-        id: r.id,
-        wallet: r.wallet,
-        payload: r.payload,
-        validUntil: r.validUntil,
-        nonce: r.nonce,
-        live: r.validUntil > BigInt(Math.floor(Date.now() / 1000)),
-      });
-    }
-    return out;
+    return this.indexer.recordsByWallet(wallet).map(toListed);
   }
 
-  /** Every record ever written to `domain` (Registered + Renewed logs), latest state per id, with liveness */
+  /** Every record in `domain`, latest state per id, newest expiry first. */
   async listRecords(domain: string): Promise<ListedRecord[]> {
-    const domainB = toBytes32(domain);
-    const fromBlock = BigInt(this.config.DEPLOY_BLOCK);
-    const [registered, renewed] = await Promise.all([
-      this.publicClient.getLogs({
-        address: this.config.MULTIPASS,
-        event: getAbiItem({ abi: MultipassAbi, name: "Registered" }),
-        args: { domainName: domainB },
-        fromBlock,
-        toBlock: "latest",
-      }),
-      this.publicClient.getLogs({
-        address: this.config.MULTIPASS,
-        event: getAbiItem({ abi: MultipassAbi, name: "Renewed" }),
-        args: { domainName: domainB },
-        fromBlock,
-        toBlock: "latest",
-      }),
-    ]);
-    const ids = new Set<Hex>();
-    for (const l of registered) if (l.args.NewRecord) ids.add(l.args.NewRecord.id);
-    for (const l of renewed) if (l.args.id) ids.add(l.args.id);
-    const now = BigInt(Math.floor(Date.now() / 1000));
-    const out: ListedRecord[] = [];
-    for (const id of ids) {
-      const [ok, r] = await this.publicClient.readContract({
-        address: this.config.MULTIPASS,
-        abi: MultipassAbi,
-        functionName: "resolveRecord",
-        args: [{ name: zeroHash, id, wallet: zeroAddress, domainName: domainB, targetDomain: zeroHash }],
-      });
-      if (!ok) continue;
-      out.push({
-        name: fromBytes32(r.name),
-        id: r.id,
-        wallet: r.wallet,
-        payload: r.payload,
-        validUntil: r.validUntil,
-        nonce: r.nonce,
-        live: r.validUntil > now,
-      });
-    }
-    return out.sort((a, b) => Number(b.validUntil - a.validUntil));
+    return this.indexer.recordsByDomain(domain).map(toListed);
   }
 
+  indexStatus(): IndexStatus {
+    return this.indexer.status();
+  }
+
+  /**
+   * Wait for the receipt, then read the new blocks: a record this service just wrote must be visible
+   * to the request that follows it, not only after the next poll.
+   */
   private async wait(hash: Hex) {
     const receipt = await this.publicClient.waitForTransactionReceipt({ hash });
     if (receipt.status !== "success") throw new Error(`transaction reverted: ${hash}`);
+    await this.indexer
+      .catchUp(receipt.blockNumber)
+      .catch((err) => console.error(`index catch-up failed · ${err.message}`));
   }
 
   /** ENSIP-10 read through the instance resolver */
@@ -407,4 +348,18 @@ export type ChainReader = Pick<
   | "listRecordsByWallet"
   | "balance"
   | "sendEth"
+  | "indexStatus"
 >;
+
+function toListed(r: IndexedRecord): ListedRecord & { domain: string } {
+  return {
+    domain: r.domain,
+    name: r.name,
+    id: r.id,
+    wallet: r.wallet,
+    payload: r.payload,
+    validUntil: r.validUntil,
+    nonce: r.nonce,
+    live: r.validUntil > BigInt(Math.floor(Date.now() / 1000)),
+  };
+}

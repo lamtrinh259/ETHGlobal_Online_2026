@@ -26,6 +26,26 @@ Vouch instances: when a delivery registers a record in the root name domain (`NA
 
 See `src/config.ts`. Addresses come from env or from a forge deployment artifact via `DEPLOYMENT_FILE`.
 
+## The index
+
+Record queries never scan the chain on request. `Indexer` tails three Multipass events
+(`Registered`, `Renewed`, `nameDeleted`) from `DEPLOY_BLOCK` in windows of `RPC_LOG_WINDOW`, halving
+the window whenever the provider refuses a range, and keeps the current state of every record in
+memory. `GET /healthz` reports `index: {indexedBlock, head, records, synced}`.
+
+```mermaid
+flowchart LR
+  RPC[(dRPC eth_getLogs)] -->|windowed, retried| I[Indexer]
+  I -->|snapshot| V[(DATA_DIR/records.json)]
+  V -->|restore on boot| I
+  I --> Q[/v1/wallet · /v1/vouches · /v1/standing/]
+```
+
+It runs inside this service on purpose: one container, one volume, nothing else to deploy. The
+snapshot is rewritten atomically after every tick, so a restart resumes from the last indexed block.
+A snapshot older than `DEPLOY_BLOCK` is ignored, which is how a redeploy against new contracts starts
+clean.
+
 ## Troubleshooting a deploy
 
 A missing or malformed variable makes the container exit 1 with one line per problem

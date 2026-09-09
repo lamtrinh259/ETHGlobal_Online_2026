@@ -50,6 +50,12 @@ export const configSchema = z.object({
   PERMISSIONED_RESOLVER: address.optional(),
   /** Registrar address the relay initialises new vouch domains with */
   REGISTRAR_ADDRESS: address.optional(),
+  /** Window size for log reads; providers cap wide ranges and truncate silently */
+  RPC_LOG_WINDOW: z.coerce.number().int().positive().default(10_000),
+  /** Where the in-process index persists its snapshot; empty keeps it in memory only */
+  DATA_DIR: z.string().default("/data"),
+  /** How often the index reads new blocks */
+  INDEX_POLL_SECONDS: z.coerce.number().int().positive().default(15),
   /** Block the factory was deployed at; record listing scans logs from here */
   DEPLOY_BLOCK: z.coerce.number().int().nonnegative().default(0),
   /** Prefix of per-candidate vouch domains (`~alice`) */

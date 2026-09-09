@@ -219,6 +219,19 @@ describe("api e2e", () => {
     const delivered = await (await post("/v1/cre/delivery", attested, tok)).json();
     expect(delivered.ok).toBe(true);
 
+    // The index must answer for a record this service wrote a moment ago, with no poll in between.
+    const health = await (await fetch(`${API}/healthz`)).json();
+    expect(health.index).toMatchObject({ synced: true });
+    const aw = await (await fetch(`${API}/v1/wallet/${user.account.address}`)).json();
+    const bw = await (await fetch(`${API}/v1/wallet/${bob.account.address}`)).json();
+    console.log(
+      "DEBUG idx",
+      JSON.stringify(health.index),
+      "alice",
+      JSON.stringify({ n: aw.names, l: aw.links, g: aw.given }),
+      "bob",
+      JSON.stringify({ n: bw.names, l: bw.links, g: bw.given })
+    );
     const vouches = await (await fetch(`${API}/v1/vouches/alice`)).json();
     expect(vouches.vouches).toHaveLength(1);
     expect(vouches.vouches[0]).toMatchObject({

@@ -11,6 +11,10 @@ networks:
     name: ketsuban_api
     driver: bridge
 
+volumes:
+  # The index snapshot: a restart resumes from the last block it read instead of rescanning history.
+  ketsuban_index:
+
 services:
   api:
     build:
@@ -19,6 +23,8 @@ services:
     networks: [ketsuban_api]
     expose: ["8787"]
     restart: unless-stopped
+    volumes:
+      - ketsuban_index:/data
     environment:
       PORT: "8787"
       RPC_URL: ${RPC_URL}
@@ -30,6 +36,15 @@ services:
       PRIVY_APP_ID: ${PRIVY_APP_ID}
       PRIVY_VERIFICATION_KEY_JWK: ${PRIVY_VERIFICATION_KEY_JWK}
       NAME_DOMAINS: ${NAME_DOMAINS}
+      DEPLOY_BLOCK: ${DEPLOY_BLOCK}
+      DATA_DIR: /data
+      INDEX_POLL_SECONDS: ${INDEX_POLL_SECONDS:-15}
+      RPC_LOG_WINDOW: ${RPC_LOG_WINDOW:-10000}
+      REGISTRY: ${REGISTRY:-}
+      PERMISSIONED_RESOLVER: ${PERMISSIONED_RESOLVER:-}
+      REGISTRAR_ADDRESS: ${REGISTRAR_ADDRESS:-}
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
+      GAS_TOPUP_WEI: ${GAS_TOPUP_WEI:-0}
       DELIVERY_TOKEN: ${DELIVERY_TOKEN}
       RECORD_TERM_SECONDS: ${RECORD_TERM_SECONDS:-2592000}
       # Node registrar fallback only; leave unset when the CRE enclave signs.

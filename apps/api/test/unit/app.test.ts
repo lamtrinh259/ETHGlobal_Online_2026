@@ -112,6 +112,12 @@ function fakeChain(state: Partial<State> = {}) {
         s.names[`${domain}/${handle}`] ?? { taken: false, wallet: null, live: false }
     ),
     listRecordsByWallet: vi.fn(async () => s.byWallet),
+    indexStatus: vi.fn(() => ({
+      indexedBlock: 1_000,
+      head: 1_000,
+      records: (s.byWallet ?? []).length,
+      synced: true,
+    })),
     balance: vi.fn(async () => s.balance),
     sendEth: vi.fn(async (to: Address, value: bigint) => {
       s.sent.push({ to, value });
@@ -238,7 +244,12 @@ describe("GET /healthz", () => {
     const { chain } = fakeChain();
     const res = await app(chain).request("/healthz");
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ ok: true, relayer: chain.relayer, chainId: 31337 });
+    expect(await res.json()).toEqual({
+      ok: true,
+      relayer: chain.relayer,
+      chainId: 31337,
+      index: { indexedBlock: 1_000, head: 1_000, records: 0, synced: true },
+    });
   });
 
   it("GET /v1/instances lists instances with the contracts a wallet writes to", async () => {
