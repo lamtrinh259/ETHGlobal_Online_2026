@@ -10,7 +10,7 @@ identity is Privy (embedded wallet, identity token); the view-code key stays on 
 | `/p/<handle>` | verifier / agent | The reference page: identity, answers, linked accounts, humanity, graded by a policy (`?answers=&minLinks=&humanity=1`), with the raw names to resolve yourself. |
 | `/verify` | verifier | Policy presets (hiring, landlord, DAO, open) or custom → `/p/<handle>?…&preset=`. |
 | `/vouch` | voucher | Candidate lookup; checks the name is live before continuing. |
-| `/vouch/<handle>` | voucher | Four labelled steps, each saying what happens and why (`vouchSteps`): sign in → prove one real person (pending partner access) → show how you know the candidate → write and sign as `<you>.<handle>.<root>`, then optionally add a long-form letter (an ENS `description` record the voucher signs themselves). A name of the voucher's own is not required (the record lives in the candidate's vouch domain); a held one is reused as the label, otherwise claiming it is the CTA after publishing. Resumes from the wallet's live records; an existing statement is shown and superseded on republish. |
+| `/vouch/<handle>` | voucher | Four labelled steps, each saying what happens and why (`vouchSteps`): sign in → prove one real person (pending partner access) → show how you know the candidate (pick one of the accounts already connected; linking lives in the profile) → write and sign as `<you>.<handle>.<root>`, then optionally add a long-form letter (an ENS `description` record the voucher signs themselves). A name of the voucher's own is not required (the record lives in the candidate's vouch domain); a held one is reused as the label, otherwise claiming it is the CTA after publishing. Resumes from the wallet's live records; an existing statement is shown and superseded on republish. |
 | `/me` | candidate / voucher | Dashboard for the signed-in wallet: names, linked accounts, references given (`GET /v1/wallet/:address`); edit ENS profile records (`setText` from the wallet), alias your own `.eth` (`AttestationBridge.linkOwnName`), one-shot test gas from the relay (`POST /v1/gas`); privacy card makes per-recipient disclosure links from view codes kept in this browser; "needs attention" lists records expiring within 7 days with renewal links; one row per instance (answer / change / renew); references received plus a copy-paste ask; link accounts inline. |
 | `/v/<name>` | anyone | One name's verification card, server-rendered (`generateMetadata` for unfurls). `?viewCode=0x…&links=x` discloses opted-in links. |
 | `/api/health` | ops | Readiness probe for the container HEALTHCHECK. |
@@ -20,7 +20,7 @@ and turns into "Sign & update" when the wallet already holds a record (the newer
 sequence it. `lib/profile.ts` folds per-name verifications into the page and grades the policy; `lib/journey.ts` derives
 journey progress from the wallet dashboard (both pure, tested).
 
-`lib/` is the pure part (config, intent builder, API client, react-query hooks, browser view key, `chain.ts` wallet writes) — unit-tested;
+`lib/` is the pure part (config, intent builder, API client, react-query hooks, browser view key, `chain.ts` wallet writes, `identity.ts` display name) — unit-tested;
 `app/` holds the shell (`AppShell`, `ThemeToggle`) and the two screens. Privy hooks live only in `app/AttestFlow.tsx`.
 
 ## Develop

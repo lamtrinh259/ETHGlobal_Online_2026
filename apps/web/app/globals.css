@@ -554,3 +554,22 @@ textarea:focus {
   outline: none;
   border-color: var(--flame);
 }
+
+.sh-who {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-sm);
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.sh-who a {
+  color: var(--text-primary);
+  text-decoration: none;
+}
+.sh-who a:hover {
+  color: var(--flame);
+}
+.sh-signout {
+  font-size: 12px;
+  padding: 2px 8px;
+}

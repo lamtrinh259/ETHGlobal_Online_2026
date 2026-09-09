@@ -6,6 +6,7 @@ import { usePrivy, useWallets } from "@privy-io/react-auth";
 import type { Address } from "viem";
 import { AttestFlow, type Published } from "@/app/AttestFlow";
 import { LetterForm } from "./LetterForm";
+import { WorkContext } from "./WorkContext";
 import { useWebConfig } from "@/app/providers";
 import { fmtUtc } from "@/app/ui";
 import { apiFor, useWalletDashboard } from "@/lib/hooks";
@@ -71,13 +72,7 @@ export function VouchFlow({ candidate }: { candidate: string }) {
       {!loading && stage === "signin" && <AttestFlow fixedDomain="x" title="Sign in to begin" hideForm />}
 
       {!loading && stage === "work" && (
-        <>
-          <p className="muted">
-            Link the account you worked from (X, GitHub, Telegram…). The enclave attests control of it; keep
-            it masked if you prefer — only holders of your view code can read which account.
-          </p>
-          <AttestFlow fixedDomain="x" title="Work account" onPublished={() => setLinked(true)} />
-        </>
+        <WorkContext candidate={candidate} onPublished={() => setLinked(true)} />
       )}
 
       {!loading && stage === "statement" && root && (

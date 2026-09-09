@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { ThemeToggle } from "./ThemeToggle";
+import { WhoAmI } from "./WhoAmI";
 import { useWebConfig } from "./providers";
 import { waveChars } from "./ui";
 
@@ -68,6 +69,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </Link>
           ))}
         </nav>
+        <WhoAmI />
         <ThemeToggle />
       </header>
       <main className="sh-body">{children}</main>

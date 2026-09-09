@@ -168,7 +168,7 @@ export function vouchSteps(
       id: "work",
       label: `Show how you know ${candidate}`,
       detail:
-        "Link the account you worked from: X, GitHub, Telegram. Checked inside a secure enclave; it stays masked unless you hand someone a view code.",
+        "Pick the account you worked from among the ones you signed in with. Checked inside a secure enclave; it stays masked unless you hand someone a view code.",
       state: mark("work", at.linked),
     },
     {

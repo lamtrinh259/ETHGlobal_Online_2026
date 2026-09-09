@@ -34,6 +34,10 @@ type Props = {
   hideForm?: boolean;
   /** Only platform (linked-account) domains in the picker */
   platformsOnly?: boolean;
+  /** Restrict the platform picker to these domains (e.g. the ones the user has actually linked) */
+  domainOptions?: string[];
+  /** Show the Privy account-linking buttons (the profile does; journeys send people there instead) */
+  allowLinking?: boolean;
   onPublished?: (p: Published) => void;
 };
 
@@ -50,18 +54,21 @@ export function AttestFlow({
   answerPlaceholder,
   hideForm,
   platformsOnly,
+  domainOptions,
+  allowLinking,
   onPublished,
 }: Props) {
   const config = useWebConfig();
-  const { ready, authenticated, login, logout, user } = usePrivy();
+  const { ready, authenticated, login } = usePrivy();
   const { wallets } = useWallets();
   const { identityToken } = useIdentityToken();
   const { signTypedData } = useSignTypedData();
   const { linkTwitter, linkTelegram, linkGithub, linkDiscord, linkGoogle } = useLinkAccount();
   const api = useMemo(() => apiFor(config), [config]);
 
+  const platforms = domainOptions?.length ? domainOptions : [...PLATFORM_DOMAIN_NAMES];
   const [domain, setDomain] = useState(
-    fixedDomain ?? (platformsOnly ? PLATFORM_DOMAIN_NAMES[0] : config.instances[0]?.domain) ?? ""
+    fixedDomain ?? (platformsOnly ? platforms[0] : config.instances[0]?.domain) ?? ""
   );
   const [handle, setHandle] = useState(fixedHandle ?? "");
   const [answer, setAnswer] = useState("");
@@ -180,9 +187,6 @@ export function AttestFlow({
       {title && <h2>{title}</h2>}
       <p className="row muted">
         <span>
-          signed in as <code>{user?.id}</code>
-        </span>
-        <span>
           wallet <code>{wallet ? short(wallet) : "creating…"}</code>
         </span>
         {nonce.data && (
@@ -190,10 +194,9 @@ export function AttestFlow({
             {nonce.data.exists ? `renewal · next nonce ${nonce.data.next}` : "first record in this domain"}
           </span>
         )}
-        <button onClick={logout}>sign out</button>
       </p>
 
-      {!isNameDomain && (
+      {!isNameDomain && allowLinking && (
         <fieldset>
           <legend>Link an account</legend>
           <div className="row">
@@ -232,7 +235,7 @@ export function AttestFlow({
                 </optgroup>
               )}
               <optgroup label="linked accounts">
-                {PLATFORM_DOMAIN_NAMES.map((d) => (
+                {platforms.map((d) => (
                   <option key={d} value={d}>
                     {d}
                   </option>

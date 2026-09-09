@@ -70,3 +70,9 @@ test("renewal deep link keeps the claim page behind the sign-in gate", async ({ 
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Claim your name");
   await expect(page.locator(".stepper")).toBeVisible();
 });
+
+test("the header carries the identity, not the forms", async ({ page }) => {
+  await page.goto("/claim");
+  await expect(page.getByTestId("who")).toHaveCount(0);
+  await expect(page.locator("main")).not.toContainText("signed in as");
+});

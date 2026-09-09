@@ -219,7 +219,12 @@ export function Dashboard() {
             ))}
           </ul>
         )}
-        <AttestFlow platformsOnly title="Link an account" onPublished={() => void dash.refetch()} />
+        <AttestFlow
+          platformsOnly
+          allowLinking
+          title="Link an account"
+          onPublished={() => void dash.refetch()}
+        />
       </section>
 
       {rootName && <Privacy links={d.links} handle={rootName.name} />}
