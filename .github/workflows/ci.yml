@@ -38,7 +38,8 @@ jobs:
       - run: pnpm --filter @ketsuban/registrar test
       - run: pnpm --filter @ketsuban/contracts test
       - run: pnpm --filter @ketsuban/cre-attest test
-      - run: pnpm --filter @ketsuban/api test
+      # Bounded and verbose: a stall names the test it stalled on instead of timing out the whole job.
+      - run: timeout 360 pnpm --filter @ketsuban/api exec vitest run --coverage --reporter=verbose
       - run: pnpm --filter @ketsuban/web test
 
   e2e:
@@ -55,4 +56,5 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter "./packages/**" run build
       # anvil, the contracts deployed from this source, and the api image: the whole loop from outside.
-      - run: pnpm --filter @ketsuban/api test:e2e
+      # Bounded and verbose: a stall names the test it stalled on instead of timing out the whole job.
+      - run: timeout 360 pnpm --filter @ketsuban/api exec vitest run --coverage --reporter=verbose:e2e
