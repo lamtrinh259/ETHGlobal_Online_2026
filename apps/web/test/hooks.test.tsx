@@ -201,6 +201,13 @@ describe("hooks", () => {
     await waitFor(() => expect(pre.result.current.data?.warnings).toHaveLength(1));
     expect(pre.result.current.data?.ok).toBe(false);
 
+    // Polling only while a record is expected, so the page settles instead of hammering the API.
+    const idle = renderHook(() => useWalletDashboard(api, WALLET), { wrapper: wrapper() });
+    await waitFor(() => expect(idle.result.current.data?.address).toBe(WALLET));
+    const calls = (api.wallet as ReturnType<typeof vi.fn>).mock.calls.length;
+    await new Promise((r) => setTimeout(r, 60));
+    expect((api.wallet as ReturnType<typeof vi.fn>).mock.calls.length).toBe(calls);
+
     const noWallet = renderHook(() => useWalletDashboard(api, undefined), { wrapper: wrapper() });
     expect(noWallet.result.current.fetchStatus).toBe("idle");
     const dash = renderHook(() => useWalletDashboard(api, WALLET), { wrapper: wrapper() });

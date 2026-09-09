@@ -8,13 +8,18 @@ import type { WalletDashboard } from "@/lib/api";
 import { connectedAccounts } from "@/lib/identity";
 import { useWebConfig } from "@/app/providers";
 
-type Props = { links: WalletDashboard["links"]; onPublished: () => void };
+type Props = {
+  links: WalletDashboard["links"];
+  /** The domain of a record that was published and has not reached the index yet */
+  awaiting?: string;
+  onPublished: (domain: string) => void;
+};
 
 /**
  * One card for one subject: the accounts that show how you know the people you vouch for. Connecting
  * is a Privy step, attesting is a signature, and both live on the same row so the state is obvious.
  */
-export function Accounts({ links, onPublished }: Props) {
+export function Accounts({ links, awaiting, onPublished }: Props) {
   const config = useWebConfig();
   const { user } = usePrivy();
   const { linkTwitter, linkTelegram, linkGithub, linkDiscord, linkGoogle } = useLinkAccount();
@@ -55,6 +60,10 @@ export function Accounts({ links, onPublished }: Props) {
                       "attested · private"
                     )}
                   </span>
+                ) : awaiting === a.domain ? (
+                  <span className="acct-state" data-testid={`awaiting-${a.domain}`}>
+                    published · waiting for the index
+                  </span>
                 ) : (
                   <>
                     <span className="acct-state">not attested</span>
@@ -86,7 +95,12 @@ export function Accounts({ links, onPublished }: Props) {
           onClose={() => setAttesting(undefined)}
         >
           {/* The dialog stays open on success so the confirmation is read, not flashed. */}
-          <AttestFlow key={attesting} fixedDomain={attesting} title="" onPublished={onPublished} />
+          <AttestFlow
+            key={attesting}
+            fixedDomain={attesting}
+            title=""
+            onPublished={(p) => onPublished(p.domain)}
+          />
         </Modal>
       )}
     </div>

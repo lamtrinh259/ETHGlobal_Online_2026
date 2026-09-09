@@ -41,11 +41,14 @@ export function useNameStatus(api: Api, domain: string, handle: string, enabled 
 }
 
 /** A wallet's dashboard: names, links, references given. */
-export function useWalletDashboard(api: Api, address: Address | undefined) {
+export function useWalletDashboard(api: Api, address: Address | undefined, awaiting = false) {
   return useQuery({
     queryKey: ["wallet", address],
     queryFn: () => api.wallet(address as Address),
     enabled: !!address,
+    // A record just written has to reach the index before it can be listed. Poll only while something
+    // is expected, so the page settles instead of hammering.
+    refetchInterval: awaiting ? 2000 : false,
   });
 }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { formatEther, type Address } from "viem";
 import { WITHDRAWN } from "@ketsuban/registrar";
@@ -45,8 +45,17 @@ export function Dashboard() {
     };
   };
 
-  const dash = useWalletDashboard(api, wallet);
+  // After publishing, the record has to reach the index before this page can show it.
+  const [awaiting, setAwaiting] = useState<string>();
+  const dash = useWalletDashboard(api, wallet, !!awaiting);
   const gas = useGasTopup(wallet);
+  // The wait ends as soon as the record shows up, whichever domain it was for.
+  useEffect(() => {
+    if (!awaiting || !dash.data) return;
+    const arrived = [...dash.data.names, ...dash.data.links].some((r) => r.domain === awaiting && r.live);
+    if (arrived) setAwaiting(undefined);
+  }, [awaiting, dash.data]);
+
   const rows = nameRows(dash.data, config.instances);
   const root = config.instances[0];
   const [rootRow, ...subjectRows] = rows;
@@ -86,6 +95,15 @@ export function Dashboard() {
   const attention = needsAttention(d, Date.now());
   const liveLinks = d.links.filter((l) => l.live);
   const answered = subjectRows.filter((r) => r.live?.payload);
+  // The wait is over as soon as the record shows up, whichever domain it was for.
+  if (
+    awaiting &&
+    [...rows, ...d.links].some(
+      (r) => ("domain" in r ? r.domain : "") === awaiting && ("live" in r ? r.live : true)
+    )
+  ) {
+    setAwaiting(undefined);
+  }
 
   return (
     <>
@@ -129,10 +147,25 @@ export function Dashboard() {
       </Step>
 
       <Step n={2} title="Your accounts" state={liveLinks.length > 0 ? "done" : "now"}>
-        <Accounts links={d.links} onPublished={() => void dash.refetch()} />
+        <Accounts
+          links={d.links}
+          awaiting={awaiting}
+          onPublished={(domain) => {
+            setAwaiting(domain);
+            void dash.refetch();
+          }}
+        />
       </Step>
 
       <Step n={3} title="Your name" state={handle ? "done" : liveLinks.length > 0 ? "now" : "todo"}>
+        {awaiting === root?.domain && !handle && (
+          <p className="muted" data-testid="awaiting">
+            Published. Waiting for the record to reach the index — this page updates itself.{" "}
+            <button className="linkish" onClick={() => void dash.refetch()}>
+              check now
+            </button>
+          </p>
+        )}
         {handle && rootRow ? (
           <p>
             <Link href={`/p/${handle}`}>
@@ -227,17 +260,7 @@ export function Dashboard() {
             </details>
           </>
         ) : (
-          <>
-            <p className="muted">References attach to a name, so that comes first.</p>
-            <p>
-              <button
-                className="primary"
-                onClick={() => setPublishing({ domain: root!.domain, title: "Claim your name" })}
-              >
-                Claim your name
-              </button>
-            </p>
-          </>
+          <p className="muted">References attach to a name, so step 3 comes first.</p>
         )}
 
         {d.given.length > 0 && (
@@ -281,7 +304,10 @@ export function Dashboard() {
             fixedHandle={handle}
             title=""
             answerLabel={publishing.answer}
-            onPublished={() => void dash.refetch()}
+            onPublished={(p) => {
+              setAwaiting(p.domain);
+              void dash.refetch();
+            }}
           />
         </Modal>
       )}
