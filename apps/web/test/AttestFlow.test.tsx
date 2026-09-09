@@ -32,10 +32,13 @@ const state = {
   deliverError: undefined as Error | undefined,
   txHash: undefined as string | undefined,
   attestData: undefined as object | undefined,
+  /** What this deployment already holds; anything else is built while the first account is attested */
+  mounted: ["ketsuban", "kju-is", "x.com"] as string[],
 };
 
 vi.mock("@/lib/hooks", () => ({
   apiFor: () => ({}),
+  useContracts: () => ({ data: { instances: state.mounted.map((domain) => ({ domain })) } }),
   useNonce: () => ({ data: { exists: false, next: 1n, ready: true, reason: null } }),
   useNameStatus: () => ({ data: undefined }),
   useAttest: () => ({ data: state.attestData, error: undefined, isPending: false, reset: vi.fn() }),
@@ -80,6 +83,22 @@ beforeEach(() => {
 });
 
 describe("AttestFlow fields", () => {
+  it("says when publishing also builds the namespace, and when it does not", () => {
+    // The first account at a mail host mounts its levels, instance and mirror: several deployments and
+    // about a minute, which is worth knowing before the button is pressed rather than after.
+    const { container: fresh } = render(<AttestFlow fixedDomain="peeramid.xyz" />);
+    expect(fresh.querySelector("[data-testid=mounting-note]")?.textContent).toContain(
+      "first to attest an account at"
+    );
+
+    const { container: known } = render(<AttestFlow fixedDomain="x.com" />);
+    expect(known.querySelector("[data-testid=mounting-note]")).toBeNull();
+
+    // A flat domain is not a namespace to build, so it never says this either.
+    const { container: flat } = render(<AttestFlow fixedDomain="ketsuban" />);
+    expect(flat.querySelector("[data-testid=mounting-note]")).toBeNull();
+  });
+
   it("asks for an answer in a subject instance and a vouch domain, never when claiming the root name", () => {
     const { container: root } = render(<AttestFlow fixedDomain="ketsuban" />);
     expect(root.querySelector("[aria-label=answer]")).toBeNull();

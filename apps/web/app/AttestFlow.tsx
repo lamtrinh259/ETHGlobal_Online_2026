@@ -12,7 +12,7 @@ import type { Address, Hex } from "viem";
 import type { SignedInvite } from "@ketsuban/registrar";
 import { PLATFORM_DOMAIN_NAMES } from "@ketsuban/registrar";
 import { fromBytes32 } from "@peeramid-labs/multipass-client";
-import { apiFor, useAttest, useDeliver, useNameStatus, useNonce } from "@/lib/hooks";
+import { apiFor, useAttest, useContracts, useDeliver, useNameStatus, useNonce } from "@/lib/hooks";
 import { isNameDomainFor, parentNameFor } from "@/lib/journey";
 import { buildIntent, intentTypedData, toWire } from "@/lib/intent";
 import { loadOrCreateViewKey, openViewCode, saveViewCode } from "@/lib/keys";
@@ -117,6 +117,11 @@ export function AttestFlow({
   const reserved = nameStatus.data?.handle === debounced && !!nameStatus.data?.reserved;
   const attest = useAttest(api);
   const deliver = useDeliver(api, wallet, domain);
+  // Nobody has attested an account in this domain here yet, so publishing also builds its namespace:
+  // a few deployments, a minute of waiting, and worth saying before the button is pressed.
+  const contracts = useContracts(api);
+  const mounting =
+    !!contracts.data && domain.includes(".") && !contracts.data.instances.some((i) => i.domain === domain);
 
   useEffect(() => {
     if (isNameDomain) setOptIn(false);
@@ -313,6 +318,12 @@ export function AttestFlow({
           previous stays visible in the history — that is how a statement is revoked.
         </p>
       )}
+      {!settled && mounting && (
+        <p className="muted" data-testid="mounting-note">
+          You are the first to attest an account at <code>{domain}</code> here, so publishing also creates
+          its place in the namespace — the same signature, about a minute longer.
+        </p>
+      )}
       {!settled && (
         <button
           className="primary"
@@ -320,7 +331,13 @@ export function AttestFlow({
           disabled={busy || takenByOther || reserved || answerBytes > 31 || nonce.data?.ready === false}
           data-testid="publish"
         >
-          {step ? `${step}…` : nonce.data?.exists ? "Sign & update" : "Sign & publish"}
+          {step === "attesting" && mounting
+            ? "creating the namespace…"
+            : step
+              ? `${step}…`
+              : nonce.data?.exists
+                ? "Sign & update"
+                : "Sign & publish"}
         </button>
       )}
 
