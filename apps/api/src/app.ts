@@ -1022,8 +1022,7 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
             const mount = mounts.get(domain);
             const label = optedIn ? held : readable(fromBytes32(record.name))?.toLowerCase();
             const parent = optedIn ? mount?.maskedParentName : mount?.parentName;
-            const ensName =
-              parent && label && /^[a-z0-9_-]{1,63}$/.test(label) ? `${label}.${parent}` : null;
+            const ensName = parent && label && /^[a-z0-9_-]{1,63}$/.test(label) ? `${label}.${parent}` : null;
             return {
               domain,
               optedIn,

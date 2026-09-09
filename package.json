@@ -12,6 +12,7 @@
     "test": "pnpm -r run test",
     "lint": "pnpm -r run lint",
     "typecheck": "pnpm -r run typecheck",
-    "check:lockfile": "pnpm install --frozen-lockfile --lockfile-only"
+    "check:lockfile": "pnpm install --frozen-lockfile --lockfile-only",
+    "lint:fix": "pnpm -r run lint:fix"
   }
 }

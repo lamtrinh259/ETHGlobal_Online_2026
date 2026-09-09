@@ -75,8 +75,8 @@ export function OwnName({ api, wallet, domain, parentLabel, handle, getSigner, b
             <code>
               {parentLabel}.{label || "<label>"}.eth
             </code>{" "}
-            resolves to the same records as <code>{handle}</code>. You register it yourself, from this
-            wallet: the registrar hands names only to whoever asks for them.
+            resolves to the same records as <code>{handle}</code>. You register it yourself, from this wallet:
+            the registrar hands names only to whoever asks for them.
           </>
         )}
       </p>

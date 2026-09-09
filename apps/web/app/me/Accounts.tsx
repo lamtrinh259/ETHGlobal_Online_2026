@@ -42,7 +42,8 @@ export function Accounts({ links, handle, awaiting, onPublished }: Props) {
     const onChain = candidates.map((d) => live.get(d)).find(Boolean);
     // Attested before this deployment had a namespace for it: the record stands, but nothing names it.
     // Attesting again in the DNS domain is what gives it one.
-    const rename = onChain && !onChain.ensName && candidates[0] !== onChain.domain ? candidates[0] : undefined;
+    const rename =
+      onChain && !onChain.ensName && candidates[0] !== onChain.domain ? candidates[0] : undefined;
     return { ...a, target: candidates[0], onChain, rename };
   });
 

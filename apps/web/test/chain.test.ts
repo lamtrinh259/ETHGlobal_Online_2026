@@ -232,7 +232,9 @@ describe("getting a .eth name from the person's own wallet", () => {
     // The registrar prices names in a token the person may not hold yet, and a test chain mints it.
     const p = registrarProvider({ balance: 0n, committedAt: 1_000n });
     const { readyAt } = await commitEthName(signer(p.provider), params);
-    const calls = p.sent.map((s) => decodeFunctionData({ abi: [...tokenWriteAbi, ...registrarWriteAbi], data: s.data }));
+    const calls = p.sent.map((s) =>
+      decodeFunctionData({ abi: [...tokenWriteAbi, ...registrarWriteAbi], data: s.data })
+    );
     expect(calls.map((c) => c.functionName)).toEqual(["mint", "approve", "commit"]);
     expect(calls[0]?.args).toEqual([ACCOUNT, 1000n]);
 

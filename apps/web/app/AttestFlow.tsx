@@ -320,8 +320,8 @@ export function AttestFlow({
       )}
       {!settled && mounting && (
         <p className="muted" data-testid="mounting-note">
-          You are the first to attest an account at <code>{domain}</code> here, so publishing also creates
-          its place in the namespace — the same signature, about a minute longer.
+          You are the first to attest an account at <code>{domain}</code> here, so publishing also creates its
+          place in the namespace — the same signature, about a minute longer.
         </p>
       )}
       {!settled && (

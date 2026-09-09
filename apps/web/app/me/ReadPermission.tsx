@@ -61,8 +61,7 @@ export function ReadPermission({ api, links, name }: Props) {
       if (!viewCode)
         throw new Error(`the view code for ${domain} is not in this browser — re-attest it to get one`);
       const wallet = (wallets.find((w) => w.walletClientType === "privy") ?? wallets[0])?.address as
-        | Address
-        | undefined;
+        Address | undefined;
       if (!wallet) throw new Error("no wallet yet — Privy is still creating it");
       const only = scope === "person" ? audience : undefined;
 
@@ -146,8 +145,11 @@ export function ReadPermission({ api, links, name }: Props) {
               </>
             ) : (
               <>
-                Nobody holds <code>{handle}.{root?.parentName}</code> here. Ask them to claim their name, or
-                paste their wallet address.
+                Nobody holds{" "}
+                <code>
+                  {handle}.{root?.parentName}
+                </code>{" "}
+                here. Ask them to claim their name, or paste their wallet address.
               </>
             )}
           </p>

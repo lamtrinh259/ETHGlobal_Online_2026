@@ -83,7 +83,11 @@ describe("Accounts", () => {
     // it is the contradiction a person would notice first.
     instances = [instance("ketsuban", "ketsuban.eth"), instance("google", "google.ketsuban.eth")];
     render(
-      <Accounts links={[link("google", { optedIn: true, ensName: null })]} handle="alice" onPublished={vi.fn()} />
+      <Accounts
+        links={[link("google", { optedIn: true, ensName: null })]}
+        handle="alice"
+        onPublished={vi.fn()}
+      />
     );
     expect(screen.getByTestId("account-google")).toHaveTextContent("attested");
     expect(screen.queryByTestId("attest-google")).toBeNull();
@@ -110,9 +114,7 @@ describe("Accounts", () => {
   it("says a private account gets its name once the person claims one", () => {
     // The private branch names an account after its holder, so without a handle there is nothing to
     // name it after. Saying that beats a bare "private" the person cannot act on.
-    render(
-      <Accounts links={[link("google.com", { optedIn: true, ensName: null })]} onPublished={vi.fn()} />
-    );
+    render(<Accounts links={[link("google.com", { optedIn: true, ensName: null })]} onPublished={vi.fn()} />);
     expect(screen.getByTestId("account-google")).toHaveTextContent("claim your name below");
   });
 

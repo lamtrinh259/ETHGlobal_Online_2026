@@ -49,7 +49,12 @@ const api = (name: string | null) =>
       names: name
         ? [
             { domain: "ketsuban", name, resolver: WALLET, kind: "name" as const },
-            { domain: "x.com", name: "alice_x.com.x.www.ketsuban.eth", resolver: WALLET, kind: "account" as const },
+            {
+              domain: "x.com",
+              name: "alice_x.com.x.www.ketsuban.eth",
+              resolver: WALLET,
+              kind: "account" as const,
+            },
           ]
         : [],
       note: "answered from the Multipass record, not from a reverse registry",

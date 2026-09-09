@@ -348,7 +348,9 @@ describe("GET /healthz", () => {
     const { chain } = fakeChain();
     const body = await (
       await app(chain, { ...baseEnv, NAMESPACE_FACTORY: baseEnv.FACTORY, ETH_REGISTRY: baseEnv.BRIDGE })
-    ).request("/healthz").then((r) => r.json());
+    )
+      .request("/healthz")
+      .then((r) => r.json());
 
     expect(body.config).toMatchObject({
       chainId: 31337,
@@ -1490,8 +1492,14 @@ describe("a domain nobody deployed yet", () => {
   it("mounts the namespace once the attester agrees the account belongs to it", async () => {
     // Nobody can enumerate every mail host, so the relay builds one on demand rather than telling a
     // person with an ordinary address to come back later.
-    const { chain } = fakeChain({ ready: { "example.com": { initialised: false, active: false, registrarOk: true } } });
-    chain.ensureNamespace = vi.fn(async (domain: string) => ({ domain, created: true, parentName: "com.example.@.kju-is.eth" }));
+    const { chain } = fakeChain({
+      ready: { "example.com": { initialised: false, active: false, registrarOk: true } },
+    });
+    chain.ensureNamespace = vi.fn(async (domain: string) => ({
+      domain,
+      created: true,
+      parentName: "com.example.@.kju-is.eth",
+    }));
     const env2 = { ...baseEnv, NAMESPACE_FACTORY: baseEnv.FACTORY };
     const res = await app(chain, env2).request("/v1/attest", {
       method: "POST",
@@ -1508,7 +1516,9 @@ describe("a domain nobody deployed yet", () => {
 
   it("does not spend for a request the attester refuses", async () => {
     // The address belongs to example.com, so gmail.com must neither sign nor mount.
-    const { chain } = fakeChain({ ready: { "gmail.com": { initialised: false, active: false, registrarOk: true } } });
+    const { chain } = fakeChain({
+      ready: { "gmail.com": { initialised: false, active: false, registrarOk: true } },
+    });
     chain.ensureNamespace = vi.fn(async (domain: string) => ({ domain, created: true, parentName: "x" }));
     const res = await app(chain, { ...baseEnv, NAMESPACE_FACTORY: baseEnv.FACTORY }).request("/v1/attest", {
       method: "POST",
@@ -1521,7 +1531,9 @@ describe("a domain nobody deployed yet", () => {
   });
 
   it("says what failed when the mount does not go through, rather than handing back a dead signature", async () => {
-    const { chain } = fakeChain({ ready: { "example.com": { initialised: false, active: false, registrarOk: true } } });
+    const { chain } = fakeChain({
+      ready: { "example.com": { initialised: false, active: false, registrarOk: true } },
+    });
     chain.ensureNamespace = vi.fn(async () => {
       throw new Error("relayer out of gas");
     });
@@ -1535,7 +1547,9 @@ describe("a domain nobody deployed yet", () => {
   });
 
   it("still refuses a domain no account could belong to", async () => {
-    const { chain } = fakeChain({ ready: { myspace: { initialised: false, active: false, registrarOk: true } } });
+    const { chain } = fakeChain({
+      ready: { myspace: { initialised: false, active: false, registrarOk: true } },
+    });
     const res = await app(chain).request("/v1/attest", {
       method: "POST",
       headers: { "content-type": "application/json" },

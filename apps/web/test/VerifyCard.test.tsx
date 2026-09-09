@@ -49,7 +49,12 @@ describe("VerifyCard", () => {
           ...base,
           links: [
             { domain: "x.com", optedIn: false, ensName: "alice_x.com.x.www.ketsuban.eth" },
-            { domain: "google.com", optedIn: true, commitment: "0x02", ensName: "alice.com.google.private-www.ketsuban.eth" },
+            {
+              domain: "google.com",
+              optedIn: true,
+              commitment: "0x02",
+              ensName: "alice.com.google.private-www.ketsuban.eth",
+            },
           ],
         }}
       />

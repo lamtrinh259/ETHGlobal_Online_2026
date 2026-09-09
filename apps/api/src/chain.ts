@@ -115,9 +115,7 @@ export class Chain {
     // is provisioned, which is when this is cleared, so a short reuse is free correctness.
     const fresh = this.mounts && Date.now() - this.mounts.at < this.config.MOUNT_CACHE_SECONDS * 1000;
     if (fresh && this.mounts) return this.mounts.value;
-    const factories = [this.config.FACTORY, this.config.NAMESPACE_FACTORY].filter(
-      (a): a is Address => !!a
-    );
+    const factories = [this.config.FACTORY, this.config.NAMESPACE_FACTORY].filter((a): a is Address => !!a);
     const found = new Map<string, Instance>();
     for (const factory of factories) {
       for (const instance of await this.instancesOf(factory)) found.set(instance.domain, instance);
@@ -263,7 +261,12 @@ export class Chain {
     const factory = this.config.NAMESPACE_FACTORY ?? this.config.FACTORY;
     const known = await Promise.all(
       [...new Set([factory, this.config.FACTORY])].map((address) =>
-        this.publicClient.readContract({ address, abi: factoryAbi, functionName: "isInstance", args: [domainB] })
+        this.publicClient.readContract({
+          address,
+          abi: factoryAbi,
+          functionName: "isInstance",
+          args: [domainB],
+        })
       )
     );
     if (known.some(Boolean)) return { domain, created: false };
@@ -354,12 +357,9 @@ export class Chain {
       functionName: "instance",
       args: [domainB],
     });
-    if (existing.registry !== zeroAddress)
-      return { domain, created: false, parentName: existing.parentName };
+    if (existing.registry !== zeroAddress) return { domain, created: false, parentName: existing.parentName };
 
-    const root = (await this.instances()).find(
-      (i) => i.registry.toLowerCase() === REGISTRY.toLowerCase()
-    );
+    const root = (await this.instances()).find((i) => i.registry.toLowerCase() === REGISTRY.toLowerCase());
     if (!root) throw new Error("root registry is not a known instance");
     const group = groupingFor(platformOf(domain) ?? "email");
     const labels = domain.toLowerCase().split(".");

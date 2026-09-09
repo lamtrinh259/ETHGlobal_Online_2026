@@ -65,9 +65,9 @@ export function OnChain({ api, wallet, dash }: Props) {
       {reverse.data?.name ? (
         <div data-testid="reverse">
           <p>
-            Anything resolving your address gets <code>{reverse.data.name}</code>. That answer comes from
-            your Multipass record through the instance resolver, so it needs no reverse registry and no
-            account here.
+            Anything resolving your address gets <code>{reverse.data.name}</code>. That answer comes from your
+            Multipass record through the instance resolver, so it needs no reverse registry and no account
+            here.
           </p>
           {reverse.data.names.length > 1 && (
             <p className="muted" data-testid="reverse-names">

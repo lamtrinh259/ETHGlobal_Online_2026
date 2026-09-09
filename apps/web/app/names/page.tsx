@@ -24,8 +24,8 @@ export default async function NamesPage() {
     <>
       <h1>Names</h1>
       <p className="muted">
-        A name here is a claim you can check yourself, in any ENS client, without asking this service.
-        Each one below is built from a mount recorded on chain.
+        A name here is a claim you can check yourself, in any ENS client, without asking this service. Each
+        one below is built from a mount recorded on chain.
       </p>
 
       {kinds.length === 0 ? (

@@ -111,9 +111,7 @@ describe("/v/<name> with an opened account", () => {
     state.disclosed = null;
     state.reader = undefined;
     await renderPage({ reveal: "x", for: "0xd70B5E8A232Bf67F64658cbDDebe32e1443894a0" });
-    await waitFor(() =>
-      expect(screen.getByTestId("revealed")).toHaveTextContent("Sign in with that wallet")
-    );
+    await waitFor(() => expect(screen.getByTestId("revealed")).toHaveTextContent("Sign in with that wallet"));
 
     state.reader = "0xEE4811b9462956C9C3535E79c08776D769CA9F3a";
     await renderPage({ reveal: "x", for: "0xd70B5E8A232Bf67F64658cbDDebe32e1443894a0" });

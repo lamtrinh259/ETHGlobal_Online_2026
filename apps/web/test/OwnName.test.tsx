@@ -15,7 +15,13 @@ vi.mock("@/lib/hooks", () => ({
   }),
   useEthLabel: () => ({ data: { label: "alice", registry: "0x02", owner: state.owner }, refetch: vi.fn() }),
   useClaimEthName: () => ({ mutate: claim, isPending: false, error: null, waitingUntil: undefined }),
-  useLinkOwnName: () => ({ mutate: vi.fn(), isPending: false, error: null, isSuccess: false, data: undefined }),
+  useLinkOwnName: () => ({
+    mutate: vi.fn(),
+    isPending: false,
+    error: null,
+    isSuccess: false,
+    data: undefined,
+  }),
 }));
 
 const { OwnName } = await import("@/app/me/OwnName");

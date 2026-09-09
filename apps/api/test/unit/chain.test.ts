@@ -58,7 +58,9 @@ function provisioning(chain: Chain) {
       readContract: vi.fn(async ({ functionName, args }: { functionName: string; args?: unknown[] }) => {
         if (functionName === "domains") return [`0x${Buffer.from("kju-is").toString("hex").padEnd(64, "0")}`];
         if (functionName === "instance" || functionName === "mirror") {
-          const domain = Buffer.from((args?.[0] as string).slice(2), "hex").toString().replace(/\0+$/, "");
+          const domain = Buffer.from((args?.[0] as string).slice(2), "hex")
+            .toString()
+            .replace(/\0+$/, "");
           if (domain === "kju-is") return root;
           return created ? made : empty;
         }
@@ -211,8 +213,6 @@ describe("relaying a signed record", () => {
     const chain = new Chain(config);
     const writes = relaying(chain, true);
     await chain.submit(record, "0x99");
-    expect(writes).toEqual([
-      { address: config.MULTIPASS, functionName: "renewRecord", value: 3n },
-    ]);
+    expect(writes).toEqual([{ address: config.MULTIPASS, functionName: "renewRecord", value: 3n }]);
   });
 });

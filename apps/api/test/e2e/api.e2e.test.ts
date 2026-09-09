@@ -96,7 +96,9 @@ describe("api e2e", () => {
     for (const domain of [deployment.instanceDomain, "x", "telegram", "email", "x.com", "t.me"]) {
       expect(checked).toContain(domain);
     }
-    expect(p.multipass.domains.every((d: { initialised: boolean; active: boolean }) => d.initialised && d.active)).toBe(true);
+    expect(
+      p.multipass.domains.every((d: { initialised: boolean; active: boolean }) => d.initialised && d.active)
+    ).toBe(true);
     expect(
       p.multipass.domains.every((d: { initialised: boolean; active: boolean }) => d.initialised && d.active)
     ).toBe(true);
@@ -317,7 +319,11 @@ describe("api e2e", () => {
       { type: "email", address: "alice@nowhere.test" },
     ];
     const idToken = privy.mint({ sub: user.did, linked, now });
-    const intent = baseIntent(user.account, now, { domain: "nowhere.test", optIn: false, exp: BigInt(now + 3600) });
+    const intent = baseIntent(user.account, now, {
+      domain: "nowhere.test",
+      optIn: false,
+      exp: BigInt(now + 3600),
+    });
     const req = toWire(await signedAttestRequest(user.account, intent, idToken, 31337, deployment.multipass));
     const attested = await (
       await fetch(`${API}/v1/attest`, {
@@ -439,11 +445,18 @@ describe("api e2e", () => {
     const bw = await (await fetch(`${API}/v1/wallet/${bob.account.address}`)).json();
     // Each wallet's dashboard, as the profile page reads it: the name held, the accounts attested and
     // where each is named, and the references written.
-    expect(aw.names).toMatchObject([{ domain: "kju-is", name: "alice", live: true, ensName: `alice.${deployment.instanceParent}` }]);
+    expect(aw.names).toMatchObject([
+      { domain: "kju-is", name: "alice", live: true, ensName: `alice.${deployment.instanceParent}` },
+    ]);
     const byDomain = new Map(aw.links.map((l: { domain: string }) => [l.domain, l]));
     expect(byDomain.get("x")).toMatchObject({ optedIn: true, ensName: null, nameless: "private" });
-    expect(byDomain.get("x.com")).toMatchObject({ name: "alice", ensName: `alice.com.x.www.${deployment.instanceParent}` });
-    expect(bw.given).toMatchObject([{ candidate: "alice", live: true, ensName: `bob.alice.${deployment.instanceParent}` }]);
+    expect(byDomain.get("x.com")).toMatchObject({
+      name: "alice",
+      ensName: `alice.com.x.www.${deployment.instanceParent}`,
+    });
+    expect(bw.given).toMatchObject([
+      { candidate: "alice", live: true, ensName: `bob.alice.${deployment.instanceParent}` },
+    ]);
     const vouches = await (await fetch(`${API}/v1/vouches/alice`)).json();
     expect(vouches.vouches).toHaveLength(1);
     expect(vouches.vouches[0]).toMatchObject({
