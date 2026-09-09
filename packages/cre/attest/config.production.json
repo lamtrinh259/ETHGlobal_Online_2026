@@ -28,5 +28,22 @@
   "deliveryUrl": "",
   "reportGasLimit": "1200000",
   "reporter": "0x4888d736a196c49CAf404FD626eB9CBbf175b140",
-  "provisionUrl": "https://ketsuban-api.peeramid.xyz/v1/provision"
+  "provisionUrl": "https://ketsuban-api.peeramid.xyz/v1/provision",
+  "platformDomains": [
+    "x.com",
+    "github.com",
+    "google.com",
+    "discord.com",
+    "linkedin.com",
+    "t.me",
+    "gmail.com",
+    "peeramid.xyz",
+    "x",
+    "telegram",
+    "discord",
+    "github",
+    "google",
+    "linkedin",
+    "email"
+  ]
 }

@@ -55,6 +55,8 @@ const config: Config = {
   eip712: { name: "MultipassDNS", version: "1.0.0" },
   privy: { appId: privy.appId, verificationKey: privy.jwk },
   nameDomains: ["kju-is"],
+  // The domains the deployment mounts, which is what makes `x.com` writable in the enclave.
+  platformDomains: ["x", "x.com", "peeramid.xyz"],
   secretIds: { registrarKey: "REGISTRAR_KEY", viewcodeKey: "VIEWCODE_KEY" },
   authorizedKeys: [],
   deliveryUrl: "",
@@ -197,6 +199,15 @@ describe("onAttest", () => {
       signature: out.signature,
     });
     expect(signer).toBe(registrar.address);
+  });
+
+  test("a DNS domain from config: the label is what the account is called there", async () => {
+    // The enclave signs into `x.com`, so the record is named `alice` inside that namespace rather than
+    // being a bare handle beside the people.
+    const { runtime } = fakeTeeRuntime();
+    const out = JSON.parse(await onAttest(runtime, (await request({ domain: "x.com" })) as any));
+    expect(out.record.domainName).toBe(toBytes32("x.com"));
+    expect(out.record.name).toBe(toBytes32("alice"));
   });
 
   test("opted-in record: masked fields on chain, view code decryptable by the wallet", async () => {
