@@ -56,5 +56,4 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter "./packages/**" run build
       # anvil, the contracts deployed from this source, and the api image: the whole loop from outside.
-      # Bounded and verbose: a stall names the test it stalled on instead of timing out the whole job.
       - run: pnpm --filter @ketsuban/api test:e2e
