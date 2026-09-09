@@ -9,6 +9,7 @@ import {
   useContracts,
   useDeliver,
   useGasTopup,
+  useLetterWrite,
   useLinkOwnName,
   useNameStatus,
   useNonce,
@@ -182,6 +183,22 @@ describe("hooks", () => {
     gas.result.current.mutate(api);
     await waitFor(() => expect(gas.result.current.data?.hash).toBe("0xhash3"));
     expect(api.gas).toHaveBeenCalledWith(WALLET);
+
+    const letter = renderHook(() => useLetterWrite("alice"), { wrapper: w });
+    letter.result.current.mutate({
+      signer,
+      resolver: WALLET,
+      name: "bob.alice.ketsuban.eth",
+      letter: "long text",
+    });
+    await waitFor(() => expect(letter.result.current.data).toBe("0xhash1"));
+    expect(chain.writeProfileText).toHaveBeenCalledWith(
+      signer,
+      WALLET,
+      "bob.alice.ketsuban.eth",
+      "description",
+      "long text"
+    );
 
     const link = renderHook(() => useLinkOwnName(WALLET), { wrapper: w });
     link.result.current.mutate({ signer, bridge: WALLET, domain: "ketsuban", label: "alice" });

@@ -92,6 +92,16 @@ export function useProfileWrite(name: string) {
   });
 }
 
+/** Write the reference letter as the `description` record on a vouch name; refreshes that candidate's list. */
+export function useLetterWrite(candidate: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { signer: Signer; resolver: Address; name: string; letter: string }) =>
+      writeProfileText(input.signer, input.resolver, input.name, "description", input.letter),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["vouches", candidate] }),
+  });
+}
+
 /** Alias `<parentLabel>.<label>.eth` to the caller's record; refreshes the wallet dashboard. */
 export function useLinkOwnName(wallet: Address | undefined) {
   const qc = useQueryClient();

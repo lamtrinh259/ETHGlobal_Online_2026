@@ -327,6 +327,23 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     const records = await chain.listRecords(domain);
     const vouchers = [...new Set(records.filter((r) => r.live).map((r) => r.name))];
     const standings = new Map(await Promise.all(vouchers.map(async (v) => [v, await standing(v)] as const)));
+    // The letter is an ENS text record the voucher writes themselves on their vouch name.
+    const vouchInstance = (await chain.instances()).find((i) => i.domain === domain);
+    const letters = new Map(
+      vouchInstance
+        ? await Promise.all(
+            vouchers.map(
+              async (v) =>
+                [
+                  v,
+                  await chain
+                    .resolveText(vouchInstance.resolver, `${v}.${vouchInstance.parentName}`, "description")
+                    .catch(() => ""),
+                ] as const
+            )
+          )
+        : []
+    );
     return c.json({
       handle,
       domain,
@@ -339,6 +356,7 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
         nonce: r.nonce.toString(),
         live: r.live,
         standing: standings.get(r.name) ?? null,
+        letter: letters.get(r.name) || null,
       })),
       warning: WARNING,
     });

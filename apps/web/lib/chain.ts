@@ -66,6 +66,9 @@ async function send(
   return hash;
 }
 
+/** The longest letter worth writing as one text record: beyond this a single transaction gets expensive. */
+export const LETTER_MAX = 600;
+
 /** Write one ENS text record on the PermissionedResolver for `name` (node = namehash). */
 export function writeProfileText(
   signer: Signer,

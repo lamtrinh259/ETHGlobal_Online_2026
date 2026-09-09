@@ -260,6 +260,7 @@ describe("api client", () => {
               nonce: "1",
               live: true,
               standing: { claimed: true, given: 1, received: 0 },
+              letter: "a letter",
             },
           ],
         },

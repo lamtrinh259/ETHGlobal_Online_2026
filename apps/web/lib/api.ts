@@ -67,6 +67,7 @@ export const vouchesSchema = z.object({
         .object({ claimed: z.boolean(), given: z.number(), received: z.number() })
         .nullable()
         .optional(),
+      letter: z.string().nullable().optional(),
     })
   ),
   warning: z.string(),

@@ -28,6 +28,7 @@ const profile: Profile = {
       nonce: "1",
       live: true,
       standing: { claimed: true, given: 4, received: 2 },
+      letter: "Bob ran the platform team at Acme while Alice led infra.",
     },
     {
       voucher: "carol",
@@ -87,6 +88,10 @@ describe("ProfileCard", () => {
     expect(vouches[0]).toHaveTextContent("bob.ketsuban.eth");
     expect(vouches[0]).toHaveTextContent("worked together 2019-22");
     expect(vouches[0].querySelector("[data-testid=standing]")).toHaveTextContent("gave 4 · received 2");
+    expect(vouches[0].querySelector("[data-testid=vouch-letter]")).toHaveTextContent(
+      "Bob ran the platform team at Acme while Alice led infra."
+    );
+    expect(vouches[1].querySelector("[data-testid=vouch-letter]")).toBeNull();
     expect(vouches[1].querySelector("[data-testid=standing]")).toBeNull();
     expect(vouches[1]).toHaveClass("expired");
     expect(vouches[1]).toHaveTextContent("carol");

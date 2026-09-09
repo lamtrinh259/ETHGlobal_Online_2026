@@ -124,6 +124,11 @@ export function ProfileCard({ p, rootParent, policy }: { p: Profile; rootParent:
                 )}
               </span>
               <span className="vouch-what">“{v.statement}”</span>
+              {v.letter && (
+                <span className="vouch-letter" data-testid="vouch-letter">
+                  {v.letter}
+                </span>
+              )}
               <span className="vouch-meta muted">
                 {v.live ? "live" : "expired"} · until {fmtUtc(v.validUntil)}
               </span>

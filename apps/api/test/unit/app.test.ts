@@ -43,6 +43,15 @@ const instance: Instance = {
   parentLabel: "kju-is",
 };
 
+/** A provisioned vouch instance for alice, as the relay creates it. */
+const vouchInstance: Instance = {
+  ...instance,
+  domain: "~alice",
+  resolver: "0x1111111111111111111111111111111111111111",
+  parentName: "alice.kju-is.eth",
+  parentLabel: "alice",
+};
+
 type State = {
   records: Record<string, { exists: boolean; nonce: bigint; id: Hex; wallet: Address }>;
   texts: Record<string, string>;
@@ -52,6 +61,7 @@ type State = {
   instancesCreated: string[];
   byWallet: (ListedRecord & { domain: string })[];
   names: Record<string, { taken: boolean; wallet: Address | null; live: boolean }>;
+  instances: Instance[];
   balance: bigint;
   sent: { to: Address; value: bigint }[];
 };
@@ -64,6 +74,7 @@ function fakeChain(state: Partial<State> = {}) {
     data: {},
     listed: {},
     instancesCreated: [],
+    instances: [instance],
     balance: 0n,
     sent: [],
     ...state,
@@ -80,12 +91,14 @@ function fakeChain(state: Partial<State> = {}) {
           wallet: zeroAddress,
         }
     ),
-    instances: vi.fn(async () => [instance]),
+    instances: vi.fn(async () => s.instances),
     submit: vi.fn(async (record: RegisterMessage, signature: Hex) => {
       submitted.push({ record, signature });
       return `0x${"ab".repeat(32)}` as Hex;
     }),
-    resolveText: vi.fn(async (_r: Address, _n: string, key: string) => s.texts[key] ?? ""),
+    resolveText: vi.fn(
+      async (_r: Address, name: string, key: string) => s.texts[`${name}/${key}`] ?? s.texts[key] ?? ""
+    ),
     resolveAddr: vi.fn(async () => s.addr),
     resolveData: vi.fn(async (_r: Address, _n: string, key: string) => s.data[key] ?? "0x"),
     ensureVouchInstance: vi.fn(async (handle: string) => {
@@ -546,7 +559,7 @@ describe("GET /v1/vouches/:handle", () => {
     live: false,
   };
 
-  it("lists the vouch domain's records with voucher names, liveness and each live voucher's standing", async () => {
+  it("lists the vouch domain's records with voucher names, liveness, standing and the letter", async () => {
     const { chain } = fakeChain({
       listed: {
         "~alice": [bobVouch, carolVouch],
@@ -556,6 +569,10 @@ describe("GET /v1/vouches/:handle", () => {
         ],
       },
       names: { "kju-is/bob": { taken: true, wallet: user.account.address, live: true } },
+      instances: [instance, vouchInstance],
+      texts: {
+        "bob.alice.kju-is.eth/description": "Bob managed the platform team at Acme while Alice led infra.",
+      },
       byWallet: [
         { ...bobVouch, domain: "~alice" },
         { ...bobVouch, domain: "~erin", nonce: 2n },
@@ -578,6 +595,7 @@ describe("GET /v1/vouches/:handle", () => {
           nonce: "1",
           live: true,
           standing: { claimed: true, given: 2, received: 2 },
+          letter: "Bob managed the platform team at Acme while Alice led infra.",
         },
         {
           voucher: "carol",
@@ -588,6 +606,7 @@ describe("GET /v1/vouches/:handle", () => {
           nonce: "2",
           live: false,
           standing: null,
+          letter: null,
         },
       ],
       warning: WARNING,

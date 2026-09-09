@@ -530,3 +530,27 @@ h3 {
 .journey li.todo {
   opacity: 0.75;
 }
+
+.vouch-letter {
+  display: block;
+  font-size: 13px;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  border-left: 2px solid var(--border);
+  padding-left: var(--sp-sm);
+  margin-top: 4px;
+}
+textarea {
+  width: 100%;
+  font: inherit;
+  color: var(--text-primary);
+  background: var(--surface-2, transparent);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  resize: vertical;
+}
+textarea:focus {
+  outline: none;
+  border-color: var(--flame);
+}

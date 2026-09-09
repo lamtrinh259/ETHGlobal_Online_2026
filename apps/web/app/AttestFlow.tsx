@@ -28,6 +28,8 @@ type Props = {
   title?: string;
   /** Label for the answer field on name domains */
   answerLabel?: string;
+  /** Example text in the answer field */
+  answerPlaceholder?: string;
   /** Sign-in only: render the gate and nothing else */
   hideForm?: boolean;
   /** Only platform (linked-account) domains in the picker */
@@ -45,6 +47,7 @@ export function AttestFlow({
   fixedHandle,
   title,
   answerLabel,
+  answerPlaceholder,
   hideForm,
   platformsOnly,
   onPublished,
@@ -79,6 +82,7 @@ export function AttestFlow({
     return () => clearTimeout(t);
   }, [handle]);
   const nameStatus = useNameStatus(api, domain, debounced, isNameDomain && !fixedHandle);
+  const answerBytes = new TextEncoder().encode(answer).length;
   const takenByOther =
     !!nameStatus.data?.taken && !!wallet && nameStatus.data.wallet?.toLowerCase() !== wallet.toLowerCase();
   const attest = useAttest(api);
@@ -263,13 +267,16 @@ export function AttestFlow({
               </label>
             )}
             <label>
-              {answerLabel ?? "answer (≤31 bytes, permanent)"}{" "}
+              {answerLabel ?? "A few words, permanent"}{" "}
               <input
                 value={answer}
                 onChange={(e) => setAnswer(e.target.value)}
-                maxLength={31}
+                placeholder={answerPlaceholder ?? "a few words"}
                 aria-label="answer"
               />
+              <small className={answerBytes > 31 ? "error" : "muted"} data-testid="answer-bytes">
+                {answerBytes}/31 characters used{answerBytes > 31 ? " — too long to fit in the name" : ""}
+              </small>
             </label>
           </>
         ) : (
@@ -286,7 +293,12 @@ export function AttestFlow({
           previous stays visible in the history — that is how a statement is revoked.
         </p>
       )}
-      <button className="primary" onClick={run} disabled={busy || takenByOther} data-testid="publish">
+      <button
+        className="primary"
+        onClick={run}
+        disabled={busy || takenByOther || answerBytes > 31}
+        data-testid="publish"
+      >
         {step ? `${step}…` : nonce.data?.exists ? "Sign & update" : "Sign & publish"}
       </button>
 

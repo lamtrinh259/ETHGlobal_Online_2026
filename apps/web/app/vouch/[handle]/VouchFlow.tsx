@@ -5,9 +5,11 @@ import { useMemo, useState } from "react";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import type { Address } from "viem";
 import { AttestFlow, type Published } from "@/app/AttestFlow";
+import { LetterForm } from "./LetterForm";
 import { useWebConfig } from "@/app/providers";
 import { fmtUtc } from "@/app/ui";
 import { apiFor, useWalletDashboard } from "@/lib/hooks";
+import type { Signer } from "@/lib/chain";
 import { VOUCH_PREFIX, voucherProgress, vouchSteps } from "@/lib/journey";
 
 type Stage = "signin" | "work" | "statement" | "done";
@@ -24,8 +26,17 @@ export function VouchFlow({ candidate }: { candidate: string }) {
   const api = useMemo(() => apiFor(config), [config]);
   const { ready, authenticated } = usePrivy();
   const { wallets } = useWallets();
-  const wallet = (wallets.find((w) => w.walletClientType === "privy") ?? wallets[0])?.address as
-    Address | undefined;
+  const embedded = wallets.find((w) => w.walletClientType === "privy") ?? wallets[0];
+  const wallet = embedded?.address as Address | undefined;
+  const getSigner = async (): Promise<Signer> => {
+    if (!embedded) throw new Error("no wallet");
+    await embedded.switchChain(config.chainId);
+    return {
+      provider: await embedded.getEthereumProvider(),
+      account: embedded.address as Address,
+      chainId: config.chainId,
+    };
+  };
   const dash = useWalletDashboard(api, authenticated ? wallet : undefined);
   const onChain = voucherProgress(dash.data, root?.domain ?? "", candidate);
 
@@ -72,7 +83,8 @@ export function VouchFlow({ candidate }: { candidate: string }) {
       {!loading && stage === "statement" && root && (
         <>
           <p className="muted" data-testid="statement-intro">
-            Relationship, organisation, overlap period — in 31 bytes. It lands as{" "}
+            A few words is what the name itself carries; the full letter comes next, as a text record. It
+            lands as{" "}
             <code>
               {handle ?? "<you>"}.{candidate}.{root.parentName}
             </code>
@@ -91,10 +103,15 @@ export function VouchFlow({ candidate }: { candidate: string }) {
             fixedDomain={vouchDomain}
             fixedHandle={handle}
             title={onChain.existing ? "Update your reference" : "Write your reference"}
-            answerLabel="Your statement (≤31 bytes, permanent)"
+            answerLabel="A few words about them, permanent"
+            answerPlaceholder="CTO at Acme 2019-22"
             onPublished={setPublished}
           />
         </>
+      )}
+
+      {stage === "done" && published?.name && (
+        <LetterForm api={api} candidate={candidate} name={published.name} getSigner={getSigner} />
       )}
 
       {stage === "done" && published && (
