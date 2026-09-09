@@ -208,3 +208,19 @@ viewCode   {ephemeralPubkey, nonce, ciphertext}   readable only by the wallet th
 ```
 
 Deployment needs Confidential Workflows access (`cre account access`); everything above runs without it.
+
+## 6. Who may write which field
+
+The profile records are standard ENS text records on the stock ENSv2 PermissionedResolver, and the roles
+are per key and per name. When a name lands, the bridge grants that wallet `ROLE_SET_TEXT` for exactly
+`avatar`, `description`, `url` and `email`. Nothing else is granted, and the resolver — not this service —
+is what refuses the rest:
+
+```
+holder, granted key       setText(peersky.ketsuban.eth, "avatar")       allowed
+holder, ungranted key     setText(peersky.ketsuban.eth, "com.twitter")  refused 0x4b27a133
+a stranger, granted key   setText(peersky.ketsuban.eth, "avatar")       refused 0x4b27a133
+```
+
+Checked with `eth_call` against Sepolia, from each wallet in turn. The same three cases are asserted in
+`test/AttestationBridge.t.sol`, where the write goes through and reads back, and both refusals revert.

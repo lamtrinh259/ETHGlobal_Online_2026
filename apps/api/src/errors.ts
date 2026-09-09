@@ -48,9 +48,20 @@ export function decodeRevert(data: Hex): { name: string; args: readonly unknown[
   return undefined;
 }
 
+/**
+ * Errors that belong to contracts this build has no ABI for, met while testing against the live ENSv2
+ * deployment. A bare selector tells a user nothing, and this is the sentence they can act on.
+ */
+const KNOWN_SELECTORS: Record<string, string> = {
+  "0x4b27a133":
+    "the resolver refused: this wallet holds no role for that key on that name — the bridge grants avatar, description, url and email to the wallet a name lands on, and nothing else",
+};
+
 /** Turn a contract failure into one sentence naming the rule that failed and what to change. */
 export function explainRevert(err: unknown): string {
   const data = revertData(err);
+  const known = data && KNOWN_SELECTORS[data.slice(0, 10).toLowerCase()];
+  if (known) return known;
   const decoded = data ? decodeRevert(data) : undefined;
   if (!decoded) return (err as Error)?.message?.split("\n")[0] ?? String(err);
   const hint = HINTS[decoded.name]?.(decoded.args);

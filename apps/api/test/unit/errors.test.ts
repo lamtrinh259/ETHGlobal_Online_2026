@@ -128,3 +128,18 @@ describe("every rule this service can break explains itself", () => {
     expect(explainRevert(wrapped(data))).toContain(masked);
   });
 });
+
+describe("an error from a contract this build has no ABI for", () => {
+  it("still says what to do about it", () => {
+    // Met against the live ENSv2 resolver: role checks fail with a selector nothing here can decode.
+    const err = new BaseError("reverted", {
+      cause: new ContractFunctionRevertedError({
+        abi: parseAbi(["function f()"]),
+        data: "0x4b27a133",
+        functionName: "f",
+      }),
+    });
+    expect(explainRevert(err)).toContain("no role for that key");
+    expect(explainRevert(err)).toContain("avatar");
+  });
+});

@@ -68,6 +68,11 @@ export function ProfileEditor({ api, name, getSigner }: Props) {
         Standard text records on <code>{name}</code>: any ENS client shows them. Each changed field is one
         transaction from your wallet.
       </p>
+      <p className="muted" data-testid="profile-roles">
+        These four keys are yours because the bridge granted your wallet a role for each of them, on this
+        name, when the record landed. The resolver enforces it: any other key on this name, and this name
+        from any other wallet, is refused on chain rather than by this page.
+      </p>
       {PROFILE_KEYS.map((k) => (
         <label key={k}>
           {LABELS[k]}
