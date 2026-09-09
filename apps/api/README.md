@@ -18,6 +18,9 @@ CORS: `CORS_ORIGINS` (comma list, default `*`) — set it to the web app origin 
 | `POST /v1/provision` | `{handle}` → provisions the candidate's `~<handle>` vouch instance. Idempotent; refuses a handle with no live record in the root name domain, so it needs no secret. |
 | `POST /v1/gas` | `{wallet}` → relayer sends `GAS_TOPUP_WEI` once to a wallet holding a live name and below that balance (disabled when 0). "Once" is kept in `DATA_DIR`, so a redeploy does not hand out a second payout. |
 | `GET /v1/ens/:name` | The name read through the ENSv2 UniversalResolver: the resolver it reached, the address and text records any ENS client would see (`?keys=` overrides). 501 unless `UNIVERSAL_RESOLVER` is set. |
+| `GET /v1/enclave-key` | The registrar's public key: what a candidate encrypts a view code to, so only the enclave can open it. |
+| `POST /v1/disclose` | A candidate's signed permission to read one masked account, carrying the view code encrypted to that key. Refused unless the wallet holding the record signed it, it is unexpired, and the signature binds to that exact ciphertext. |
+| `GET /v1/disclose/:name/:domain` | Opens it: the enclave decrypts the view code, decodes the record, and answers the handle. `?reader=` must match a grant addressed to one wallet. |
 | `GET /v1/standing/:handle` | Live references a handle's wallet gave and it received; `/v1/vouches` carries it per live voucher. |
 | `GET /v1/wallet/:address` | A wallet's names, linked-account records, references given, and `org` when it holds a live record in `ORG_DOMAIN` (its dashboard). |
 | `GET /v1/profile/:handle` | The whole candidate in one read: every instance name with its verification, the references written for them, and the candidate's standing. Facts only; grading against a policy is the reader's job. |
@@ -66,6 +69,28 @@ and this service's image. Besides the API's own routes it exercises the two writ
 makes, because a wrong role grant would otherwise pass every test: the wallet writing its own ENS
 profile text record, and `linkOwnName` aliasing a `.eth` name onto a record. It also covers a renewal,
 a withdrawal, and a wallet with no role being refused.
+
+## Disclosing a masked account
+
+A masked linked account publishes a commitment, never the handle. When a candidate wants one verifier to
+read it, they encrypt their view code to the registrar's public key — which lives in the enclave — and
+sign a `Ketsuban Disclosure` over the ciphertext hash, the platform, an expiry and an audience. Storing
+that grant here grants this service nothing new: only the registrar key can open the box, and the
+handle is never written to disk or to chain.
+
+```mermaid
+sequenceDiagram
+  participant C as candidate
+  participant A as api
+  participant E as enclave key
+  participant V as verifier
+  C->>A: POST /v1/disclose (box to enclave key, signed)
+  A->>A: signer holds the record? unexpired? box matches?
+  V->>A: GET /v1/disclose/alice.ketsuban.eth/x
+  A->>E: open the view code
+  E-->>A: handle
+  A-->>V: { disclosed: { handle, platformId } }
+```
 
 ## Reverts
 

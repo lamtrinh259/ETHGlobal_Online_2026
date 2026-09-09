@@ -11,6 +11,17 @@ export {
 export { INTENT_TYPES, intentDomain, recoverIntentSigner, signIntent } from "./intent.js";
 export { signRecord } from "./attest.js";
 export {
+  checkAudience,
+  checkDisclosure,
+  DISCLOSE_TYPES,
+  discloseDomain,
+  hashBox,
+  recoverDiscloseSigner,
+  signDisclosure,
+  type Disclosure,
+  type SignedDisclosure,
+} from "./disclose.js";
+export {
   candidateOf,
   decodeInvite,
   encodeInvite,

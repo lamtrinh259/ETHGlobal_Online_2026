@@ -1,12 +1,19 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { z } from "zod";
-import { keccak256, stringToBytes, zeroHash, type Address, type Hex } from "viem";
+import { bytesToHex, keccak256, stringToBytes, zeroHash, type Address, type Hex } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 import {
   candidateOf,
   attest,
+  checkAudience,
+  checkDisclosure,
+  discloseDomain,
+  eciesDecrypt,
+  recoverDiscloseSigner,
   RESERVED_HANDLES,
   signRecord,
+  type SignedDisclosure,
   type AttestEnv,
   type AttestRequest,
   type AttestResult,
@@ -46,6 +53,16 @@ export const wireRecord = z.object({
   nonce: decimal,
   wallet: hex,
   payload: hex,
+});
+
+export const wireDisclosure = z.object({
+  name: z.string(),
+  domain: z.string(),
+  audience: hex,
+  exp: decimal,
+  boxHash: hex,
+  box: z.object({ ephemeralPubkey: hex, nonce: hex, ciphertext: hex }),
+  signature: hex,
 });
 
 export const wireDelivery = z.object({
@@ -318,6 +335,118 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     if (known) return;
     await chain.ensureVouchInstance(candidate);
   }
+
+  /**
+   * The key a candidate encrypts a view code to. It is the registrar's own public key, which lives in
+   * the enclave, so a disclosure can be opened there and nowhere else. Public by definition.
+   */
+  app.get("/v1/enclave-key", (c) => {
+    if (!config.REGISTRAR_KEY) return c.json({ error: "registrar disabled" }, 501);
+    const account = privateKeyToAccount(config.REGISTRAR_KEY);
+    return c.json({ address: account.address, publicKey: account.publicKey });
+  });
+
+  /**
+   * A candidate's permission to read one masked account. The grant carries the view code encrypted to
+   * the enclave key and a signature from the wallet that holds the record, so storing it here gives
+   * this service no ability it did not already have: only the registrar key can open the box.
+   */
+  const grants = new PersistentSet("disclosures", config.DATA_DIR || undefined);
+  const grantStore = new Map<string, SignedDisclosure>();
+  app.post("/v1/disclose", async (c) => {
+    const body = wireDisclosure.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: "bad request", issues: body.error.issues }, 400);
+    const grant: SignedDisclosure = {
+      name: body.data.name.toLowerCase(),
+      domain: body.data.domain,
+      audience: body.data.audience as Address,
+      exp: BigInt(body.data.exp),
+      boxHash: body.data.boxHash as Hex,
+      box: {
+        ephemeralPubkey: body.data.box.ephemeralPubkey as Hex,
+        nonce: body.data.box.nonce as Hex,
+        ciphertext: body.data.box.ciphertext as Hex,
+      },
+      signature: body.data.signature as Hex,
+    };
+    const located = locate(grant.name, await chain.instances());
+    if (!located) return c.json({ error: "unknown instance for name" }, 404);
+    const holder = await chain.resolveAddr(located.instance.resolver, grant.name);
+    try {
+      const signer = await recoverDiscloseSigner(
+        {
+          name: grant.name,
+          domain: grant.domain,
+          audience: grant.audience,
+          exp: grant.exp,
+          boxHash: grant.boxHash,
+        },
+        grant.signature,
+        discloseDomain(config.CHAIN_ID, config.MULTIPASS)
+      );
+      checkDisclosure(grant, { holder, now: now(), signer });
+    } catch (e) {
+      return c.json({ error: (e as Error).message }, 422);
+    }
+    const key = `${grant.name}:${grant.domain}`;
+    grantStore.set(key, grant);
+    grants.add(key);
+    return c.json({
+      ok: true,
+      name: grant.name,
+      domain: grant.domain,
+      expiresAt: new Date(Number(grant.exp) * 1000).toISOString(),
+    });
+  });
+
+  /**
+   * Read a masked account the candidate allowed. The handle is never written anywhere: the enclave
+   * opens the view code, decodes the record and answers this one question.
+   */
+  app.get("/v1/disclose/:name/:domain", async (c) => {
+    if (!config.REGISTRAR_KEY) return c.json({ error: "registrar disabled" }, 501);
+    const name = c.req.param("name").toLowerCase();
+    const domain = c.req.param("domain");
+    const grant = grantStore.get(`${name}:${domain}`);
+    if (!grant) return c.json({ error: "no disclosure for that account" }, 404);
+    const reader = c.req.query("reader") as Address | undefined;
+    const located = locate(name, await chain.instances());
+    if (!located) return c.json({ error: "unknown instance for name" }, 404);
+    const holder = await chain.resolveAddr(located.instance.resolver, name);
+    try {
+      const signer = await recoverDiscloseSigner(
+        {
+          name: grant.name,
+          domain: grant.domain,
+          audience: grant.audience,
+          exp: grant.exp,
+          boxHash: grant.boxHash,
+        },
+        grant.signature,
+        discloseDomain(config.CHAIN_ID, config.MULTIPASS)
+      );
+      checkDisclosure(grant, { holder, now: now(), signer });
+      checkAudience(grant, reader);
+    } catch (e) {
+      return c.json({ error: (e as Error).message }, 403);
+    }
+    const packed = await chain.resolveData(located.instance.resolver, name, `ketsuban:link:${domain}`);
+    if (packed === "0x" || packed.length !== 194) return c.json({ error: "no record for that account" }, 404);
+    try {
+      const viewCode = bytesToHex(eciesDecrypt(config.REGISTRAR_KEY, grant.box));
+      const disclosed = decodeRecord(
+        {
+          name: `0x${packed.slice(2, 66)}` as Hex,
+          id: `0x${packed.slice(66, 130)}` as Hex,
+          payload: `0x${packed.slice(130, 194)}` as Hex,
+        },
+        viewCode
+      );
+      return c.json({ name, domain, disclosed, warning: WARNING });
+    } catch (e) {
+      return c.json({ error: `could not open the disclosure: ${(e as Error).message}` }, 422);
+    }
+  });
 
   /**
    * Onboard an organisation: give a wallet a record in `ORG_DOMAIN` so it can issue references

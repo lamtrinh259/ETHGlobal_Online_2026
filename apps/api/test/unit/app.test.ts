@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   bytesToHex,
   encodePacked,
+  hexToBytes,
   keccak256,
   recoverTypedDataAddress,
   type Address,
@@ -21,7 +22,14 @@ import {
   signedInvite,
   toWire,
 } from "@ketsuban/registrar/testing";
-import { eciesDecrypt, type RegisterMessage } from "@ketsuban/registrar";
+import {
+  discloseDomain,
+  eciesDecrypt,
+  eciesEncrypt,
+  hashBox,
+  signDisclosure,
+  type RegisterMessage,
+} from "@ketsuban/registrar";
 import {
   decodeRecord,
   maskId,
@@ -1121,6 +1129,110 @@ describe("GET /v1/profile/:handle", () => {
     const single = await (await a.request("/v1/verify/alice.kju-is.eth")).json();
     expect(profile.names[0].verification).toEqual(single);
     expect((await a.request("/v1/profile/Not%20Valid")).status).toBe(400);
+  });
+});
+
+describe("disclosing a masked account", () => {
+  const ENCLAVE = registrar; // the registrar key is the enclave key
+  const aliceName = "alice.kju-is.eth";
+
+  /** A masked x record for alice, exactly as the attester writes one. */
+  function maskedChain() {
+    const viewCode = `0x${"5a".repeat(32)}` as Hex;
+    const record = {
+      name: maskName("alice_x", viewCode),
+      id: maskId("1234567890", viewCode),
+      payload: viewCodeCommitment(viewCode),
+    };
+    const packed = `0x${record.name.slice(2)}${record.id.slice(2)}${record.payload.slice(2)}` as Hex;
+    const { chain } = fakeChain({
+      addr: user.account.address,
+      data: { [`ketsuban:link:x`]: packed },
+    });
+    return { chain, viewCode };
+  }
+
+  async function grantFor(viewCode: Hex, over: Partial<{ audience: Address; exp: bigint }> = {}) {
+    const box = eciesEncrypt(ENCLAVE.publicKey, hexToBytes(viewCode), new Uint8Array(32).fill(3));
+    const disclosure = {
+      name: aliceName,
+      domain: "x",
+      audience: (over.audience ?? zeroAddress) as Address,
+      exp: over.exp ?? BigInt(NOW + 3600),
+      boxHash: hashBox(box),
+    };
+    const signature = await signDisclosure(
+      user.account,
+      disclosure,
+      discloseDomain(31337, baseEnv.MULTIPASS as Hex)
+    );
+    return {
+      ...disclosure,
+      exp: disclosure.exp.toString(),
+      box,
+      signature,
+    };
+  }
+
+  it("publishes the key a candidate encrypts to", async () => {
+    const { chain } = fakeChain();
+    const body = await (await app(chain).request("/v1/enclave-key")).json();
+    expect(body).toEqual({ address: ENCLAVE.address, publicKey: ENCLAVE.publicKey });
+  });
+
+  it("opens a masked handle for whoever the candidate allowed, and nobody else", async () => {
+    const { chain, viewCode } = maskedChain();
+    const a = app(chain);
+
+    // Nothing is readable before a grant exists.
+    expect((await a.request(`/v1/disclose/${aliceName}/x`)).status).toBe(404);
+    // And the public card still only sees a commitment.
+    const masked = await (await a.request(`/v1/verify/${aliceName}?links=x`)).json();
+    expect(masked.links[0]).toMatchObject({ optedIn: true });
+    expect(masked.links[0].disclosed).toBeUndefined();
+
+    const stored = await post(a, "/v1/disclose", await grantFor(viewCode));
+    expect(stored.status).toBe(200);
+
+    const opened = await (await a.request(`/v1/disclose/${aliceName}/x`)).json();
+    expect(opened.disclosed).toEqual({ handle: "alice_x", platformId: "1234567890" });
+    expect(opened.warning).toBe(WARNING);
+  });
+
+  it("refuses a grant the record's wallet did not sign, and one that expired", async () => {
+    const { chain, viewCode } = maskedChain();
+    const a = app(chain);
+
+    const forged = await grantFor(viewCode);
+    const bySomeoneElse = {
+      ...forged,
+      signature: await signDisclosure(
+        registrar,
+        { ...forged, exp: BigInt(forged.exp), audience: forged.audience as Address },
+        discloseDomain(31337, baseEnv.MULTIPASS as Hex)
+      ),
+    };
+    const refused = await post(a, "/v1/disclose", bySomeoneElse);
+    expect(refused.status).toBe(422);
+    expect((await refused.json()).error).toContain("not signed by the wallet that holds the record");
+
+    const expired = await post(a, "/v1/disclose", await grantFor(viewCode, { exp: BigInt(NOW - 1) }));
+    expect(expired.status).toBe(422);
+    expect((await expired.json()).error).toContain("expired");
+  });
+
+  it("honours a grant addressed to one reader", async () => {
+    const { chain, viewCode } = maskedChain();
+    const a = app(chain);
+    await post(a, "/v1/disclose", await grantFor(viewCode, { audience: registrar.address }));
+
+    const wrong = await a.request(`/v1/disclose/${aliceName}/x?reader=${user.account.address}`);
+    expect(wrong.status).toBe(403);
+    expect((await wrong.json()).error).toContain("addressed to a different reader");
+
+    const right = await a.request(`/v1/disclose/${aliceName}/x?reader=${registrar.address}`);
+    expect(right.status).toBe(200);
+    expect((await right.json()).disclosed.handle).toBe("alice_x");
   });
 });
 
