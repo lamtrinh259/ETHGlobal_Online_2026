@@ -26,7 +26,9 @@ chain, so it never drifts from what is deployed.
 ## Checks
 
 The packages generate what the apps import — the registrar's types, and the errors ABI the contracts dump
-— so `pnpm --filter "./packages/**" run build` comes first in a fresh checkout.
+— so `pnpm --filter "./packages/**" run build` comes first in a fresh checkout. It is not an install hook
+on purpose: the container build installs before it copies any source, and a hook there fails with nothing
+to compile.
 
 `pnpm -w lint && pnpm -w typecheck && pnpm -w test` is the gate: every package runs its own tests, with
 coverage thresholds where the language has them. `pnpm --filter @ketsuban/api test:e2e` is the slow one —

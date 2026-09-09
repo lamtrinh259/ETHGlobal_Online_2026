@@ -29,6 +29,10 @@ services:
 
   deploy:
     image: ghcr.io/foundry-rs/foundry:latest
+    # The image runs as its own user, and the repo is mounted from the host: without this it cannot write
+    # the build cache or `deployments/local.json`, which is how this failed on a CI runner but not on a
+    # developer's machine.
+    user: root
     networks: [ketsuban_e2e]
     depends_on:
       anvil: { condition: service_healthy }
