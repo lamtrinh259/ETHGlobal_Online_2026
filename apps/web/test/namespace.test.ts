@@ -44,7 +44,7 @@ describe("what every name means", () => {
 });
 
 describe("what a pasted name would claim", () => {
-  const kinds = (name: string) => explainName(name, contracts, ["ketsuban"]);
+  const kinds = (name: string) => explainName(name, contracts.instances, ["ketsuban"]);
 
   it("reads an account, a private account, a person and a reference apart", () => {
     expect(kinds("alice_x.com.x.www.ketsuban.eth")).toMatchObject({ kind: "account", domain: "x.com" });
@@ -65,6 +65,6 @@ describe("what a pasted name would claim", () => {
     expect(kinds("alice.nothing.ketsuban.eth").says).toContain("if nothing holds that name");
     expect(kinds("a.b.c.ketsuban.eth").kind).toBe("unknown");
     expect(kinds("")).toMatchObject({ kind: "unknown", says: "" });
-    expect(explainName("alice.ketsuban.eth", undefined, ["ketsuban"]).kind).toBe("unknown");
+    expect(explainName("alice.ketsuban.eth", [], ["ketsuban"]).kind).toBe("unknown");
   });
 });

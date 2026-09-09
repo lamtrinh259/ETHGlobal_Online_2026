@@ -11,7 +11,7 @@ import { explainName } from "@/lib/namespace";
  */
 export function Explain({ contracts, nameDomains }: { contracts: Contracts; nameDomains: string[] }) {
   const [name, setName] = useState("");
-  const claim = explainName(name, contracts, nameDomains);
+  const claim = explainName(name, contracts.instances, nameDomains);
 
   return (
     <section className="card" data-testid="explain">

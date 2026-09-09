@@ -22,7 +22,7 @@ import {
   type OnchainState,
 } from "@ketsuban/registrar";
 import { decodeRecord, fromBytes32, isOptedIn, toBytes32 } from "@peeramid-labs/multipass-client";
-import { isDnsName, platformOf } from "@ketsuban/registrar";
+import { explainName, isDnsName, platformOf } from "@ketsuban/registrar";
 import type { ChainReader, Instance } from "./chain.js";
 import { explainRevert } from "./errors.js";
 import type { Config } from "./config.js";
@@ -350,6 +350,17 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
       paymentToken: config.PAYMENT_TOKEN ?? null,
     })
   );
+
+  /**
+   * What a name would claim here, whether or not anything resolves at it. An agent handed a name needs to
+   * tell "nobody holds this" from "this could never mean anything in this deployment", and the answer
+   * comes from the same function the app reads, so the two can never drift.
+   */
+  app.get("/v1/explain/:name", async (c) => {
+    const name = c.req.param("name");
+    const claim = explainName(name, await chain.instances(), config.NAME_DOMAINS);
+    return c.json({ name, ...claim, warning: WARNING });
+  });
 
   /**
    * Who owns a `.eth` label on the registry the bridge checks. A name held on another ENS deployment

@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { ensNameFor, groupingFor, mountPath, PRIVATE_GROUPINGS, PUBLIC_GROUPINGS } from "../src/namespace.js";
+import {
+  ensNameFor,
+  explainName,
+  groupingFor,
+  mountPath,
+  PRIVATE_GROUPINGS,
+  PUBLIC_GROUPINGS,
+} from "../src/namespace.js";
 
 const root = "ketsuban.eth";
 
@@ -54,5 +61,39 @@ describe("what a person may not be called", () => {
     }
     // A platform is no longer a root label once it lives under `www`, but the flat deployments still hold.
     expect(RESERVED_HANDLES).toContain("x");
+  });
+});
+
+describe("what a name claims", () => {
+  const mounts = [
+    { domain: "ketsuban", parentName: "ketsuban.eth" },
+    {
+      domain: "discord.com",
+      parentName: "com.discord.www.ketsuban.eth",
+      maskedParentName: "com.discord.private-www.ketsuban.eth",
+    },
+  ];
+  const claim = (name: string) => explainName(name, mounts, ["ketsuban"]);
+
+  it("tells the four shapes apart, from the mounts rather than from the shape alone", () => {
+    expect(claim("slayer69.com.discord.www.ketsuban.eth")).toMatchObject({
+      kind: "account",
+      domain: "discord.com",
+      label: "slayer69",
+    });
+    expect(claim("alice.com.discord.private-www.ketsuban.eth")).toMatchObject({
+      kind: "private",
+      label: "alice",
+    });
+    expect(claim("alice.ketsuban.eth")).toMatchObject({ kind: "person", label: "alice" });
+    expect(claim("bob.alice.ketsuban.eth")).toMatchObject({ kind: "reference", label: "bob" });
+  });
+
+  it("says nothing it cannot support", () => {
+    // A private name claims presence, not the account; an unknown name claims nothing at all.
+    expect(claim("alice.com.discord.private-www.ketsuban.eth").says).toContain("behind a view code");
+    expect(claim("alice.example.com").kind).toBe("unknown");
+    expect(claim("a.b.c.ketsuban.eth").kind).toBe("unknown");
+    expect(explainName("alice.ketsuban.eth", [], ["ketsuban"])).toEqual({ says: "", kind: "unknown" });
   });
 });

@@ -2114,3 +2114,21 @@ describe("a deployment this build already knows", () => {
     ).toThrow();
   });
 });
+
+describe("GET /v1/explain/:name", () => {
+  it("says what a name would claim, by the same rule the app shows", async () => {
+    const { chain } = fakeChain({ instances: [instance, xComInstance] });
+    const ask = async (name: string) => (await app(chain).request(`/v1/explain/${name}`)).json();
+
+    expect(await ask("alice_x.com.x.www.kju-is.eth")).toMatchObject({
+      kind: "account",
+      domain: "x.com",
+      label: "alice_x",
+    });
+    expect(await ask("alice.com.x.private-www.kju-is.eth")).toMatchObject({ kind: "private" });
+    expect(await ask("alice.kju-is.eth")).toMatchObject({ kind: "person" });
+    expect(await ask("bob.alice.kju-is.eth")).toMatchObject({ kind: "reference" });
+    // An agent must be able to tell this from a name nobody happens to hold.
+    expect(await ask("alice.example.com")).toMatchObject({ kind: "unknown" });
+  });
+});

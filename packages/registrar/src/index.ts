@@ -54,10 +54,13 @@ export {
 } from "./accounts.js";
 export {
   ensNameFor,
+  explainName,
   groupingFor,
   mountPath,
   PRIVATE_GROUPINGS,
   PUBLIC_GROUPINGS,
   type Grouping,
+  type Mount,
+  type NameClaim,
 } from "./namespace.js";
 export { base64urlDecode, base64urlEncode } from "./base64url.js";
