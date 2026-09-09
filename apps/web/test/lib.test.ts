@@ -290,6 +290,34 @@ describe("api client", () => {
       "http://api.test/v1/gas": {
         body: { hash: `0x${"cc".repeat(32)}`, amount: "2000000000000000" },
       },
+      "http://api.test/v1/profile/alice?links=x": {
+        body: {
+          handle: "alice",
+          names: [
+            {
+              instance: "ketsuban",
+              name: "alice.ketsuban.eth",
+              verification: {
+                name: "alice.ketsuban.eth",
+                instance: { domain: "ketsuban", parentName: "ketsuban.eth" },
+                status: "active",
+                wallet: account.address,
+                answer: "terrible dictator",
+                expiresAt: "2027-01-01T00:00:00.000Z",
+                humanity: null,
+                links: [],
+                evidence: ["wallet_binding"],
+                decision: "additional_context_available",
+                warning: "w",
+              },
+            },
+            { instance: "kju-is", name: "alice.kju-is.ketsuban.eth", verification: null },
+          ],
+          vouches: [],
+          standing: { claimed: true, given: 0, received: 0 },
+          warning: "w",
+        },
+      },
       "http://api.test/v1/vouches/alice": {
         body: {
           handle: "alice",
@@ -324,6 +352,11 @@ describe("api client", () => {
     expect((calls[2].init?.headers as Record<string, string>)["x-delivery-token"]).toBe("tok");
 
     expect(await api.verify("alice.ketsuban.eth", { links: ["x"], viewCode: "0x02" })).toEqual(verification);
+    const profile = await api.profile("alice", { links: ["x"] });
+    expect(profile.names.map((n) => n.instance)).toEqual(["ketsuban", "kju-is"]);
+    expect(profile.names[0].verification?.answer).toBe("terrible dictator");
+    expect(profile.names[1].verification).toBeNull();
+    expect(profile.standing.claimed).toBe(true);
     expect((await api.vouches("alice")).vouches[0].voucher).toBe("bob");
     expect((await api.vouches("alice")).vouches[0].standing).toEqual({
       claimed: true,

@@ -105,6 +105,15 @@ export const ensSchema = z.object({
 });
 export type EnsResolution = z.infer<typeof ensSchema>;
 
+export const profileSchema = z.object({
+  handle: z.string(),
+  names: z.array(z.object({ instance: z.string(), name: z.string(), verification: verifySchema.nullable() })),
+  vouches: vouchesSchema.shape.vouches,
+  standing: z.object({ claimed: z.boolean(), given: z.number(), received: z.number() }),
+  warning: z.string(),
+});
+export type ProfileRead = z.infer<typeof profileSchema>;
+
 export const nameStatusSchema = z.object({
   domain: z.string(),
   handle: z.string(),
@@ -246,6 +255,16 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
             body: JSON.stringify({ wallet }),
           })
         )
+      );
+    },
+
+    async profile(handle: string, opts: { links?: string[]; viewCode?: Hex } = {}): Promise<ProfileRead> {
+      const q = new URLSearchParams();
+      if (opts.links?.length) q.set("links", opts.links.join(","));
+      if (opts.viewCode) q.set("viewCode", opts.viewCode);
+      const qs = q.toString();
+      return profileSchema.parse(
+        await readJson(await call(`${base}/v1/profile/${encodeURIComponent(handle)}${qs ? `?${qs}` : ""}`))
       );
     },
 

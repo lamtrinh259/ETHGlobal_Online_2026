@@ -404,9 +404,8 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     return c.json({ handle, ...(await standing(handle)), warning: WARNING });
   });
 
-  app.get("/v1/vouches/:handle", async (c) => {
-    const handle = c.req.param("handle").toLowerCase();
-    if (!/^[a-z0-9-]{1,30}$/.test(handle)) return c.json({ error: "bad handle" }, 400);
+  /** Every reference written under a candidate, with each live voucher's standing and letter. */
+  async function vouchesFor(handle: string) {
     const domain = `${config.VOUCH_PREFIX}${handle}`;
     const rootParent =
       (await chain.instances()).find((i) => i.domain === config.NAME_DOMAINS[0])?.parentName ?? "";
@@ -430,7 +429,7 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
           )
         : []
     );
-    return c.json({
+    return {
       handle,
       domain,
       vouches: records.map((r) => ({
@@ -445,17 +444,29 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
         letter: letters.get(r.name) || null,
       })),
       warning: WARNING,
-    });
+    };
+  }
+
+  app.get("/v1/vouches/:handle", async (c) => {
+    const handle = c.req.param("handle").toLowerCase();
+    if (!/^[a-z0-9-]{1,30}$/.test(handle)) return c.json({ error: "bad handle" }, 400);
+    return c.json(await vouchesFor(handle));
   });
 
   /**
    * Machine-readable verification (spec §3.4). Every field is read through the ENS resolver so an
    * agent gets exactly what any wallet would; `viewCode` (query) unmasks opted-in links.
    */
-  app.get("/v1/verify/:name", async (c) => {
-    const name = c.req.param("name");
+  /**
+   * One name, read through the instance resolver. Shared by `/v1/verify/:name` and the composed
+   * profile: an agent should get the same bytes either way.
+   */
+  async function verifyName(
+    name: string,
+    opts: { linkDomains: string[]; viewCode?: Hex }
+  ): Promise<Record<string, unknown> | undefined> {
     const located = locate(name, await chain.instances());
-    if (!located) return c.json({ error: "unknown instance for name" }, 404);
+    if (!located) return undefined;
     const { instance } = located;
     const r = instance.resolver;
 
@@ -473,13 +484,9 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
         chain.resolveText(r, name, "email"),
       ]);
     const active = wallet !== "0x0000000000000000000000000000000000000000";
-    const linkDomains = (c.req.query("links") ?? "x,telegram,github,discord,google,email,linkedin")
-      .split(",")
-      .filter(Boolean);
-    const viewCode = c.req.query("viewCode") as Hex | undefined;
     const links = active
       ? await Promise.all(
-          linkDomains.map(async (domain) => {
+          opts.linkDomains.map(async (domain) => {
             const packed = await chain.resolveData(r, name, `ketsuban:link:${domain}`);
             if (packed === "0x" || packed.length !== 194) return null;
             const record = {
@@ -489,9 +496,9 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
             };
             const optedIn = isOptedIn(record);
             let disclosed: { handle: string; platformId: string } | undefined;
-            if (viewCode) {
+            if (opts.viewCode) {
               try {
-                disclosed = decodeRecord(record, viewCode);
+                disclosed = decodeRecord(record, opts.viewCode);
               } catch {
                 disclosed = undefined;
               }
@@ -511,7 +518,7 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
       ...(humanity ? ["humanity_attestation"] : []),
       ...links.filter(Boolean).map((l) => `${l!.domain}_account_control`),
     ];
-    return c.json({
+    return {
       name,
       instance: { domain: instance.domain, parentName: instance.parentName },
       status: active ? "active" : "inactive",
@@ -533,6 +540,49 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
       },
       evidence,
       decision: active ? "additional_context_available" : "no_record",
+      warning: WARNING,
+    };
+  }
+
+  const DEFAULT_LINKS = "x,telegram,github,discord,google,email,linkedin";
+  const linkQuery = (q?: string) => (q ?? DEFAULT_LINKS).split(",").filter(Boolean);
+
+  app.get("/v1/verify/:name", async (c) => {
+    const v = await verifyName(c.req.param("name"), {
+      linkDomains: linkQuery(c.req.query("links")),
+      viewCode: c.req.query("viewCode") as Hex | undefined,
+    });
+    if (!v) return c.json({ error: "unknown instance for name" }, 404);
+    return c.json(v);
+  });
+
+  /**
+   * The whole candidate in one read: every instance name, the references written for them, and each
+   * voucher's standing. Facts only — grading against a policy is the reader's job, never ours.
+   */
+  app.get("/v1/profile/:handle", async (c) => {
+    const handle = c.req.param("handle").toLowerCase();
+    if (!/^[a-z0-9-]{1,30}$/.test(handle)) return c.json({ error: "bad handle" }, 400);
+    const instances = await chain.instances();
+    const subjects = instances.filter((i) => config.NAME_DOMAINS.includes(i.domain));
+    if (subjects.length === 0) return c.json({ error: "no name domains configured" }, 501);
+    const opts = {
+      linkDomains: linkQuery(c.req.query("links")),
+      viewCode: c.req.query("viewCode") as Hex | undefined,
+    };
+    const names = await Promise.all(
+      subjects.map(async (i) => ({
+        instance: i.domain,
+        name: `${handle}.${i.parentName}`,
+        verification: (await verifyName(`${handle}.${i.parentName}`, opts)) ?? null,
+      }))
+    );
+    const vouches = await vouchesFor(handle);
+    return c.json({
+      handle,
+      names,
+      vouches: vouches.vouches,
+      standing: await standing(handle),
       warning: WARNING,
     });
   });

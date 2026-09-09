@@ -314,6 +314,17 @@ describe("api e2e", () => {
     expect(after.gasTopup.available).toBe(false);
   });
 
+  it("serves the whole candidate in one read, matching the per-name endpoint", async () => {
+    const profile = await (await fetch(`${API}/v1/profile/alice`)).json();
+    expect(profile.handle).toBe("alice");
+    expect(profile.standing).toMatchObject({ claimed: true, received: 1 });
+    const named = profile.names.find((n: { instance: string }) => n.instance === deployment.instanceDomain);
+    expect(named.verification.status).toBe("active");
+    const single = await (await fetch(`${API}/v1/verify/${named.name}`)).json();
+    expect(named.verification).toEqual(single);
+    expect(profile.vouches[0]).toMatchObject({ voucher: "bob", statement: "worked together 2019-22" });
+  });
+
   it("provisions a vouch instance for a live handle and refuses one that does not exist", async () => {
     const call = (handle: string) =>
       fetch(`${API}/v1/provision`, {

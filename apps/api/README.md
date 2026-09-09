@@ -17,6 +17,7 @@ CORS: `CORS_ORIGINS` (comma list, default `*`) — set it to the web app origin 
 | `GET /v1/ens/:name` | The name read through the ENSv2 UniversalResolver: the resolver it reached, the address and text records any ENS client would see (`?keys=` overrides). 501 unless `UNIVERSAL_RESOLVER` is set. |
 | `GET /v1/standing/:handle` | Live references a handle's wallet gave and it received; `/v1/vouches` carries it per live voucher. |
 | `GET /v1/wallet/:address` | A wallet's names, linked-account records and references given (its dashboard). |
+| `GET /v1/profile/:handle` | The whole candidate in one read: every instance name with its verification, the references written for them, and the candidate's standing. Facts only; grading against a policy is the reader's job. |
 | `GET /v1/vouches/:handle` | Every reference written under the candidate: records in the `~<handle>` vouch domain (Registered/Renewed logs from `DEPLOY_BLOCK`, current state per id, liveness), each live one with the voucher's standing and the long-form `letter` they wrote as a `description` text record. |
 
 A statement in a vouch domain (`~alice`) is refused unless the request carries an invitation signed by

@@ -82,6 +82,7 @@ function fakeChain(state: Partial<State> = {}) {
     data: {},
     listed: {},
     instancesCreated: [],
+    byWallet: [],
     instances: [instance],
     universal: {
       resolver: "0x178ff1589Be8Af3B19426Aa1d2Bd07cd178E215e",
@@ -135,7 +136,7 @@ function fakeChain(state: Partial<State> = {}) {
     indexStatus: vi.fn(() => ({
       indexedBlock: 1_000,
       head: 1_000,
-      records: (s.byWallet ?? []).length,
+      records: s.byWallet.length,
       synced: true,
     })),
     balance: vi.fn(async () => s.balance),
@@ -775,6 +776,64 @@ describe("POST /v1/provision", () => {
     const res = await post(app(chain), "/v1/provision", { handle: "alice" });
     expect(res.status).toBe(502);
     expect((await res.json()).error).toBe("relayer does not own the factory");
+  });
+});
+
+describe("GET /v1/profile/:handle", () => {
+  it("returns every instance name, the references and the standing in one read", async () => {
+    const { chain } = fakeChain({
+      addr: user.account.address,
+      instances: [instance, { ...instance, domain: "uni", parentName: "uni.eth", parentLabel: "uni" }],
+      names: { "kju-is/alice": { taken: true, wallet: user.account.address, live: true } },
+      texts: {
+        "alice.kju-is.eth/ketsuban:answer": "terrible dictator",
+        "alice.uni.eth/ketsuban:answer": "computer science",
+      },
+      listed: {
+        "~alice": [
+          {
+            name: "bob",
+            id: toBytes32("b"),
+            wallet: user.account.address,
+            payload: toBytes32("worked together"),
+            validUntil: 1_800_000_000n,
+            nonce: 1n,
+            live: true,
+          },
+        ],
+      },
+    });
+    const res = await app(chain).request("/v1/profile/Alice?links=x");
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.handle).toBe("alice");
+    expect(body.names.map((n: { instance: string; name: string }) => [n.instance, n.name])).toEqual([
+      ["kju-is", "alice.kju-is.eth"],
+      ["uni", "alice.uni.eth"],
+    ]);
+    expect(body.names[0].verification.answer).toBe("terrible dictator");
+    expect(body.names[1].verification.answer).toBe("computer science");
+    expect(body.names[0].verification.status).toBe("active");
+    expect(body.vouches).toHaveLength(1);
+    expect(body.vouches[0]).toMatchObject({ voucher: "bob", statement: "worked together", live: true });
+    expect(body.standing).toEqual({ claimed: true, given: 0, received: 1 });
+    // Facts only: the API never grades a person.
+    expect(body.score).toBeUndefined();
+    expect(body.complete).toBeUndefined();
+    expect(body.warning).toBe(WARNING);
+  });
+
+  it("matches /v1/verify for the same name, and 400s a bad handle", async () => {
+    const { chain } = fakeChain({
+      addr: user.account.address,
+      names: { "kju-is/alice": { taken: true, wallet: user.account.address, live: true } },
+      texts: { "alice.kju-is.eth/ketsuban:answer": "terrible dictator" },
+    });
+    const a = app(chain);
+    const profile = await (await a.request("/v1/profile/alice")).json();
+    const single = await (await a.request("/v1/verify/alice.kju-is.eth")).json();
+    expect(profile.names[0].verification).toEqual(single);
+    expect((await a.request("/v1/profile/Not%20Valid")).status).toBe(400);
   });
 });
 

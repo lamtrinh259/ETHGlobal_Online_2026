@@ -43,31 +43,27 @@ export default async function ProfilePage({ params, searchParams }: Params) {
 
   const names = profileNames(handle, config);
   let error: string | undefined;
-  const results = await Promise.all(
-    names.map(async (name, i) => {
-      let v: Verification | null = null;
-      try {
-        v = await api.verify(name, {
-          links: q.links?.split(","),
-          viewCode: q.viewCode as `0x${string}` | undefined,
-        });
-      } catch (e) {
-        error ??= (e as Error).message;
-      }
-      return { instanceDomain: config.instances[i].domain, name, v };
-    })
-  );
+  // One composed read instead of one per instance plus the references (`GET /v1/profile/:handle`).
+  let read: Awaited<ReturnType<typeof api.profile>> | undefined;
+  try {
+    read = await api.profile(handle, {
+      links: q.links?.split(","),
+      viewCode: q.viewCode as `0x${string}` | undefined,
+    });
+  } catch (e) {
+    error = (e as Error).message;
+  }
+  const results = names.map((name, i) => ({
+    instanceDomain: config.instances[i].domain,
+    name,
+    v: (read?.names.find((n) => n.name === name)?.verification ?? null) as Verification | null,
+  }));
   const policy = policyFromQuery(
     q,
     subjects.map((s) => s.domain)
   );
   const ens = await api.ens(names[0]).catch(() => null);
-  let vouches: Awaited<ReturnType<typeof api.vouches>>["vouches"] = [];
-  try {
-    vouches = (await api.vouches(handle)).vouches;
-  } catch (e) {
-    error ??= (e as Error).message;
-  }
+  const vouches = read?.vouches ?? [];
   const profile = assessProfile(handle, results, policy, vouches);
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "";
 

@@ -7,7 +7,7 @@ identity is Privy (embedded wallet, identity token); the view-code key stays on 
 |---|---|---|
 | `/` | everyone | Three doors: candidate, voucher, verifier; a returning user gets a dashboard/continue strip. |
 | `/claim` | candidate | Claim `<handle>.<root>`, answer each subject instance (`kju-is` …), get the share line and next steps. Resumes at the first unanswered subject; `?renew=<domain>` republishes one record under the held handle. |
-| `/p/<handle>` | verifier / agent | The reference page: identity, answers, linked accounts, humanity, graded by a policy (`?answers=&minLinks=&humanity=1`), with the raw names to resolve yourself. |
+| `/p/<handle>` | verifier / agent | Reads the whole candidate in one call (`GET /v1/profile/:handle`). The reference page: identity, answers, linked accounts, humanity, graded by a policy (`?answers=&minLinks=&humanity=1`), with the raw names to resolve yourself. |
 | `/verify` | verifier | Policy presets (hiring, landlord, DAO, open) or custom → `/p/<handle>?…&preset=`. |
 | `/vouch` | voucher | Candidate lookup; checks the name is live before continuing. |
 | `/vouch/<handle>` | voucher | Three labelled steps, each saying what happens and why (`vouchSteps`): sign in → prove one real person (pending partner access) → write and sign as `<you>.<handle>.<root>`, then optionally a long-form letter (an ENS `description` record the voucher signs themselves). Needs the candidate's invite link (`?invite=`), which only their wallet can sign. Attesting the accounts you worked from is onboarding on `/me`, not part of vouching: a voucher with none is sent there and resumes here afterwards. A name of the voucher's own is not required; a held one is reused as the label, otherwise claiming it is the CTA after publishing. |
