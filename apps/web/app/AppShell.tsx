@@ -15,6 +15,7 @@ const NAV = [
   { href: "/me", label: "My profile" },
   { href: "/vouch", label: "Vouch" },
   { href: "/verify", label: "Verify" },
+  { href: "/names", label: "Names" },
 ];
 
 /** A production page pointed at a loopback API cannot work: NEXT_PUBLIC_API_URL was missing at build time. */

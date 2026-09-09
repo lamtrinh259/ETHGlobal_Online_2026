@@ -115,3 +115,11 @@ test("a domain that cannot be written disables the publish button with the reaso
   await expect(page.getByTestId("signin")).toBeVisible({ timeout: 20000 });
   await expect(page.getByTestId("publish")).toHaveCount(0);
 });
+
+test("the names page explains the namespace, and degrades when the API is unreachable", async ({ page }) => {
+  await page.goto("/names");
+  await expect(page.getByRole("heading", { name: "Names", level: 1 })).toBeVisible();
+  // Without an API there are no mounts to describe, and the page says so rather than inventing shapes.
+  await expect(page.locator("main [role=alert]")).toHaveText(/no mounts to describe/);
+  await expect(page.getByRole("link", { name: /Check a name/ })).toBeVisible();
+});
