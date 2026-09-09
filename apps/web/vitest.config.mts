@@ -10,7 +10,7 @@ export default defineConfig({
     globals: true,
     setupFiles: ["./test/setup.ts"],
     include: ["test/**/*.test.{ts,tsx}"],
-    // Same reason as the api: a small runner deadlocks the pool, and these files are fast anyway.
+    // One file at a time on a runner; these files share module mocks, so they cannot share a process.
     fileParallelism: !process.env.CI,
     coverage: {
       provider: "v8",
