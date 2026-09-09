@@ -21,14 +21,24 @@ test("verifier form builds a policy URL for the candidate page", async ({ page }
   await expect(page.locator("main [role=alert]").first()).toBeVisible();
 });
 
+test("the vouch page explains every step in the voucher's own words", async ({ page }) => {
+  await page.goto("/vouch/alice");
+  const steps = page.locator(".journey li");
+  await expect(steps).toHaveCount(4);
+  await expect(steps.nth(0)).toContainText("no seed phrase");
+  await expect(steps.nth(1)).toContainText("coming soon");
+  await expect(steps.nth(2)).toContainText("Show how you know alice");
+  await expect(steps.nth(3)).toContainText("never delete it");
+});
+
 test("claim and vouch journeys show the stepper and the sign-in gate", async ({ page }) => {
   await page.goto("/claim");
   await expect(page.locator(".stepper li")).toHaveCount(3);
   await expect(page.getByTestId("signin")).toBeVisible({ timeout: 20000 });
 
   await page.goto("/vouch/alice");
-  await expect(page.locator(".stepper li")).toHaveCount(5);
-  await expect(page.locator(".stepper li.pending")).toHaveCount(1);
+  await expect(page.locator(".journey li")).toHaveCount(4);
+  await expect(page.locator(".journey li.pending")).toHaveCount(1);
   await expect(page.getByTestId("signin")).toBeVisible({ timeout: 20000 });
 });
 

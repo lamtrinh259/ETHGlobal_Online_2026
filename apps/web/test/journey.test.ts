@@ -7,6 +7,7 @@ import {
   needsAttention,
   parentNameFor,
   voucherProgress,
+  vouchSteps,
 } from "@/lib/journey";
 
 const config = {
@@ -153,5 +154,40 @@ describe("nameRows", () => {
       { domain: "uni", ensName: "bob.uni.ketsuban.eth", live: undefined, expired: true, href: "/claim" },
     ]);
     expect(nameRows(undefined, three)).toEqual([]);
+  });
+});
+
+describe("vouchSteps", () => {
+  const at = { authenticated: false, linked: false, published: false };
+
+  it("keeps four required steps, names the candidate and leaves humanity pending", () => {
+    const first = vouchSteps("alice", at);
+    expect(first.map((s) => [s.id, s.state])).toEqual([
+      ["signin", "now"],
+      ["humanity", "pending"],
+      ["work", "todo"],
+      ["write", "todo"],
+    ]);
+    expect(first.some((s) => s.id === "name")).toBe(false);
+    expect(first[2].label).toBe("Show how you know alice");
+    expect(first[0].detail).toContain("no seed phrase");
+    expect(first[3].detail).toContain("Pick the name you sign as");
+    expect(first[3].detail).toContain("never delete");
+
+    expect(vouchSteps("alice", { ...at, authenticated: true }).map((s) => s.state)).toEqual([
+      "done",
+      "pending",
+      "now",
+      "todo",
+    ]);
+    expect(vouchSteps("alice", { ...at, authenticated: true, linked: true }).map((s) => s.state)).toEqual([
+      "done",
+      "pending",
+      "done",
+      "now",
+    ]);
+    expect(
+      vouchSteps("alice", { authenticated: true, linked: true, published: true }).map((s) => s.state)
+    ).toEqual(["done", "pending", "done", "done"]);
   });
 });

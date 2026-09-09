@@ -135,3 +135,48 @@ export function nameRows(dash: WalletDashboard | undefined, instances: Instances
     };
   });
 }
+
+export type StepState = "done" | "now" | "todo" | "pending";
+export type JourneyStep = { id: string; label: string; detail: string; state: StepState };
+
+/**
+ * The voucher's four steps in their own words (spec §3.3). A reference is a record in the candidate's
+ * own vouch domain, so the voucher needs no name of their own first: claiming one is the follow-up CTA.
+ * `humanity` is the World Selfie Check gate, shown as pending until partner access lands.
+ */
+export function vouchSteps(
+  candidate: string,
+  at: { authenticated: boolean; linked: boolean; published: boolean }
+): JourneyStep[] {
+  const stage = !at.authenticated ? "signin" : at.published ? "done" : !at.linked ? "work" : "write";
+  const mark = (mine: string, done: boolean): StepState => (done ? "done" : stage === mine ? "now" : "todo");
+  return [
+    {
+      id: "signin",
+      label: "Sign in",
+      detail: "Google, X or email. A wallet is created for you: no app, no seed phrase, no fee.",
+      state: mark("signin", at.authenticated),
+    },
+    {
+      id: "humanity",
+      label: "Prove you are one real person",
+      detail:
+        "A short face scan through World. It stops one person running ten voucher accounts. We never see the image.",
+      state: "pending",
+    },
+    {
+      id: "work",
+      label: `Show how you know ${candidate}`,
+      detail:
+        "Link the account you worked from: X, GitHub, Telegram. Checked inside a secure enclave; it stays masked unless you hand someone a view code.",
+      state: mark("work", at.linked),
+    },
+    {
+      id: "write",
+      label: "Write and sign the reference",
+      detail:
+        "Pick the name you sign as, then 31 characters, for example “CTO at Acme 2019-22”. Permanent: you can update or withdraw it later, never delete it.",
+      state: mark("write", at.published),
+    },
+  ];
+}
