@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fmtUtc, short, waveChars } from "@/app/ui";
+import { buildStamp, fmtUtc, short, waveChars } from "@/app/ui";
 
 describe("ui helpers", () => {
   it("shortens hex, leaves short strings alone", () => {
@@ -42,5 +42,16 @@ describe("apiMisconfigured", () => {
     expect(apiMisconfigured("https://ketsuban.peeramid.xyz", "https://ketsuban-app.peeramid.xyz")).toBe(
       false
     );
+  });
+});
+
+describe("buildStamp", () => {
+  it("names the commit and the time, and copes when either is missing", () => {
+    expect(buildStamp("a1b2c3d", "2026-09-09 12:30Z")).toBe("build a1b2c3d · 2026-09-09 12:30Z");
+    // A gitless build context has no commit; a stamp is still better than nothing.
+    expect(buildStamp("", "2026-09-09 12:30Z")).toBe("build 2026-09-09 12:30Z");
+    expect(buildStamp("a1b2c3d")).toBe("build a1b2c3d");
+    expect(buildStamp()).toBe("build unknown");
+    expect(buildStamp("  ", "  ")).toBe("build unknown");
   });
 });

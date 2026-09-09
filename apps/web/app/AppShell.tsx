@@ -9,7 +9,7 @@ import { WhoAmI } from "./WhoAmI";
 import { useWebConfig } from "./providers";
 import { useBodyScrollLock } from "./useBodyScrollLock";
 import { useModalEscape } from "./useModalEscape";
-import { waveChars } from "./ui";
+import { buildStamp, waveChars } from "./ui";
 
 const NAV = [
   { href: "/me", label: "My profile" },
@@ -138,8 +138,8 @@ export function AppShell({ children }: { children: ReactNode }) {
             </>
           )}
           <p className="sh-note muted">
-            build {process.env.NEXT_PUBLIC_BUILD} · every record is permanent · this is not identity
-            verification
+            {buildStamp(process.env.NEXT_PUBLIC_BUILD_SHA, process.env.NEXT_PUBLIC_BUILD_TIME)} · every record
+            is permanent · this is not identity verification
           </p>
         </div>
       </aside>

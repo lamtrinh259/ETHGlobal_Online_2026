@@ -18,3 +18,13 @@ export function fmtUtc(iso: string | null | undefined): string {
   if (Number.isNaN(d.getTime())) return "—";
   return d.toISOString().slice(0, 16).replace("T", " ") + "Z";
 }
+
+/**
+ * What the footer says about this build. Two facts, either of which can be missing: the commit (absent
+ * in a gitless build context) and the time (always present). A deploy is identified by the pair, so a
+ * screenshot of a bug names the code that produced it.
+ */
+export function buildStamp(sha?: string, time?: string): string {
+  const parts = [sha?.trim(), time?.trim()].filter((p): p is string => !!p);
+  return parts.length ? `build ${parts.join(" · ")}` : "build unknown";
+}

@@ -84,6 +84,18 @@ test("a misconfigured deployment says so before any form", async ({ page }) => {
   await expect(page.getByTestId("preflight")).toHaveCount(0);
 });
 
+test("the footer names the build, and the health probe agrees with it", async ({ page, request }) => {
+  await page.goto("/");
+  const footer = page.locator(".sh-note, .sh-foot").first();
+  await expect(footer).toContainText(/build /);
+
+  const health = await (await request.get("/api/health")).json();
+  // A screenshot of a bug should name the code that produced it, so both halves must be present.
+  expect(health.builtAt).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}Z$/);
+  if (health.sha) await expect(footer).toContainText(health.sha);
+  await expect(footer).toContainText(health.builtAt);
+});
+
 test("health endpoint answers", async ({ request }) => {
   const r = await request.get("/api/health");
   expect(r.ok()).toBeTruthy();
