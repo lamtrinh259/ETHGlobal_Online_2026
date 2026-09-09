@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nameKinds } from "@/lib/namespace";
+import { explainName, nameKinds } from "@/lib/namespace";
 import type { Contracts } from "@/lib/api";
 
 const mount = (domain: string, parentName: string, maskedParentName?: string) => ({
@@ -40,5 +40,31 @@ describe("what every name means", () => {
     // No root instance, nothing to say.
     expect(nameKinds(contracts, ["other"])).toEqual([]);
     expect(nameKinds(undefined, ["ketsuban"])).toEqual([]);
+  });
+});
+
+describe("what a pasted name would claim", () => {
+  const kinds = (name: string) => explainName(name, contracts, ["ketsuban"]);
+
+  it("reads an account, a private account, a person and a reference apart", () => {
+    expect(kinds("alice_x.com.x.www.ketsuban.eth")).toMatchObject({ kind: "account", domain: "x.com" });
+    expect(kinds("alice.com.x.private-www.ketsuban.eth")).toMatchObject({ kind: "private", label: "alice" });
+    expect(kinds("alice.ketsuban.eth")).toMatchObject({ kind: "person", label: "alice" });
+    expect(kinds("bob.alice.ketsuban.eth")).toMatchObject({ kind: "reference", label: "bob" });
+  });
+
+  it("says what a private name does not say", () => {
+    expect(kinds("alice.com.x.private-www.ketsuban.eth").says).toContain("behind a view code");
+    expect(kinds("alice_x.com.x.www.ketsuban.eth").says).toContain("in the open");
+  });
+
+  it("refuses to invent a meaning for a name outside every namespace", () => {
+    expect(kinds("alice.example.com").kind).toBe("unknown");
+    // Two labels under the root is the shape of a reference whoever holds them, so it says "if".
+    expect(kinds("alice.nothing.ketsuban.eth")).toMatchObject({ kind: "reference" });
+    expect(kinds("alice.nothing.ketsuban.eth").says).toContain("if nothing holds that name");
+    expect(kinds("a.b.c.ketsuban.eth").kind).toBe("unknown");
+    expect(kinds("")).toMatchObject({ kind: "unknown", says: "" });
+    expect(explainName("alice.ketsuban.eth", undefined, ["ketsuban"]).kind).toBe("unknown");
   });
 });

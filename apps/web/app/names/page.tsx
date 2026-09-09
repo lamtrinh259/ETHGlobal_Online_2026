@@ -3,6 +3,7 @@ import Link from "next/link";
 import { createApi } from "@/lib/api";
 import { loadWebConfig } from "@/lib/config";
 import { nameKinds } from "@/lib/namespace";
+import { Explain } from "./Explain";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +43,8 @@ export default async function NamesPage() {
           ))}
         </ul>
       )}
+
+      {contracts && <Explain contracts={contracts} nameDomains={config.nameDomains} />}
 
       {mounts.length > 0 && (
         <section className="card">
