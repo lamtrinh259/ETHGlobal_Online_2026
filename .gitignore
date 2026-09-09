@@ -276,6 +276,8 @@ bin/
 
 docs/contracts
 abi/
+# The generated errors ABI is a build input for the API and the web app, so it ships with the repo.
+!packages/contracts/abi/
 .vscode
 .pnpm-store/
 
