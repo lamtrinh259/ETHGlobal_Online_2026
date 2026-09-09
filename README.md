@@ -25,6 +25,9 @@ chain, so it never drifts from what is deployed.
 
 ## Checks
 
+The packages generate what the apps import — the registrar's types, and the errors ABI the contracts dump
+— so `pnpm --filter "./packages/**" run build` comes first in a fresh checkout.
+
 `pnpm -w lint && pnpm -w typecheck && pnpm -w test` is the gate: every package runs its own tests, with
 coverage thresholds where the language has them. `pnpm --filter @ketsuban/api test:e2e` is the slow one —
 anvil, the contracts deployed from this source, and the API image, driven from outside. Both run on every

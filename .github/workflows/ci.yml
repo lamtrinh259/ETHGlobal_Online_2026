@@ -27,6 +27,9 @@ jobs:
       - uses: oven-sh/setup-bun@v2
 
       - run: pnpm install --frozen-lockfile
+      # The packages generate what the apps import: the registrar's types and the errors ABI the
+      # contracts dump. A fresh checkout has neither, so nothing can be typechecked before this.
+      - run: pnpm --filter "./packages/**" run build
       - run: pnpm -w lint
       - run: pnpm -w typecheck
       - run: pnpm -w test
@@ -42,5 +45,6 @@ jobs:
           cache: pnpm
       - uses: foundry-rs/foundry-toolchain@v1
       - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter "./packages/**" run build
       # anvil, the contracts deployed from this source, and the api image: the whole loop from outside.
       - run: pnpm --filter @ketsuban/api test:e2e
