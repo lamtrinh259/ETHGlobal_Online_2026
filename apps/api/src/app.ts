@@ -159,6 +159,16 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
   );
 
   /** Instances plus the two contracts a wallet writes to directly (profile records, own-name alias). */
+  /** What the configured addresses actually are on chain; read this before blaming a signature. */
+  app.get("/v1/preflight", async (c) => {
+    try {
+      const p = await chain.preflight();
+      return c.json(p, p.ok ? 200 : 503);
+    } catch (e) {
+      return c.json({ ok: false, warnings: [(e as Error).message] }, 502);
+    }
+  });
+
   app.get("/v1/instances", async (c) =>
     c.json({
       instances: await chain.instances(),

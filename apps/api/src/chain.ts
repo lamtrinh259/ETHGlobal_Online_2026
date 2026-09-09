@@ -6,6 +6,7 @@ import {
   getAbiItem,
   http,
   namehash,
+  toFunctionSelector,
   toHex,
   zeroAddress,
   zeroHash,
@@ -283,6 +284,76 @@ export class Chain {
   }
 
   /** Every record a wallet has registered (any domain), current state, with liveness */
+  /**
+   * Check the deployment this service is pointed at, not a freshly deployed copy of the source. A
+   * contract can be missing the function we call — the live bridge predates more than one of them —
+   * and a domain can be inactive or held by a different registrar. Both fail at the worst moment
+   * otherwise: when a user signs something.
+   */
+  async preflight(): Promise<Preflight> {
+    const warnings: string[] = [];
+    const [bridgeCode, multipassCode, factoryCode] = await Promise.all([
+      this.publicClient.getCode({ address: this.config.BRIDGE }),
+      this.publicClient.getCode({ address: this.config.MULTIPASS }),
+      this.publicClient.getCode({ address: this.config.FACTORY }),
+    ]);
+    const deployed = (code: Hex | undefined) => !!code && code !== "0x";
+    if (!deployed(bridgeCode)) warnings.push(`BRIDGE ${this.config.BRIDGE} has no code`);
+    if (!deployed(multipassCode)) warnings.push(`MULTIPASS ${this.config.MULTIPASS} has no code`);
+    if (!deployed(factoryCode)) warnings.push(`FACTORY ${this.config.FACTORY} has no code`);
+
+    // solc puts every external selector in the dispatch table, so its absence from the bytecode means
+    // the deployed contract simply does not have that function.
+    const calls = ["verify", "linkOwnName"] as const;
+    const missing = calls.filter(
+      (fn) =>
+        deployed(bridgeCode) &&
+        !bridgeCode!.includes(toFunctionSelector(getAbiItem({ abi: bridgeAbi, name: fn })).slice(2))
+    );
+    for (const fn of missing) warnings.push(`BRIDGE has no ${fn}(): it predates this build`);
+
+    const domains = await Promise.all(
+      this.config.NAME_DOMAINS.map(async (domain) => {
+        const d = await this.publicClient.readContract({
+          address: this.config.MULTIPASS,
+          abi: MultipassAbi,
+          functionName: "getDomainState",
+          args: [toBytes32(domain)],
+        });
+        const registrar = d.registrar;
+        if (!d.isActive) warnings.push(`domain "${domain}" is not active on Multipass`);
+        if (
+          this.config.REGISTRAR_ADDRESS &&
+          registrar.toLowerCase() !== this.config.REGISTRAR_ADDRESS.toLowerCase()
+        ) {
+          warnings.push(
+            `domain "${domain}" registrar is ${registrar}, not the configured ${this.config.REGISTRAR_ADDRESS}`
+          );
+        }
+        return {
+          domain,
+          active: d.isActive,
+          registrar,
+          fee: d.fee.toString(),
+          renewalFee: d.renewalFee.toString(),
+        };
+      })
+    );
+
+    const instances = (await this.instances()).map((i) => i.domain);
+    for (const domain of this.config.NAME_DOMAINS) {
+      if (!instances.includes(domain)) warnings.push(`domain "${domain}" has no instance in the factory`);
+    }
+
+    return {
+      ok: warnings.length === 0,
+      bridge: { address: this.config.BRIDGE, deployed: deployed(bridgeCode), missing },
+      multipass: { address: this.config.MULTIPASS, deployed: deployed(multipassCode), domains },
+      factory: { address: this.config.FACTORY, deployed: deployed(factoryCode), instances },
+      warnings,
+    };
+  }
+
   balance(wallet: Address): Promise<bigint> {
     return this.publicClient.getBalance({ address: wallet });
   }
@@ -416,6 +487,7 @@ export type ChainReader = Pick<
   | "balance"
   | "sendEth"
   | "indexStatus"
+  | "preflight"
 >;
 
 function toListed(r: IndexedRecord): ListedRecord & { domain: string } {
@@ -430,3 +502,15 @@ function toListed(r: IndexedRecord): ListedRecord & { domain: string } {
     live: r.validUntil > BigInt(Math.floor(Date.now() / 1000)),
   };
 }
+
+export type Preflight = {
+  ok: boolean;
+  bridge: { address: Address; deployed: boolean; missing: string[] };
+  multipass: {
+    address: Address;
+    deployed: boolean;
+    domains: { domain: string; active: boolean; registrar: Address; fee: string; renewalFee: string }[];
+  };
+  factory: { address: Address; deployed: boolean; instances: string[] };
+  warnings: string[];
+};

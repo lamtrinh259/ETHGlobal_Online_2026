@@ -18,7 +18,7 @@ import {
   viewCodeCommitment,
 } from "@peeramid-labs/multipass-client";
 import { createApp, locate, WARNING } from "../../src/app.js";
-import type { ChainReader, Instance, ListedRecord } from "../../src/chain.js";
+import type { ChainReader, Instance, ListedRecord, Preflight } from "../../src/chain.js";
 import { explainConfigError, loadConfig } from "../../src/config.js";
 
 const NOW = 1_800_000_000;
@@ -72,6 +72,7 @@ type State = {
   universal: { resolver: Address; addr: Address; texts: Record<string, string> } | Error;
   balance: bigint;
   sent: { to: Address; value: bigint }[];
+  preflight: Preflight;
 };
 
 function fakeChain(state: Partial<State> = {}) {
@@ -84,6 +85,19 @@ function fakeChain(state: Partial<State> = {}) {
     instancesCreated: [],
     byWallet: [],
     instances: [instance],
+    preflight: {
+      ok: true,
+      bridge: { address: baseEnv.BRIDGE as Address, deployed: true, missing: [] },
+      multipass: {
+        address: baseEnv.MULTIPASS as Address,
+        deployed: true,
+        domains: [
+          { domain: "kju-is", active: true, registrar: registrar.address, fee: "0", renewalFee: "0" },
+        ],
+      },
+      factory: { address: baseEnv.FACTORY as Address, deployed: true, instances: ["kju-is"] },
+      warnings: [],
+    },
     universal: {
       resolver: "0x178ff1589Be8Af3B19426Aa1d2Bd07cd178E215e",
       addr: user.account.address,
@@ -133,6 +147,7 @@ function fakeChain(state: Partial<State> = {}) {
         s.names[`${domain}/${handle}`] ?? { taken: false, wallet: null, live: false }
     ),
     listRecordsByWallet: vi.fn(async () => s.byWallet),
+    preflight: vi.fn(async () => s.preflight),
     indexStatus: vi.fn(() => ({
       indexedBlock: 1_000,
       head: 1_000,
@@ -798,6 +813,36 @@ describe("POST /v1/provision", () => {
     const res = await post(app(chain), "/v1/provision", { handle: "alice" });
     expect(res.status).toBe(502);
     expect((await res.json()).error).toBe("relayer does not own the factory");
+  });
+});
+
+describe("GET /v1/preflight", () => {
+  it("reports a healthy deployment, and 503s with the reason when something is off", async () => {
+    const { chain } = fakeChain();
+    const res = await app(chain).request("/v1/preflight");
+    expect(res.status).toBe(200);
+    expect((await res.json()).ok).toBe(true);
+
+    const broken = fakeChain({
+      preflight: {
+        ok: false,
+        bridge: { address: baseEnv.BRIDGE as Address, deployed: true, missing: ["verify"] },
+        multipass: { address: baseEnv.MULTIPASS as Address, deployed: true, domains: [] },
+        factory: { address: baseEnv.FACTORY as Address, deployed: false, instances: [] },
+        warnings: ["BRIDGE has no verify(): it predates this build"],
+      },
+    });
+    const bad = await app(broken.chain).request("/v1/preflight");
+    expect(bad.status).toBe(503);
+    expect((await bad.json()).warnings).toEqual(["BRIDGE has no verify(): it predates this build"]);
+
+    const thrown = fakeChain();
+    thrown.chain.preflight = vi.fn(async () => {
+      throw new Error("rpc unreachable");
+    });
+    const failed = await app(thrown.chain).request("/v1/preflight");
+    expect(failed.status).toBe(502);
+    expect((await failed.json()).warnings).toEqual(["rpc unreachable"]);
   });
 });
 

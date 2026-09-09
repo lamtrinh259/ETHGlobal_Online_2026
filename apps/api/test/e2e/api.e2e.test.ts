@@ -79,6 +79,19 @@ beforeAll(async () => {
 });
 
 describe("api e2e", () => {
+  it("preflights the deployment it is pointed at", async () => {
+    const res = await fetch(`${API}/v1/preflight`);
+    expect(res.status).toBe(200);
+    const p = await res.json();
+    expect(p.ok).toBe(true);
+    expect(p.warnings).toEqual([]);
+    expect(p.bridge).toMatchObject({ deployed: true, missing: [] });
+    expect(p.factory.instances).toContain(deployment.instanceDomain);
+    expect(p.multipass.domains).toEqual([
+      expect.objectContaining({ domain: deployment.instanceDomain, active: true }),
+    ]);
+  });
+
   it("lists the deployed instance", async () => {
     const { instances } = await (await fetch(`${API}/v1/instances`)).json();
     expect(instances).toHaveLength(1);

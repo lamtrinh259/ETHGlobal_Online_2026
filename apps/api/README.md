@@ -7,6 +7,7 @@ Relay and verification service. One container, env-configured, health-checked on
 | `POST /v1/cre/delivery` | CRE external delivery: `{ record, signature, viewCode? }` → `AttestationBridge.verify` → `{ ok, txHash }`. Guarded by `x-delivery-token` when `DELIVERY_TOKEN` is set. |
 | `POST /v1/attest` | Node registrar fallback (same input/output as the enclave). Enabled only when `REGISTRAR_KEY` and `VIEWCODE_KEY` are set. |
 | `GET /v1/verify/:name` | Machine-readable verification read through the ENS resolver: status, wallet, answer, expiry, humanity, links (`?links=x,telegram`, `?viewCode=` to disclose opted-in links), `profile` (the user's `avatar`/`description`/`url`/`email` text records on the stock resolver), evidence, warning. |
+| `GET /v1/preflight` | What the configured addresses actually are on chain: code present, which bridge functions the deployed bytecode has, and each name domain's active flag, registrar and fees. 503 with reasons when something is off. |
 | `GET /v1/instances` | Instances known to the factory, plus `bridge` and `permissionedResolver` addresses for direct wallet writes. |
 
 CORS: `CORS_ORIGINS` (comma list, default `*`) — set it to the web app origin in production.
@@ -63,6 +64,13 @@ profile text record, and `linkOwnName` aliasing a `.eth` name onto a record. It 
 a withdrawal, and a wallet with no role being refused.
 
 ## Troubleshooting a deploy
+
+`GET /v1/preflight` answers the first question: is this service pointed at the contracts it thinks it
+is. It checks that the bridge, Multipass and the factory have code, that the deployed bridge's
+dispatch table contains the functions this build calls, and that each name domain is active with the
+expected registrar. The same check runs once at boot and prints one line per problem. It exists
+because the docker e2e deploys contracts from current source, which cannot catch a live contract that
+predates a function this build wants to call.
 
 A missing or malformed variable makes the container exit 1 with one line per problem
 (`config error · RELAYER_KEY: missing`), so the deploy log names what to set. Traefik answering
