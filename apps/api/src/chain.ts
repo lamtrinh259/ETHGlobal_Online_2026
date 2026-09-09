@@ -17,7 +17,7 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { MultipassAbi, fromBytes32, toBytes32 } from "@peeramid-labs/multipass-client";
-import type { OnchainState, RegisterMessage } from "@ketsuban/registrar";
+import { PLATFORM_DOMAIN_NAMES, type OnchainState, type RegisterMessage } from "@ketsuban/registrar";
 import { bridgeAbi, factoryAbi, registryAbi, resolverAbi, universalResolverAbi } from "./abi.js";
 import { RpcSource } from "./logs.js";
 import { Indexer, type IndexStatus, type IndexedRecord } from "./indexer.js";
@@ -312,8 +312,11 @@ export class Chain {
     );
     for (const fn of missing) warnings.push(`BRIDGE has no ${fn}(): it predates this build`);
 
+    // Platform domains matter as much as name domains: Multipass reverts with `invalidDomain` on an
+    // uninitialised one, and the user only finds out after signing.
+    const wanted = [...this.config.NAME_DOMAINS, ...PLATFORM_DOMAIN_NAMES];
     const domains = await Promise.all(
-      this.config.NAME_DOMAINS.map(async (domain) => {
+      wanted.map(async (domain) => {
         const d = await this.publicClient.readContract({
           address: this.config.MULTIPASS,
           abi: MultipassAbi,
@@ -321,8 +324,10 @@ export class Chain {
           args: [toBytes32(domain)],
         });
         const registrar = d.registrar;
-        if (!d.isActive) warnings.push(`domain "${domain}" is not active on Multipass`);
+        if (d.name === zeroHash) warnings.push(`domain "${domain}" is not initialised on Multipass`);
+        else if (!d.isActive) warnings.push(`domain "${domain}" is not active on Multipass`);
         if (
+          d.name !== zeroHash &&
           this.config.REGISTRAR_ADDRESS &&
           registrar.toLowerCase() !== this.config.REGISTRAR_ADDRESS.toLowerCase()
         ) {
@@ -332,6 +337,7 @@ export class Chain {
         }
         return {
           domain,
+          initialised: d.name !== zeroHash,
           active: d.isActive,
           registrar,
           fee: d.fee.toString(),
@@ -509,7 +515,14 @@ export type Preflight = {
   multipass: {
     address: Address;
     deployed: boolean;
-    domains: { domain: string; active: boolean; registrar: Address; fee: string; renewalFee: string }[];
+    domains: {
+      domain: string;
+      initialised: boolean;
+      active: boolean;
+      registrar: Address;
+      fee: string;
+      renewalFee: string;
+    }[];
   };
   factory: { address: Address; deployed: boolean; instances: string[] };
   warnings: string[];

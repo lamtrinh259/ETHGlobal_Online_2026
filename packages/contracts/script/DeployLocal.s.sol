@@ -31,8 +31,15 @@ contract DeployLocal is Script {
         Multipass mp = new Multipass(true);
         mp.initialize("MultipassDNS", "1.0.0", deployer);
         _domain(mp, registrar, domain, 0);
+        // Every platform the attester may be asked for: Multipass reverts with `invalidDomain` on one
+        // that was never initialised, and the user only finds out after signing.
         _domain(mp, registrar, "x", 0);
         _domain(mp, registrar, "telegram", 0);
+        _domain(mp, registrar, "discord", 0);
+        _domain(mp, registrar, "github", 0);
+        _domain(mp, registrar, "google", 0);
+        _domain(mp, registrar, "linkedin", 0);
+        _domain(mp, registrar, "email", 0);
         _domain(mp, registrar, "humanity", 0);
         _domain(mp, registrar, "org", 0);
 

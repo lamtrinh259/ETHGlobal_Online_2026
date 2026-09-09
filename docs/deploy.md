@@ -141,6 +141,22 @@ privileges. That is why it works against a bridge deployed before any of this ex
 served domain charges a fee: a report cannot carry value, so `onReport` pays from its own balance.
 Every domain on the current deployment has a zero fee.
 
+### Platform domains must exist before anyone links an account
+
+Multipass reverts with `invalidDomain` on a domain that was never initialised, and the user only finds
+out after signing. Every platform the attester may be asked for needs one:
+
+```bash
+cd packages/contracts
+MULTIPASS=0x418F82fd0014a4CA402F145978bfaF0555a9cA06 \
+REGISTRAR=0x8583AD4a0F59Ba45C7E201318C6F774F31f7bbC8 \
+DOMAINS=x,telegram,discord,github,google,linkedin,email \
+forge script script/InitDomains.s.sol --rpc-url $SEPOLIA_RPC --private-key $OPERATOR_KEY --broadcast
+```
+
+The script is idempotent and `GET /v1/preflight` lists every domain with its `initialised`, `active`
+and `registrar` state, so this is visible before a user hits it.
+
 ### Known limitation on this deployment
 
 The stock `PermissionedResolver`'s root roles still sit with the original deployer address

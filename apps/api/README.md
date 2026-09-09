@@ -67,8 +67,8 @@ a withdrawal, and a wallet with no role being refused.
 
 `GET /v1/preflight` answers the first question: is this service pointed at the contracts it thinks it
 is. It checks that the bridge, Multipass and the factory have code, that the deployed bridge's
-dispatch table contains the functions this build calls, and that each name domain is active with the
-expected registrar. The same check runs once at boot and prints one line per problem. It exists
+dispatch table contains the functions this build calls, and that every domain the attester may be asked for — name domains and platform domains alike — is
+initialised and active with the expected registrar. The same check runs once at boot and prints one line per problem. It exists
 because the docker e2e deploys contracts from current source, which cannot catch a live contract that
 predates a function this build wants to call.
 

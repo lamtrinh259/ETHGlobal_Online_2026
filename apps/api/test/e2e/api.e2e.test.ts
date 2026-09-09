@@ -87,9 +87,21 @@ describe("api e2e", () => {
     expect(p.warnings).toEqual([]);
     expect(p.bridge).toMatchObject({ deployed: true, missing: [] });
     expect(p.factory.instances).toContain(deployment.instanceDomain);
-    expect(p.multipass.domains).toEqual([
-      expect.objectContaining({ domain: deployment.instanceDomain, active: true }),
+    // Every domain the attester may be asked for, platform domains included: an uninitialised one
+    // reverts with `invalidDomain` only after the user has signed.
+    expect(p.multipass.domains.map((d: { domain: string }) => d.domain)).toEqual([
+      deployment.instanceDomain,
+      "x",
+      "telegram",
+      "discord",
+      "github",
+      "google",
+      "linkedin",
+      "email",
     ]);
+    expect(
+      p.multipass.domains.every((d: { initialised: boolean; active: boolean }) => d.initialised && d.active)
+    ).toBe(true);
   });
 
   it("lists the deployed instance", async () => {
