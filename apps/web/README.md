@@ -6,7 +6,7 @@ identity is Privy (embedded wallet, identity token); the view-code key stays on 
 | Route | Who | What |
 |---|---|---|
 | `/` | everyone | Three doors: candidate, voucher, verifier; a returning user gets a dashboard/continue strip. |
-| `/claim` | candidate | Claim `<handle>.<root>`, answer each subject instance (`kju-is` …), get the share line and next steps. Resumes at the first unanswered subject; `?renew=<domain>` republishes one record under the held handle. |
+| `/claim` | candidate | The same numbered groups as the profile: pick your name, then one group per question, then share. Resumes from live records; `?renew=<domain>` republishes one record under the held handle. |
 | `/p/<handle>` | verifier / agent | Reads the whole candidate in one call (`GET /v1/profile/:handle`). The reference page: identity, answers, linked accounts, humanity, graded by a policy (`?answers=&minLinks=&humanity=1`), with the raw names to resolve yourself. |
 | `/verify` | verifier | Policy presets (hiring, landlord, DAO, open) or custom → `/p/<handle>?…&preset=`. |
 | `/vouch` | voucher | Candidate lookup; checks the name is live before continuing. |
@@ -15,7 +15,7 @@ identity is Privy (embedded wallet, identity token); the view-code key stays on 
 | `/v/<name>` | anyone | One name's verification card, server-rendered (`generateMetadata` for unfurls). `?viewCode=0x…&links=x` discloses opted-in links. Both this and `/p/<handle>` cross-check the name through the ENSv2 UniversalResolver (`EnsProof`). |
 | `/api/health` | ops | Readiness probe for the container HEALTHCHECK. |
 
-`AttestFlow` is the single publishing component — it checks handle availability as you type (`GET /v1/name/:domain/:handle`)
+`Step` is the shared numbered group used by the profile and the claim journey. `AttestFlow` is the single publishing component — it checks handle availability as you type (`GET /v1/name/:domain/:handle`)
 and turns into "Sign & update" when the wallet already holds a record (the newer nonce supersedes the old one); journeys pass `fixedDomain` / `fixedHandle` / `onPublished` to
 sequence it. `lib/profile.ts` folds per-name verifications into the page and grades the policy; `lib/journey.ts` derives
 journey progress from the wallet dashboard (both pure, tested).

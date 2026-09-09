@@ -30,9 +30,12 @@ test("the vouch page explains every step in the voucher's own words", async ({ p
   await expect(steps.nth(2)).toContainText("Write and sign the reference for alice");
 });
 
-test("claim and vouch journeys show the stepper and the sign-in gate", async ({ page }) => {
+test("claim and vouch journeys show their steps and the sign-in gate", async ({ page }) => {
   await page.goto("/claim");
-  await expect(page.locator(".stepper li")).toHaveCount(3);
+  // One numbered group per thing to do: the name, then one per question.
+  await expect(page.locator(".dash-step")).toHaveCount(2);
+  await expect(page.getByTestId("step-1")).toContainText("Pick your name");
+  await expect(page.getByTestId("step-2")).toContainText("Pick your name first");
   await expect(page.getByTestId("signin")).toBeVisible({ timeout: 20000 });
 
   await page.goto("/vouch/alice");
@@ -67,7 +70,7 @@ test("the dashboard is behind the sign-in gate", async ({ page }) => {
 test("renewal deep link keeps the claim page behind the sign-in gate", async ({ page }) => {
   await page.goto("/claim?renew=ketsuban");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Claim your name");
-  await expect(page.locator(".stepper")).toBeVisible();
+  await expect(page.getByTestId("signin")).toBeVisible({ timeout: 20000 });
 });
 
 test("the header carries the identity, not the forms", async ({ page }) => {

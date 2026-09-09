@@ -298,46 +298,66 @@ export function AttestFlow({
         </p>
       )}
       {result && (
-        <dl className="kv">
-          <dt>record</dt>
-          <dd>
-            <code>
-              {fromBytes32(result.record.domainName)} · nonce {result.record.nonce} · valid until{" "}
-              {fmtUtc(new Date(Number(result.record.validUntil) * 1000).toISOString())}
-            </code>
-          </dd>
-          {viewCode && (
-            <>
-              <dt>view code</dt>
-              <dd>
-                <code>{viewCode}</code>
-                <br />
-                <small className="muted">
-                  kept in this browser — make disclosure links from your dashboard; only holders can read this
-                  link
-                </small>
-              </dd>
-            </>
+        <div className="done" data-testid="published">
+          {txHash ? (
+            <p>
+              <strong>Published.</strong>{" "}
+              {isNameDomain && parentName ? (
+                <>
+                  <a href={`/v/${handle}.${parentName}`}>
+                    {handle}.{parentName}
+                  </a>{" "}
+                  resolves now, until{" "}
+                  {fmtUtc(new Date(Number(result.record.validUntil) * 1000).toISOString())}.
+                </>
+              ) : (
+                <>
+                  Your {fromBytes32(result.record.domainName)} account is attested until{" "}
+                  {fmtUtc(new Date(Number(result.record.validUntil) * 1000).toISOString())}
+                  {viewCode ? ", and stays private until you share a disclosure link." : "."}
+                </>
+              )}
+            </p>
+          ) : (
+            <p>
+              <strong>Signed.</strong> Waiting for the record to land on chain.
+            </p>
           )}
-          {txHash && (
-            <>
-              <dt>transaction</dt>
-              <dd>
-                <code>{txHash}</code>
-              </dd>
-            </>
-          )}
-          {txHash && isNameDomain && parentName && (
-            <>
-              <dt>name</dt>
-              <dd>
-                <a href={`/v/${handle}.${parentName}`}>
-                  {handle}.{parentName}
-                </a>
-              </dd>
-            </>
-          )}
-        </dl>
+          <details>
+            <summary className="muted">What was written</summary>
+            <dl className="kv">
+              <div className="kv-row">
+                <dt>record</dt>
+                <dd>
+                  <code>
+                    {fromBytes32(result.record.domainName)} · nonce {result.record.nonce} · valid until{" "}
+                    {fmtUtc(new Date(Number(result.record.validUntil) * 1000).toISOString())}
+                  </code>
+                </dd>
+              </div>
+              {viewCode && (
+                <div className="kv-row">
+                  <dt>view code</dt>
+                  <dd>
+                    <code>{viewCode}</code>
+                    <br />
+                    <small className="muted">
+                      kept in this browser; disclosure links are made on your profile
+                    </small>
+                  </dd>
+                </div>
+              )}
+              {txHash && (
+                <div className="kv-row">
+                  <dt>transaction</dt>
+                  <dd>
+                    <code>{txHash}</code>
+                  </dd>
+                </div>
+              )}
+            </dl>
+          </details>
+        </div>
       )}
     </div>
   );

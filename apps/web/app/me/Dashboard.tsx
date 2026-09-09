@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, type ReactNode } from "react";
+import { useMemo } from "react";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { formatEther, type Address } from "viem";
 import { WITHDRAWN } from "@ketsuban/registrar";
@@ -12,36 +12,12 @@ import { apiFor, useGasTopup, useVouches, useWalletDashboard } from "@/lib/hooks
 import type { Signer } from "@/lib/chain";
 import { nameRows, needsAttention } from "@/lib/journey";
 import { vouchRequest } from "@/lib/profile";
+import { Step } from "@/app/Step";
 import { Accounts } from "./Accounts";
 import { InviteLink } from "./InviteLink";
 import { OwnName } from "./OwnName";
 import { Privacy } from "./Privacy";
 import { ProfileEditor } from "./ProfileEditor";
-
-/** One subject per group, numbered, with its state on the number. */
-function Step({
-  n,
-  title,
-  state,
-  children,
-}: {
-  n: number;
-  title: string;
-  state: "done" | "now" | "todo";
-  children: ReactNode;
-}) {
-  return (
-    <section className={`card dash-step dash-${state}`} data-testid={`step-${n}`}>
-      <span className="dash-num" aria-hidden>
-        {state === "done" ? "✓" : n}
-      </span>
-      <div>
-        <h2>{title}</h2>
-        {children}
-      </div>
-    </section>
-  );
-}
 
 /**
  * The candidate's and voucher's own page, as a sequence rather than a pile: who you are, what you

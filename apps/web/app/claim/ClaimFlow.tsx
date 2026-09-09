@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import type { Address } from "viem";
 import { AttestFlow } from "@/app/AttestFlow";
+import { Step } from "@/app/Step";
 import { useWebConfig } from "@/app/providers";
 import { shareSnippet } from "@/lib/profile";
 import { apiFor, useWalletDashboard } from "@/lib/hooks";
@@ -31,7 +32,6 @@ export function ClaimFlow({ renew }: { renew?: string }) {
   const [done, setDone] = useState<Set<string>>(new Set());
   const handle = claimed ?? onChain.handle;
   const answered = (d: string) => done.has(d) || onChain.answered.has(d);
-  const step = !handle ? 0 : 1 + subjects.findIndex((s) => !answered(s.domain));
   const current = !handle ? root : subjects.find((s) => !answered(s.domain));
   const finished = !!handle && subjects.every((s) => answered(s.domain));
   const siteUrl = typeof window === "undefined" ? "" : window.location.origin;
@@ -62,39 +62,63 @@ export function ClaimFlow({ renew }: { renew?: string }) {
 
   return (
     <>
-      <ol className="stepper" aria-label="Progress">
-        <li className={handle ? "done" : "now"}>Claim {root?.parentName}</li>
-        {subjects.map((s) => (
-          <li
+      <Step
+        n={1}
+        title={handle ? `Your name: ${handle}.${root?.parentName}` : "Pick your name"}
+        state={handle ? "done" : "now"}
+      >
+        {handle ? (
+          <p className="muted">Yours for as long as you renew it. Everything below hangs off it.</p>
+        ) : (
+          <p className="muted">
+            One handle, 1–31 characters. It becomes <code>&lt;handle&gt;.{root?.parentName}</code>, which
+            anyone can resolve without this app.
+          </p>
+        )}
+        {!loading && !handle && current && (
+          <AttestFlow fixedDomain={current.domain} title="" onPublished={({ handle: h }) => setClaimed(h)} />
+        )}
+      </Step>
+
+      {subjects.map((s, i) => {
+        const isAnswered = answered(s.domain);
+        const isCurrent = !!handle && current?.domain === s.domain;
+        return (
+          <Step
             key={s.domain}
-            className={answered(s.domain) ? "done" : current?.domain === s.domain ? "now" : ""}
+            n={i + 2}
+            title={`Answer ${s.domain}`}
+            state={isAnswered ? "done" : isCurrent ? "now" : "todo"}
           >
-            Answer {s.domain}
-          </li>
-        ))}
-        <li className={finished ? "now" : ""}>Share</li>
-      </ol>
-
-      {loading && <p className="muted">reading your records…</p>}
-
-      {!loading && !finished && current && (
-        <AttestFlow
-          key={current.domain}
-          fixedDomain={current.domain}
-          fixedHandle={handle}
-          title={step === 0 ? "Your handle" : `Question: ${current.domain}`}
-          answerLabel={step === 0 ? undefined : questionFor(current.domain)}
-          onPublished={({ handle: h, domain }) => {
-            if (!handle) setClaimed(h);
-            if (domain !== root?.domain) setDone((d) => new Set(d).add(domain));
-          }}
-        />
-      )}
+            {isAnswered ? (
+              <p className="muted">
+                Answered. <Link href={`/claim?renew=${s.domain}`}>Change it →</Link>
+              </p>
+            ) : !handle ? (
+              <p className="muted">Pick your name first.</p>
+            ) : (
+              <>
+                <p className="muted">{questionFor(s.domain)}</p>
+                {!loading && isCurrent && (
+                  <AttestFlow
+                    key={s.domain}
+                    fixedDomain={s.domain}
+                    fixedHandle={handle}
+                    title=""
+                    answerLabel="Your answer, permanent"
+                    onPublished={({ domain }) => setDone((d) => new Set(d).add(domain))}
+                  />
+                )}
+              </>
+            )}
+          </Step>
+        );
+      })}
 
       {!loading && finished && handle && root && (
         <>
           <section className="card" data-testid="share">
-            <h2>Share your page</h2>
+            <h2>Share it</h2>
             <p>
               <a href={`/p/${handle}`}>
                 {siteUrl}/p/{handle}

@@ -459,41 +459,6 @@ dl.kv dd {
   margin: var(--sp-sm) 0;
 }
 
-/* ── stepper (journeys) ── */
-.stepper {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-sm);
-  padding: 0;
-  margin: var(--sp-md) 0;
-  list-style: none;
-  counter-reset: step;
-}
-.stepper li {
-  counter-increment: step;
-  padding: 4px 10px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  color: var(--text-secondary);
-  font-size: 13px;
-}
-.stepper li::before {
-  content: counter(step) " · ";
-  font-family: var(--font-mono);
-}
-.stepper li.now {
-  color: var(--flame);
-  border-color: var(--flame-glow);
-  box-shadow: 0 0 14px -6px var(--flame-glow);
-}
-.stepper li.done {
-  color: var(--consensus);
-  border-color: var(--consensus);
-}
-.stepper li.pending {
-  border-style: dashed;
-}
-
 /* ── policy checks ── */
 .checks {
   list-style: none;
@@ -760,4 +725,13 @@ details.advanced > summary {
 }
 details.advanced[open] > summary {
   margin-bottom: var(--sp-md);
+}
+
+.done {
+  border-left: 2px solid var(--consensus);
+  padding-left: var(--sp-sm);
+  margin-top: var(--sp-md);
+}
+.done details {
+  margin-top: 4px;
 }
