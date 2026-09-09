@@ -7,6 +7,9 @@ name (`<handle>.<instance>.eth`) that any wallet or agent can resolve without in
 Any subject can be an instance — a question, a university cohort, an organisation. The subject is a deployment
 argument, never a source artifact.
 
+Start with [docs/demo.md](docs/demo.md): the live Sepolia deployment, checkable with `curl` and with
+`cast` against the ENSv2 UniversalResolver.
+
 ## Packages
 
 | Package | What |
