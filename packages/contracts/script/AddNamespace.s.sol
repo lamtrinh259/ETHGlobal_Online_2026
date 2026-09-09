@@ -42,6 +42,20 @@ contract AddNamespace is Script {
     /// @dev The broadcasting key's address: what a level created here must be owned by.
     address internal operator;
 
+    /// @notice Everything the script needs, so a caller can hand it over instead of exporting variables.
+    struct Params {
+        uint256 pk;
+        AttestationFactory factory;
+        AttestationRegistry root;
+        Multipass mp;
+        IPermissionedResolver inner;
+        address registrar;
+        string rootParent;
+        bytes32 rootDomain;
+        string[] wwwNames;
+        string[] atNames;
+    }
+
     function run() external {
         uint256 pk = vm.envUint("PRIVATE_KEY");
         // A local run points at the deployment file the deploy script wrote; a live one names addresses.
@@ -53,12 +67,36 @@ contract AddNamespace is Script {
         inner = IPermissionedResolver(_address(json, ".permissionedResolver", "PERMISSIONED_RESOLVER"));
         registrar = vm.envAddress("REGISTRAR");
         rootParent = _string(json, ".instanceParent", "ROOT_PARENT");
-        rootDomain = bytes32(bytes(_string(json, ".instanceDomain", "ROOT_DOMAIN")));
-        operator = vm.addr(pk);
+        runWith(
+            Params({
+                pk: pk,
+                factory: factory,
+                root: root,
+                mp: mp,
+                inner: inner,
+                registrar: registrar,
+                rootParent: _string(json, ".instanceParent", "ROOT_PARENT"),
+                rootDomain: bytes32(bytes(_string(json, ".instanceDomain", "ROOT_DOMAIN"))),
+                wwwNames: vm.split(vm.envOr("WWW_NAMES", string("")), ","),
+                atNames: vm.split(vm.envOr("AT_NAMES", string("")), ",")
+            })
+        );
+    }
 
-        vm.startBroadcast(pk);
-        _branch(vm.split(vm.envOr("WWW_NAMES", string("")), ","), "www", "private-www");
-        _branch(vm.split(vm.envOr("AT_NAMES", string("")), ","), "@", "private@");
+    /// @notice The same work, from values a caller already holds: a test has no business exporting them.
+    function runWith(Params memory p) public {
+        factory = p.factory;
+        root = p.root;
+        mp = p.mp;
+        inner = p.inner;
+        registrar = p.registrar;
+        rootParent = p.rootParent;
+        rootDomain = p.rootDomain;
+        operator = vm.addr(p.pk);
+
+        vm.startBroadcast(p.pk);
+        _branch(p.wwwNames, "www", "private-www");
+        _branch(p.atNames, "@", "private@");
         vm.stopBroadcast();
     }
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {SetRootResolver} from "../script/SetRootResolver.s.sol";
+import {SetRootResolver, IEthRegistryAdmin} from "../script/SetRootResolver.s.sol";
 import {AttestationResolver} from "../src/AttestationResolver.sol";
 import {BaseTest} from "./Base.t.sol";
 
@@ -16,14 +16,18 @@ contract SetRootResolverTest is BaseTest {
         address before = ethRegistry.getResolver(LABEL);
         assertEq(before, address(shim), "starts on the instance resolver");
 
-        vm.setEnv("PRIVATE_KEY", vm.toString(OPERATOR_KEY));
-        vm.setEnv("ETH_REGISTRY", vm.toString(address(ethRegistry)));
-        vm.setEnv("ROOT_LABEL", LABEL);
-        vm.setEnv("ROOT_PARENT", PARENT);
-        vm.setEnv("ROOT_DOMAIN", LABEL);
-        vm.setEnv("MULTIPASS", vm.toString(address(mp)));
-        vm.setEnv("PERMISSIONED_RESOLVER", vm.toString(address(inner)));
-        new SetRootResolver().run();
+        new SetRootResolver()
+            .runWith(
+                SetRootResolver.Params({
+                    pk: OPERATOR_KEY,
+                    ethRegistry: IEthRegistryAdmin(address(ethRegistry)),
+                    mp: mp,
+                    inner: inner,
+                    label: LABEL,
+                    parentName: PARENT,
+                    domain: bytes32(bytes(LABEL))
+                })
+            );
 
         AttestationResolver replaced = AttestationResolver(ethRegistry.getResolver(LABEL));
         assertTrue(address(replaced) != before, "a new resolver serves the name");

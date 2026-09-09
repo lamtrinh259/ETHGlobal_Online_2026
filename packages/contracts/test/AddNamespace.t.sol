@@ -50,17 +50,30 @@ contract AddNamespaceTest is BaseTest {
         vm.stopPrank();
 
         script = new AddNamespace();
-        vm.setEnv("PRIVATE_KEY", vm.toString(OPERATOR_KEY));
-        vm.setEnv("FACTORY", vm.toString(address(factory2)));
-        vm.setEnv("REGISTRY", vm.toString(address(root2)));
-        vm.setEnv("MULTIPASS", vm.toString(address(mp2)));
-        vm.setEnv("PERMISSIONED_RESOLVER", vm.toString(address(inner2)));
-        vm.setEnv("REGISTRAR", vm.toString(registrar));
-        vm.setEnv("ROOT_PARENT", PARENT);
-        vm.setEnv("ROOT_DOMAIN", LABEL);
-        vm.setEnv("WWW_NAMES", "x.com,tenant.acme.com");
-        vm.setEnv("AT_NAMES", "peeramid.xyz");
-        script.run();
+        script.runWith(params(list("x.com", "tenant.acme.com"), list("peeramid.xyz", "")));
+    }
+
+    /// @dev The script's inputs, handed over rather than exported: forge runs suites in parallel and
+    ///      they share one environment, so a test that sets variables races every other one.
+    function params(string[] memory www, string[] memory at) internal view returns (AddNamespace.Params memory) {
+        return AddNamespace.Params({
+            pk: OPERATOR_KEY,
+            factory: factory2,
+            root: root2,
+            mp: mp2,
+            inner: inner2,
+            registrar: registrar,
+            rootParent: PARENT,
+            rootDomain: bytes32(bytes(LABEL)),
+            wwwNames: www,
+            atNames: at
+        });
+    }
+
+    function list(string memory a, string memory b) internal pure returns (string[] memory out) {
+        out = bytes(b).length == 0 ? new string[](1) : new string[](2);
+        out[0] = a;
+        if (bytes(b).length > 0) out[1] = b;
     }
 
     /// @dev Register through the second fixture's bridge, which is what the API would do.
@@ -94,7 +107,10 @@ contract AddNamespaceTest is BaseTest {
         vm.serializeString(json, "instanceDomain", LABEL);
         vm.writeJson(vm.serializeString(json, "instanceParent", PARENT), file);
 
+        // The only test that goes through the environment, because that is the path it is testing.
         vm.setEnv("DEPLOYMENT_FILE", file);
+        vm.setEnv("PRIVATE_KEY", vm.toString(OPERATOR_KEY));
+        vm.setEnv("REGISTRAR", vm.toString(registrar));
         for (uint256 i; i < 4; ++i) {
             vm.setEnv(["FACTORY", "REGISTRY", "MULTIPASS", "PERMISSIONED_RESOLVER"][i], "");
         }
@@ -104,6 +120,7 @@ contract AddNamespaceTest is BaseTest {
         vm.setEnv("AT_NAMES", "");
 
         script.run();
+        vm.setEnv("DEPLOYMENT_FILE", "");
         assertEq(factory2.parentNameOf("reddit.com"), "com.reddit.www.acme-alumni.eth");
         vm.removeFile(file);
     }
@@ -126,7 +143,7 @@ contract AddNamespaceTest is BaseTest {
 
         // Re-running adds nothing: the levels and instances are found, not rebuilt.
         address before = address(factory2.instance("x.com").registry);
-        script.run();
+        script.runWith(params(list("x.com", "tenant.acme.com"), list("peeramid.xyz", "")));
         assertEq(address(factory2.instance("x.com").registry), before);
         assertEq(address(www.getSubregistry("x")), address(x));
     }

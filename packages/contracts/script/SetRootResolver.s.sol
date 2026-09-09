@@ -24,25 +24,39 @@ interface IEthRegistryAdmin {
  *   forge script script/SetRootResolver.s.sol --rpc-url $RPC --broadcast
  */
 contract SetRootResolver is Script {
-    function run() external {
-        uint256 pk = vm.envUint("PRIVATE_KEY");
-        IEthRegistryAdmin ethRegistry = IEthRegistryAdmin(vm.envAddress("ETH_REGISTRY"));
-        string memory label = vm.envString("ROOT_LABEL");
-        string memory parentName = vm.envString("ROOT_PARENT");
-        bytes32 domain = bytes32(bytes(vm.envString("ROOT_DOMAIN")));
+    struct Params {
+        uint256 pk;
+        IEthRegistryAdmin ethRegistry;
+        Multipass mp;
+        IPermissionedResolver inner;
+        string label;
+        string parentName;
+        bytes32 domain;
+    }
 
-        vm.startBroadcast(pk);
-        AttestationResolver resolver = new AttestationResolver(
-            Multipass(payable(vm.envAddress("MULTIPASS"))),
-            IPermissionedResolver(vm.envAddress("PERMISSIONED_RESOLVER")),
-            domain,
-            parentName
+    function run() external {
+        runWith(
+            Params({
+                pk: vm.envUint("PRIVATE_KEY"),
+                ethRegistry: IEthRegistryAdmin(vm.envAddress("ETH_REGISTRY")),
+                mp: Multipass(payable(vm.envAddress("MULTIPASS"))),
+                inner: IPermissionedResolver(vm.envAddress("PERMISSIONED_RESOLVER")),
+                label: vm.envString("ROOT_LABEL"),
+                parentName: vm.envString("ROOT_PARENT"),
+                domain: bytes32(bytes(vm.envString("ROOT_DOMAIN")))
+            })
         );
+    }
+
+    /// @notice The same work, from values a caller already holds: a test has no business exporting them.
+    function runWith(Params memory p) public returns (AttestationResolver resolver) {
+        vm.startBroadcast(p.pk);
+        resolver = new AttestationResolver(p.mp, p.inner, p.domain, p.parentName);
         // ENSv2 addresses a name by token id: the labelhash with the version bits cleared.
-        ethRegistry.setResolver(uint256(keccak256(bytes(label))) & ~uint256(type(uint32).max), address(resolver));
+        p.ethRegistry.setResolver(uint256(keccak256(bytes(p.label))) & ~uint256(type(uint32).max), address(resolver));
         vm.stopBroadcast();
 
         console.log("resolver", address(resolver));
-        console.log("now serving", label, ethRegistry.getResolver(label));
+        console.log("now serving", p.label, p.ethRegistry.getResolver(p.label));
     }
 }
