@@ -1202,6 +1202,20 @@ describe("disclosing a masked account", () => {
     expect(opened.warning).toBe(WARNING);
   });
 
+  it("keeps a permission across a restart, so the link a candidate handed over still works", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "ketsuban-grants-"));
+    const { chain, viewCode } = maskedChain();
+    const boot = () =>
+      createApp({ config: loadConfig({ ...baseEnv, DATA_DIR: dir }), chain, now: () => NOW });
+
+    expect((await post(boot(), "/v1/disclose", await grantFor(viewCode))).status).toBe(200);
+
+    const afterRedeploy = boot();
+    const opened = await afterRedeploy.request(`/v1/disclose/${aliceName}/x`);
+    expect(opened.status).toBe(200);
+    expect((await opened.json()).disclosed.handle).toBe("alice_x");
+  });
+
   it("refuses a grant the record's wallet did not sign, and one that expired", async () => {
     const { chain, viewCode } = maskedChain();
     const a = app(chain);

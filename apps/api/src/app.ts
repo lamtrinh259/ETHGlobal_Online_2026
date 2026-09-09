@@ -23,7 +23,7 @@ import {
 import { decodeRecord, fromBytes32, isOptedIn, toBytes32 } from "@peeramid-labs/multipass-client";
 import type { ChainReader, Instance } from "./chain.js";
 import type { Config } from "./config.js";
-import { PersistentSet } from "./store.js";
+import { PersistentMap, PersistentSet } from "./store.js";
 
 const hex = z.string().regex(/^0x[0-9a-fA-F]*$/);
 const decimal = z.string().regex(/^\d+$/);
@@ -351,8 +351,15 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
    * the enclave key and a signature from the wallet that holds the record, so storing it here gives
    * this service no ability it did not already have: only the registrar key can open the box.
    */
-  const grants = new PersistentSet("disclosures", config.DATA_DIR || undefined);
-  const grantStore = new Map<string, SignedDisclosure>();
+  const grantStore = new PersistentMap<SignedDisclosure>(
+    "disclosures",
+    config.DATA_DIR || undefined,
+    (raw) => {
+      const g = raw as Omit<SignedDisclosure, "exp"> & { exp: string };
+      return { ...g, exp: BigInt(g.exp) };
+    },
+    (grant) => ({ ...grant, exp: grant.exp.toString() })
+  );
   app.post("/v1/disclose", async (c) => {
     const body = wireDisclosure.safeParse(await c.req.json().catch(() => null));
     if (!body.success) return c.json({ error: "bad request", issues: body.error.issues }, 400);
@@ -390,7 +397,6 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     }
     const key = `${grant.name}:${grant.domain}`;
     grantStore.set(key, grant);
-    grants.add(key);
     return c.json({
       ok: true,
       name: grant.name,

@@ -75,8 +75,8 @@ a withdrawal, and a wallet with no role being refused.
 
 A masked linked account publishes a commitment, never the handle. When a candidate wants one verifier to
 read it, they encrypt their view code to the registrar's public key — which lives in the enclave — and
-sign a `Ketsuban Disclosure` over the ciphertext hash, the platform, an expiry and an audience. Storing
-that grant here grants this service nothing new: only the registrar key can open the box, and the
+sign a `Ketsuban Disclosure` over the ciphertext hash, the platform, an expiry and an audience. Grants live in `DATA_DIR` so a redeploy does not break a link a candidate already handed over. Storing
+that grant here gives this service nothing new: only the registrar key can open the box, and the
 handle is never written to disk or to chain.
 
 ```mermaid
