@@ -1257,9 +1257,27 @@ describe("GET /v1/wallet/:address", () => {
         ensName: "alice.bob.kju-is.eth",
       },
     ]);
+    expect(body.org).toBeNull();
     expect(body.balance).toBe("0");
     expect(body.gasTopup).toEqual({ enabled: false, amount: "0", available: false });
     expect((await app(chain).request("/v1/wallet/nope")).status).toBe(400);
+  });
+
+  it("reports an organisation, and keeps it out of the linked accounts", async () => {
+    const org = {
+      domain: "org",
+      name: "acme-university",
+      id: toBytes32("acme"),
+      wallet: user.account.address,
+      payload: zeroHash,
+      validUntil: 1_800_000_000n,
+      nonce: 1n,
+      live: true,
+    };
+    const { chain } = fakeChain({ byWallet: [org] });
+    const body = await (await app(chain).request(`/v1/wallet/${user.account.address}`)).json();
+    expect(body.org).toEqual({ label: "acme-university", validUntil: "2027-01-15T08:00:00.000Z" });
+    expect(body.links).toEqual([]);
   });
 
   it("offers a gas top-up only when enabled, the wallet holds a live name and is below the amount", async () => {

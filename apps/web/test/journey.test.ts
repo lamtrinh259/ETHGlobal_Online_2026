@@ -73,6 +73,14 @@ describe("voucherProgress", () => {
       },
     });
     expect(voucherProgress(dash, "ketsuban", "carol").existing).toBeUndefined();
+    expect(voucherProgress(dash, "ketsuban", "alice").org).toBeUndefined();
+    expect(
+      voucherProgress(
+        { ...dash, org: { label: "acme-university", validUntil: "2027-01-01T00:00:00.000Z" } },
+        "ketsuban",
+        "alice"
+      ).org
+    ).toEqual({ label: "acme-university", validUntil: "2027-01-01T00:00:00.000Z" });
     expect(voucherProgress(undefined, "ketsuban", "alice")).toEqual({ linked: false });
   });
 });

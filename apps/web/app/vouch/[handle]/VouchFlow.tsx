@@ -123,54 +123,71 @@ export function VouchFlow({
         </>
       )}
 
-      {!loading && stage === "statement" && root && !withdraw && !invite && !onChain.existing && (
-        <section className="card" data-testid="no-invite">
-          <h2>You need {candidate}&apos;s invitation</h2>
-          <p>
-            A vouch domain belongs to its candidate: only someone they invited can write a statement there.
-            Ask {candidate} for their invite link and open it — the rest of this page is unchanged.
-          </p>
-          <p className="muted">
-            They make one from their dashboard in two clicks. It costs them nothing and needs no gas.
-          </p>
-          <p className="muted">
-            An onboarded organisation is the exception: a university or employer issuing a letter writes
-            without an invitation, because its own name is on the letter and only the operator onboards one.
-            If that is you, publishing below will work.
-          </p>
-        </section>
+      {!loading && stage === "statement" && root && onChain.org && !withdraw && (
+        <p className="muted" data-testid="issuing-as">
+          Issuing as <strong>{onChain.org.label}</strong>. An onboarded organisation writes without an
+          invitation, because its own name is on the letter.
+        </p>
       )}
 
-      {!loading && stage === "statement" && root && !withdraw && (invite || onChain.existing) && (
-        <>
-          <p className="muted" data-testid="statement-intro">
-            A few words is what the name itself carries; the full letter comes next, as a text record. It
-            lands as{" "}
-            <code>
-              {handle ?? "<you>"}.{candidate}.{root.parentName}
-            </code>
-            , signed by your wallet, permanent.
-            {!handle &&
-              " The name you pick here is how this reference is signed; reuse it and your history adds up."}
-          </p>
-          {onChain.existing && (
-            <p className="warning" data-testid="existing-statement">
-              You already vouched for {candidate}: “{onChain.existing.statement}” (valid until{" "}
-              {fmtUtc(onChain.existing.validUntil)}). Publishing again supersedes it — the old statement stays
-              in the history as revoked.
+      {!loading &&
+        stage === "statement" &&
+        root &&
+        !withdraw &&
+        !invite &&
+        !onChain.existing &&
+        !onChain.org && (
+          <section className="card" data-testid="no-invite">
+            <h2>You need {candidate}&apos;s invitation</h2>
+            <p>
+              A vouch domain belongs to its candidate: only someone they invited can write a statement there.
+              Ask {candidate} for their invite link and open it — the rest of this page is unchanged.
             </p>
-          )}
-          <AttestFlow
-            fixedDomain={vouchDomain}
-            fixedHandle={handle}
-            invite={invite}
-            title={onChain.existing ? "Update your reference" : "Write your reference"}
-            answerLabel="A few words about them, permanent"
-            answerPlaceholder="CTO at Acme 2019-22"
-            onPublished={setPublished}
-          />
-        </>
-      )}
+            <p className="muted">
+              They make one from their dashboard in two clicks. It costs them nothing and needs no gas.
+            </p>
+            <p className="muted">
+              An onboarded organisation is the exception: a university or employer issuing a letter writes
+              without an invitation, because its own name is on the letter and only the operator onboards one.
+              If that is you, publishing below will work.
+            </p>
+          </section>
+        )}
+
+      {!loading &&
+        stage === "statement" &&
+        root &&
+        !withdraw &&
+        (invite || onChain.existing || onChain.org) && (
+          <>
+            <p className="muted" data-testid="statement-intro">
+              A few words is what the name itself carries; the full letter comes next, as a text record. It
+              lands as{" "}
+              <code>
+                {handle ?? "<you>"}.{candidate}.{root.parentName}
+              </code>
+              , signed by your wallet, permanent.
+              {!handle &&
+                " The name you pick here is how this reference is signed; reuse it and your history adds up."}
+            </p>
+            {onChain.existing && (
+              <p className="warning" data-testid="existing-statement">
+                You already vouched for {candidate}: “{onChain.existing.statement}” (valid until{" "}
+                {fmtUtc(onChain.existing.validUntil)}). Publishing again supersedes it — the old statement
+                stays in the history as revoked.
+              </p>
+            )}
+            <AttestFlow
+              fixedDomain={vouchDomain}
+              fixedHandle={handle}
+              invite={invite}
+              title={onChain.existing ? "Update your reference" : "Write your reference"}
+              answerLabel="A few words about them, permanent"
+              answerPlaceholder="CTO at Acme 2019-22"
+              onPublished={setPublished}
+            />
+          </>
+        )}
 
       {stage === "done" && published?.name && (
         <LetterForm api={api} candidate={candidate} name={published.name} getSigner={getSigner} />

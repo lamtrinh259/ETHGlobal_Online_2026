@@ -36,3 +36,9 @@ packages/cre         CRE project (project.yaml, secrets.yaml) with the `attest` 
 apps/api             relay + verification API, Dockerfile, docker-compose.e2e.yml
 docs/                architecture and runbooks
 ```
+
+## Before pushing a dependency change
+
+`pnpm check:lockfile` fails exactly the way the Docker build does when `pnpm-lock.yaml` is behind a
+`package.json`. A local install uses a warm store and happily proceeds, so this is the only cheap way
+to catch it before a deploy does.

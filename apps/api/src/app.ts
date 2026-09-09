@@ -425,13 +425,19 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
       nonce: r.nonce.toString(),
       live: r.live,
     });
+    // An organisation is a wallet with a record in ORG_DOMAIN; the browser needs it to know whether
+    // this voucher may write uninvited.
+    const org = records.find((r) => r.domain === config.ORG_DOMAIN && r.live);
     return c.json({
       address,
+      org: org
+        ? { label: org.name, validUntil: new Date(Number(org.validUntil) * 1000).toISOString() }
+        : null,
       names: records
         .filter((r) => parentOf.has(r.domain) && !isVouch(r.domain))
         .map((r) => ({ ...fmt(r), ensName: `${r.name}.${parentOf.get(r.domain)}` })),
       links: records
-        .filter((r) => !parentOf.has(r.domain) && !isVouch(r.domain))
+        .filter((r) => !parentOf.has(r.domain) && !isVouch(r.domain) && r.domain !== config.ORG_DOMAIN)
         .map((r) => ({ ...fmt(r), optedIn: r.payload !== zeroHash })),
       given: records
         .filter((r) => isVouch(r.domain))

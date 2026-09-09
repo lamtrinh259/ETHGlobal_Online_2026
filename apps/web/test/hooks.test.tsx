@@ -72,6 +72,7 @@ function fakeApi(): Api {
       names: [],
       links: [],
       given: [],
+      org: null,
       balance: "0",
       gasTopup: { enabled: false, amount: "0", available: false },
       warning: "w",

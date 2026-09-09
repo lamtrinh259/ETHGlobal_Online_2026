@@ -21,6 +21,8 @@ export function parentNameFor(domain: string, config: Instances): string | undef
 }
 
 export type VoucherProgress = {
+  /** The organisation this wallet is, if any: it writes references without an invitation */
+  org?: { label: string; validUntil: string };
   /** Live linked-account record exists (work context corroborated) */
   linked: boolean;
   /** Live handle in the root name domain */
@@ -39,6 +41,7 @@ export function voucherProgress(
   const named = dash.names.find((n) => n.live && n.domain === rootDomain)?.name;
   const given = dash.given.find((g) => g.live && g.candidate === candidate);
   return {
+    org: dash.org ?? undefined,
     linked: dash.links.some((l) => l.live),
     named,
     existing: given

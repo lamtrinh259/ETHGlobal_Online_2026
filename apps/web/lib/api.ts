@@ -139,6 +139,8 @@ const walletRecord = z.object({
 });
 export const walletSchema = z.object({
   address: z.string(),
+  /** Set when this wallet is an onboarded organisation, which may issue references uninvited */
+  org: z.object({ label: z.string(), validUntil: z.string() }).nullable().optional(),
   names: z.array(walletRecord.extend({ ensName: z.string() })),
   links: z.array(walletRecord.extend({ optedIn: z.boolean() })),
   given: z.array(walletRecord.extend({ candidate: z.string(), ensName: z.string().nullable() })),

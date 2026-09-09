@@ -100,6 +100,20 @@ export function Dashboard() {
         </section>
       )}
 
+      {d.org && (
+        <section className="card" data-testid="dash-org">
+          <h2>Issuing as {d.org.label}</h2>
+          <p className="muted">
+            This wallet is an onboarded organisation, so it writes references without an invitation — for
+            graduates and former colleagues who have never claimed a name here. They find the letter waiting
+            when they do.
+          </p>
+          <p>
+            <Link href="/vouch">Write a reference →</Link>
+          </p>
+        </section>
+      )}
+
       <Step n={1} title="Your name" state={handle ? "done" : "now"}>
         {handle && rootRow ? (
           <p>
