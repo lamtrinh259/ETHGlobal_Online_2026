@@ -139,8 +139,16 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     const onchain = await chain.readOnchain(req.intent.wallet, req.intent.domain);
     const candidate = candidateOf(req.intent.domain, [config.VOUCH_PREFIX]);
     if (!candidate || !config.NAME_DOMAINS[0]) return onchain;
-    const status = await chain.nameStatus(config.NAME_DOMAINS[0], candidate);
-    return { ...onchain, candidateWallet: status.live ? (status.wallet ?? undefined) : undefined };
+    const [status, org] = await Promise.all([
+      chain.nameStatus(config.NAME_DOMAINS[0], candidate),
+      // An organisation needs no invitation, so whether this wallet is one is part of the public leg.
+      chain.readOnchain(req.intent.wallet, config.ORG_DOMAIN),
+    ]);
+    return {
+      ...onchain,
+      candidateWallet: status.live ? (status.wallet ?? undefined) : undefined,
+      issuerOrg: org.exists,
+    };
   }
 
   const env = (): AttestEnv => ({
@@ -151,6 +159,7 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     privy: { appId: config.PRIVY_APP_ID, verificationKey: config.PRIVY_VERIFICATION_KEY_JWK },
     nameDomains: config.NAME_DOMAINS,
     nameDomainPrefixes: [config.VOUCH_PREFIX],
+    orgDomain: config.ORG_DOMAIN,
     termSeconds: config.RECORD_TERM_SECONDS,
     requireInvite: config.REQUIRE_INVITE,
   });

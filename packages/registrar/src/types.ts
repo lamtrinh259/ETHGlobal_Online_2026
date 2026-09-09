@@ -67,6 +67,12 @@ export type OnchainState = {
    * candidate asked. Zero address when the candidate holds no live name.
    */
   candidateWallet?: Address;
+  /**
+   * Vouch domains only: whether the intent's wallet holds a live record in the organisation domain. An
+   * organisation may write a reference for a handle nobody has claimed yet — the university case — so
+   * it needs no invitation.
+   */
+  issuerOrg?: boolean;
 };
 
 /** Vault-held secrets; in the enclave these exist only for the duration of the call */
@@ -101,6 +107,11 @@ export type AttestEnv = {
   platformDomains?: readonly string[];
   /** Record term in seconds; default 30 days */
   termSeconds?: number;
+  /**
+   * Multipass domain whose holders are onboarded organisations; they may issue references uninvited.
+   * Default "org".
+   */
+  orgDomain?: string;
   /**
    * Whether a record in a vouch domain needs the candidate's signed invitation. Default true:
    * without it anyone could write a statement into a stranger's vouch domain.

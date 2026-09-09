@@ -68,6 +68,12 @@ export const configSchema = z.object({
     .string()
     .default("true")
     .transform((v) => v !== "false"),
+  /**
+   * Multipass domain whose holders are onboarded organisations. A holder may issue a reference for a
+   * handle nobody has claimed yet, which is how a university writes to a graduate who has never heard
+   * of this product.
+   */
+  ORG_DOMAIN: z.string().min(1).default("org"),
   /** Prefix of per-candidate vouch domains (`~alice`) */
   VOUCH_PREFIX: z.string().min(1).default("~"),
   /** Below this the relayer cannot pay for records; the preflight warns. Default 0.002 ETH. */

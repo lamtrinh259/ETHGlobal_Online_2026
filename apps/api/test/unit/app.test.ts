@@ -88,6 +88,7 @@ function fakeChain(state: Partial<State> = {}) {
     listed: {},
     instancesCreated: [],
     byWallet: [],
+    names: {},
     ready: {},
     instances: [instance],
     preflight: {
@@ -745,6 +746,35 @@ describe("POST /v1/attest — vouch invitations", () => {
     expect(ok.status).toBe(200);
     expect((await ok.json()).record.domainName).toBe(toBytes32("~alice"));
     expect(chain.nameStatus).toHaveBeenCalledWith("kju-is", "alice");
+  });
+
+  it("lets an onboarded organisation write for a handle nobody has claimed", async () => {
+    const orgKey = `${user.account.address.toLowerCase()}:org`;
+    const { chain } = fakeChain({
+      // No record for alice: the candidate does not exist yet, and this wallet holds an org record.
+      records: { [orgKey]: { exists: true, nonce: 1n, id: toBytes32("acme"), wallet: user.account.address } },
+    });
+    const now = NOW;
+    const wire = toWire(
+      await signedAttestRequest(
+        user.account,
+        baseIntent(user.account, now, {
+          domain: "~alice",
+          handle: "acme-university",
+          payload: toBytes32("graduated 2021"),
+          exp: BigInt(now + 600),
+        }),
+        privy.mint({ sub: user.did, linked: user.linked, now }),
+        31337,
+        baseEnv.MULTIPASS as Hex
+      )
+    );
+    const res = await post(app(chain), "/v1/attest", wire);
+    const body = await res.json();
+    expect(body.error ?? "").toBe("");
+    expect(res.status).toBe(200);
+    expect(body.record.name).toBe(toBytes32("acme-university"));
+    expect(chain.readOnchain).toHaveBeenCalledWith(user.account.address, "org");
   });
 
   it("refuses an invitation signed by someone who does not hold the candidate's name", async () => {

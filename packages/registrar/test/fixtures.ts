@@ -98,7 +98,10 @@ export async function signedRequest(
 export const candidateAccount = userAccount;
 
 /** An invitation from the candidate, open to anyone unless `voucher` is given. */
-export async function makeInvite(over: Partial<Invite> = {}, signer = candidateAccount): Promise<SignedInvite> {
+export async function makeInvite(
+  over: Partial<Invite> = {},
+  signer = candidateAccount
+): Promise<SignedInvite> {
   const invite: Invite = { handle: "alice", voucher: ZERO_ADDRESS, exp: BigInt(NOW + 3600), ...over };
   const signature = await signInvite(signer, invite, inviteDomain(CHAIN_ID, MULTIPASS));
   return { ...invite, signature };

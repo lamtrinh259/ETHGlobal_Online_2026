@@ -1,4 +1,11 @@
-import { bytesToString, recoverTypedDataAddress, stringToBytes, type Address, type Hex, type TypedDataDomain } from "viem";
+import {
+  bytesToString,
+  recoverTypedDataAddress,
+  stringToBytes,
+  type Address,
+  type Hex,
+  type TypedDataDomain,
+} from "viem";
 import type { PrivateKeyAccount } from "viem/accounts";
 import { base64urlDecode, base64urlEncode } from "./base64url.js";
 
@@ -71,7 +78,11 @@ export function encodeInvite(invite: SignedInvite): string {
 export function decodeInvite(token: string): SignedInvite {
   const json = bytesToString(base64urlDecode(token));
   const raw = JSON.parse(json) as { handle: string; voucher: Address; exp: string; signature: Hex };
-  if (typeof raw.handle !== "string" || typeof raw.voucher !== "string" || typeof raw.signature !== "string") {
+  if (
+    typeof raw.handle !== "string" ||
+    typeof raw.voucher !== "string" ||
+    typeof raw.signature !== "string"
+  ) {
     throw new Error("invite: malformed");
   }
   return { handle: raw.handle, voucher: raw.voucher, exp: BigInt(raw.exp), signature: raw.signature };

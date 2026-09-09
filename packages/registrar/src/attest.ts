@@ -91,6 +91,11 @@ export async function verifyInvite(req: AttestRequest, onchain: OnchainState, en
   // from the person being vouched for.
   if (onchain.exists) return;
 
+  // An onboarded organisation issues letters without being invited: a university writes to a graduate
+  // who has never heard of this product, and the graduate claims the handle later. The organisation is
+  // accountable because the letter carries its own name, and only the operator onboards one.
+  if (onchain.issuerOrg) return;
+
   const invite = req.invite;
   if (!invite) throw new Error(`invite: ${req.intent.domain} needs the candidate's invitation`);
   if (invite.handle !== candidate) throw new Error("invite: for a different candidate");

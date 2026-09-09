@@ -181,7 +181,9 @@ describe("attest — vouch instance (~candidate) domain", () => {
     await expect(vouch(await makeInvite({ voucher: registrarAccount.address }))).rejects.toThrow(
       "issued to a different wallet"
     );
-    await expect(vouch(await makeInvite({}, registrarAccount))).rejects.toThrow("not signed by the candidate");
+    await expect(vouch(await makeInvite({}, registrarAccount))).rejects.toThrow(
+      "not signed by the candidate"
+    );
     await expect(
       vouch(await makeInvite(), { ...noVouchRecord, candidateWallet: undefined } as never)
     ).rejects.toThrow("alice holds no live name to invite from");
@@ -192,9 +194,30 @@ describe("attest — vouch instance (~candidate) domain", () => {
   });
 
   it("a voucher who already holds a record there may update or withdraw it without a new invitation", async () => {
-    const intent = makeIntent({ domain: "~alice", handle: "bob", nonce: 2n, payload: toBytes32("withdrawn") });
+    const intent = makeIntent({
+      domain: "~alice",
+      handle: "bob",
+      nonce: 2n,
+      payload: toBytes32("withdrawn"),
+    });
     const held = { ...noVouchRecord, exists: true, nonce: 1n, wallet: userAccount.address };
     await expect(verifyPublicLeg(await signedRequest(intent), held, env)).resolves.toBeUndefined();
+  });
+
+  it("an onboarded organisation issues a reference for a handle nobody has claimed yet", async () => {
+    const intent = makeIntent({
+      domain: "~alice",
+      handle: "acme-university",
+      payload: toBytes32("graduated 2021"),
+    });
+    // No invitation, and the candidate holds no name: the university writes first, Alice claims later.
+    const asOrg = { exists: false, nonce: 0n, id: zeroHash, wallet: userAccount.address, issuerOrg: true };
+    await expect(verifyPublicLeg(await signedRequest(intent), asOrg, env)).resolves.toBeUndefined();
+
+    const asPerson = { ...asOrg, issuerOrg: false };
+    await expect(verifyPublicLeg(await signedRequest(intent), asPerson, env)).rejects.toThrow(
+      "needs the candidate's invitation"
+    );
   });
 
   it("a deployment may switch invitations off", async () => {

@@ -60,6 +60,8 @@ export const configSchema = z.object({
   nameDomainPrefixes: z.array(z.string()).optional(),
   /** Whether a statement in a vouch domain needs the candidate's invitation; default true */
   requireInvite: z.boolean().optional(),
+  /** Domain whose holders are onboarded organisations; they issue references uninvited. Default "org". */
+  orgDomain: z.string().optional(),
   platformDomains: z.array(z.string()).optional(),
   termSeconds: z.number().int().positive().optional(),
   secretIds: z.object({ registrarKey: z.string(), viewcodeKey: z.string() }),
@@ -237,7 +239,17 @@ export function readOnchain(donRuntime: Runtime<Config>, req: AttestRequest): On
   const root = config.nameDomains[0];
   if (!root) return state;
   const held = resolveRecord(donRuntime, { wallet: zeroAddress, name: toBytes32(candidate), domain: root });
-  return { ...state, candidateWallet: held.exists ? held.record.wallet : undefined };
+  // An onboarded organisation writes uninvited: a university to a graduate who has not claimed a name.
+  const org = resolveRecord(donRuntime, {
+    wallet: req.intent.wallet,
+    name: zeroHash,
+    domain: config.orgDomain ?? "org",
+  });
+  return {
+    ...state,
+    candidateWallet: held.exists ? held.record.wallet : undefined,
+    issuerOrg: org.exists,
+  };
 }
 
 function envFrom(config: Config, now: Date): AttestEnv {
@@ -252,6 +264,7 @@ function envFrom(config: Config, now: Date): AttestEnv {
     platformDomains: config.platformDomains,
     termSeconds: config.termSeconds,
     requireInvite: config.requireInvite,
+    orgDomain: config.orgDomain,
   };
 }
 

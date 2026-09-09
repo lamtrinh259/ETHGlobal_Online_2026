@@ -20,13 +20,17 @@ describe("invite signatures", () => {
 
   it("recovers the candidate who signed it", async () => {
     const signature = await signInvite(alice, invite, inviteDomain(11155111, MULTIPASS));
-    expect(await recoverInviteSigner(invite, signature, inviteDomain(11155111, MULTIPASS))).toBe(alice.address);
+    expect(await recoverInviteSigner(invite, signature, inviteDomain(11155111, MULTIPASS))).toBe(
+      alice.address
+    );
     expect(await recoverInviteSigner(invite, signature, inviteDomain(1, MULTIPASS))).not.toBe(alice.address);
   });
 
   it("cannot be replayed as an intent, and an intent cannot be replayed as an invite", async () => {
     const asInvite = await signInvite(alice, invite, inviteDomain(11155111, MULTIPASS));
-    expect(await recoverInviteSigner(invite, asInvite, intentDomain(11155111, MULTIPASS))).not.toBe(alice.address);
+    expect(await recoverInviteSigner(invite, asInvite, intentDomain(11155111, MULTIPASS))).not.toBe(
+      alice.address
+    );
   });
 
   it("binds a named voucher", async () => {
@@ -34,7 +38,11 @@ describe("invite signatures", () => {
     const signature = await signInvite(alice, one, inviteDomain(11155111, MULTIPASS));
     expect(await recoverInviteSigner(one, signature, inviteDomain(11155111, MULTIPASS))).toBe(alice.address);
     expect(
-      await recoverInviteSigner({ ...one, voucher: ZERO_ADDRESS }, signature, inviteDomain(11155111, MULTIPASS))
+      await recoverInviteSigner(
+        { ...one, voucher: ZERO_ADDRESS },
+        signature,
+        inviteDomain(11155111, MULTIPASS)
+      )
     ).not.toBe(alice.address);
   });
 });
@@ -57,7 +65,11 @@ describe("invite transport", () => {
   });
 
   it("rejects a malformed token", () => {
-    expect(() => decodeInvite(encodeInvite({ handle: "a", voucher: ZERO_ADDRESS, exp: 1n, signature: "0x" } as never).slice(4))).toThrow();
+    expect(() =>
+      decodeInvite(
+        encodeInvite({ handle: "a", voucher: ZERO_ADDRESS, exp: 1n, signature: "0x" } as never).slice(4)
+      )
+    ).toThrow();
     expect(() => decodeInvite(btoa(JSON.stringify({ handle: 1, exp: "1" })))).toThrow(/malformed/);
   });
 });

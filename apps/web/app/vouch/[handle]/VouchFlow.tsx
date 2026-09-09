@@ -133,6 +133,11 @@ export function VouchFlow({
           <p className="muted">
             They make one from their dashboard in two clicks. It costs them nothing and needs no gas.
           </p>
+          <p className="muted">
+            An onboarded organisation is the exception: a university or employer issuing a letter writes
+            without an invitation, because its own name is on the letter and only the operator onboards one.
+            If that is you, publishing below will work.
+          </p>
         </section>
       )}
 
