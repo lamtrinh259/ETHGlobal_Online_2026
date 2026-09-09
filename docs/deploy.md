@@ -89,7 +89,7 @@ Sepolia addresses and placeholders for the secrets:
 | Variable | Value |
 |---|---|
 | `RPC_URL`, `CHAIN_ID` | Sepolia RPC, `11155111` |
-| `MULTIPASS`, `BRIDGE`, `FACTORY` | from `deployments/11155111.json` |
+| `MULTIPASS`, `BRIDGE`, `FACTORY`, `REGISTRY`, `PERMISSIONED_RESOLVER`, `UNIVERSAL_RESOLVER`, `NAMESPACE_FACTORY`, `ETH_REGISTRY`, `ETH_REGISTRAR`, `PAYMENT_TOKEN` | **optional**: the build fills every one from the deployment it ships for that chain id. Set one only to point at a different deployment |
 | `NAMESPACE_FACTORY` | `0x01c9c5cA5f9179b9Cce18Bb4b8542B448aCb6a59` — the factory holding the DNS namespace, without which platform accounts have no name |
 | `RELAYER_KEY` | funded relayer EOA (Privy server wallet later) |
 | `PRIVY_APP_ID`, `PRIVY_VERIFICATION_KEY_JWK` | app id, P-256 JWK from the JWKS endpoint |
