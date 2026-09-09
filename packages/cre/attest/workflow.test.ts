@@ -2,10 +2,20 @@ import { describe, expect, test } from "bun:test";
 import type { TeeRuntime } from "@chainlink/cre-sdk";
 import { baseIntent, fakePrivy, fakeUser, signedAttestRequest, toWire } from "@ketsuban/registrar/testing";
 import { decodeRecord, MultipassAbi, registerNameTypes, toBytes32 } from "@peeramid-labs/multipass-client";
-import { bytesToHex, decodeFunctionData, encodeFunctionResult, recoverTypedDataAddress, stringToBytes, zeroHash, type Hex } from "viem";
+import {
+  bytesToHex,
+  decodeAbiParameters,
+  decodeFunctionData,
+  encodeFunctionResult,
+  parseAbiParameters,
+  recoverTypedDataAddress,
+  stringToBytes,
+  zeroHash,
+  type Hex,
+} from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { eciesDecrypt } from "@ketsuban/registrar";
-import { initWorkflow, onAttest, parseRequest, serializeResult, type Config } from "./workflow";
+import { encodeReport, initWorkflow, onAttest, parseRequest, serializeResult, type Config } from "./workflow";
 
 const NOW = 1_800_000_000;
 const REGISTRAR_KEY = "0x000000000000000000000000000000000000000000000000000000000000b0b0" as const;
@@ -25,6 +35,7 @@ const config: Config = {
   secretIds: { registrarKey: "REGISTRAR_KEY", viewcodeKey: "VIEWCODE_KEY" },
   authorizedKeys: [],
   deliveryUrl: "",
+  reportGasLimit: "1200000",
 };
 
 /** Capability payloads arrive as protobuf messages (bytes) or JSON (base64) depending on the SDK path */
@@ -39,16 +50,41 @@ const emptyRecord = { wallet: "0x0000000000000000000000000000000000000000", name
  * handler uses: config, now, getSecret, and a DON runtime whose callCapability answers the
  * Multipass `resolveRecord` read and the optional delivery POST.
  */
-function fakeTeeRuntime(opts: { onchain?: OnchainFixture; deliveryStatus?: number; cfg?: Config } = {}) {
+function fakeTeeRuntime(
+  opts: { onchain?: OnchainFixture; deliveryStatus?: number; cfg?: Config; txStatus?: number } = {}
+) {
   const cfg = opts.cfg ?? config;
   const evmCalls: { to: string; args: unknown }[] = [];
   const deliveries: { url: string; body: string }[] = [];
   const secretsRequested: string[] = [];
   const onchain = opts.onchain ?? { exists: false, nonce: 0n, id: zeroHash, wallet: emptyRecord.wallet };
 
-  const donRuntime = {
+  const reports: string[] = [];
+  const writes: { receiver: string; gasLimit: string }[] = [];
+  const donRuntime: any = {
     config: cfg,
+    report: (req: any) => {
+      // prepareReportRequest carries the payload as base64 (protobuf bytes on the wire).
+      reports.push(bytesToHex(Uint8Array.from(Buffer.from(String(req.encodedPayload ?? ""), "base64"))));
+      // The SDK unwraps the report handle before sending it to the capability.
+      const wrapped = { x_generatedCodeOnly_unwrap: () => ({ rawReport: new Uint8Array([1, 2, 3]) }) };
+      return { result: () => wrapped };
+    },
     callCapability: ({ capabilityId, payload }: { capabilityId: string; payload: any }) => {
+      if (capabilityId.startsWith("evm") && !payload.call) {
+        writes.push({
+          receiver: bytesToHex(asBytes(payload.receiver)),
+          gasLimit: String(payload.gasConfig?.gasLimit ?? ""),
+        });
+        return {
+          result: () => ({
+            // TX_STATUS_SUCCESS = 2, TX_STATUS_REVERTED = 1, TX_STATUS_FATAL = 0
+            txStatus: opts.txStatus ?? 2,
+            txHash: Uint8Array.from(Buffer.from("dd".repeat(32), "hex")),
+            errorMessage: opts.txStatus !== undefined && opts.txStatus !== 2 ? "reverted" : "",
+          }),
+        };
+      }
       if (capabilityId.startsWith("evm")) {
         const data = bytesToHex(asBytes(payload.call.data));
         const to = bytesToHex(asBytes(payload.call.to));
@@ -86,7 +122,14 @@ function fakeTeeRuntime(opts: { onchain?: OnchainFixture; deliveryStatus?: numbe
     },
     usingTheDons: () => donRuntime,
   };
-  return { runtime: runtime as unknown as TeeRuntime<Config>, evmCalls, deliveries, secretsRequested };
+  return {
+    runtime: runtime as unknown as TeeRuntime<Config>,
+    evmCalls,
+    deliveries,
+    secretsRequested,
+    reports,
+    writes,
+  };
 }
 
 async function request(over: Parameters<typeof baseIntent>[2] = {}, tokenOverrides: Partial<Parameters<typeof privy.mint>[0]> = {}) {
@@ -178,6 +221,65 @@ describe("onAttest", () => {
   test("rejects malformed wire input", () => {
     expect(() => parseRequest(stringToBytes('{"idToken":"x"}'))).toThrow();
     expect(() => parseRequest(stringToBytes("not json"))).toThrow();
+  });
+});
+
+describe("writing the record as a DON report", () => {
+  const BRIDGE = "0xC7283bD9Aad1B08947C841536946Ce4dA9c99929";
+  const withBridge = { ...config, bridge: BRIDGE, reportGasLimit: "900000" } as Config;
+
+  test("signs the record in the enclave, reports it from the DON, and returns the tx hash", async () => {
+    const { runtime, reports, writes, deliveries } = fakeTeeRuntime({ cfg: withBridge });
+    const out = JSON.parse(await onAttest(runtime, (await request()) as any));
+
+    expect(writes).toEqual([{ receiver: BRIDGE.toLowerCase(), gasLimit: "900000" }]);
+    expect(out.txHash).toBe(`0x${"dd".repeat(32)}`);
+    expect(deliveries).toHaveLength(0);
+
+    // The payload the bridge decodes must carry the record and the registrar signature verbatim.
+    const [record, signature] = decodeAbiParameters(
+      parseAbiParameters(
+        "(address wallet, bytes32 name, bytes32 id, uint96 nonce, bytes32 domainName, uint256 validUntil, bytes32 payload), bytes"
+      ),
+      reports[0] as Hex
+    );
+    expect(record.wallet).toBe(user.account.address);
+    expect(record.name).toBe(toBytes32("alice"));
+    expect(record.domainName).toBe(toBytes32("x"));
+    expect(record.validUntil).toBe(BigInt(out.record.validUntil));
+    expect(signature).toBe(out.signature);
+    expect(
+      await recoverTypedDataAddress({
+        domain: { ...config.eip712, chainId: config.chainId, verifyingContract: config.multipass as Hex },
+        types: registerNameTypes,
+        primaryType: "registerName",
+        message: { ...record },
+        signature,
+      })
+    ).toBe(registrar.address);
+  });
+
+  test("a failed write is an error, not a silent success", async () => {
+    const { runtime } = fakeTeeRuntime({ cfg: withBridge, txStatus: 1 });
+    expect(onAttest(runtime, (await request()) as any)).rejects.toThrow(/report write failed/);
+  });
+
+  test("without a bridge nothing is written and the result carries no tx hash", async () => {
+    const { runtime, writes } = fakeTeeRuntime();
+    const out = JSON.parse(await onAttest(runtime, (await request()) as any));
+    expect(writes).toHaveLength(0);
+    expect(out.txHash).toBeUndefined();
+  });
+
+  test("encodeReport is stable for the same record", async () => {
+    const { runtime } = fakeTeeRuntime();
+    const out = JSON.parse(await onAttest(runtime, (await request()) as any));
+    const result = {
+      record: { ...out.record, validUntil: BigInt(out.record.validUntil), nonce: BigInt(out.record.nonce) },
+      signature: out.signature,
+      viewCode: undefined,
+    };
+    expect(encodeReport(result as never)).toBe(encodeReport(result as never));
   });
 });
 

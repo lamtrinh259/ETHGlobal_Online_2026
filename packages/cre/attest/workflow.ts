@@ -7,6 +7,8 @@ import {
   getNetwork,
   LATEST_BLOCK_NUMBER,
   ok,
+  prepareReportRequest,
+  TxStatus,
   type HTTPPayload,
   type HTTPSendRequester,
   type Runtime,
@@ -24,7 +26,9 @@ import { MultipassAbi, toBytes32 } from "@peeramid-labs/multipass-client";
 import {
   bytesToString,
   decodeFunctionResult,
+  encodeAbiParameters,
   encodeFunctionData,
+  parseAbiParameters,
   stringToBytes,
   zeroAddress,
   zeroHash,
@@ -52,6 +56,12 @@ export const configSchema = z.object({
   authorizedKeys: z.array(z.string()).default([]),
   /** Optional relay that submits the record on chain; empty = return only */
   deliveryUrl: z.string().default(""),
+  /**
+   * AttestationBridge to write the signed record to, as a DON report. Set it and the chain write
+   * needs no key of ours: the enclave signs, the DON delivers, the bridge pays the domain fee.
+   */
+  bridge: z.string().regex(/^0x[0-9a-fA-F]{40}$/).optional(),
+  reportGasLimit: z.string().regex(/^\d+$/).default("1200000"),
 });
 export type Config = z.infer<typeof configSchema>;
 
@@ -91,12 +101,56 @@ export function parseRequest(input: Uint8Array): AttestRequest {
   };
 }
 
+/** The report the bridge decodes in `onReport`: the record and the registrar signature over it. */
+export function encodeReport(result: AttestResult): Hex {
+  return encodeAbiParameters(
+    parseAbiParameters(
+      "(address wallet, bytes32 name, bytes32 id, uint96 nonce, bytes32 domainName, uint256 validUntil, bytes32 payload), bytes"
+    ),
+    [
+      {
+        wallet: result.record.wallet,
+        name: result.record.name,
+        id: result.record.id,
+        nonce: result.record.nonce,
+        domainName: result.record.domainName,
+        validUntil: result.record.validUntil,
+        payload: result.record.payload,
+      },
+      result.signature,
+    ]
+  );
+}
+
+/**
+ * Write the record through the DON: `runtime.report` has the nodes sign the payload, the
+ * KeystoneForwarder delivers it to the bridge, and the bridge registers it. Returns the tx hash.
+ */
+export function writeRecord(donRuntime: Runtime<Config>, result: AttestResult): Hex {
+  const config = donRuntime.config;
+  const network = getNetwork({ chainSelectorName: config.chainSelectorName, isTestnet: true });
+  if (!network) throw new Error(`unknown chain ${config.chainSelectorName}`);
+  const report = donRuntime.report(prepareReportRequest(encodeReport(result))).result();
+  const tx = new cre.capabilities.EVMClient(network.chainSelector.selector)
+    .writeReport(donRuntime, {
+      receiver: config.bridge as Address,
+      report,
+      gasConfig: { gasLimit: config.reportGasLimit },
+    })
+    .result();
+  if (tx.txStatus !== TxStatus.SUCCESS) {
+    throw new Error(`report write failed: ${tx.errorMessage || tx.txStatus}`);
+  }
+  return bytesToHex(tx.txHash ?? new Uint8Array(32));
+}
+
 /** JSON-safe result: bigints as decimal strings */
-export function serializeResult(r: AttestResult): string {
+export function serializeResult(r: AttestResult, txHash?: Hex): string {
   return JSON.stringify({
     record: { ...r.record, validUntil: r.record.validUntil.toString(), nonce: r.record.nonce.toString() },
     signature: r.signature,
     viewCode: r.viewCode ?? null,
+    ...(txHash ? { txHash } : {}),
   });
 }
 
@@ -184,7 +238,8 @@ export const onAttest = async (runtime: TeeRuntime<Config>, payload: HTTPPayload
     viewcodeKey: runtime.getSecret({ id: config.secretIds.viewcodeKey }).result().value as Hex,
   };
   const result = await attestConfidential(req, onchain.exists ? onchain.id : zeroHash, secrets, env);
-  const out = serializeResult(result);
+  const txHash = config.bridge ? writeRecord(donRuntime, result) : undefined;
+  const out = serializeResult(result, txHash);
 
   if (config.deliveryUrl) {
     new cre.capabilities.HTTPClient()

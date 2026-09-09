@@ -11,6 +11,57 @@ import {BaseTest} from "./Base.t.sol";
 contract AttestationBridgeTest is BaseTest {
     string internal constant NAME = "alice.acme-alumni.eth";
 
+    // ---------- onReport (Chainlink CRE) ----------
+
+    function test_onReport_registersWhatTheEnclaveSigned() public {
+        LibMultipass.Record memory r = record(INSTANCE, alice, b32("alice"), b32("id"), 1, b32("answer"));
+        bytes memory report = abi.encode(r, signRecord(r));
+
+        vm.expectEmit(true, true, false, true, address(bridge));
+        emit AttestationBridge.Reported(r.id, INSTANCE, 0, hex"beef");
+        vm.prank(forwarder);
+        bridge.onReport(hex"beef", report);
+
+        (bool ok, LibMultipass.Record memory stored) =
+            mp.resolveRecord(LibMultipass.NameQuery(INSTANCE, alice, bytes32(0), bytes32(0), bytes32(0)));
+        assertTrue(ok);
+        assertEq(stored.payload, b32("answer"));
+        assertTrue(inner.hasTextGrant(dns(NAME), "avatar", alice), "the record wallet gets its profile keys");
+    }
+
+    function test_onReport_onlyTheForwarderMayDeliver() public {
+        LibMultipass.Record memory r = record(INSTANCE, alice, b32("alice"), b32("id"), 1, b32("answer"));
+        bytes memory report = abi.encode(r, signRecord(r));
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(AttestationBridge.UnauthorizedForwarder.selector, alice));
+        bridge.onReport("", report);
+    }
+
+    function test_onReport_paysTheDomainFeeFromItsOwnBalance() public {
+        LibMultipass.Record memory r = record(X, alice, b32("alice_x"), b32("1"), 1, bytes32(0));
+        bytes memory report = abi.encode(r, signRecord(r));
+
+        vm.prank(forwarder);
+        vm.expectRevert(abi.encodeWithSelector(AttestationBridge.FeeNotFunded.selector, X_FEE, 0));
+        bridge.onReport("", report);
+
+        vm.deal(bob, 1 ether);
+        vm.expectEmit(true, false, false, true, address(bridge));
+        emit AttestationBridge.Funded(bob, X_FEE * 2);
+        vm.prank(bob);
+        (bool sent,) = address(bridge).call{value: X_FEE * 2}("");
+        assertTrue(sent);
+
+        uint256 treasuryBefore = treasury.balance;
+        vm.prank(forwarder);
+        bridge.onReport("", report);
+        assertEq(treasury.balance - treasuryBefore, X_FEE, "the fee reaches the Multipass owner");
+        assertEq(address(bridge).balance, X_FEE, "the rest stays for the next report");
+
+        (bool ok,) = mp.resolveRecord(LibMultipass.NameQuery(X, alice, bytes32(0), bytes32(0), bytes32(0)));
+        assertTrue(ok);
+    }
+
     // ---------- verify ----------
 
     function test_verify_registersAndGrantsFourTextKeys() public {

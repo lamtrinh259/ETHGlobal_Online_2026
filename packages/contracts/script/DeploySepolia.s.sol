@@ -75,7 +75,10 @@ contract DeploySepolia is Script {
             );
         IPermissionedResolver inner = IPermissionedResolver(d.inner);
         d.factory = new AttestationFactory(mp, deployer);
-        d.bridge = new AttestationBridge(mp, inner, ethRegistry, d.factory, deployer);
+        // KeystoneForwarder for this chain: the only caller allowed to deliver CRE reports.
+        d.bridge = new AttestationBridge(
+            mp, inner, ethRegistry, d.factory, deployer, vm.envAddress("CRE_FORWARDER")
+        );
         (d.root, d.rootResolver) = d.factory
             .create(
                 bytes32(bytes(vm.envString("ROOT_DOMAIN"))),

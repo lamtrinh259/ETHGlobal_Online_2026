@@ -38,7 +38,9 @@ contract DeployLocal is Script {
         MockPermissionedResolver inner = new MockPermissionedResolver(deployer);
         MockEthRegistry eth = new MockEthRegistry();
         AttestationFactory factory = new AttestationFactory(mp, deployer);
-        AttestationBridge bridge = new AttestationBridge(mp, inner, eth, factory, deployer);
+        // Local runs have no KeystoneForwarder; CRE simulation uses the mock address when set.
+        address forwarder = vm.envOr("CRE_FORWARDER", deployer);
+        AttestationBridge bridge = new AttestationBridge(mp, inner, eth, factory, deployer, forwarder);
         (AttestationRegistry registry, AttestationResolver resolver) =
             factory.create(domain, IRegistry(address(eth)), label, parentName, inner);
         eth.setLabel(label, deployer, registry, address(resolver));

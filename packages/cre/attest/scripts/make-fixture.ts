@@ -3,6 +3,9 @@
  * from a fake Privy issuer whose JWK is written into config.local.json. Simulation-only.
  *
  *   bun run scripts/make-fixture.ts [name|optin|vouch <candidate> <voucher> "<statement>"]
+ *
+ * NONCE=<n> overrides the intent nonce: a record that already exists on the target chain needs the
+ * next one, and the enclave checks that before it signs.
  */
 import { baseIntent, fakePrivy, fakeUser, signedAttestRequest, toWire } from "@ketsuban/registrar/testing";
 import { toBytes32, type Hex } from "@peeramid-labs/multipass-client";
@@ -27,6 +30,7 @@ const intent = baseIntent(user.account, now, {
   domain,
   handle,
   optIn,
+  ...(process.env.NONCE ? { nonce: BigInt(process.env.NONCE) } : {}),
   ...(payload ? { payload } : {}),
   exp: BigInt(now + 7 * 86400),
 });

@@ -25,5 +25,6 @@
     "viewcodeKey": "VIEWCODE_KEY"
   },
   "authorizedKeys": [],
-  "deliveryUrl": ""
+  "deliveryUrl": "",
+  "reportGasLimit": "1200000"
 }

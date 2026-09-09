@@ -8,6 +8,7 @@ import {IMultipass} from "@peeramid-labs/multipass/src/interfaces/IMultipass.sol
 import {LibMultipass} from "@peeramid-labs/multipass/src/libraries/LibMultipass.sol";
 import {AttestationFactory} from "./AttestationFactory.sol";
 import {IPermissionedResolver} from "./interfaces/IPermissionedResolver.sol";
+import {IReceiver} from "./interfaces/IReceiver.sol";
 import {LibLabel} from "./libraries/LibLabel.sol";
 
 /// @notice Singleton that acts with resolver admin roles at the moment a user registers or links a
@@ -16,15 +17,21 @@ import {LibLabel} from "./libraries/LibLabel.sol";
 ///           instance, grant the wallet record-level `ROLE_SET_TEXT` on four profile keys atomically.
 ///         - `linkOwnName`: `<prefix>.<label>.eth → <handle>.<parentName>` alias, gated on `.eth`
 ///           ownership read from the ENSv2 registry in the same transaction.
+///         - `onReport`: the same registration driven by a Chainlink CRE report, so the enclave that
+///           signed the record is also what writes it. The DON cannot attach value, so the domain fee
+///           is paid from this contract's own balance, which anyone may top up.
 ///         Multipass never reads `msg.sender`, so registering through here changes nothing on the
 ///         Multipass side. Roles held on INNER: `ROLE_SET_TEXT_ADMIN`, `ROLE_SET_ALIAS`.
-contract AttestationBridge is Ownable {
+contract AttestationBridge is Ownable, IReceiver {
     struct Org {
         address treasury;
         bool active;
         LibMultipass.NameQuery referrerQuery;
         bytes referralCode;
     }
+
+    /// @notice KeystoneForwarder for this chain; the only address allowed to deliver reports.
+    address public immutable FORWARDER;
 
     IMultipass public immutable MP;
     IPermissionedResolver public immutable INNER;
@@ -36,18 +43,24 @@ contract AttestationBridge is Ownable {
     event Sponsored(bytes32 indexed orgId, bytes32 indexed id, bytes32 domainName);
     event OrgSet(bytes32 indexed orgId, address treasury, bool active);
     event NameLinked(address indexed wallet, bytes32 indexed domain, string label, bytes canonicalName);
+    event Reported(bytes32 indexed id, bytes32 indexed domainName, uint256 fee, bytes metadata);
+    event Funded(address indexed from, uint256 amount);
 
     error NotOrgTreasury(bytes32 orgId, address sender);
     error NotNameOwner(string label, address sender);
     error NoRecord(bytes32 domain, address wallet);
+    error UnauthorizedForwarder(address caller);
+    error FeeNotFunded(uint256 needed, uint256 balance);
 
     constructor(
         IMultipass mp,
         IPermissionedResolver inner,
         IOwnedRegistry ethRegistry,
         AttestationFactory factory,
-        address owner
+        address owner,
+        address forwarder
     ) Ownable(owner) {
+        FORWARDER = forwarder;
         MP = mp;
         INNER = inner;
         ETH_REGISTRY = ethRegistry;
@@ -63,6 +76,28 @@ contract AttestationBridge is Ownable {
     ) external payable {
         MP.register{value: msg.value}(rec, registrarSig, referrer, referralCode);
         _grantProfileKeys(rec);
+    }
+
+    /**
+     * @notice Register a record from a Chainlink CRE report: the DON writes what its enclave signed,
+     *         so no relayer key stands between the attestation and the chain.
+     * @param metadata Forwarder-supplied execution metadata; kept in the event for audit.
+     * @param report `abi.encode(LibMultipass.Record, bytes registrarSig)`, as the workflow encodes it.
+     */
+    function onReport(bytes calldata metadata, bytes calldata report) external {
+        if (msg.sender != FORWARDER) revert UnauthorizedForwarder(msg.sender);
+        (LibMultipass.Record memory rec, bytes memory registrarSig) =
+            abi.decode(report, (LibMultipass.Record, bytes));
+        uint256 fee = MP.getDomainState(rec.domainName).fee;
+        if (fee > address(this).balance) revert FeeNotFunded(fee, address(this).balance);
+        MP.register{value: fee}(rec, registrarSig, emptyQuery(), "");
+        _grantProfileKeysMemory(rec);
+        emit Reported(rec.id, rec.domainName, fee, metadata);
+    }
+
+    /// @notice Anyone may fund the domain fees the DON cannot attach to a report.
+    receive() external payable {
+        emit Funded(msg.sender, msg.value);
     }
 
     /// @notice Org-sponsored registration: the org's treasury pays and is the Multipass referrer, so
@@ -108,7 +143,15 @@ contract AttestationBridge is Ownable {
         emit NameLinked(msg.sender, domain, label, canonical);
     }
 
+    function emptyQuery() internal pure returns (LibMultipass.NameQuery memory q) {
+        return LibMultipass.NameQuery(bytes32(0), address(0), bytes32(0), bytes32(0), bytes32(0));
+    }
+
     function _grantProfileKeys(LibMultipass.Record calldata rec) internal {
+        _grantProfileKeysMemory(rec);
+    }
+
+    function _grantProfileKeysMemory(LibMultipass.Record memory rec) internal {
         if (!FACTORY.isInstance(rec.domainName)) return;
         bytes memory n =
             NameCoder.encode(string.concat(LibLabel.fromBytes32(rec.name), ".", FACTORY.parentNameOf(rec.domainName)));

@@ -35,6 +35,8 @@ abstract contract BaseTest is Test {
     address internal registrar = vm.addr(registrarKey);
     address internal operator = makeAddr("operator");
     address internal treasury = makeAddr("treasury");
+    /// @dev Stands in for the KeystoneForwarder; the real address is per-chain (see docs/deploy.md).
+    address internal forwarder = makeAddr("forwarder");
     uint256 internal aliceKey = 0xA11CE;
     address internal alice = vm.addr(aliceKey);
     address internal bob = makeAddr("bob");
@@ -65,7 +67,7 @@ abstract contract BaseTest is Test {
         inner = new MockPermissionedResolver(operator);
         ethRegistry = new MockEthRegistry();
         factory = new AttestationFactory(mp, operator);
-        bridge = new AttestationBridge(mp, inner, ethRegistry, factory, operator);
+        bridge = new AttestationBridge(mp, inner, ethRegistry, factory, operator, forwarder);
 
         vm.prank(operator);
         (registry, shim) = factory.create(INSTANCE, IRegistry(address(ethRegistry)), LABEL, PARENT, inner);

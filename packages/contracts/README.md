@@ -23,3 +23,13 @@ PRIVATE_KEY=… MULTIPASS=… ETH_REGISTRY=… VERIFIABLE_FACTORY=… PERMISSION
 INSTANCE_DOMAIN=… INSTANCE_LABEL=… INSTANCE_PARENT=… \
 forge script script/DeploySepolia.s.sol --rpc-url sepolia --broadcast --verify
 ```
+
+## Chainlink CRE reports
+
+`AttestationBridge` implements `IReceiver`, so a CRE workflow can write what its enclave signed:
+the KeystoneForwarder calls `onReport(metadata, report)` with `abi.encode(LibMultipass.Record, bytes)`.
+The constructor takes that forwarder address and nothing else may call `onReport`. A report cannot
+carry value, so the Multipass fee is paid from the bridge's own balance, which anyone may top up
+(`receive()` emits `Funded`). `script/UpgradeBridge.s.sol` migrates an existing deployment: it deploys
+the new bridge, moves `ROLE_SET_TEXT_ADMIN` and `ROLE_SET_ALIAS` on the stock resolver, and leaves
+every other address alone.
