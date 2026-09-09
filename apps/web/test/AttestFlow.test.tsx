@@ -51,8 +51,11 @@ vi.mock("@/app/providers", () => ({
   useWebConfig: () => ({
     chainId: 11155111,
     multipass: "0x418F82fd0014a4CA402F145978bfaF0555a9cA06",
-    nameDomains: ["ketsuban"],
-    instances: [{ domain: "ketsuban", parentName: "ketsuban.eth", parentLabel: "ketsuban" }],
+    nameDomains: ["ketsuban", "kju-is"],
+    instances: [
+      { domain: "ketsuban", parentName: "ketsuban.eth", parentLabel: "ketsuban" },
+      { domain: "kju-is", parentName: "kju-is.ketsuban.eth", parentLabel: "kju-is" },
+    ],
     apiUrl: "http://api.test",
     attestUrl: "http://api.test/v1/attest",
   }),
@@ -74,6 +77,20 @@ beforeEach(() => {
   state.deliverError = undefined;
   state.txHash = undefined;
   state.attestData = undefined;
+});
+
+describe("AttestFlow fields", () => {
+  it("asks for an answer in a subject instance and a vouch domain, never when claiming the root name", () => {
+    const { container: root } = render(<AttestFlow fixedDomain="ketsuban" />);
+    expect(root.querySelector("[aria-label=answer]")).toBeNull();
+    expect(root.querySelector("[data-testid=answer-bytes]")).toBeNull();
+
+    const { container: subject } = render(<AttestFlow fixedDomain="kju-is" />);
+    expect(subject.querySelector("[aria-label=answer]")).not.toBeNull();
+
+    const { container: vouch } = render(<AttestFlow fixedDomain="~alice" fixedHandle="bob" />);
+    expect(vouch.querySelector("[aria-label=answer]")).not.toBeNull();
+  });
 });
 
 describe("AttestFlow after signing", () => {

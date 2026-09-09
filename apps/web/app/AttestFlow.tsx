@@ -99,6 +99,9 @@ export function AttestFlow({
   }, [handle]);
   const nameStatus = useNameStatus(api, domain, debounced, isNameDomain && !fixedHandle);
   const answerBytes = new TextEncoder().encode(answer).length;
+  // The root name is just a name: answers belong to the subject instances under it, and statements to a
+  // candidate's vouch domain. Asking for one while claiming would write it nowhere anyone reads.
+  const wantsAnswer = isNameDomain && domain !== config.instances[0]?.domain;
   const takenByOther =
     !!nameStatus.data?.taken &&
     !nameStatus.data.reserved &&
@@ -263,18 +266,20 @@ export function AttestFlow({
                 )}
               </label>
             )}
-            <label>
-              {answerLabel ?? "A few words, permanent"}{" "}
-              <input
-                value={answer}
-                onChange={(e) => setAnswer(e.target.value)}
-                placeholder={answerPlaceholder ?? "a few words"}
-                aria-label="answer"
-              />
-              <small className={answerBytes > 31 ? "error" : "muted"} data-testid="answer-bytes">
-                {answerBytes}/31 characters used{answerBytes > 31 ? " — too long to fit in the name" : ""}
-              </small>
-            </label>
+            {wantsAnswer && (
+              <label>
+                {answerLabel ?? "A few words, permanent"}{" "}
+                <input
+                  value={answer}
+                  onChange={(e) => setAnswer(e.target.value)}
+                  placeholder={answerPlaceholder ?? "a few words"}
+                  aria-label="answer"
+                />
+                <small className={answerBytes > 31 ? "error" : "muted"} data-testid="answer-bytes">
+                  {answerBytes}/31 characters used{answerBytes > 31 ? " — too long to fit in the name" : ""}
+                </small>
+              </label>
+            )}
           </>
         ) : (
           <Switch
