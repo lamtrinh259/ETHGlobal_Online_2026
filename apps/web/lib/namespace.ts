@@ -1,3 +1,4 @@
+import { groupingFor } from "@ketsuban/registrar";
 import type { Contracts } from "./api";
 
 export type NameKind = {
@@ -16,9 +17,14 @@ export function nameKinds(contracts: Contracts | undefined, nameDomains: readonl
   const instances = contracts?.instances ?? [];
   const root = instances.find((i) => nameDomains.includes(i.domain));
   if (!root) return [];
-  const platform = instances.find((i) => i.parentName.includes(".www.")) ?? undefined;
-  const mail = instances.find((i) => i.maskedParentName?.includes("private@")) ?? undefined;
-  const priv = instances.find((i) => i.maskedParentName) ?? undefined;
+  // Which grouping level a mount sits under comes from the registrar's own rule, not from reading `.www.`
+  // out of a string: rename a level there and this follows.
+  const web = groupingFor("x");
+  const mailGroup = groupingFor("email");
+  const level = (mount: { parentName: string }, group: string) => mount.parentName.includes(`.${group}.`);
+  const platform = instances.find((i) => level(i, web.open));
+  const mail = instances.find((i) => level(i, mailGroup.open));
+  const priv = instances.find((i) => i.maskedParentName);
 
   return [
     {

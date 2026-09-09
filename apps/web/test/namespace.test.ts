@@ -34,6 +34,16 @@ describe("what every name means", () => {
     expect(kinds.find((k) => k.pattern.includes("private-www"))?.detail).toContain("one-time pad");
   });
 
+  it("finds the levels by the registrar's rule, so a rename there carries", () => {
+    // The mail level is the at-sign, the platform level is `www`: both come from the shared grouping
+    // rule rather than from matching a substring this file happens to know.
+    const kinds = nameKinds(contracts, ["ketsuban"]);
+    expect(kinds.find((k) => k.what.includes("x.com"))?.pattern).toBe("<handle>.com.x.www.ketsuban.eth");
+    expect(kinds.find((k) => k.what.includes("peeramid.xyz"))?.pattern).toBe(
+      "<local part>.xyz.peeramid.@.ketsuban.eth"
+    );
+  });
+
   it("describes only what a deployment actually holds", () => {
     const flat = { ...contracts, instances: [mount("ketsuban", "ketsuban.eth")] } as Contracts;
     expect(nameKinds(flat, ["ketsuban"]).map((k) => k.what)).toEqual(["A person", "A reference"]);

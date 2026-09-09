@@ -103,6 +103,19 @@ Nothing is mounted for a request the attester refuses, and a mount that fails re
 signature for a domain that does not exist. `NAMESPACE_FACTORY` must be set, or the relay has no factory
 new enough to build a mirror and the domain is refused as before.
 
+## Reading a name back
+
+`GET /v1/explain/:name` answers what a name would claim here, from the mounts rather than from its shape:
+`kind` is `person`, `account`, `private`, `reference` or `unknown`. The last one matters — a caller needs
+to tell a name nobody happens to hold from one this deployment could never answer for.
+
+```bash
+curl -s $API/v1/explain/alice.com.x.private-www.ketsuban.eth | jq '{kind, domain, says}'
+```
+
+The app's `/names` page reads the same function, so the sentence a person sees and the one an agent gets
+are the same sentence.
+
 ## What a client attests into
 
 The web app asks the deployment, not a table: a connected X account goes to `x.com` where that is
