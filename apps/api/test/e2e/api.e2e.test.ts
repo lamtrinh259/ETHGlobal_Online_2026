@@ -90,18 +90,13 @@ describe("api e2e", () => {
     expect(p.registrar.onchain).toEqual([p.registrar.signsAs]);
     expect(BigInt(p.relayer.balance)).toBeGreaterThan(0n);
     expect(p.factory.instances).toContain(deployment.instanceDomain);
-    // Every domain the attester may be asked for, platform domains included: an uninitialised one
-    // reverts with `invalidDomain` only after the user has signed.
-    expect(p.multipass.domains.map((d: { domain: string }) => d.domain)).toEqual([
-      deployment.instanceDomain,
-      "x",
-      "telegram",
-      "discord",
-      "github",
-      "google",
-      "linkedin",
-      "email",
-    ]);
+    // Every domain the attester may be asked for, mounts included: an uninitialised one reverts with
+    // `invalidDomain` only after the user has signed.
+    const checked = p.multipass.domains.map((d: { domain: string }) => d.domain);
+    for (const domain of [deployment.instanceDomain, "x", "telegram", "email", "x.com", "t.me"]) {
+      expect(checked).toContain(domain);
+    }
+    expect(p.multipass.domains.every((d: { initialised: boolean; active: boolean }) => d.initialised && d.active)).toBe(true);
     expect(
       p.multipass.domains.every((d: { initialised: boolean; active: boolean }) => d.initialised && d.active)
     ).toBe(true);

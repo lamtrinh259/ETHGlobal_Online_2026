@@ -913,7 +913,8 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     const evidence = [
       "wallet_binding",
       ...(humanity ? ["humanity_attestation"] : []),
-      ...links.filter(Boolean).map((l) => `${l!.domain}_account_control`),
+      // Named by the platform, not by the mount: a verifier reads `x_account_control` either way.
+      ...links.filter(Boolean).map((l) => `${platformOf(l!.domain) ?? l!.domain}_account_control`),
     ];
     return {
       name,
@@ -941,12 +942,30 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     };
   }
 
-  const DEFAULT_LINKS = "x,telegram,github,discord,google,email,linkedin";
-  const linkQuery = (q?: string) => (q ?? DEFAULT_LINKS).split(",").filter(Boolean);
+  const FLAT_LINKS = ["x", "telegram", "github", "discord", "google", "email", "linkedin"];
+
+  /**
+   * Which accounts to look for. A verifier arriving at a name should not have to guess the domain list,
+   * so the default is what this deployment mounts — plus the flat names, for records written before the
+   * DNS namespace existed.
+   */
+  async function linkQuery(q?: string): Promise<string[]> {
+    if (q) return q.split(",").filter(Boolean);
+    const mounted = (await chain.instances())
+      .map((i) => i.domain)
+      .filter(
+        (d) =>
+          !config.NAME_DOMAINS.includes(d) &&
+          d !== config.ORG_DOMAIN &&
+          d !== "humanity" &&
+          !d.startsWith(config.VOUCH_PREFIX)
+      );
+    return [...new Set([...mounted, ...FLAT_LINKS])];
+  }
 
   app.get("/v1/verify/:name", async (c) => {
     const v = await verifyName(c.req.param("name"), {
-      linkDomains: linkQuery(c.req.query("links")),
+      linkDomains: await linkQuery(c.req.query("links")),
       viewCode: c.req.query("viewCode") as Hex | undefined,
     });
     if (!v) return c.json({ error: "unknown instance for name" }, 404);
@@ -964,7 +983,7 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     const subjects = instances.filter((i) => config.NAME_DOMAINS.includes(i.domain));
     if (subjects.length === 0) return c.json({ error: "no name domains configured" }, 501);
     const opts = {
-      linkDomains: linkQuery(c.req.query("links")),
+      linkDomains: await linkQuery(c.req.query("links")),
       viewCode: c.req.query("viewCode") as Hex | undefined,
     };
     const names = await Promise.all(

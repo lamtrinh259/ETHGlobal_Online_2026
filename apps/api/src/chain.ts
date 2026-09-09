@@ -530,6 +530,9 @@ export class Chain {
     if (!deployed(bridgeCode)) warnings.push(`BRIDGE ${this.config.BRIDGE} has no code`);
     if (!deployed(multipassCode)) warnings.push(`MULTIPASS ${this.config.MULTIPASS} has no code`);
     if (!deployed(factoryCode)) warnings.push(`FACTORY ${this.config.FACTORY} has no code`);
+    // Without it, a domain nobody deployed cannot be mounted on demand and the person is turned away.
+    if (!this.config.NAMESPACE_FACTORY)
+      warnings.push("NAMESPACE_FACTORY is unset: a domain nobody deployed yet cannot be mounted");
 
     // solc puts every external selector in the dispatch table, so its absence from the bytecode means
     // the deployed contract simply does not have that function.
@@ -542,8 +545,12 @@ export class Chain {
     for (const fn of missing) warnings.push(`BRIDGE has no ${fn}(): it predates this build`);
 
     // Platform domains matter as much as name domains: Multipass reverts with `invalidDomain` on an
-    // uninitialised one, and the user only finds out after signing.
-    const wanted = [...this.config.NAME_DOMAINS, ...PLATFORM_DOMAIN_NAMES];
+    // uninitialised one, and the user only finds out after signing. Every mount this deployment has is
+    // a domain someone can be asked to sign for, so all of them are checked, not a fixed list.
+    const mounted = (await this.instances().catch(() => []))
+      .map((i) => i.domain)
+      .filter((d) => !d.startsWith(this.config.VOUCH_PREFIX));
+    const wanted = [...new Set([...this.config.NAME_DOMAINS, ...PLATFORM_DOMAIN_NAMES, ...mounted])];
     const domains = await Promise.all(
       wanted.map(async (domain) => {
         const d = await this.publicClient.readContract({

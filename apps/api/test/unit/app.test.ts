@@ -1497,6 +1497,32 @@ describe("a domain nobody deployed yet", () => {
   });
 });
 
+describe("what a verifier is shown without asking", () => {
+  it("looks for the accounts this deployment mounts, so nobody has to guess a domain list", async () => {
+    const { chain } = fakeChain({ instances: [instance, xComInstance], addr: user.account.address });
+    await app(chain).request(`/v1/verify/alice.${instance.parentName}`);
+    const asked = (chain.resolveData as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[2]);
+    expect(asked).toContain("ketsuban:link:x.com");
+    // The flat names stay in the list: records written before the namespace existed still count.
+    expect(asked).toContain("ketsuban:link:x");
+    // A name domain, the org and a vouch instance are not accounts and are never asked for.
+    expect(asked).not.toContain("ketsuban:link:kju-is");
+  });
+
+  it("names the evidence after the platform, not after the mount", async () => {
+    const { chain } = fakeChain({
+      instances: [instance, xComInstance],
+      addr: user.account.address,
+      data: {
+        "ketsuban:link:x.com": `0x${toBytes32("alice_x").slice(2)}${toBytes32("1").slice(2)}${zeroHash.slice(2)}`,
+      },
+    });
+    const body = await (await app(chain).request(`/v1/verify/alice.${instance.parentName}`)).json();
+    expect(body.evidence).toContain("x_account_control");
+    expect(body.links).toContainEqual({ domain: "x.com", optedIn: false });
+  });
+});
+
 describe("GET /v1/eth-label/:label", () => {
   it("says who owns the label on the registry the bridge checks", async () => {
     // `linkOwnName` reverts with NotNameOwner for anyone else, and a name held on another ENS
