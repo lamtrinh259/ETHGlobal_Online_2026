@@ -8,7 +8,10 @@ import { VouchFlow } from "./VouchFlow";
 
 export const dynamic = "force-dynamic";
 
-type Params = { params: Promise<{ handle: string }>; searchParams: Promise<{ invite?: string }> };
+type Params = {
+  params: Promise<{ handle: string }>;
+  searchParams: Promise<{ invite?: string; withdraw?: string }>;
+};
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { handle } = await params;
@@ -22,7 +25,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
  */
 export default async function VouchPage({ params, searchParams }: Params) {
   const { handle: raw } = await params;
-  const { invite: token } = await searchParams;
+  const { invite: token, withdraw } = await searchParams;
   const handle = decodeURIComponent(raw).toLowerCase();
   const config = loadWebConfig();
   const root = config.instances[0];
@@ -73,7 +76,7 @@ export default async function VouchPage({ params, searchParams }: Params) {
           . Five minutes. Nothing you sign here can be deleted — only revoked, visibly.
         </p>
       </section>
-      <VouchFlow candidate={handle} invite={invite} />
+      <VouchFlow candidate={handle} invite={invite} withdraw={withdraw === "1"} />
     </>
   );
 }

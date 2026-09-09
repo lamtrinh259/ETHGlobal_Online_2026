@@ -65,6 +65,44 @@ contract AttestationBridge is Ownable {
         _grantProfileKeys(rec);
     }
 
+    /**
+     * @notice Register a record, or renew it when one already exists for this `(domainName, id)`.
+     *         Multipass splits those into two entry points and `register` reverts with `recordExists`
+     *         on the second write, so a caller holding a freshly signed record cannot use one path
+     *         for both. Routing here keeps every writer — browser relay and DON report alike — on a
+     *         single call, and re-grants the profile keys, which is idempotent.
+     */
+    function submitRecord(LibMultipass.Record calldata rec, bytes calldata registrarSig) external payable {
+        LibMultipass.NameQuery memory query = LibMultipass.NameQuery({
+            domainName: rec.domainName,
+            wallet: address(0),
+            name: bytes32(0),
+            id: rec.id,
+            targetDomain: bytes32(0)
+        });
+        (bool exists,) = MP.resolveRecord(query);
+        if (exists) {
+            MP.renewRecord{value: msg.value}(query, rec, registrarSig);
+        } else {
+            MP.register{value: msg.value}(rec, registrarSig, emptyQuery(), "");
+        }
+        _grantProfileKeys(rec);
+    }
+
+    /// @notice The fee `submitRecord` needs for this record: the domain's registration or renewal fee.
+    function feeFor(LibMultipass.Record calldata rec) external view returns (uint256) {
+        LibMultipass.NameQuery memory query = LibMultipass.NameQuery({
+            domainName: rec.domainName,
+            wallet: address(0),
+            name: bytes32(0),
+            id: rec.id,
+            targetDomain: bytes32(0)
+        });
+        (bool exists,) = MP.resolveRecord(query);
+        LibMultipass.Domain memory d = MP.getDomainState(rec.domainName);
+        return exists ? d.renewalFee : d.fee;
+    }
+
     /// @notice Org-sponsored registration: the org's treasury pays and is the Multipass referrer, so
     ///         it earns `referrerReward` back in the same transaction.
     function verifyFor(bytes32 orgId, LibMultipass.Record calldata rec, bytes calldata registrarSig) external payable {
@@ -106,6 +144,10 @@ contract AttestationBridge is Ownable {
         bytes memory canonical = NameCoder.encode(string.concat(LibLabel.fromBytes32(r.name), ".", inst.parentName));
         INNER.setAlias(NameCoder.encode(string.concat(inst.parentLabel, ".", label, ".eth")), canonical);
         emit NameLinked(msg.sender, domain, label, canonical);
+    }
+
+    function emptyQuery() internal pure returns (LibMultipass.NameQuery memory) {
+        return LibMultipass.NameQuery(bytes32(0), address(0), bytes32(0), bytes32(0), bytes32(0));
     }
 
     function _grantProfileKeys(LibMultipass.Record calldata rec) internal {

@@ -119,6 +119,29 @@ describe("assessProfile", () => {
     expect(p.warning).toBe("w");
   });
 
+  it("does not count a withdrawn statement as a reference", () => {
+    const vouch = (voucher: string, statement: string) => ({
+      voucher,
+      voucherName: `${voucher}.ketsuban.eth`,
+      wallet: "0x1",
+      statement,
+      validUntil: "2027-01-01T00:00:00.000Z",
+      nonce: "2",
+      live: true,
+    });
+    const p = assessProfile(
+      "alice",
+      [{ instanceDomain: "ketsuban", name: "alice.ketsuban.eth", v: active("alice.ketsuban.eth") }],
+      { requiredAnswers: [], minLinks: 0, requireHumanity: false, minVouches: 2 },
+      [vouch("bob", "withdrawn"), vouch("carol", "worked together"), vouch("dave", "withdrawn")]
+    );
+    const check = p.checks.find((c) => c.id === "vouches")!;
+    expect(check.ok).toBe(false);
+    expect(check.detail).toBe("1 live: carol");
+    // The records are still shown: nothing disappears, it just stops counting.
+    expect(p.vouches).toHaveLength(3);
+  });
+
   it("marks an unclaimed handle and missing answers as failing, with plain details", () => {
     const p = assessProfile(
       "nobody",

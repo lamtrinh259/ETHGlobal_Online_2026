@@ -134,7 +134,9 @@ PRIVATE_KEY=$OPERATOR_KEY \
 forge script script/DeployReporter.s.sol --rpc-url $SEPOLIA_RPC --broadcast --verify
 ```
 
-Then put the address in `packages/cre/attest/config.*.json` as `reporter`. Fund the reporter only if a
+The reporter calls `AttestationBridge.submitRecord`, which routes between registration and renewal, so
+a report can also renew an existing record. Then put the address in
+`packages/cre/attest/config.*.json` as `reporter`. Fund the reporter only if a
 served domain charges a fee: a report cannot carry value, so `onReport` pays from its own balance.
 Every domain on the current deployment has a zero fee.
 

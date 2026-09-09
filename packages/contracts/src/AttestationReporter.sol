@@ -43,11 +43,10 @@ contract AttestationReporter is IReceiver {
         if (msg.sender != FORWARDER) revert UnauthorizedForwarder(msg.sender);
         (LibMultipass.Record memory rec, bytes memory registrarSig) =
             abi.decode(report, (LibMultipass.Record, bytes));
-        uint256 fee = MP.getDomainState(rec.domainName).fee;
+        // The bridge decides between registration and renewal, and prices it accordingly.
+        uint256 fee = BRIDGE.feeFor(rec);
         if (fee > address(this).balance) revert FeeNotFunded(fee, address(this).balance);
-        BRIDGE.verify{value: fee}(
-            rec, registrarSig, LibMultipass.NameQuery(bytes32(0), address(0), bytes32(0), bytes32(0), bytes32(0)), ""
-        );
+        BRIDGE.submitRecord{value: fee}(rec, registrarSig);
         emit Reported(rec.id, rec.domainName, fee, metadata);
     }
 

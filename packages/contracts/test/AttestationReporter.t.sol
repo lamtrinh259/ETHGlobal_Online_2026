@@ -59,6 +59,22 @@ contract AttestationReporterTest is BaseTest {
     }
 
 
+    function test_onReport_renewsWhenTheRecordAlreadyExists() public {
+        LibMultipass.Record memory first = record(INSTANCE, alice, b32("alice"), b32("id"), 1, b32("first"));
+        vm.prank(forwarder);
+        reporter.onReport("", abi.encode(first, signRecord(first)));
+
+        LibMultipass.Record memory second = record(INSTANCE, alice, b32("alice"), b32("id"), 2, b32("second"));
+        vm.prank(forwarder);
+        reporter.onReport("", abi.encode(second, signRecord(second)));
+
+        (bool ok, LibMultipass.Record memory stored) =
+            mp.resolveRecord(LibMultipass.NameQuery(INSTANCE, alice, bytes32(0), bytes32(0), bytes32(0)));
+        assertTrue(ok);
+        assertEq(stored.payload, b32("second"));
+        assertEq(stored.nonce, 2);
+    }
+
     function test_constructor_exposesItsWiring() public view {
         assertEq(reporter.FORWARDER(), forwarder);
         assertEq(address(reporter.MP()), address(mp));

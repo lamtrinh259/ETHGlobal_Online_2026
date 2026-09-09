@@ -31,6 +31,8 @@ type Props = {
   answerLabel?: string;
   /** Example text in the answer field */
   answerPlaceholder?: string;
+  /** Pre-fill the answer (a withdrawal writes a fixed statement) */
+  answerValue?: string;
   /** Sign-in only: render the gate and nothing else */
   hideForm?: boolean;
   /** Vouch domains: the candidate's invitation, from the link they shared */
@@ -55,6 +57,7 @@ export function AttestFlow({
   title,
   answerLabel,
   answerPlaceholder,
+  answerValue,
   hideForm,
   invite,
   platformsOnly,
@@ -75,7 +78,7 @@ export function AttestFlow({
     fixedDomain ?? (platformsOnly ? platforms[0] : config.instances[0]?.domain) ?? ""
   );
   const [handle, setHandle] = useState(fixedHandle ?? "");
-  const [answer, setAnswer] = useState("");
+  const [answer, setAnswer] = useState(answerValue ?? "");
   const [optIn, setOptIn] = useState(false);
   const [signing, setSigning] = useState(false);
   const [signError, setSignError] = useState<string>();

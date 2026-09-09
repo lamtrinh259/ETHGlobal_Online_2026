@@ -5,6 +5,8 @@ export const bridgeAbi = parseAbi([
   "struct NameQuery { bytes32 domainName; address wallet; bytes32 name; bytes32 id; bytes32 targetDomain; }",
   "function verify(Record rec, bytes registrarSig, NameQuery referrer, bytes referralCode) payable",
   "function verifyFor(bytes32 orgId, Record rec, bytes registrarSig) payable",
+  "function submitRecord(Record rec, bytes registrarSig) payable",
+  "function feeFor(Record rec) view returns (uint256)",
   "event Sponsored(bytes32 indexed orgId, bytes32 indexed id, bytes32 domainName)",
 ]);
 

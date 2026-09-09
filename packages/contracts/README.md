@@ -33,3 +33,11 @@ carry value, so the Multipass fee is paid from the bridge's own balance, which a
 (`receive()` emits `Funded`). `script/UpgradeBridge.s.sol` migrates an existing deployment: it deploys
 the new bridge, moves `ROLE_SET_TEXT_ADMIN` and `ROLE_SET_ALIAS` on the stock resolver, and leaves
 every other address alone.
+
+## Registering and renewing
+
+Multipass splits the two: `register` reverts with `recordExists` once a record exists for that
+`(domainName, id)`, and a renewal must go through `renewRecord` with a query that resolves it.
+`AttestationBridge.submitRecord` routes between them and `feeFor` prices it (registration fee or
+renewal fee), so every writer — the browser relay and the DON report alike — makes one call and a
+candidate re-answering, a voucher updating a statement, or a voucher withdrawing one all work.

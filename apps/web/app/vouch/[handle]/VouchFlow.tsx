@@ -11,6 +11,7 @@ import { fmtUtc } from "@/app/ui";
 import { apiFor, useWalletDashboard } from "@/lib/hooks";
 import type { SignedInvite } from "@ketsuban/registrar";
 import type { Signer } from "@/lib/chain";
+import { WITHDRAWN } from "@ketsuban/registrar";
 import { VOUCH_PREFIX, voucherProgress, vouchSteps } from "@/lib/journey";
 
 type Stage = "signin" | "onboarding" | "statement" | "done";
@@ -21,7 +22,15 @@ type Stage = "signin" | "onboarding" | "statement" | "done";
  * is a record in the candidate's own vouch domain, so no name of the voucher's own is required first;
  * a held root name is reused as the label, and claiming one is offered after publishing.
  */
-export function VouchFlow({ candidate, invite }: { candidate: string; invite?: SignedInvite }) {
+export function VouchFlow({
+  candidate,
+  invite,
+  withdraw,
+}: {
+  candidate: string;
+  invite?: SignedInvite;
+  withdraw?: boolean;
+}) {
   const config = useWebConfig();
   const root = config.instances[0];
   const api = useMemo(() => apiFor(config), [config]);
@@ -95,7 +104,26 @@ export function VouchFlow({ candidate, invite }: { candidate: string; invite?: S
         </section>
       )}
 
-      {!loading && stage === "statement" && root && !invite && (
+      {!loading && stage === "statement" && root && onChain.existing && withdraw && (
+        <>
+          <p className="warning" data-testid="withdrawing">
+            Withdrawing your reference for {candidate}. The record stays — “{onChain.existing.statement}”
+            remains in the history, marked superseded — and the live statement becomes{" "}
+            <code>{WITHDRAWN}</code>. That is what withdrawal means here: nothing disappears.
+          </p>
+          <AttestFlow
+            fixedDomain={vouchDomain}
+            fixedHandle={handle}
+            title={`Withdraw your reference for ${candidate}`}
+            answerLabel="Statement"
+            answerPlaceholder={WITHDRAWN}
+            answerValue={WITHDRAWN}
+            onPublished={setPublished}
+          />
+        </>
+      )}
+
+      {!loading && stage === "statement" && root && !withdraw && !invite && !onChain.existing && (
         <section className="card" data-testid="no-invite">
           <h2>You need {candidate}&apos;s invitation</h2>
           <p>
@@ -108,7 +136,7 @@ export function VouchFlow({ candidate, invite }: { candidate: string; invite?: S
         </section>
       )}
 
-      {!loading && stage === "statement" && root && invite && (
+      {!loading && stage === "statement" && root && !withdraw && (invite || onChain.existing) && (
         <>
           <p className="muted" data-testid="statement-intro">
             A few words is what the name itself carries; the full letter comes next, as a text record. It

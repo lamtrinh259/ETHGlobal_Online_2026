@@ -86,6 +86,11 @@ export async function verifyInvite(req: AttestRequest, onchain: OnchainState, en
   if (candidate === undefined) return;
   if (env.requireInvite === false) return;
 
+  // The candidate invites a voucher once. Afterwards that voucher owns their own statement there and
+  // can update or withdraw it without asking again — otherwise a withdrawal would need permission
+  // from the person being vouched for.
+  if (onchain.exists) return;
+
   const invite = req.invite;
   if (!invite) throw new Error(`invite: ${req.intent.domain} needs the candidate's invitation`);
   if (invite.handle !== candidate) throw new Error("invite: for a different candidate");

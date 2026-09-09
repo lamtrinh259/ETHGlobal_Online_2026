@@ -16,6 +16,7 @@ export {
   inviteDomain,
   recoverInviteSigner,
   signInvite,
+  WITHDRAWN,
   ZERO_ADDRESS,
   type Invite,
   type SignedInvite,

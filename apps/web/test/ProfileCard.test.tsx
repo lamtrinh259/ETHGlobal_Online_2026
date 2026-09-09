@@ -118,6 +118,17 @@ describe("ProfileCard", () => {
     expect(voucherLink).toHaveAttribute("href", "/p/bob");
   });
 
+  it("reads a withdrawn statement as withdrawn, not as a quote", () => {
+    render(
+      <ProfileCard
+        p={{ ...profile, vouches: [{ ...profile.vouches[0], statement: "withdrawn" }] }}
+        rootParent="ketsuban.eth"
+      />
+    );
+    expect(screen.getByTestId("withdrawn")).toHaveTextContent("withdrawn by the voucher");
+    expect(screen.getByTestId("vouches")).not.toHaveTextContent("“withdrawn”");
+  });
+
   it("renders an unclaimed page", () => {
     render(
       <ProfileCard p={{ ...profile, wallet: null, answers: [], links: [] }} rootParent="ketsuban.eth" />

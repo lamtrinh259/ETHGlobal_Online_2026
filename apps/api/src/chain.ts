@@ -115,27 +115,25 @@ export class Chain {
     );
   }
 
+  /**
+   * Hand a registrar-signed record to the bridge, which registers it or renews it: Multipass splits
+   * those into two entry points and `register` reverts with `recordExists` on a second write, so the
+   * relay must not pick one itself. The bridge also prices it, registration fee or renewal fee.
+   */
   async submit(record: RegisterMessage, signature: Hex): Promise<Hex> {
-    const fee = (
-      await this.publicClient.readContract({
-        address: this.config.MULTIPASS,
-        abi: MultipassAbi,
-        functionName: "getDomainState",
-        args: [record.domainName],
-      })
-    ).fee;
+    const fee = await this.publicClient.readContract({
+      address: this.config.BRIDGE,
+      abi: bridgeAbi,
+      functionName: "feeFor",
+      args: [record],
+    });
     const hash = await this.walletClient.writeContract({
       chain: this.walletClient.chain,
       account: this.walletClient.account!,
       address: this.config.BRIDGE,
       abi: bridgeAbi,
-      functionName: "verify",
-      args: [
-        record,
-        signature,
-        { domainName: zeroHash, wallet: zeroAddress, name: zeroHash, id: zeroHash, targetDomain: zeroHash },
-        "0x",
-      ],
+      functionName: "submitRecord",
+      args: [record, signature],
       value: fee,
     });
     const receipt = await this.publicClient.waitForTransactionReceipt({ hash });

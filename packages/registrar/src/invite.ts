@@ -82,3 +82,6 @@ export function candidateOf(domain: string, prefixes: readonly string[]): string
   const p = prefixes.find((x) => domain.length > x.length && domain.startsWith(x));
   return p ? domain.slice(p.length) : undefined;
 }
+
+/** The statement a voucher writes to withdraw one: the record stays, its meaning does not. */
+export const WITHDRAWN = "withdrawn";

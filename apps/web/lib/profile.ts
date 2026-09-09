@@ -1,3 +1,4 @@
+import { WITHDRAWN } from "@ketsuban/registrar";
 import type { Verification, Vouch } from "./api";
 import type { WebConfig } from "./config";
 
@@ -165,7 +166,10 @@ export function assessProfile(
       };
     }),
   ];
-  const liveVouchers = new Set(vouches.filter((v) => v.live).map((v) => v.voucher));
+  // A withdrawn statement is still a record; it is not a reference any more, so it does not count.
+  const liveVouchers = new Set(
+    vouches.filter((v) => v.live && v.statement !== WITHDRAWN).map((v) => v.voucher)
+  );
   checks.push({
     id: "vouches",
     label: `Vouches (≥${policy.minVouches})`,

@@ -672,3 +672,9 @@ textarea:focus {
   font-size: 12px;
   padding: 2px 8px;
 }
+
+.vouch-withdrawn {
+  color: var(--text-secondary);
+  font-style: italic;
+  text-decoration: line-through;
+}

@@ -5,6 +5,7 @@ import { useMemo } from "react";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import type { Address } from "viem";
 import { apiFor, useGasTopup, useVouches, useWalletDashboard } from "@/lib/hooks";
+import { WITHDRAWN } from "@ketsuban/registrar";
 import { nameRows } from "@/lib/journey";
 import { vouchRequest } from "@/lib/profile";
 import { CopyButton } from "@/app/CopyButton";
@@ -255,6 +256,13 @@ export function Dashboard() {
                 <span className="vouch-meta muted">
                   {g.live ? "live" : "expired"} · until {fmtUtc(g.validUntil)} ·{" "}
                   <Link href={`/vouch/${g.candidate}`}>update</Link>
+                  {g.live && g.payload !== WITHDRAWN && (
+                    <>
+                      {" · "}
+                      <Link href={`/vouch/${g.candidate}?withdraw=1`}>withdraw</Link>
+                    </>
+                  )}
+                  {g.payload === WITHDRAWN && " · withdrawn"}
                 </span>
               </li>
             ))}

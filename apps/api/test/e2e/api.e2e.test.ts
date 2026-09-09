@@ -314,6 +314,51 @@ describe("api e2e", () => {
     expect(after.gasTopup.available).toBe(false);
   });
 
+  it("lets a voucher withdraw without a new invitation, and the record stays in the history", async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const BOB_KEY = "0x000000000000000000000000000000000000000000000000000000000000b0bb" as const;
+    const bob = fakeUser(BOB_KEY, "bob");
+    const post = (path: string, body: unknown, headers: Record<string, string> = {}) =>
+      fetch(`${API}${path}`, {
+        method: "POST",
+        headers: { "content-type": "application/json", ...headers },
+        body: JSON.stringify(body),
+      });
+
+    // No invite this time: bob already holds a record in ~alice from the previous test.
+    const withdrawal = toWire(
+      await signedAttestRequest(
+        bob.account,
+        baseIntent(bob.account, now, {
+          domain: "~alice",
+          handle: "bob",
+          nonce: 2n,
+          payload: toBytes32("withdrawn"),
+          exp: BigInt(now + 3600),
+        }),
+        privy.mint({ sub: bob.did, linked: bob.linked, now }),
+        31337,
+        deployment.multipass
+      )
+    );
+    const attested = await (await post("/v1/attest", withdrawal)).json();
+    expect(attested.record.payload).toBe(toBytes32("withdrawn"));
+    const delivered = await (
+      await post("/v1/cre/delivery", attested, { "x-delivery-token": "e2e-delivery-token-0123456789" })
+    ).json();
+    expect(delivered.error ?? "").toBe("");
+    expect(delivered.ok).toBe(true);
+
+    const vouches = await (await fetch(`${API}/v1/vouches/alice`)).json();
+    const mine = vouches.vouches.filter((v: { voucher: string }) => v.voucher === "bob");
+    expect(mine.map((v: { statement: string; nonce: string }) => [v.nonce, v.statement])).toEqual([
+      ["2", "withdrawn"],
+    ]);
+    // The earlier statement is gone from the current state but the name still resolves to the wallet.
+    const name = `bob.alice.${deployment.instanceParent}`;
+    expect((await (await fetch(`${API}/v1/verify/${name}`)).json()).answer).toBe("withdrawn");
+  });
+
   it("serves the whole candidate in one read, matching the per-name endpoint", async () => {
     const profile = await (await fetch(`${API}/v1/profile/alice`)).json();
     expect(profile.handle).toBe("alice");
@@ -322,7 +367,9 @@ describe("api e2e", () => {
     expect(named.verification.status).toBe("active");
     const single = await (await fetch(`${API}/v1/verify/${named.name}`)).json();
     expect(named.verification).toEqual(single);
-    expect(profile.vouches[0]).toMatchObject({ voucher: "bob", statement: "worked together 2019-22" });
+    // This suite is a narrative: by now bob has withdrawn, so assert who wrote it, not what it says.
+    expect(profile.vouches[0]).toMatchObject({ voucher: "bob", live: true });
+    expect(typeof profile.vouches[0].statement).toBe("string");
   });
 
   it("provisions a vouch instance for a live handle and refuses one that does not exist", async () => {

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { WITHDRAWN } from "@ketsuban/registrar";
 import { describePolicy, type Policy, type Profile } from "@/lib/profile";
 import { fmtUtc } from "./ui";
 
@@ -123,7 +124,13 @@ export function ProfileCard({ p, rootParent, policy }: { p: Profile; rootParent:
                   </small>
                 )}
               </span>
-              <span className="vouch-what">“{v.statement}”</span>
+              {v.statement === WITHDRAWN ? (
+                <span className="vouch-what vouch-withdrawn" data-testid="withdrawn">
+                  withdrawn by the voucher
+                </span>
+              ) : (
+                <span className="vouch-what">“{v.statement}”</span>
+              )}
               {v.letter && (
                 <span className="vouch-letter" data-testid="vouch-letter">
                   {v.letter}

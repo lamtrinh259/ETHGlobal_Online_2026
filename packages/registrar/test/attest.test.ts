@@ -191,6 +191,12 @@ describe("attest — vouch instance (~candidate) domain", () => {
     await expect(vouch(await makeInvite({ voucher: userAccount.address }))).resolves.toBeUndefined();
   });
 
+  it("a voucher who already holds a record there may update or withdraw it without a new invitation", async () => {
+    const intent = makeIntent({ domain: "~alice", handle: "bob", nonce: 2n, payload: toBytes32("withdrawn") });
+    const held = { ...noVouchRecord, exists: true, nonce: 1n, wallet: userAccount.address };
+    await expect(verifyPublicLeg(await signedRequest(intent), held, env)).resolves.toBeUndefined();
+  });
+
   it("a deployment may switch invitations off", async () => {
     const req = await signedRequest(makeIntent({ domain: "~alice", handle: "bob" }));
     await expect(verifyPublicLeg(req, noRecord, { ...env, requireInvite: false })).resolves.toBeUndefined();
