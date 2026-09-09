@@ -4,6 +4,7 @@ import { toBytes32 } from "@peeramid-labs/multipass-client";
 import {
   bridgeWriteAbi,
   chainFor,
+  errorsAbi,
   linkOwnName,
   resolverWriteAbi,
   writeProfileText,
@@ -53,6 +54,20 @@ function fakeProvider(status: "0x1" | "0x0" = "0x1") {
 }
 
 const signer = (provider: never): Signer => ({ provider, account: ACCOUNT, chainId: 11155111 });
+
+describe("error decoding", () => {
+  it("carries every deployment error, so a revert is never a bare selector", () => {
+    const names = errorsAbi.map((e) => ("name" in e ? e.name : ""));
+    // The three that actually reached users: a missing domain, a wrong registrar key, a double write.
+    expect(names).toContain("invalidDomain");
+    expect(names).toContain("invalidSignature");
+    expect(names).toContain("recordExists");
+    expect(errorsAbi.every((e) => e.type === "error")).toBe(true);
+    // Both write paths can decode them.
+    expect(resolverWriteAbi.filter((e) => e.type === "error").length).toBe(errorsAbi.length);
+    expect(bridgeWriteAbi.filter((e) => e.type === "error").length).toBe(errorsAbi.length);
+  });
+});
 
 describe("chainFor", () => {
   it("knows sepolia and anvil and defines anything else", () => {

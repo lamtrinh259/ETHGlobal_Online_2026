@@ -5,19 +5,35 @@ import {
   defineChain,
   namehash,
   parseAbi,
+  type Abi,
   type Address,
   type Chain,
   type Hex,
 } from "viem";
 import { foundry, sepolia } from "viem/chains";
+import errors from "@ketsuban/contracts/errors" with { type: "json" };
 import { toBytes32 } from "@peeramid-labs/multipass-client";
 
 /** ENS profile keys the bridge grants `ROLE_SET_TEXT` on when a name lands (AttestationBridge._grantProfileKeys). */
 export const PROFILE_KEYS = ["avatar", "description", "url", "email"] as const;
 export type ProfileKey = (typeof PROFILE_KEYS)[number];
 
-export const resolverWriteAbi = parseAbi(["function setText(bytes32 node, string key, string value)"]);
-export const bridgeWriteAbi = parseAbi(["function linkOwnName(bytes32 domain, string label)"]);
+/**
+ * Every custom error in the deployment, generated from the compiled contracts. viem decodes a revert
+ * only when it is in the ABI it was given, and the error that fires usually belongs to a contract
+ * further down the call, so a bare `0xd1cc1202` is what a user sees otherwise. Merged into both write
+ * ABIs below.
+ */
+export const errorsAbi = errors as Abi;
+
+export const resolverWriteAbi = [
+  ...parseAbi(["function setText(bytes32 node, string key, string value)"]),
+  ...errorsAbi,
+];
+export const bridgeWriteAbi = [
+  ...parseAbi(["function linkOwnName(bytes32 domain, string label)"]),
+  ...errorsAbi,
+];
 
 const KNOWN: Record<number, Chain> = { [sepolia.id]: sepolia, [foundry.id]: foundry };
 

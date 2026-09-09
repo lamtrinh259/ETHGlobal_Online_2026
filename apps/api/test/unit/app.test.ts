@@ -96,6 +96,8 @@ function fakeChain(state: Partial<State> = {}) {
         ],
       },
       factory: { address: baseEnv.FACTORY as Address, deployed: true, instances: ["kju-is"] },
+      registrar: { signsAs: registrar.address, onchain: [registrar.address] },
+      relayer: { address: registrar.address, balance: "1000000000000000000" },
       warnings: [],
     },
     universal: {
@@ -829,6 +831,8 @@ describe("GET /v1/preflight", () => {
         bridge: { address: baseEnv.BRIDGE as Address, deployed: true, missing: ["verify"] },
         multipass: { address: baseEnv.MULTIPASS as Address, deployed: true, domains: [] },
         factory: { address: baseEnv.FACTORY as Address, deployed: false, instances: [] },
+        registrar: { signsAs: registrar.address, onchain: [] },
+        relayer: { address: registrar.address, balance: "0" },
         warnings: ["BRIDGE has no verify(): it predates this build"],
       },
     });

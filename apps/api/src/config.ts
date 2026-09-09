@@ -70,6 +70,12 @@ export const configSchema = z.object({
     .transform((v) => v !== "false"),
   /** Prefix of per-candidate vouch domains (`~alice`) */
   VOUCH_PREFIX: z.string().min(1).default("~"),
+  /** Below this the relayer cannot pay for records; the preflight warns. Default 0.002 ETH. */
+  RELAYER_MIN_WEI: z
+    .string()
+    .regex(/^\d+$/)
+    .default("2000000000000000")
+    .transform((s) => BigInt(s)),
   /** Test-gas the relayer sends once to a wallet holding a live name (wei); 0 disables `POST /v1/gas` */
   GAS_TOPUP_WEI: z
     .string()

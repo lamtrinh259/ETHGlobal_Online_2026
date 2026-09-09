@@ -86,6 +86,9 @@ describe("api e2e", () => {
     expect(p.ok).toBe(true);
     expect(p.warnings).toEqual([]);
     expect(p.bridge).toMatchObject({ deployed: true, missing: [] });
+    // The key this service signs with must be the one Multipass expects for those domains.
+    expect(p.registrar.onchain).toEqual([p.registrar.signsAs]);
+    expect(BigInt(p.relayer.balance)).toBeGreaterThan(0n);
     expect(p.factory.instances).toContain(deployment.instanceDomain);
     // Every domain the attester may be asked for, platform domains included: an uninitialised one
     // reverts with `invalidDomain` only after the user has signed.

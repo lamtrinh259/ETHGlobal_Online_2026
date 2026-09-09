@@ -43,3 +43,15 @@ which also grants the wallet its profile keys, and a renewal goes straight to `M
 which needs no privileges and leaves those grants alone. The relay does this in TypeScript and
 `AttestationReporter` does it in the report path, so a candidate re-answering, a voucher updating a
 statement, and a voucher withdrawing one all work against a bridge that predates them.
+
+## One ABI of every error
+
+`pnpm --filter @ketsuban/contracts abi:errors` (also part of its `build`) scans the compiled artifacts
+and writes `abi/errors.json`: every custom error in the deployment, from our contracts, Multipass, the
+resolver and OpenZeppelin. The package exports it as `@ketsuban/contracts/errors`, and both the API and
+the web app merge it into every ABI they hand to viem.
+
+The reason is concrete. viem decodes a revert only when it finds it in the ABI it was given, and the
+error that fires usually belongs to a contract further down the call. Three reverts reached users as
+bare selectors before this existed: `0xb4a9a604` (`invalidDomain`), `0xd1cc1202` (`invalidSignature`)
+and `0xab2b3a8a` (`recordExists`). All three decode now.

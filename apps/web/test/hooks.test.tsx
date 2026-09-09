@@ -13,6 +13,7 @@ import {
   useLinkOwnName,
   useNameStatus,
   useNonce,
+  usePreflight,
   useProfileWrite,
   useVerification,
   useVouches,
@@ -77,6 +78,10 @@ function fakeApi(): Api {
     })),
     gas: vi.fn(async () => ({ hash: "0xhash3" as Hex, amount: "1" })),
     contracts: vi.fn(async () => ({ instances: [], bridge: WALLET, permissionedResolver: WALLET })),
+    preflight: vi.fn(async () => ({
+      ok: false,
+      warnings: ['domain "google" is not initialised on Multipass'],
+    })),
     ens: vi.fn(async (name: string, keys?: string[]) => ({
       name,
       universalResolver: WALLET,
@@ -169,6 +174,10 @@ describe("hooks", () => {
     expect(noHandle.result.current.fetchStatus).toBe("idle");
     const vouches = renderHook(() => useVouches(api, "alice"), { wrapper: wrapper() });
     await waitFor(() => expect(vouches.result.current.data?.handle).toBe("alice"));
+
+    const pre = renderHook(() => usePreflight(api), { wrapper: wrapper() });
+    await waitFor(() => expect(pre.result.current.data?.warnings).toHaveLength(1));
+    expect(pre.result.current.data?.ok).toBe(false);
 
     const noWallet = renderHook(() => useWalletDashboard(api, undefined), { wrapper: wrapper() });
     expect(noWallet.result.current.fetchStatus).toBe("idle");

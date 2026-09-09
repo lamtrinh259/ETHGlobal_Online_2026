@@ -9,6 +9,9 @@ RUN corepack enable && corepack prepare pnpm@12.3.4 --activate
 WORKDIR /repo
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml tsconfig.base.json ./
 COPY packages/registrar/package.json packages/registrar/
+# The contracts package is the source of the generated errors ABI; only its manifest and that file are
+# needed here, never the Solidity toolchain.
+COPY packages/contracts/package.json packages/contracts/
 COPY apps/web/package.json apps/web/
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
   pnpm install --frozen-lockfile --filter @ketsuban/web... --config.dedupe-peer-dependents=false
@@ -19,6 +22,7 @@ RUN corepack enable && corepack prepare pnpm@12.3.4 --activate
 WORKDIR /repo
 COPY --from=dependencies /repo ./
 COPY packages/registrar packages/registrar
+COPY packages/contracts/abi packages/contracts/abi
 COPY apps/web apps/web
 ENV NODE_ENV=production
 # Coolify passes the deployed commit → baked into the build stamp (NEXT_PUBLIC_BUILD_SHA).

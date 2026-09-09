@@ -4,16 +4,26 @@
   "private": true,
   "description": "Attestation instances on ENSv2: AttestationFactory/Registry/Resolver/Bridge over Multipass",
   "scripts": {
-    "build": "forge build",
+    "build": "forge build && node script/dump-errors.mjs",
     "test": "forge test -vv",
     "coverage": "forge coverage --report summary",
     "lint": "forge fmt --check",
     "lint:fix": "forge fmt",
-    "typecheck": "forge build"
+    "typecheck": "forge build",
+    "abi:errors": "forge build && node script/dump-errors.mjs"
   },
   "devDependencies": {
     "@openzeppelin/contracts": "5.4.0",
     "@openzeppelin/contracts-upgradeable": "5.4.0",
     "@peeramid-labs/multipass": "1.1.0"
-  }
+  },
+  "exports": {
+    "./errors": "./abi/errors.json",
+    "./deployments/*": "./deployments/*"
+  },
+  "files": [
+    "abi",
+    "deployments",
+    "src"
+  ]
 }

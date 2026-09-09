@@ -21,6 +21,7 @@ import { PLATFORM_DOMAIN_NAMES, type OnchainState, type RegisterMessage } from "
 import { bridgeAbi, factoryAbi, registryAbi, resolverAbi, universalResolverAbi } from "./abi.js";
 import { RpcSource } from "./logs.js";
 import { Indexer, type IndexStatus, type IndexedRecord } from "./indexer.js";
+import { explainRevert } from "./errors.js";
 import type { Config } from "./config.js";
 
 /** One Multipass record as seen in Registered/Renewed logs, with its current liveness */
@@ -145,34 +146,38 @@ export class Chain {
       }),
     ]);
     const common = { chain: this.walletClient.chain, account: this.walletClient.account! } as const;
-    const hash = exists
-      ? await this.walletClient.writeContract({
-          ...common,
-          address: this.config.MULTIPASS,
-          abi: MultipassAbi,
-          functionName: "renewRecord",
-          args: [query, record, signature],
-          value: domain.renewalFee,
-        })
-      : await this.walletClient.writeContract({
-          ...common,
-          address: this.config.BRIDGE,
-          abi: bridgeAbi,
-          functionName: "verify",
-          args: [
-            record,
-            signature,
-            {
-              domainName: zeroHash,
-              wallet: zeroAddress,
-              name: zeroHash,
-              id: zeroHash,
-              targetDomain: zeroHash,
-            },
-            "0x",
-          ],
-          value: domain.fee,
-        });
+    // Multipass's reverts are custom errors on a contract this ABI does not describe, so decode them
+    // here rather than handing a bare selector to whoever is trying to publish.
+    const hash = await this.explaining(() =>
+      exists
+        ? this.walletClient.writeContract({
+            ...common,
+            address: this.config.MULTIPASS,
+            abi: MultipassAbi,
+            functionName: "renewRecord",
+            args: [query, record, signature],
+            value: domain.renewalFee,
+          })
+        : this.walletClient.writeContract({
+            ...common,
+            address: this.config.BRIDGE,
+            abi: bridgeAbi,
+            functionName: "verify",
+            args: [
+              record,
+              signature,
+              {
+                domainName: zeroHash,
+                wallet: zeroAddress,
+                name: zeroHash,
+                id: zeroHash,
+                targetDomain: zeroHash,
+              },
+              "0x",
+            ],
+            value: domain.fee,
+          })
+    );
     const receipt = await this.publicClient.waitForTransactionReceipt({ hash });
     if (receipt.status !== "success") throw new Error(`verify reverted in ${hash}`);
     // Read-your-writes: the record this call created must be visible to the next request.
@@ -346,6 +351,28 @@ export class Chain {
       })
     );
 
+    // The registrar key has to be the key Multipass expects, or every signature this service makes is
+    // rejected after the user has already signed theirs.
+    const configuredRegistrar = this.config.REGISTRAR_KEY
+      ? privateKeyToAccount(this.config.REGISTRAR_KEY).address
+      : this.config.REGISTRAR_ADDRESS;
+    const onchainRegistrars = [...new Set(domains.filter((d) => d.initialised).map((d) => d.registrar))];
+    if (configuredRegistrar && onchainRegistrars.length > 0) {
+      const wrong = onchainRegistrars.filter((r) => r.toLowerCase() !== configuredRegistrar.toLowerCase());
+      if (wrong.length > 0) {
+        warnings.push(
+          `registrar mismatch: this service signs as ${configuredRegistrar}, Multipass expects ${wrong.join(", ")}`
+        );
+      }
+    }
+
+    const relayerBalance = await this.balance(this.relayer);
+    if (relayerBalance < this.config.RELAYER_MIN_WEI) {
+      warnings.push(
+        `relayer ${this.relayer} holds ${relayerBalance} wei, below the ${this.config.RELAYER_MIN_WEI} minimum`
+      );
+    }
+
     const instances = (await this.instances()).map((i) => i.domain);
     for (const domain of this.config.NAME_DOMAINS) {
       if (!instances.includes(domain)) warnings.push(`domain "${domain}" has no instance in the factory`);
@@ -356,6 +383,8 @@ export class Chain {
       bridge: { address: this.config.BRIDGE, deployed: deployed(bridgeCode), missing },
       multipass: { address: this.config.MULTIPASS, deployed: deployed(multipassCode), domains },
       factory: { address: this.config.FACTORY, deployed: deployed(factoryCode), instances },
+      registrar: { signsAs: configuredRegistrar ?? null, onchain: onchainRegistrars },
+      relayer: { address: this.relayer, balance: relayerBalance.toString() },
       warnings,
     };
   }
@@ -395,6 +424,15 @@ export class Chain {
    * Wait for the receipt, then read the new blocks: a record this service just wrote must be visible
    * to the request that follows it, not only after the next poll.
    */
+  /** Run a chain write, replacing a raw revert selector with the rule that failed. */
+  private async explaining<T>(run: () => Promise<T>): Promise<T> {
+    try {
+      return await run();
+    } catch (err) {
+      throw new Error(explainRevert(err));
+    }
+  }
+
   private async wait(hash: Hex) {
     const receipt = await this.publicClient.waitForTransactionReceipt({ hash });
     if (receipt.status !== "success") throw new Error(`transaction reverted: ${hash}`);
@@ -525,5 +563,7 @@ export type Preflight = {
     }[];
   };
   factory: { address: Address; deployed: boolean; instances: string[] };
+  registrar: { signsAs: Address | null; onchain: Address[] };
+  relayer: { address: Address; balance: string };
   warnings: string[];
 };

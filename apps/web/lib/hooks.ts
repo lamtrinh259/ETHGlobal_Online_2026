@@ -129,3 +129,16 @@ export function useVouches(api: Api, handle: string | undefined) {
     enabled: !!handle,
   });
 }
+
+/**
+ * Whether the deployment is wired correctly. Asked once and kept: a misconfigured domain or registrar
+ * makes every signature fail, and saying so up front beats a revert after the user has signed.
+ */
+export function usePreflight(api: Api) {
+  return useQuery({
+    queryKey: ["preflight"],
+    queryFn: () => api.preflight(),
+    staleTime: 60_000,
+    retry: false,
+  });
+}

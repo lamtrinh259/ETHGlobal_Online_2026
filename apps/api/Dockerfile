@@ -4,9 +4,13 @@ RUN corepack enable && corepack prepare pnpm@12.3.4 --activate
 WORKDIR /repo
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml tsconfig.base.json ./
 COPY packages/registrar/package.json packages/registrar/
+# The contracts package is the source of the generated errors ABI; only its manifest and that file are
+# needed here, never the Solidity toolchain.
+COPY packages/contracts/package.json packages/contracts/
 COPY apps/api/package.json apps/api/
 RUN pnpm install --frozen-lockfile --filter @ketsuban/api... --config.dedupe-peer-dependents=false
 COPY packages/registrar packages/registrar
+COPY packages/contracts/abi packages/contracts/abi
 COPY apps/api apps/api
 RUN pnpm --filter @ketsuban/registrar build && pnpm --filter @ketsuban/api build
 RUN pnpm deploy --filter @ketsuban/api --prod /out

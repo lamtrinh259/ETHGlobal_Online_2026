@@ -249,6 +249,9 @@ describe("api client", () => {
           warning: "w",
         },
       },
+      "http://api.test/v1/preflight": {
+        body: { ok: false, warnings: ['domain "google" is not initialised'] },
+      },
       "http://api.test/v1/instances": {
         body: {
           instances: [
@@ -372,6 +375,8 @@ describe("api client", () => {
     expect((await api.ens("alice.ketsuban.eth", ["ketsuban:answer"])).texts["ketsuban:answer"]).toBe(
       "terrible dictator"
     );
+    const pre = await api.preflight();
+    expect(pre).toEqual({ ok: false, warnings: ['domain "google" is not initialised'] });
     expect((await api.contracts()).bridge).toBe(account.address);
     expect((await api.contracts()).permissionedResolver).toBeNull();
     expect(await api.nameStatus("ketsuban", "alice")).toEqual({

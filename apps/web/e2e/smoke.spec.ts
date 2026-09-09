@@ -68,6 +68,22 @@ test("theme toggle persists and stamps <html>", async ({ page }) => {
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
 });
 
+test("a misconfigured deployment says so before any form", async ({ page }) => {
+  await page.route("**/v1/preflight", (route) =>
+    route.fulfill({ status: 503, json: { ok: false, warnings: ['domain "google" is not initialised'] } })
+  );
+  await page.goto("/claim");
+  const banner = page.getByTestId("preflight");
+  await expect(banner).toContainText("This deployment is not ready");
+  await expect(banner).toContainText("google");
+
+  // A healthy deployment shows nothing.
+  await page.unroute("**/v1/preflight");
+  await page.route("**/v1/preflight", (route) => route.fulfill({ json: { ok: true, warnings: [] } }));
+  await page.goto("/claim");
+  await expect(page.getByTestId("preflight")).toHaveCount(0);
+});
+
 test("health endpoint answers", async ({ request }) => {
   const r = await request.get("/api/health");
   expect(r.ok()).toBeTruthy();

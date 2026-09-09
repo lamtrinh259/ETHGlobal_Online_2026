@@ -63,6 +63,12 @@ makes, because a wrong role grant would otherwise pass every test: the wallet wr
 profile text record, and `linkOwnName` aliasing a `.eth` name onto a record. It also covers a renewal,
 a withdrawal, and a wallet with no role being refused.
 
+## Reverts
+
+Every ABI in this service is merged with `@ketsuban/contracts/errors`, so a revert from Multipass or the
+resolver decodes instead of arriving as a selector. `explainRevert` then turns it into one sentence
+naming the rule that failed and the knob to change, which is what `/v1/submit` returns to the browser.
+
 ## Troubleshooting a deploy
 
 `GET /v1/preflight` answers the first question: is this service pointed at the contracts it thinks it

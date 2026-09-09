@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Preflight } from "./Preflight";
 import { ThemeToggle } from "./ThemeToggle";
 import { WhoAmI } from "./WhoAmI";
 import { useWebConfig } from "./providers";
@@ -149,6 +150,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <code>NEXT_PUBLIC_ATTEST_URL</code> in the deploy environment and rebuild.
           </p>
         )}
+        <Preflight />
         {children}
       </main>
     </div>

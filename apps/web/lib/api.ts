@@ -105,6 +105,12 @@ export const ensSchema = z.object({
 });
 export type EnsResolution = z.infer<typeof ensSchema>;
 
+export const preflightSchema = z.object({
+  ok: z.boolean(),
+  warnings: z.array(z.string()),
+});
+export type PreflightRead = z.infer<typeof preflightSchema>;
+
 export const profileSchema = z.object({
   handle: z.string(),
   names: z.array(z.object({ instance: z.string(), name: z.string(), verification: verifySchema.nullable() })),
@@ -230,6 +236,15 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
     async ens(name: string, keys?: string[]): Promise<EnsResolution> {
       const q = keys?.length ? `?keys=${encodeURIComponent(keys.join(","))}` : "";
       return ensSchema.parse(await readJson(await call(`${base}/v1/ens/${encodeURIComponent(name)}${q}`)));
+    },
+
+    /** The deployment's own view of whether it is wired correctly; 503 carries the reasons. */
+    async preflight(): Promise<PreflightRead> {
+      const res = await fetchFn(`${base}/v1/preflight`);
+      const body = await res.json().catch(() => null);
+      const parsed = preflightSchema.safeParse(body);
+      if (parsed.success) return parsed.data;
+      throw new ApiError(res.status, `preflight unavailable (HTTP ${res.status})`);
     },
 
     async contracts(): Promise<Contracts> {
