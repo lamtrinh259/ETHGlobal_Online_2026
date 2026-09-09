@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { EnsProof } from "@/app/EnsProof";
 import { ProfileCard } from "@/app/ProfileCard";
 import { CopyButton } from "@/app/CopyButton";
 import { createApi, type Verification } from "@/lib/api";
@@ -60,6 +61,7 @@ export default async function ProfilePage({ params, searchParams }: Params) {
     q,
     subjects.map((s) => s.domain)
   );
+  const ens = await api.ens(names[0]).catch(() => null);
   let vouches: Awaited<ReturnType<typeof api.vouches>>["vouches"] = [];
   try {
     vouches = (await api.vouches(handle)).vouches;
@@ -100,6 +102,7 @@ export default async function ProfilePage({ params, searchParams }: Params) {
           <code>?answers=&amp;minLinks=&amp;minVouches=&amp;humanity=1</code>.
         </p>
       </section>
+      <EnsProof ens={ens} name={names[0]} />
       <section className="card">
         <h3>For agents and ATS</h3>
         <p className="muted">

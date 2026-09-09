@@ -70,6 +70,15 @@ function fakeApi(): Api {
     })),
     gas: vi.fn(async () => ({ hash: "0xhash3" as Hex, amount: "1" })),
     contracts: vi.fn(async () => ({ instances: [], bridge: WALLET, permissionedResolver: WALLET })),
+    ens: vi.fn(async (name: string, keys?: string[]) => ({
+      name,
+      universalResolver: WALLET,
+      resolver: WALLET,
+      addr: WALLET,
+      texts: Object.fromEntries((keys ?? []).map((k) => [k, "v"])),
+      status: "active" as const,
+      warning: "w",
+    })),
     verify: vi.fn(async (name: string) => ({
       name,
       instance: { domain: "ketsuban", parentName: "ketsuban.eth" },

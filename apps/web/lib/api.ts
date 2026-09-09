@@ -94,6 +94,17 @@ export const contractsSchema = z.object({
 });
 export type Contracts = z.infer<typeof contractsSchema>;
 
+export const ensSchema = z.object({
+  name: z.string(),
+  universalResolver: address,
+  resolver: address,
+  addr: address.nullable(),
+  texts: z.record(z.string()),
+  status: z.enum(["active", "inactive"]),
+  warning: z.string(),
+});
+export type EnsResolution = z.infer<typeof ensSchema>;
+
 export const nameStatusSchema = z.object({
   domain: z.string(),
   handle: z.string(),
@@ -203,6 +214,11 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
         body: JSON.stringify(result),
       });
       return (await readJson(res)) as { ok: true; txHash: Hex };
+    },
+
+    async ens(name: string, keys?: string[]): Promise<EnsResolution> {
+      const q = keys?.length ? `?keys=${encodeURIComponent(keys.join(","))}` : "";
+      return ensSchema.parse(await readJson(await call(`${base}/v1/ens/${encodeURIComponent(name)}${q}`)));
     },
 
     async contracts(): Promise<Contracts> {

@@ -62,6 +62,7 @@ type State = {
   byWallet: (ListedRecord & { domain: string })[];
   names: Record<string, { taken: boolean; wallet: Address | null; live: boolean }>;
   instances: Instance[];
+  universal: { resolver: Address; addr: Address; texts: Record<string, string> } | Error;
   balance: bigint;
   sent: { to: Address; value: bigint }[];
 };
@@ -75,6 +76,11 @@ function fakeChain(state: Partial<State> = {}) {
     listed: {},
     instancesCreated: [],
     instances: [instance],
+    universal: {
+      resolver: "0x178ff1589Be8Af3B19426Aa1d2Bd07cd178E215e",
+      addr: user.account.address,
+      texts: {},
+    },
     balance: 0n,
     sent: [],
     ...state,
@@ -100,6 +106,13 @@ function fakeChain(state: Partial<State> = {}) {
       async (_r: Address, name: string, key: string) => s.texts[`${name}/${key}`] ?? s.texts[key] ?? ""
     ),
     resolveAddr: vi.fn(async () => s.addr),
+    resolveUniversal: vi.fn(async (name: string, keys: string[]) => {
+      if (s.universal instanceof Error) throw s.universal;
+      return {
+        ...s.universal,
+        texts: Object.fromEntries(keys.map((k) => [k, s.texts[`${name}/${k}`] ?? s.texts[k] ?? ""])),
+      };
+    }),
     resolveData: vi.fn(async (_r: Address, _n: string, key: string) => s.data[key] ?? "0x"),
     ensureVouchInstance: vi.fn(async (handle: string) => {
       const created = !s.instancesCreated.includes(handle);
@@ -640,6 +653,66 @@ describe("GET /v1/vouches/:handle", () => {
     expect(chain.nameStatus).not.toHaveBeenCalledWith("kju-is", "carol");
     expect((await app(chain).request("/v1/vouches/Not%20Valid")).status).toBe(400);
     expect((await (await app(chain).request("/v1/vouches/nobody")).json()).vouches).toEqual([]);
+  });
+});
+
+describe("GET /v1/ens/:name", () => {
+  const ensApp = (chain: ChainReader) =>
+    createApp({
+      config: loadConfig({ ...baseEnv, UNIVERSAL_RESOLVER: "0x4a1817d13E9cF196f471725176355c1234b63c70" }),
+      chain,
+      now: () => NOW,
+    });
+
+  it("reads the name the way any ENS client does, with the resolver it reached", async () => {
+    const { chain } = fakeChain({
+      texts: {
+        "alice.kju-is.eth/ketsuban:answer": "terrible dictator",
+        "alice.kju-is.eth/avatar": "ipfs://x",
+      },
+    });
+    const res = await ensApp(chain).request("/v1/ens/Alice.kju-is.eth?keys=ketsuban:answer,avatar");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      name: "alice.kju-is.eth",
+      universalResolver: "0x4a1817d13E9cF196f471725176355c1234b63c70",
+      resolver: "0x178ff1589Be8Af3B19426Aa1d2Bd07cd178E215e",
+      addr: user.account.address,
+      texts: { "ketsuban:answer": "terrible dictator", avatar: "ipfs://x" },
+      status: "active",
+      warning: WARNING,
+    });
+    expect(chain.resolveUniversal).toHaveBeenCalledWith("alice.kju-is.eth", ["ketsuban:answer", "avatar"]);
+  });
+
+  it("defaults the keys, reports an unclaimed name as inactive and caps the key list", async () => {
+    const { chain } = fakeChain({
+      universal: { resolver: zeroAddress, addr: zeroAddress, texts: {} },
+    });
+    const body = await (await ensApp(chain).request("/v1/ens/nobody.kju-is.eth")).json();
+    expect(body.status).toBe("inactive");
+    expect(body.addr).toBeNull();
+    expect(Object.keys(body.texts)).toEqual([
+      "ketsuban:answer",
+      "ketsuban:expiry",
+      "ketsuban:humanity",
+      "avatar",
+      "description",
+      "url",
+    ]);
+    const many = Array.from({ length: 14 }, (_, i) => `k${i}`).join(",");
+    const capped = await (await ensApp(chain).request(`/v1/ens/a.b.eth?keys=${many}`)).json();
+    expect(Object.keys(capped.texts)).toHaveLength(10);
+  });
+
+  it("501s without a universal resolver, 400s a bad name and 502s a resolver failure", async () => {
+    const { chain } = fakeChain();
+    expect((await app(chain).request("/v1/ens/alice.kju-is.eth")).status).toBe(501);
+    expect((await ensApp(chain).request("/v1/ens/not-a-name")).status).toBe(400);
+    const broken = fakeChain({ universal: new Error("UnreachableName(0x…)") });
+    const res = await ensApp(broken.chain).request("/v1/ens/alice.kju-is.eth");
+    expect(res.status).toBe(502);
+    expect((await res.json()).error).toContain("UnreachableName");
   });
 });
 

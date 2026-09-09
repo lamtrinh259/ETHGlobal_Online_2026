@@ -203,6 +203,17 @@ describe("api client", () => {
       "http://api.test/v1/attest": { body: result },
       "http://api.test/v1/cre/delivery": { body: { ok: true, txHash: `0x${"ab".repeat(32)}` } },
       "http://api.test/v1/verify/alice.ketsuban.eth": { body: verification },
+      "http://api.test/v1/ens/alice.ketsuban.eth?keys=ketsuban%3Aanswer": {
+        body: {
+          name: "alice.ketsuban.eth",
+          universalResolver: account.address,
+          resolver: account.address,
+          addr: account.address,
+          texts: { "ketsuban:answer": "terrible dictator" },
+          status: "active",
+          warning: "w",
+        },
+      },
       "http://api.test/v1/instances": {
         body: {
           instances: [
@@ -285,6 +296,9 @@ describe("api client", () => {
       given: 1,
       received: 0,
     });
+    expect((await api.ens("alice.ketsuban.eth", ["ketsuban:answer"])).texts["ketsuban:answer"]).toBe(
+      "terrible dictator"
+    );
     expect((await api.contracts()).bridge).toBe(account.address);
     expect((await api.contracts()).permissionedResolver).toBeNull();
     expect(await api.nameStatus("ketsuban", "alice")).toEqual({

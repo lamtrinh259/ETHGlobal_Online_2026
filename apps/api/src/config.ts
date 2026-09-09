@@ -46,6 +46,8 @@ export const configSchema = z.object({
     .default(30 * 24 * 3600),
   /** Root instance registry (mounted under .eth) — vouch instances nest beneath it */
   REGISTRY: address.optional(),
+  /** ENSv2 UniversalResolver; set it to expose the independent resolution path (`/v1/ens/:name`) */
+  UNIVERSAL_RESOLVER: address.optional(),
   /** Stock PermissionedResolver every instance forwards to */
   PERMISSIONED_RESOLVER: address.optional(),
   /** Registrar address the relay initialises new vouch domains with */
@@ -88,6 +90,7 @@ export type Config = Omit<
   | "VIEWCODE_KEY"
   | "REGISTRY"
   | "PERMISSIONED_RESOLVER"
+  | "UNIVERSAL_RESOLVER"
   | "REGISTRAR_ADDRESS"
 > & {
   MULTIPASS: Address;
@@ -98,6 +101,7 @@ export type Config = Omit<
   VIEWCODE_KEY?: Hex;
   REGISTRY?: Address;
   PERMISSIONED_RESOLVER?: Address;
+  UNIVERSAL_RESOLVER?: Address;
   REGISTRAR_ADDRESS?: Address;
 };
 
@@ -124,6 +128,7 @@ const deploymentFile = z.object({
   factory: address,
   registry: address.optional(),
   permissionedResolver: address.optional(),
+  universalResolver: address.optional(),
 });
 
 /**
@@ -141,6 +146,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
       FACTORY: d.factory,
       ...(d.registry ? { REGISTRY: d.registry } : {}),
       ...(d.permissionedResolver ? { PERMISSIONED_RESOLVER: d.permissionedResolver } : {}),
+      ...(d.universalResolver ? { UNIVERSAL_RESOLVER: d.universalResolver } : {}),
       ...Object.fromEntries(Object.entries(env).filter(([, v]) => v !== undefined && v !== "")),
     };
   }

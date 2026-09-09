@@ -27,3 +27,8 @@ export const resolverAbi = parseAbi([
   "function text(bytes32 node, string key) view returns (string)",
   "function data(bytes32 node, string key) view returns (bytes)",
 ]);
+
+/// ENSv2 UniversalResolver: walks the registry to the resolver that owns a name and calls it.
+export const universalResolverAbi = parseAbi([
+  "function resolve(bytes name, bytes data) view returns (bytes result, address resolver)",
+]);

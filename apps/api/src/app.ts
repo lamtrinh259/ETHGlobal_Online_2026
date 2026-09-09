@@ -210,6 +210,40 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     }
   });
 
+  /**
+   * Resolve a name through the ENSv2 UniversalResolver: the same answer any wallet or indexer gets,
+   * with the resolver it reached. Independent of our instance bookkeeping on purpose.
+   */
+  const ENS_KEYS = [
+    "ketsuban:answer",
+    "ketsuban:expiry",
+    "ketsuban:humanity",
+    "avatar",
+    "description",
+    "url",
+  ];
+  app.get("/v1/ens/:name", async (c) => {
+    if (!config.UNIVERSAL_RESOLVER) return c.json({ error: "universal resolver not configured" }, 501);
+    const name = c.req.param("name").toLowerCase();
+    if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(name)) return c.json({ error: "bad name" }, 400);
+    const keys = (c.req.query("keys") ?? ENS_KEYS.join(",")).split(",").filter(Boolean).slice(0, 10);
+    try {
+      const { resolver, addr, texts } = await chain.resolveUniversal(name, keys);
+      const active = addr !== "0x0000000000000000000000000000000000000000";
+      return c.json({
+        name,
+        universalResolver: config.UNIVERSAL_RESOLVER,
+        resolver,
+        addr: active ? addr : null,
+        texts,
+        status: active ? "active" : "inactive",
+        warning: WARNING,
+      });
+    } catch (e) {
+      return c.json({ name, error: (e as Error).message.slice(0, 200) }, 502);
+    }
+  });
+
   /** Is a handle free in a domain? The browser asks before the wallet signs. */
   app.get("/v1/name/:domain/:handle", async (c) => {
     const domain = c.req.param("domain");

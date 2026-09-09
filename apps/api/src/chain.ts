@@ -17,7 +17,7 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 import { MultipassAbi, fromBytes32, toBytes32 } from "@peeramid-labs/multipass-client";
 import type { OnchainState, RegisterMessage } from "@ketsuban/registrar";
-import { bridgeAbi, factoryAbi, registryAbi, resolverAbi } from "./abi.js";
+import { bridgeAbi, factoryAbi, registryAbi, resolverAbi, universalResolverAbi } from "./abi.js";
 import { RpcSource } from "./logs.js";
 import { Indexer, type IndexStatus, type IndexedRecord } from "./indexer.js";
 import type { Config } from "./config.js";
@@ -292,6 +292,38 @@ export class Chain {
       .catch((err) => console.error(`index catch-up failed · ${err.message}`));
   }
 
+  /**
+   * Read a name the way any ENS client does: through the ENSv2 UniversalResolver, which walks the
+   * registry itself. Nothing here depends on our own instance bookkeeping, which is the point.
+   */
+  async resolveUniversal(
+    name: string,
+    keys: string[]
+  ): Promise<{ resolver: Address; addr: Address; texts: Record<string, string> }> {
+    const universal = this.config.UNIVERSAL_RESOLVER;
+    if (!universal) throw new Error("UNIVERSAL_RESOLVER is not configured");
+    const node = namehash(name);
+    const dns = dnsEncode(name);
+    const read = (data: Hex) =>
+      this.publicClient.readContract({
+        address: universal,
+        abi: universalResolverAbi,
+        functionName: "resolve",
+        args: [dns, data],
+      });
+    const [[addrOut, resolver], ...textOuts] = await Promise.all([
+      read(encodeFunctionData({ abi: resolverAbi, functionName: "addr", args: [node] })),
+      ...keys.map((key) =>
+        read(encodeFunctionData({ abi: resolverAbi, functionName: "text", args: [node, key] }))
+      ),
+    ]);
+    const texts: Record<string, string> = {};
+    keys.forEach((key, i) => {
+      texts[key] = decodeAbiParameters([{ type: "string" }], textOuts[i][0])[0];
+    });
+    return { resolver, addr: decodeAbiParameters([{ type: "address" }], addrOut)[0], texts };
+  }
+
   /** ENSIP-10 read through the instance resolver */
   async resolveText(resolver: Address, name: string, key: string): Promise<string> {
     const out = await this.publicClient.readContract({
@@ -339,6 +371,7 @@ export type ChainReader = Pick<
   | "instances"
   | "submit"
   | "resolveText"
+  | "resolveUniversal"
   | "resolveAddr"
   | "resolveData"
   | "relayer"

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { EnsProof } from "@/app/EnsProof";
 import { VerifyCard } from "@/app/VerifyCard";
 import { createApi } from "@/lib/api";
 import { loadWebConfig } from "@/lib/config";
@@ -24,12 +25,22 @@ export default async function VerifyPage({ params, searchParams }: Params) {
   const { viewCode, links } = await searchParams;
   const config = loadWebConfig();
   const api = createApi(config.apiUrl, config.attestUrl);
+  const decoded = decodeURIComponent(name);
   try {
-    const v = await api.verify(decodeURIComponent(name), {
-      links: links?.split(","),
-      viewCode: viewCode as `0x${string}` | undefined,
-    });
-    return <VerifyCard v={v} />;
+    const [v, ens] = await Promise.all([
+      api.verify(decoded, {
+        links: links?.split(","),
+        viewCode: viewCode as `0x${string}` | undefined,
+      }),
+      // The cross-check is a bonus: an unconfigured or unreachable resolver must not break the page.
+      api.ens(decoded).catch(() => null),
+    ]);
+    return (
+      <>
+        <VerifyCard v={v} />
+        <EnsProof ens={ens} name={decoded} />
+      </>
+    );
   } catch (e) {
     return (
       <section className="card">

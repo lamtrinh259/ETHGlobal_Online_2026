@@ -14,5 +14,6 @@
   "permissionedResolver": "0x4E2d9783cEFF2ed72CD77C14206b29fe246b24F7",
   "registry": "0x254D9c7601BD8fa6b6FA7f5A42c860d184E053A7",
   "reporter": "0x91229381Eea9cbebe37950B88e32791f5767FA0e",
-  "resolver": "0x178ff1589Be8Af3B19426Aa1d2Bd07cd178E215e"
+  "resolver": "0x178ff1589Be8Af3B19426Aa1d2Bd07cd178E215e",
+  "universalResolver": "0x4a1817d13E9cF196f471725176355c1234b63c70"
 }
