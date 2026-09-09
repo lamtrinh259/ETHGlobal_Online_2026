@@ -24,3 +24,15 @@ test("verify form presets fill the policy and encode it into the reference page 
   await page.getByRole("button", { name: "Check" }).click();
   await expect(page).toHaveURL(/\/p\/alice\?answers=kju-is&minLinks=0&minVouches=5&humanity=1$/);
 });
+
+test("a wallet address routes to the wallet page, which degrades without an API", async ({ page }) => {
+  await page.goto("/verify");
+  await page.getByLabel("handle").fill("0xEE4811b9462956C9C3535E79c08776D769CA9F3a");
+  await page.getByRole("button", { name: "Check" }).click();
+  await expect(page).toHaveURL(/\/w\/0xEE4811b9462956C9C3535E79c08776D769CA9F3a$/);
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Wallet");
+  await expect(page.locator("main [role=alert]")).toHaveText("fetch failed");
+
+  await page.goto("/w/not-an-address");
+  await expect(page.locator("main [role=alert]")).toHaveText("not a wallet address");
+});

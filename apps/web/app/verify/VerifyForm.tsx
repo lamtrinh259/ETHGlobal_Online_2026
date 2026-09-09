@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { describePolicy, HANDLE_RE, POLICY_PRESETS, policyToQuery, presetPolicy } from "@/lib/profile";
+import { describePolicy, lookupTarget, POLICY_PRESETS, policyToQuery, presetPolicy } from "@/lib/profile";
 
 /** Verifier policy picker → /p/<handle>?answers=&minLinks=&humanity= */
 export function VerifyForm({ subjectDomains }: { subjectDomains: string[] }) {
@@ -30,30 +30,30 @@ export function VerifyForm({ subjectDomains }: { subjectDomains: string[] }) {
     setHumanity(pol.requireHumanity);
     setPreset(id);
   }
-  const clean = handle
-    .trim()
-    .toLowerCase()
-    .replace(/\.ketsuban\.eth$/, "");
-  const valid = HANDLE_RE.test(clean);
+  const target = lookupTarget(handle, policyToQuery(policy, preset));
+  const valid = !!target;
 
   return (
     <form
       className="card"
       onSubmit={(e) => {
         e.preventDefault();
-        if (!valid) return;
-        router.push(`/p/${clean}?${policyToQuery(policy, preset)}`);
+        if (!target) return;
+        router.push(target.href);
       }}
     >
       <label>
-        handle{" "}
+        handle or wallet address{" "}
         <input
           value={handle}
           onChange={(e) => setHandle(e.target.value)}
-          placeholder="alice"
+          placeholder="alice or 0x…"
           aria-label="handle"
           autoFocus
         />
+        {target?.kind === "wallet" && (
+          <small className="muted"> · an address: you will get every name that wallet holds</small>
+        )}
       </label>
       <fieldset>
         <legend>Policy</legend>

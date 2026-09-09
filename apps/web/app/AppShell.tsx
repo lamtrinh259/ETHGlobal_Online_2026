@@ -27,7 +27,7 @@ export function apiMisconfigured(apiUrl: string, origin: string): boolean {
 /** A nav entry is active on its own route and its sub-routes; /verify also owns /p and /v pages. */
 export function isActive(path: string, href: string): boolean {
   if (path === href || path.startsWith(`${href}/`)) return true;
-  return href === "/verify" && (path.startsWith("/p/") || path.startsWith("/v/"));
+  return href === "/verify" && (path.startsWith("/p/") || path.startsWith("/v/") || path.startsWith("/w/"));
 }
 
 function Wordmark() {

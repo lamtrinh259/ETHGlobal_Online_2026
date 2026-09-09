@@ -234,3 +234,25 @@ export function vouchRequest(handle: string, siteUrl: string, rootParent: string
   const base = siteUrl.replace(/\/$/, "");
   return `Could you vouch for me? It takes five minutes and lands as your own permanent name: ${base}/vouch/${handle} (my page: ${handle}.${rootParent})`;
 }
+
+export const ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/;
+
+/**
+ * Where a verifier's input should take them. A handle reads as a candidate page; a wallet address is
+ * the other way people arrive — from a transaction, a signature or a CV — and needs the wallet page.
+ */
+export function lookupTarget(
+  input: string,
+  policyQuery = ""
+): { kind: "handle" | "wallet"; href: string } | undefined {
+  const text = input.trim();
+  if (ADDRESS_RE.test(text)) return { kind: "wallet", href: `/w/${text}` };
+  // `0x…` that is not an address is a mistyped address, not a handle called "0xnothex".
+  if (text.toLowerCase().startsWith("0x")) return undefined;
+  const handle = text
+    .toLowerCase()
+    .replace(/\.eth$/, "")
+    .split(".")[0];
+  if (!HANDLE_RE.test(handle)) return undefined;
+  return { kind: "handle", href: policyQuery ? `/p/${handle}?${policyQuery}` : `/p/${handle}` };
+}

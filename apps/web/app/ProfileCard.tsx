@@ -14,7 +14,15 @@ export function ProfileCard({ p, rootParent, policy }: { p: Profile; rootParent:
         <span className={`badge ${p.complete ? "ok" : "off"}`} data-testid="completeness">
           {p.complete ? "complete" : "incomplete"}
         </span>
-        <small className="muted">{p.identity ? `wallet ${p.wallet}` : "unclaimed"}</small>
+        <small className="muted">
+          {p.identity && p.wallet ? (
+            <>
+              wallet <Link href={`/w/${p.wallet}`}>{p.wallet}</Link>
+            </>
+          ) : (
+            "unclaimed"
+          )}
+        </small>
       </p>
 
       {p.identity?.profile &&

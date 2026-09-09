@@ -8,6 +8,7 @@ import {
   rootInstance,
   describePolicy,
   disclosureLink,
+  lookupTarget,
   POLICY_PRESETS,
   policyToQuery,
   presetPolicy,
@@ -194,6 +195,25 @@ describe("vouchRequest", () => {
     expect(vouchRequest("alice", "https://app.example/", "ketsuban.eth")).toBe(
       "Could you vouch for me? It takes five minutes and lands as your own permanent name: https://app.example/vouch/alice (my page: alice.ketsuban.eth)"
     );
+  });
+});
+
+describe("lookupTarget", () => {
+  it("sends a handle to the reference page and an address to the wallet page", () => {
+    expect(lookupTarget("alice", "minLinks=1")).toEqual({ kind: "handle", href: "/p/alice?minLinks=1" });
+    expect(lookupTarget(" Alice.ketsuban.eth ")).toEqual({ kind: "handle", href: "/p/alice" });
+    expect(lookupTarget("alice.eth")).toEqual({ kind: "handle", href: "/p/alice" });
+    expect(lookupTarget("0xEE4811b9462956C9C3535E79c08776D769CA9F3a")).toEqual({
+      kind: "wallet",
+      href: "/w/0xEE4811b9462956C9C3535E79c08776D769CA9F3a",
+    });
+    // A policy is meaningless for a wallet page: it shows what the wallet holds, ungraded.
+    expect(lookupTarget("0xEE4811b9462956C9C3535E79c08776D769CA9F3a", "minLinks=1")?.href).toBe(
+      "/w/0xEE4811b9462956C9C3535E79c08776D769CA9F3a"
+    );
+    expect(lookupTarget("")).toBeUndefined();
+    expect(lookupTarget("Not A Handle")).toBeUndefined();
+    expect(lookupTarget("0xnothex")).toBeUndefined();
   });
 });
 
