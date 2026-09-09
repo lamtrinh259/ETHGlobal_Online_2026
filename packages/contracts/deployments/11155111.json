@@ -12,6 +12,36 @@
   "instanceParent": "ketsuban.eth",
   "multipass": "0x418F82fd0014a4CA402F145978bfaF0555a9cA06",
   "permissionedResolver": "0x4E2d9783cEFF2ed72CD77C14206b29fe246b24F7",
+  "platformInstances": {
+    "x": {
+      "registry": "0xef364C83e090Cc0c108688A52a1fb9D8370C9E83",
+      "resolver": "0xab077B49c61D5AB686D982F501BE06Eb21DF98Cf"
+    },
+    "telegram": {
+      "registry": "0xa8832cD715C7AF8f7A7Ea83e3783E497b8490fdA",
+      "resolver": "0x83314918287AD8EDF9Ed40191524DD347FCFeF0f"
+    },
+    "discord": {
+      "registry": "0x7d36AFBea41f2a6d9D3eceb956D37e7E5AE47e0D",
+      "resolver": "0xe11972d6CD3E98e134166bbFF44dCEbb2c2BbBDC"
+    },
+    "github": {
+      "registry": "0x5cBa4C1e56931eF47e42656E466419d46f2A5Ec3",
+      "resolver": "0xA7EA6E7A323cD25637E63F4DcA93295b64eA5739"
+    },
+    "google": {
+      "registry": "0xCf2276f7905b5466D7A0c2b47B418A0f82e81B2c",
+      "resolver": "0x7B3CaC5755922A8A536B418029bC5D38B2fc028F"
+    },
+    "linkedin": {
+      "registry": "0x441ea32D909906f98821141eC1e0c03258836959",
+      "resolver": "0xd3012973d54C4a96741a84928C5F28a61C8f390D"
+    },
+    "email": {
+      "registry": "0x74251190aB2cE7852D2f358f197c146ac64675da",
+      "resolver": "0xd584cC5dc1477C8f06ec0d9E4B441EE700DCbf6B"
+    }
+  },
   "registry": "0x254D9c7601BD8fa6b6FA7f5A42c860d184E053A7",
   "reporter": "0x4888d736a196c49CAf404FD626eB9CBbf175b140",
   "resolver": "0x178ff1589Be8Af3B19426Aa1d2Bd07cd178E215e",

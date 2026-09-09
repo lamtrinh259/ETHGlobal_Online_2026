@@ -185,7 +185,12 @@ abstract contract BaseTest is Test {
     }
 
     function resolveAddr(string memory name) internal view returns (address) {
-        bytes memory out = shim.resolve(dns(name), abi.encodeWithSignature("addr(bytes32)", node(name)));
+        return resolveAddr(shim, name);
+    }
+
+    /// @dev Same read against any instance's shim: a platform instance answers for its own names.
+    function resolveAddr(AttestationResolver r, string memory name) internal view returns (address) {
+        bytes memory out = r.resolve(dns(name), abi.encodeWithSignature("addr(bytes32)", node(name)));
         return abi.decode(out, (address));
     }
 

@@ -142,7 +142,7 @@ export const walletSchema = z.object({
   /** Set when this wallet is an onboarded organisation, which may issue references uninvited */
   org: z.object({ label: z.string(), validUntil: z.string() }).nullable().optional(),
   names: z.array(walletRecord.extend({ ensName: z.string() })),
-  links: z.array(walletRecord.extend({ optedIn: z.boolean() })),
+  links: z.array(walletRecord.extend({ optedIn: z.boolean(), ensName: z.string().nullable().optional() })),
   given: z.array(walletRecord.extend({ candidate: z.string(), ensName: z.string().nullable() })),
   balance: z.string().regex(/^\d+$/),
   gasTopup: z.object({ enabled: z.boolean(), amount: z.string().regex(/^\d+$/), available: z.boolean() }),

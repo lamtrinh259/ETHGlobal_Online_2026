@@ -1297,6 +1297,7 @@ describe("GET /v1/wallet/:address", () => {
         nonce: "1",
         live: true,
         optedIn: false,
+        ensName: null,
       },
     ]);
     expect(body.given).toEqual([
@@ -1315,6 +1316,33 @@ describe("GET /v1/wallet/:address", () => {
     expect(body.balance).toBe("0");
     expect(body.gasTopup).toEqual({ enabled: false, amount: "0", available: false });
     expect((await app(chain).request("/v1/wallet/nope")).status).toBe(400);
+  });
+
+  it("names a public account and leaves a masked one unnamed", async () => {
+    const link = (name: string, payload: Hex) => ({
+      domain: "x",
+      name,
+      id: toBytes32(name),
+      wallet: user.account.address,
+      payload,
+      validUntil: 1_800_000_000n,
+      nonce: 1n,
+      live: true,
+    });
+    // The platform domain has its own instance, so a public handle is a name under it.
+    const withInstance = { ...instance, domain: "x", parentName: "x.kju-is.eth", parentLabel: "x" };
+    const open = fakeChain({ instances: [instance, withInstance], byWallet: [link("alice_x", zeroHash)] });
+    const body = await (await app(open.chain).request(`/v1/wallet/${user.account.address}`)).json();
+    expect(body.links[0]).toMatchObject({ domain: "x", optedIn: false, ensName: "alice_x.x.kju-is.eth" });
+    // It is a linked account, not a name: only configured name domains carry a handle and an answer.
+    expect(body.names).toEqual([]);
+
+    const masked = fakeChain({
+      instances: [instance, withInstance],
+      byWallet: [link("0xdeadbeef", toBytes32("commitment"))],
+    });
+    const hidden = await (await app(masked.chain).request(`/v1/wallet/${user.account.address}`)).json();
+    expect(hidden.links[0]).toMatchObject({ optedIn: true, ensName: null });
   });
 
   it("reports an organisation, and keeps it out of the linked accounts", async () => {

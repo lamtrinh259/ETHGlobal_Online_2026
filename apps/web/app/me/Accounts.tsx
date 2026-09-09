@@ -6,6 +6,7 @@ import { AttestFlow } from "@/app/AttestFlow";
 import { Modal } from "@/app/Modal";
 import type { WalletDashboard } from "@/lib/api";
 import { connectedAccounts } from "@/lib/identity";
+import { useWebConfig } from "@/app/providers";
 
 type Props = { links: WalletDashboard["links"]; onPublished: () => void };
 
@@ -14,6 +15,7 @@ type Props = { links: WalletDashboard["links"]; onPublished: () => void };
  * is a Privy step, attesting is a signature, and both live on the same row so the state is obvious.
  */
 export function Accounts({ links, onPublished }: Props) {
+  const config = useWebConfig();
   const { user } = usePrivy();
   const { linkTwitter, linkTelegram, linkGithub, linkDiscord, linkGoogle } = useLinkAccount();
   const [attesting, setAttesting] = useState<string>();
@@ -45,7 +47,13 @@ export function Accounts({ links, onPublished }: Props) {
                 <small className="muted">{a.domain}</small>
                 {onChain ? (
                   <span className="acct-state acct-on">
-                    attested{onChain.optedIn ? " · private" : " · public"}
+                    {onChain.ensName ? (
+                      <>
+                        <code>{onChain.ensName}</code> · public
+                      </>
+                    ) : (
+                      "attested · private"
+                    )}
                   </span>
                 ) : (
                   <>

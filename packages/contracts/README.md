@@ -55,3 +55,11 @@ The reason is concrete. viem decodes a revert only when it finds it in the ABI i
 error that fires usually belongs to a contract further down the call. Three reverts reached users as
 bare selectors before this existed: `0xb4a9a604` (`invalidDomain`), `0xd1cc1202` (`invalidSignature`)
 and `0xab2b3a8a` (`recordExists`). All three decode now.
+
+## One instance per platform
+
+`script/AddPlatformInstances.s.sol` gives every platform domain its own `AttestationRegistry` and
+`AttestationResolver` under the root registry, so an attested public account resolves as
+`<handle>.<platform>.<root>` for any ENS client. `test/PlatformInstance.t.sol` covers all of it: a
+public account answers with the wallet that holds it, the root registry delegates the label, and a
+masked account publishes nothing readable while still existing.

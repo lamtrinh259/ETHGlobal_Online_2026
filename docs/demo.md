@@ -60,6 +60,19 @@ cast call 0x4a1817d13E9cF196f471725176355c1234b63c70 \
 
 A reference is `<voucher>.<candidate>.<root>`, so the same call works for `bob.alice.ketsuban.eth`.
 
+An attested account is a name too. Each platform has its own instance under the root, so a public
+handle resolves on its own:
+
+```bash
+cast call 0x4a1817d13E9cF196f471725176355c1234b63c70 \
+  "resolve(bytes,bytes)(bytes,address)" \
+  $(cast --to-dns-name alice.x.ketsuban.eth) \
+  $(cast calldata "addr(bytes32)" $(cast namehash alice.x.ketsuban.eth)) --rpc-url $SEPOLIA_RPC
+```
+
+A masked account has no readable label, so there is no name to offer: the record still proves the
+person controls an account on that platform, without saying which.
+
 ## 3. Who wrote it
 
 ```bash

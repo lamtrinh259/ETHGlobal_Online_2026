@@ -432,13 +432,16 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     if (!/^0x[0-9a-fA-F]{40}$/.test(address)) return c.json({ error: "bad address" }, 400);
     const instances = await chain.instances();
     const parentOf = new Map(instances.map((i) => [i.domain, i.parentName]));
+    // Every platform domain has its own instance now, so an instance no longer means "a name domain".
+    // Classify by configuration, which is what decides whether a record carries a handle and an answer.
+    const isNameDomain = (d: string) => config.NAME_DOMAINS.includes(d);
     const rootParent = parentOf.get(config.NAME_DOMAINS[0] ?? "") ?? "";
     const [records, balance] = await Promise.all([
       chain.listRecordsByWallet(address as Address),
       chain.balance(address as Address),
     ]);
     const isVouch = (d: string) => d.startsWith(config.VOUCH_PREFIX) && d.length > config.VOUCH_PREFIX.length;
-    const hasLiveName = records.some((r) => r.live && parentOf.has(r.domain) && !isVouch(r.domain));
+    const hasLiveName = records.some((r) => r.live && isNameDomain(r.domain));
     const fmt = (r: (typeof records)[number]) => ({
       domain: r.domain,
       name: r.name,
@@ -456,11 +459,21 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
         ? { label: org.name, validUntil: new Date(Number(org.validUntil) * 1000).toISOString() }
         : null,
       names: records
-        .filter((r) => parentOf.has(r.domain) && !isVouch(r.domain))
+        .filter((r) => isNameDomain(r.domain))
         .map((r) => ({ ...fmt(r), ensName: `${r.name}.${parentOf.get(r.domain)}` })),
       links: records
-        .filter((r) => !parentOf.has(r.domain) && !isVouch(r.domain) && r.domain !== config.ORG_DOMAIN)
-        .map((r) => ({ ...fmt(r), optedIn: r.payload !== zeroHash })),
+        .filter((r) => !isNameDomain(r.domain) && !isVouch(r.domain) && r.domain !== config.ORG_DOMAIN)
+        .map((r) => {
+          const optedIn = r.payload !== zeroHash;
+          const parent = parentOf.get(r.domain);
+          return {
+            ...fmt(r),
+            optedIn,
+            // A public account is a name any ENS client can read. A masked one has no readable label,
+            // so there is no name to offer: the record proves control without naming the account.
+            ensName: parent && !optedIn ? `${r.name}.${parent}` : null,
+          };
+        }),
       given: records
         .filter((r) => isVouch(r.domain))
         .map((r) => {
