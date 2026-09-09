@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { connectedAccounts, linkedDomains, whoAmI } from "@/lib/identity";
+import { domainFor, connectedAccounts, linkedDomains, whoAmI } from "@/lib/identity";
 
 const WALLET = "0xD70B1f4b1cD2Cb2Dd6e4f0F5b0f7c1F2a3b494a0";
 
@@ -49,5 +49,33 @@ describe("connectedAccounts", () => {
     expect(connectedAccounts({ email: { address: "a@b.c" } })).toEqual([{ domain: "email", label: "a@b.c" }]);
     expect(connectedAccounts({ twitter: { username: null } })).toEqual([]);
     expect(connectedAccounts(undefined)).toEqual([]);
+  });
+});
+
+const user = {
+  twitter: { username: "alice_x" },
+  email: { address: "tim@peeramid.xyz" },
+};
+
+describe("which domain an account is attested into", () => {
+  const [x, mail] = connectedAccounts(user);
+
+  it("uses the platform's own DNS name when the deployment has it", () => {
+    expect(domainFor(x, ["x.com", "peeramid.xyz"])).toBe("x.com");
+  });
+
+  it("sends an email to the domain that issued it", () => {
+    expect(domainFor(mail, ["x.com", "peeramid.xyz"])).toBe("peeramid.xyz");
+    // A mail host nobody deployed has no namespace here, and saying so beats a revert after signing.
+    expect(domainFor(mail, ["x.com"])).toBeUndefined();
+  });
+
+  it("still answers to a flat deployment", () => {
+    expect(domainFor(x, ["x", "email"])).toBe("x");
+    expect(domainFor(mail, ["x", "email"])).toBe("email");
+  });
+
+  it("prefers the DNS namespace when a deployment has both", () => {
+    expect(domainFor(x, ["x", "x.com"])).toBe("x.com");
   });
 });

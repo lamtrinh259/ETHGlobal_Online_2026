@@ -5,7 +5,7 @@ import { useLinkAccount, usePrivy } from "@privy-io/react-auth";
 import { AttestFlow } from "@/app/AttestFlow";
 import { Modal } from "@/app/Modal";
 import type { WalletDashboard } from "@/lib/api";
-import { connectedAccounts } from "@/lib/identity";
+import { connectedAccounts, domainFor } from "@/lib/identity";
 import { useWebConfig } from "@/app/providers";
 
 type Props = {
@@ -24,7 +24,10 @@ export function Accounts({ links, awaiting, onPublished }: Props) {
   const { user } = usePrivy();
   const { linkTwitter, linkTelegram, linkGithub, linkDiscord, linkGoogle } = useLinkAccount();
   const [attesting, setAttesting] = useState<string>();
-  const connected = connectedAccounts(user);
+  const domains = config.instances.map((i) => i.domain);
+  // Where each account would be attested in this deployment: `x.com` where the namespace is deployed,
+  // the flat platform where it is not, and nothing at all when neither exists.
+  const connected = connectedAccounts(user).map((a) => ({ ...a, target: domainFor(a, domains) }));
   const live = new Map(links.filter((l) => l.live).map((l) => [l.domain, l]));
 
   const connectors = [
@@ -45,7 +48,7 @@ export function Accounts({ links, awaiting, onPublished }: Props) {
       {connected.length > 0 && (
         <ul className="acct" data-testid="accounts">
           {connected.map((a) => {
-            const onChain = live.get(a.domain);
+            const onChain = a.target ? live.get(a.target) : undefined;
             return (
               <li key={a.domain} data-testid={`account-${a.domain}`}>
                 <span className="acct-who">{a.label}</span>
@@ -62,14 +65,18 @@ export function Accounts({ links, awaiting, onPublished }: Props) {
                       "attested · private"
                     )}
                   </span>
-                ) : awaiting === a.domain ? (
+                ) : !a.target ? (
+                  <span className="acct-state" data-testid={`unmounted-${a.domain}`}>
+                    no namespace here for {a.label.split("@").pop()}
+                  </span>
+                ) : awaiting === a.target ? (
                   <span className="acct-state" data-testid={`awaiting-${a.domain}`}>
                     published · waiting for the index
                   </span>
                 ) : (
                   <>
                     <span className="acct-state">not attested</span>
-                    <button onClick={() => setAttesting(a.domain)} data-testid={`attest-${a.domain}`}>
+                    <button onClick={() => setAttesting(a.target)} data-testid={`attest-${a.domain}`}>
                       Attest
                     </button>
                   </>

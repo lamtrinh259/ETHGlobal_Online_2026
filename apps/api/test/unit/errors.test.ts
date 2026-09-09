@@ -56,3 +56,75 @@ describe("explainRevert", () => {
     expect(explainRevert(new Error(`execution reverted ${data}`))).toContain("invalidSignature");
   });
 });
+
+describe("every rule this service can break explains itself", () => {
+  const wrapped = (data: `0x${string}`) =>
+    new BaseError("reverted", {
+      cause: new ContractFunctionRevertedError({ abi: parseAbi(["function f()"]), data, functionName: "f" }),
+    });
+  const who = "0x1111111111111111111111111111111111111111" as const;
+
+  // One case per error a user can actually hit, because a bare selector tells them nothing.
+  const cases: [string, readonly unknown[], string][] = [
+    ["domainNotActive", [toBytes32("google")], "is not active"],
+    ["invalidRegistrar", [who], "is not the registrar"],
+    // A record and a query are whole structs on chain; the hint ignores them and says what to do.
+    [
+      "recordExists",
+      [
+        {
+          wallet: who,
+          name: toBytes32("alice"),
+          id: toBytes32("1"),
+          nonce: 1n,
+          domainName: toBytes32("x.com"),
+          validUntil: 0n,
+          payload: `0x${"00".repeat(32)}`,
+        },
+      ],
+      "renewal, not a registration",
+    ],
+    ["invalidNonce", [3n], "nonce 3"],
+    ["signatureExpired", [1700000000n], "expired at 1700000000"],
+    ["paymentTooLow", [1000n, 10n], "fee is 1000 wei and 10 was sent"],
+    ["walletMismatch", [who, who], "belongs to"],
+    ["idMismatch", [toBytes32("1"), toBytes32("2")], "does not match the one on chain"],
+    [
+      "userNotFound",
+      [
+        {
+          domainName: toBytes32("x.com"),
+          wallet: who,
+          name: toBytes32("alice"),
+          id: toBytes32("1"),
+          targetDomain: toBytes32(""),
+        },
+      ],
+      "no record to renew",
+    ],
+    ["nameExists", [toBytes32("alice")], '"alice" is taken'],
+  ];
+
+  it.each(cases)("says what %s means", (errorName, args, phrase) => {
+    const data = encodeErrorResult({ abi: MultipassAbi, errorName, args: args.length ? args : undefined });
+    const said = explainRevert(wrapped(data));
+    expect(said).toContain(errorName);
+    expect(said).toContain(phrase);
+  });
+
+  it("names the caller when a contract refuses an owner-only call", () => {
+    const data = encodeErrorResult({
+      abi: parseAbi(["error OwnableUnauthorizedAccount(address)"]),
+      errorName: "OwnableUnauthorizedAccount",
+      args: [who],
+    });
+    expect(explainRevert(wrapped(data))).toContain("does not own the contract it called");
+  });
+
+  it("falls back to the raw argument when a name is not readable text", () => {
+    // A masked name is a one-time pad, so it stays hex rather than being shown as mojibake.
+    const masked = `0x${"9f".repeat(32)}` as const;
+    const data = encodeErrorResult({ abi: MultipassAbi, errorName: "nameExists", args: [masked] });
+    expect(explainRevert(wrapped(data))).toContain(masked);
+  });
+});

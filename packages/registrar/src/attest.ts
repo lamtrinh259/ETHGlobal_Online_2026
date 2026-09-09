@@ -19,8 +19,10 @@ import {
   pickAccountFor,
   pickPlatformAccount,
   PLATFORM_DOMAIN_NAMES,
+  type PlatformAccount,
 } from "./accounts.js";
 import { eciesEncrypt } from "./ecies.js";
+import { PRIVATE_GROUPINGS, PUBLIC_GROUPINGS } from "./namespace.js";
 import { intentDomain, recoverIntentSigner } from "./intent.js";
 import { candidateOf, inviteDomain, recoverInviteSigner, ZERO_ADDRESS } from "./invite.js";
 import { verifyEs256Jwt } from "./jwt.js";
@@ -32,14 +34,17 @@ const HANDLE_RE = /^[a-z0-9-]{1,31}$/;
 export const DEFAULT_NAME_DOMAIN_PREFIXES: readonly string[] = ["~"];
 
 /**
- * Labels a person may not claim in a name domain, because something else already answers there. Every
- * platform domain has its own instance under the root, so `x.<root>` is the namespace holding
- * `alice.x.<root>`: if a person took the handle `x`, their name and that namespace would be the same
- * name. `www` and `com` are reserved for the grouping namespaces a deployment may add later.
+ * Labels a person may not claim in a name domain, because something else already answers there. The
+ * grouping levels are mounted at the root — `www` holds the platforms, the at-sign level holds the mail
+ * domains, and each has a private mirror — so those four are the ones a person can never be called.
+ *
+ * The flat platform names are still here for a deployment that predates the DNS namespace, where `x`
+ * is an instance under the root rather than a level under `www`.
  */
 export const RESERVED_HANDLES: readonly string[] = [
   ...PLATFORM_DOMAIN_NAMES,
-  "www",
+  ...PUBLIC_GROUPINGS,
+  ...PRIVATE_GROUPINGS,
   "com",
   "org",
   "net",
@@ -198,10 +203,11 @@ export async function attestConfidential(
   } else {
     // A DNS domain is a namespace, so the record is named by the label it takes there: `alice_x` in
     // `x.com`, `tim` in `peeramid.xyz`. A flat domain keeps the whole handle, as its records already do.
-    const acct = isDnsName(intent.domain)
+    const dnsDomain = isDnsName(intent.domain);
+    const acct: PlatformAccount & { label?: string } = dnsDomain
       ? pickAccountFor(linked, intent.domain)
       : pickPlatformAccount(linked, intent.domain);
-    const named = "label" in acct ? acct.label : acct.username;
+    const named = acct.label ?? acct.username;
     if (intent.optIn) {
       viewCode = deriveViewCode(secrets.viewcodeKey, intent.domain, acct.subject);
       name = maskName(named, viewCode);

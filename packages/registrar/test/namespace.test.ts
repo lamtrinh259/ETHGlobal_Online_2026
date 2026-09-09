@@ -44,3 +44,15 @@ describe("where an account's name lands", () => {
     expect(PRIVATE_GROUPINGS).toEqual(["private-www", "private@"]);
   });
 });
+
+describe("what a person may not be called", () => {
+  it("keeps the grouping levels out of reach", async () => {
+    const { RESERVED_HANDLES } = await import("../src/attest.js");
+    // These four are mounted at the root, so a person taking one would collide with a whole namespace.
+    for (const level of ["www", "@", "private-www", "private@"]) {
+      expect(RESERVED_HANDLES).toContain(level);
+    }
+    // A platform is no longer a root label once it lives under `www`, but the flat deployments still hold.
+    expect(RESERVED_HANDLES).toContain("x");
+  });
+});

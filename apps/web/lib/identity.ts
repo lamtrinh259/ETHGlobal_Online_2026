@@ -1,3 +1,5 @@
+import { PLATFORM_DNS_NAMES } from "@ketsuban/registrar";
+
 /** The linked accounts Privy exposes, reduced to what the UI needs to name a person. */
 export type LinkedAccounts = {
   twitter?: { username?: string | null } | null;
@@ -61,4 +63,23 @@ export function connectedAccounts(user: LinkedAccounts | null | undefined): Conn
     ["email", user?.email?.address],
   ];
   return pairs.filter(([, label]) => !!label).map(([domain, label]) => ({ domain, label: label as string }));
+}
+
+/**
+ * The domain this deployment would attest an account into. A platform mounted at its own DNS name takes
+ * `x.com`; an email takes the domain that issued the address, so `tim@peeramid.xyz` lands in
+ * `peeramid.xyz`. Deployments that predate the DNS namespace still answer to the flat name.
+ *
+ * Nothing comes back when the deployment has no namespace for the account, which the UI says out loud
+ * rather than letting someone sign into a revert.
+ */
+export function domainFor(account: ConnectedAccount, domains: readonly string[]): string | undefined {
+  const dns = account.domain === "email" ? emailHost(account.label) : PLATFORM_DNS_NAMES[account.domain];
+  if (dns && domains.includes(dns)) return dns;
+  return domains.includes(account.domain) ? account.domain : undefined;
+}
+
+function emailHost(address: string): string | undefined {
+  const at = address.lastIndexOf("@");
+  return at === -1 ? undefined : address.slice(at + 1).toLowerCase();
 }

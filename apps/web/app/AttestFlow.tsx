@@ -74,7 +74,14 @@ export function AttestFlow({
   const { linkTwitter, linkTelegram, linkGithub, linkDiscord, linkGoogle } = useLinkAccount();
   const api = useMemo(() => apiFor(config), [config]);
 
-  const platforms = domainOptions?.length ? domainOptions : [...PLATFORM_DOMAIN_NAMES];
+  // What this deployment can actually attest into, which is a DNS name wherever the namespace is
+  // deployed. The flat list is the fallback for a deployment that has no platform instances at all.
+  const deployed = config.instances.map((i) => i.domain).filter((d) => !config.nameDomains.includes(d));
+  const platforms = domainOptions?.length
+    ? domainOptions
+    : deployed.length
+      ? deployed
+      : [...PLATFORM_DOMAIN_NAMES];
   const [domain, setDomain] = useState(
     fixedDomain ?? (platformsOnly ? platforms[0] : config.instances[0]?.domain) ?? ""
   );
