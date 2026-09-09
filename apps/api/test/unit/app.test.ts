@@ -87,6 +87,7 @@ const xComInstance: Instance = {
   parentName: "com.x.www.kju-is.eth",
   parentLabel: "com",
   maskedParentName: "com.x.private-www.kju-is.eth",
+  maskedResolver: "0x2222222222222222222222222222222222222222" as const,
 };
 
 /** A provisioned vouch instance for alice, as the relay creates it. */
@@ -725,10 +726,20 @@ describe("GET /v1/verify/:name", () => {
 
 describe("locate", () => {
   it("matches the longest known parent and rejects nested labels", () => {
-    expect(locate("alice.kju-is.eth", [instance])).toEqual({ handle: "alice", instance });
+    expect(locate("alice.kju-is.eth", [instance])).toEqual({
+      handle: "alice",
+      instance,
+      resolver: instance.resolver,
+    });
     expect(locate("a.b.kju-is.eth", [instance])).toBeUndefined();
     expect(locate("kju-is.eth", [instance])).toBeUndefined();
     expect(locate("x.other.eth", [instance])).toBeUndefined();
+    // A private-branch name belongs to the mirror, which answers as the person.
+    expect(locate(`alice.${xComInstance.maskedParentName}`, [instance, xComInstance])).toMatchObject({
+      handle: "alice",
+      resolver: xComInstance.maskedResolver,
+      masked: true,
+    });
   });
 });
 
@@ -1526,6 +1537,49 @@ describe("a domain nobody deployed yet", () => {
     });
     expect(res.status).toBe(503);
     expect((await res.json()).error).toContain("not initialised");
+  });
+});
+
+describe("a name in the private branch", () => {
+  it("is answered by the mirror, which knows only that the person has an account there", async () => {
+    // `alice.com.x.private-www.<root>` is the person's name in the private branch: it resolves to her
+    // wallet and her own records, and says nothing about which account she holds.
+    const { chain } = fakeChain({
+      instances: [instance, xComInstance],
+      addr: user.account.address,
+      texts: { "ketsuban:answer": "terrible dictator" },
+    });
+    const name = `alice.${xComInstance.maskedParentName}`;
+    const body = await (await app(chain).request(`/v1/verify/${name}`)).json();
+    expect(body.status).toBe("active");
+    expect(body.wallet).toBe(user.account.address);
+    expect(body.answer).toBe("terrible dictator");
+    // Read through the mirror's resolver, not the platform's open one.
+    expect(chain.resolveAddr).toHaveBeenCalledWith(xComInstance.maskedResolver, name);
+  });
+
+  it("is not answered where the deployment has no private branch", async () => {
+    const { chain } = fakeChain({ instances: [instance, xInstance], addr: user.account.address });
+    const res = await app(chain).request("/v1/verify/alice.com.x.private-www.kju-is.eth");
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("a domain the chain already has", () => {
+  it("is attested without mounting anything, even where the deployment cannot mount", async () => {
+    // `discord.com` is live on Multipass. A deployment missing one address for mounting must not turn
+    // that into a refusal: the record is writable exactly as it is.
+    const { chain } = fakeChain({ instances: [instance, xInstance] });
+    chain.ensureNamespace = vi.fn(async () => {
+      throw new Error("a namespace needs NAMESPACE_FACTORY, REGISTRY, PERMISSIONED_RESOLVER");
+    });
+    const res = await app(chain, { ...baseEnv, NAMESPACE_FACTORY: baseEnv.FACTORY }).request("/v1/attest", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(await wireRequest({ domain: "example.com" })),
+    });
+    expect(res.status).toBe(200);
+    expect(chain.ensureNamespace).not.toHaveBeenCalled();
   });
 });
 

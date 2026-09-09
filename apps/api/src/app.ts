@@ -140,14 +140,25 @@ export type AppDeps = { config: Config; chain: ChainReader; now?: () => number }
 export function locate(
   name: string,
   instances: Instance[]
-): { handle: string; instance: Instance } | undefined {
+): { handle: string; instance: Instance; resolver: Address; masked?: true } | undefined {
   const lower = name.toLowerCase();
+  const under = (parent: string | undefined) => {
+    if (!parent) return undefined;
+    const suffix = `.${parent.toLowerCase()}`;
+    if (!lower.endsWith(suffix)) return undefined;
+    const handle = lower.slice(0, -suffix.length);
+    return handle && !handle.includes(".") ? handle : undefined;
+  };
   for (const instance of instances) {
-    const suffix = `.${instance.parentName.toLowerCase()}`;
-    if (lower.endsWith(suffix)) {
-      const handle = lower.slice(0, -suffix.length);
-      if (handle && !handle.includes(".")) return { handle, instance };
-    }
+    const handle = under(instance.parentName);
+    if (handle) return { handle, instance, resolver: instance.resolver };
+  }
+  // A name in the private branch belongs to the person, not to the account: it answers from the mirror,
+  // which reads the root record and says only that they have an account here.
+  for (const instance of instances) {
+    const handle = under(instance.maskedParentName);
+    if (handle && instance.maskedResolver)
+      return { handle, instance, resolver: instance.maskedResolver, masked: true };
   }
   return undefined;
 }
@@ -174,14 +185,22 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
    * have proved itself first — this runs after the attester has verified the identity token and that
    * the account really was issued by that domain.
    */
-  function provisionableNamespace(domain: string): boolean {
-    return !!config.NAMESPACE_FACTORY && isDnsName(domain) && !!platformOf(domain);
+  /**
+   * What this deployment may do with a DNS domain nobody has mounted here. `write` is any domain the
+   * chain already holds — the record is writable exactly as it is, whatever this service knows about
+   * mounts — and `mount` is the rest, which the relay builds on demand.
+   */
+  async function namespacePlan(domain: string): Promise<{ write: boolean; mount: boolean }> {
+    if (!isDnsName(domain) || !platformOf(domain)) return { write: false, mount: false };
+    const ready = await chain.domainReady(domain);
+    if (ready.initialised) return { write: true, mount: false };
+    return { write: !!config.NAMESPACE_FACTORY, mount: !!config.NAMESPACE_FACTORY };
   }
 
   async function writeBlocker(domain: string): Promise<string | null> {
     const ready = await chain.domainReady(domain);
     const provisionable =
-      candidateOf(domain, [config.VOUCH_PREFIX]) !== undefined || provisionableNamespace(domain);
+      candidateOf(domain, [config.VOUCH_PREFIX]) !== undefined || (await namespacePlan(domain)).mount;
     if (!ready.initialised)
       return provisionable ? null : `domain "${domain}" is not initialised on Multipass`;
     if (!ready.active) return `domain "${domain}" is not active on Multipass`;
@@ -366,7 +385,7 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     const blocker = await writeBlocker(req.intent.domain);
     if (blocker) return c.json({ error: blocker }, 503);
     const domain = req.intent.domain;
-    const pending = provisionableNamespace(domain);
+    const plan = await namespacePlan(domain);
     let result;
     try {
       const onchain = await readFor(req);
@@ -377,13 +396,13 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
         { registrarKey: config.REGISTRAR_KEY, viewcodeKey: config.VIEWCODE_KEY },
         // A domain about to be provisioned is one this deployment will hold in a moment. The attester
         // still has to agree the account belongs to it, which is what makes the spend safe.
-        pending ? { ...base, platformDomains: [...(base.platformDomains ?? []), domain] } : base
+        plan.write ? { ...base, platformDomains: [...(base.platformDomains ?? []), domain] } : base
       );
     } catch (e) {
       return c.json({ error: (e as Error).message }, 422);
     }
     // Only now, with the account proven: the signature is worthless until the domain exists on chain.
-    if (pending) {
+    if (plan.mount) {
       try {
         await chain.ensureNamespace(domain);
       } catch (e) {
@@ -921,7 +940,7 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     const located = locate(name, await chain.instances());
     if (!located) return undefined;
     const { instance } = located;
-    const r = instance.resolver;
+    const r = located.resolver;
 
     const [wallet, answer, expiry, humanity, humanityUntil, avatar, description, url, email] =
       await Promise.all([

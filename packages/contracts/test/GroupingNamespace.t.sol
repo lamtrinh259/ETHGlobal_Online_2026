@@ -81,6 +81,23 @@ contract GroupingNamespaceTest is BaseTest {
         registerVia(alice, record(XCOM, alice, name, keccak256(abi.encodePacked(name)), 1, payload), 0);
     }
 
+    function test_anInstanceAnswersForItsOwnChildrenOnly() public {
+        // The Universal Resolver falls back to the nearest ancestor resolver when a level has none, so
+        // without a check the root would answer for every name beneath it and a person would appear to
+        // hold an account on a platform they never attested.
+        registerName(alice, "alice", "");
+        assertEq(resolveAddr("alice.acme-alumni.eth"), alice, "her own name still resolves");
+        assertEq(resolveAddr("alice.com.x.private-www.acme-alumni.eth"), address(0), "not the root's to answer");
+        assertEq(resolveAddr("alice.anything.acme-alumni.eth"), address(0));
+        assertEq(resolveText("alice.com.x.private-www.acme-alumni.eth", "ketsuban:answer"), "");
+
+        // The mirror answers for the name that is genuinely its own.
+        account(MASKED, keccak256("view code commitment"));
+        assertEq(resolveAddr(maskedXResolver, "alice.com.x.private-www.acme-alumni.eth"), alice);
+        // And still not for a platform she has no masked account on.
+        assertEq(resolveAddr(publicXResolver, "alice.com.x.www.acme-alumni.eth"), address(0));
+    }
+
     function test_theMirrorIsAMountLikeAnyOther() public {
         // It nests, it names its parent, and it says nothing for a label no name domain could hold.
         vm.prank(operator);

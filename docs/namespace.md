@@ -57,6 +57,18 @@ Nothing about the account itself is published. The stored name is `maskName(hand
 one-time pad over the handle exactly as the platform writes it, discriminator and all: `slayer69` and
 `peersky#0` are equally invisible, and a view code is the only thing that opens either.
 
+## Answering for your own children only
+
+The Universal Resolver walks down and falls back to the nearest ancestor resolver when a level has none.
+Left alone, that makes every instance a wildcard: `alice.<anything>.<root>` would resolve as `alice`, and
+a person would appear to hold accounts on platforms they never attested — the private branch would answer
+for all of them at once.
+
+So a resolver checks the name it is given: it answers for names exactly one label under its own parent,
+and nothing deeper. Every fallback in the tree ends at the resolver the `.eth` registry names, so pointing
+that one at a build with the check fixes the whole tree — `script/SetRootResolver.s.sol` does it in a
+single transaction, and the Sepolia deployment now serves `0xdb29a8091a89c90bA5Fec97Cb291766eE44B1cA6`.
+
 ## Reserved labels
 
 `www`, `@`, `private-www` and `private@` are mounted at the root, so nobody can be called them. The flat

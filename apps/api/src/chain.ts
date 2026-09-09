@@ -51,6 +51,8 @@ export type Instance = {
   parentLabel: string;
   /** Where a masked record in this domain is named, when the deployment has a private branch */
   maskedParentName?: string;
+  /** The resolver that answers there */
+  maskedResolver?: Address;
 };
 
 /** DNS-encode a name for ENSIP-10 `resolve(bytes,bytes)` */
@@ -143,7 +145,9 @@ export class Chain {
           resolver: i.resolver,
           parentName: i.parentName,
           parentLabel: i.parentLabel,
-          ...(masked && masked.registry !== zeroAddress ? { maskedParentName: masked.parentName } : {}),
+          ...(masked && masked.registry !== zeroAddress
+            ? { maskedParentName: masked.parentName, maskedResolver: masked.resolver }
+            : {}),
         };
       })
     );

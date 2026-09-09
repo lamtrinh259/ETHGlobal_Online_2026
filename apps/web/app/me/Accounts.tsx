@@ -5,7 +5,7 @@ import { useLinkAccount, usePrivy } from "@privy-io/react-auth";
 import { AttestFlow } from "@/app/AttestFlow";
 import { Modal } from "@/app/Modal";
 import type { WalletDashboard } from "@/lib/api";
-import { connectedAccounts, domainFor } from "@/lib/identity";
+import { connectedAccounts, domainsFor } from "@/lib/identity";
 import { useWebConfig } from "@/app/providers";
 import { apiFor, useContracts } from "@/lib/hooks";
 
@@ -34,8 +34,13 @@ export function Accounts({ links, handle, awaiting, onPublished }: Props) {
   const domains = (contracts.data?.instances ?? []).map((i) => i.domain);
   // Where each account would be attested in this deployment: `x.com` where the namespace is deployed,
   // the flat platform where it is not, and nothing at all when neither exists.
-  const connected = connectedAccounts(user).map((a) => ({ ...a, target: domainFor(a, domains) }));
   const live = new Map(links.filter((l) => l.live).map((l) => [l.domain, l]));
+  const connected = connectedAccounts(user).map((a) => {
+    // A record written before the DNS namespace lives in the flat domain; the row must show it rather
+    // than calling the account unattested while the rest of the page lists it.
+    const candidates = domainsFor(a, domains);
+    return { ...a, target: candidates[0], onChain: candidates.map((d) => live.get(d)).find(Boolean) };
+  });
 
   const connectors = [
     { label: "X", run: linkTwitter, domain: "x" },
@@ -55,7 +60,7 @@ export function Accounts({ links, handle, awaiting, onPublished }: Props) {
       {connected.length > 0 && (
         <ul className="acct" data-testid="accounts">
           {connected.map((a) => {
-            const onChain = a.target ? live.get(a.target) : undefined;
+            const onChain = a.onChain;
             return (
               <li key={a.domain} data-testid={`account-${a.domain}`}>
                 <span className="acct-who">{a.label}</span>

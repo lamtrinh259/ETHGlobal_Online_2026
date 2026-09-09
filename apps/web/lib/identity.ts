@@ -75,10 +75,22 @@ export function connectedAccounts(user: LinkedAccounts | null | undefined): Conn
  * account has no domain at all — a platform this build does not know.
  */
 export function domainFor(account: ConnectedAccount, domains: readonly string[]): string | undefined {
+  return domainsFor(account, domains)[0];
+}
+
+/**
+ * Every domain a record for this account could live in, best first. A person who attested before the DNS
+ * namespace existed has a record in the flat domain, and a row that only looked at `x.com` would call
+ * them unattested while the rest of the page shows the account.
+ */
+export function domainsFor(account: ConnectedAccount, domains: readonly string[]): string[] {
   const dns = account.domain === "email" ? emailHost(account.label) : PLATFORM_DNS_NAMES[account.domain];
-  if (dns && domains.includes(dns)) return dns;
-  if (domains.includes(account.domain)) return account.domain;
-  return dns;
+  const ordered = [
+    ...(dns && domains.includes(dns) ? [dns] : []),
+    ...(domains.includes(account.domain) ? [account.domain] : []),
+    ...(dns ? [dns] : []),
+  ];
+  return [...new Set(ordered)];
 }
 
 function emailHost(address: string): string | undefined {

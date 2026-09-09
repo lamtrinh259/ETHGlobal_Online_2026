@@ -9,6 +9,7 @@ import {ITextResolver} from "@ens/contracts/resolvers/profiles/ITextResolver.sol
 import {IDataResolver} from "@ens/contracts/resolvers/profiles/IDataResolver.sol";
 import {INameResolver} from "@ens/contracts/resolvers/profiles/INameResolver.sol";
 import {HexUtils} from "@ens/contracts/utils/HexUtils.sol";
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {IMultipass} from "@peeramid-labs/multipass/src/interfaces/IMultipass.sol";
 import {LibMultipass} from "@peeramid-labs/multipass/src/libraries/LibMultipass.sol";
 import {IPermissionedResolver} from "./interfaces/IPermissionedResolver.sol";
@@ -31,6 +32,9 @@ contract AttestationResolver is IExtendedResolver, IERC165 {
     IMultipass public immutable MP;
     IPermissionedResolver public immutable INNER;
     bytes32 public immutable DOMAIN;
+    /// @notice Hash of the DNS-encoded parent name: a name this instance answers for is exactly one
+    ///         label under it, and anything deeper belongs to some other mount.
+    bytes32 public immutable PARENT_HASH;
     bytes32 public constant HUMANITY = "humanity";
     string internal _parentName;
 
@@ -45,6 +49,7 @@ contract AttestationResolver is IExtendedResolver, IERC165 {
         INNER = inner;
         DOMAIN = domain;
         _parentName = parentName;
+        PARENT_HASH = keccak256(NameCoder.encode(parentName));
     }
 
     function parentName() external view returns (string memory) {
@@ -59,7 +64,10 @@ contract AttestationResolver is IExtendedResolver, IERC165 {
 
         if (sel == INameResolver.name.selector) return _reverse(name);
 
-        bytes32 label = _firstLabel(name);
+        // The Universal Resolver falls back to the nearest ancestor resolver when a level answers with
+        // none, so without this an instance would answer for every name beneath it: `alice.<anything>`
+        // under the root would resolve as `alice`. An instance answers for its own children only.
+        bytes32 label = _underParent(name) ? _firstLabel(name) : bytes32(0);
         if (sel == IAddrResolver.addr.selector) return _addr(label);
         if (sel == ITextResolver.text.selector) {
             (, string memory key) = abi.decode(data[4:], (bytes32, string));
@@ -154,6 +162,17 @@ contract AttestationResolver is IExtendedResolver, IERC165 {
     }
 
     // ---------- parsing ----------
+
+    /// @dev Is `name` exactly one label under this instance's parent?
+    function _underParent(bytes memory name) internal view returns (bool) {
+        uint256 size = uint8(name[0]);
+        if (size == 0 || 1 + size > name.length) return false;
+        bytes memory rest = new bytes(name.length - 1 - size);
+        for (uint256 i; i < rest.length; ++i) {
+            rest[i] = name[1 + size + i];
+        }
+        return keccak256(rest) == PARENT_HASH;
+    }
 
     function _firstLabel(bytes memory name) internal pure returns (bytes32 label) {
         uint256 size = uint8(name[0]);

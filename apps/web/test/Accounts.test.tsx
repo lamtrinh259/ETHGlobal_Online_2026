@@ -78,6 +78,17 @@ describe("Accounts", () => {
     expect(row).not.toHaveTextContent("public");
   });
 
+  it("shows an account attested before the DNS namespace existed", () => {
+    // The record is in the flat `google` domain. Calling it unattested while the rest of the page lists
+    // it is the contradiction a person would notice first.
+    instances = [instance("ketsuban", "ketsuban.eth"), instance("google", "google.ketsuban.eth")];
+    render(
+      <Accounts links={[link("google", { optedIn: true, ensName: null })]} handle="alice" onPublished={vi.fn()} />
+    );
+    expect(screen.getByTestId("account-google")).toHaveTextContent("attested");
+    expect(screen.queryByTestId("attest-google")).toBeNull();
+  });
+
   it("says a private account gets its name once the person claims one", () => {
     // The private branch names an account after its holder, so without a handle there is nothing to
     // name it after. Saying that beats a bare "private" the person cannot act on.
