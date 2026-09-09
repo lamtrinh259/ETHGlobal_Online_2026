@@ -220,7 +220,10 @@ describe("api e2e", () => {
 
     const name = `alice.${deployment.instanceParent}`;
     const masked = await (await fetch(`${API}/v1/verify/${name}?links=x`)).json();
-    expect(masked.links).toEqual([{ domain: "x", optedIn: true, commitment: attested.record.payload }]);
+    // The flat mount has no private branch, so a masked account there has no name to offer.
+    expect(masked.links).toEqual([
+      { domain: "x", optedIn: true, ensName: null, commitment: attested.record.payload },
+    ]);
 
     const disclosed = await (await fetch(`${API}/v1/verify/${name}?links=x&viewCode=${viewCode}`)).json();
     expect(disclosed.links[0].disclosed).toEqual({ handle: "alice", platformId: "1234567890123456789" });
@@ -391,14 +394,13 @@ describe("api e2e", () => {
     expect(health.index).toMatchObject({ synced: true });
     const aw = await (await fetch(`${API}/v1/wallet/${user.account.address}`)).json();
     const bw = await (await fetch(`${API}/v1/wallet/${bob.account.address}`)).json();
-    console.log(
-      "DEBUG idx",
-      JSON.stringify(health.index),
-      "alice",
-      JSON.stringify({ n: aw.names, l: aw.links, g: aw.given }),
-      "bob",
-      JSON.stringify({ n: bw.names, l: bw.links, g: bw.given })
-    );
+    // Each wallet's dashboard, as the profile page reads it: the name held, the accounts attested and
+    // where each is named, and the references written.
+    expect(aw.names).toMatchObject([{ domain: "kju-is", name: "alice", live: true, ensName: `alice.${deployment.instanceParent}` }]);
+    const byDomain = new Map(aw.links.map((l: { domain: string }) => [l.domain, l]));
+    expect(byDomain.get("x")).toMatchObject({ optedIn: true, ensName: null, nameless: "private" });
+    expect(byDomain.get("x.com")).toMatchObject({ name: "alice", ensName: `alice.com.x.www.${deployment.instanceParent}` });
+    expect(bw.given).toMatchObject([{ candidate: "alice", live: true, ensName: `bob.alice.${deployment.instanceParent}` }]);
     const vouches = await (await fetch(`${API}/v1/vouches/alice`)).json();
     expect(vouches.vouches).toHaveLength(1);
     expect(vouches.vouches[0]).toMatchObject({

@@ -87,7 +87,11 @@ function storable(username: string, label?: string): string {
   const fits = (v: string) => stringToBytes(v).length <= 31;
   if (fits(username)) return username;
   if (label && fits(label)) return label;
-  return new TextDecoder().decode(stringToBytes(username).slice(0, 31)).replace(/\uFFFD+$/, "");
+  // Shorten by characters rather than bytes: cutting UTF-8 mid-character would store a broken one, and
+  // this runs where `TextDecoder` does not exist.
+  let cut = username;
+  while (cut.length > 0 && !fits(cut)) cut = cut.slice(0, -1);
+  return cut;
 }
 
 /** Fit a platform id into bytes32: verbatim when it fits, keccak otherwise (never throws) */
