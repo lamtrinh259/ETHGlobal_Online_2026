@@ -230,8 +230,60 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     requireInvite: config.REQUIRE_INVITE,
   });
 
+  /**
+   * What this process is actually pointed at. Half of every deployment problem is one variable naming
+   * the wrong contract, and the only way to see it from outside is to be told. Addresses are public;
+   * a secret is reported as set or unset and never by value, and the RPC URL is left out because it
+   * carries an API key.
+   */
+  function configReport() {
+    const optional = {
+      REGISTRY: config.REGISTRY,
+      PERMISSIONED_RESOLVER: config.PERMISSIONED_RESOLVER,
+      UNIVERSAL_RESOLVER: config.UNIVERSAL_RESOLVER,
+      NAMESPACE_FACTORY: config.NAMESPACE_FACTORY,
+      ETH_REGISTRY: config.ETH_REGISTRY,
+      REGISTRAR_ADDRESS: config.REGISTRAR_ADDRESS,
+    };
+    return {
+      chainId: config.CHAIN_ID,
+      multipass: config.MULTIPASS,
+      bridge: config.BRIDGE,
+      factory: config.FACTORY,
+      namespaceFactory: config.NAMESPACE_FACTORY ?? null,
+      registry: config.REGISTRY ?? null,
+      permissionedResolver: config.PERMISSIONED_RESOLVER ?? null,
+      universalResolver: config.UNIVERSAL_RESOLVER ?? null,
+      ethRegistry: config.ETH_REGISTRY ?? null,
+      registrarAddress: config.REGISTRAR_ADDRESS ?? null,
+      relayer: chain.relayer,
+      nameDomains: config.NAME_DOMAINS,
+      orgDomain: config.ORG_DOMAIN,
+      vouchPrefix: config.VOUCH_PREFIX,
+      deployBlock: String(config.DEPLOY_BLOCK),
+      privyAppId: config.PRIVY_APP_ID,
+      secrets: {
+        relayerKey: !!config.RELAYER_KEY,
+        registrarKey: !!config.REGISTRAR_KEY,
+        viewcodeKey: !!config.VIEWCODE_KEY,
+        deliveryToken: !!config.DELIVERY_TOKEN,
+        orgToken: !!config.ORG_TOKEN,
+        privyVerificationKey: !!config.PRIVY_VERIFICATION_KEY_JWK,
+      },
+      missing: Object.entries(optional)
+        .filter(([, v]) => !v)
+        .map(([k]) => k),
+    };
+  }
+
   app.get("/healthz", (c) =>
-    c.json({ ok: true, relayer: chain.relayer, chainId: config.CHAIN_ID, index: chain.indexStatus() })
+    c.json({
+      ok: true,
+      relayer: chain.relayer,
+      chainId: config.CHAIN_ID,
+      index: chain.indexStatus(),
+      config: configReport(),
+    })
   );
 
   /** Instances plus the two contracts a wallet writes to directly (profile records, own-name alias). */

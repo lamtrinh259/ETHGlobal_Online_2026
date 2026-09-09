@@ -202,3 +202,16 @@ Deployed so far: `x.com`, `github.com`, `google.com`, `discord.com`, `linkedin.c
 and `gmail.com`, `peeramid.xyz` under the at-sign level, each with its private mirror. The whole set cost
 about 0.054 ETH. Every domain's registrar is `0x8583AD4a0F59Ba45C7E201318C6F774F31f7bbC8`, so the API
 signs for them only once its `REGISTRAR_KEY` is the key deriving that address.
+
+## Reading a deployment from outside
+
+`GET /healthz` reports what the process is pointed at: every contract address it holds, the name domains,
+the deploy block, which secrets are set (never their values), and which optional variables are missing.
+The RPC URL is deliberately absent because it carries an API key.
+
+```bash
+curl -s $API/healthz | jq .config
+```
+
+Most deployment problems are one variable naming the wrong contract, and this is how to see that without
+shell access to the container. `GET /v1/preflight` goes further and checks the chain agrees.

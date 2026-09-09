@@ -333,12 +333,36 @@ describe("GET /healthz", () => {
     const { chain } = fakeChain();
     const res = await app(chain).request("/healthz");
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    expect(await res.json()).toMatchObject({
       ok: true,
       relayer: chain.relayer,
       chainId: 31337,
       index: { indexedBlock: 1_000, head: 1_000, records: 0, synced: true },
     });
+  });
+
+  it("reports the addresses it was configured with, and which secrets are set", async () => {
+    // Half of every deployment problem is an environment variable pointing at the wrong contract, so
+    // the health endpoint says what this process is actually using. Values of secrets never appear.
+    const { chain } = fakeChain();
+    const body = await (
+      await app(chain, { ...baseEnv, NAMESPACE_FACTORY: baseEnv.FACTORY, ETH_REGISTRY: baseEnv.BRIDGE })
+    ).request("/healthz").then((r) => r.json());
+
+    expect(body.config).toMatchObject({
+      chainId: 31337,
+      multipass: baseEnv.MULTIPASS,
+      bridge: baseEnv.BRIDGE,
+      factory: baseEnv.FACTORY,
+      namespaceFactory: baseEnv.FACTORY,
+      ethRegistry: baseEnv.BRIDGE,
+      nameDomains: ["kju-is", "uni"],
+    });
+    expect(body.config.secrets).toMatchObject({ registrarKey: true, viewcodeKey: true, relayerKey: true });
+    // What is not set is as useful as what is, and no value is ever echoed.
+    expect(body.config.missing).toContain("UNIVERSAL_RESOLVER");
+    expect(JSON.stringify(body)).not.toContain(baseEnv.RELAYER_KEY);
+    expect(JSON.stringify(body)).not.toContain("rpcUrl");
   });
 
   it("GET /v1/instances lists instances with the contracts a wallet writes to", async () => {

@@ -50,6 +50,13 @@ curl -s $API/v1/ens/alice.ketsuban.eth | jq '{resolver, addr, answer: .texts["ke
 That endpoint reads through the ENSv2 UniversalResolver. Anyone can do the same with `cast` and never
 speak to this service:
 
+A live example, written under the namespace and readable by anyone:
+
+```
+demo.com.x.www.ketsuban.eth  ->  0xF0121f93b1a1bAd73AdDC316B57684bD93D3254e
+                                 answered by the x.com resolver 0xDD5098B0bEEA8D0b2615496a7396D6CE32B42f43
+```
+
 ```bash
 cast call 0x4a1817d13E9cF196f471725176355c1234b63c70 \
   "resolve(bytes,bytes)(bytes,address)" \
@@ -62,6 +69,13 @@ A reference is `<voucher>.<candidate>.<root>`, so the same call works for `bob.a
 
 An attested account is a name too. A platform is mounted at the DNS name it is, so a public handle
 resolves on its own (see [the namespace](namespace.md)):
+
+A live example, written under the namespace and readable by anyone:
+
+```
+demo.com.x.www.ketsuban.eth  ->  0xF0121f93b1a1bAd73AdDC316B57684bD93D3254e
+                                 answered by the x.com resolver 0xDD5098B0bEEA8D0b2615496a7396D6CE32B42f43
+```
 
 ```bash
 cast call 0x4a1817d13E9cF196f471725176355c1234b63c70 \
