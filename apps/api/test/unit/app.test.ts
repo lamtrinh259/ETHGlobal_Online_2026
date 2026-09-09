@@ -403,8 +403,11 @@ describe("POST /v1/attest (node registrar fallback)", () => {
 
   it("refuses before signing when the domain cannot be written", async () => {
     const cases: [{ initialised: boolean; active: boolean; registrarOk: boolean }, string][] = [
-      [{ initialised: false, active: false, registrarOk: true }, 'domain "x" is not initialised'],
-      [{ initialised: true, active: false, registrarOk: true }, 'domain "x" is not active'],
+      [
+        { initialised: false, active: false, registrarOk: true },
+        'domain "x" is not initialised on Multipass',
+      ],
+      [{ initialised: true, active: false, registrarOk: true }, 'domain "x" is not active on Multipass'],
       [{ initialised: true, active: true, registrarOk: false }, 'this attester is not the registrar for "x"'],
     ];
     for (const [ready, error] of cases) {
@@ -415,6 +418,31 @@ describe("POST /v1/attest (node registrar fallback)", () => {
       // Nothing was signed and nothing was sent.
       expect(submitted).toHaveLength(0);
     }
+  });
+
+  it("allows a vouch domain that does not exist yet, because the relay creates it", async () => {
+    const { chain } = fakeChain({
+      ready: { "~carol": { initialised: false, active: false, registrarOk: true } },
+    });
+    const idToken = privy.mint({ sub: user.did, linked: user.linked, now: NOW });
+    const wire = toWire(
+      await signedAttestRequest(
+        user.account,
+        baseIntent(user.account, NOW, {
+          domain: "~carol",
+          handle: "acme-university",
+          payload: toBytes32("graduated 2021"),
+          exp: BigInt(NOW + 600),
+        }),
+        idToken,
+        31337,
+        baseEnv.MULTIPASS as Hex,
+        await signedInvite(user.account, "carol", NOW, 31337, baseEnv.MULTIPASS as Hex)
+      )
+    );
+    const res = await post(app(chain), "/v1/attest", wire);
+    // The readiness gate lets it through; the invite check is what decides from here.
+    expect(res.status).not.toBe(503);
   });
 
   it("400s malformed bodies and 501s when the registrar is disabled", async () => {

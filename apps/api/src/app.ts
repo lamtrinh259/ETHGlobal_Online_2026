@@ -133,6 +133,21 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
   );
 
   /**
+   * Why a record in `domain` cannot be written, or null. A vouch domain is the exception to
+   * "must exist": it is created from the first signed record, which is how an organisation writes for
+   * someone who has no name yet.
+   */
+  async function writeBlocker(domain: string): Promise<string | null> {
+    const ready = await chain.domainReady(domain);
+    const provisionable = candidateOf(domain, [config.VOUCH_PREFIX]) !== undefined;
+    if (!ready.initialised)
+      return provisionable ? null : `domain "${domain}" is not initialised on Multipass`;
+    if (!ready.active) return `domain "${domain}" is not active on Multipass`;
+    if (!ready.registrarOk) return `this attester is not the registrar for "${domain}"`;
+    return null;
+  }
+
+  /**
    * The public leg needs the candidate's wallet for a vouch domain: the invitation has to be signed
    * by whoever holds that name, and only the chain can say who that is.
    */
@@ -194,17 +209,10 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     const domain = c.req.query("domain");
     if (!wallet || !/^0x[0-9a-fA-F]{40}$/.test(wallet) || !domain)
       return c.json({ error: "wallet and domain required" }, 400);
-    const [s, ready] = await Promise.all([
+    const [s, reason] = await Promise.all([
       chain.readOnchain(wallet as Address, domain),
-      chain.domainReady(domain),
+      writeBlocker(domain),
     ]);
-    const reason = !ready.initialised
-      ? `domain "${domain}" is not initialised on Multipass`
-      : !ready.active
-        ? `domain "${domain}" is not active on Multipass`
-        : !ready.registrarOk
-          ? `this attester is not the registrar for "${domain}"`
-          : null;
     return c.json({
       exists: s.exists,
       nonce: s.nonce.toString(),
@@ -228,11 +236,8 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     const req = toRequest(parsed.data);
     // Refuse before signing: a domain this attester cannot write produces a revert later, and the
     // signature the user already gave is wasted either way.
-    const ready = await chain.domainReady(req.intent.domain);
-    if (!ready.initialised) return c.json({ error: `domain "${req.intent.domain}" is not initialised` }, 503);
-    if (!ready.active) return c.json({ error: `domain "${req.intent.domain}" is not active` }, 503);
-    if (!ready.registrarOk)
-      return c.json({ error: `this attester is not the registrar for "${req.intent.domain}"` }, 503);
+    const blocker = await writeBlocker(req.intent.domain);
+    if (blocker) return c.json({ error: blocker }, 503);
     try {
       const onchain = await readFor(req);
       const result = await attest(

@@ -538,6 +538,72 @@ describe("api e2e", () => {
     expect(target).toBe(dns(`alice.${deployment.instanceParent}`));
   });
 
+  /**
+   * The university case: an organisation writes for someone who has never used this product. Nothing
+   * else is in place — no invitation, no candidate name, no vouch instance — so if any of that is
+   * really required, this fails.
+   */
+  it("lets an onboarded organisation write a letter before the person exists", async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const ORG_KEY = "0x00000000000000000000000000000000000000000000000000000000000000aa" as const;
+    const org = fakeUser(ORG_KEY, "acme-university");
+    const post = (path: string, body: unknown, headers: Record<string, string> = {}) =>
+      fetch(`${API}${path}`, {
+        method: "POST",
+        headers: { "content-type": "application/json", ...headers },
+        body: JSON.stringify(body),
+      });
+
+    const onboarded = await post(
+      "/v1/org",
+      { wallet: org.account.address, label: "acme-university" },
+      { "x-org-token": "e2e-org-token-0123456789abcdef" }
+    );
+    expect(onboarded.status).toBe(200);
+    expect(await onboarded.json()).toMatchObject({ ok: true, renewal: false });
+
+    // Nobody holds "carol": no invitation exists and none can.
+    expect((await (await fetch(`${API}/v1/name/${deployment.instanceDomain}/carol`)).json()).live).toBe(
+      false
+    );
+    const letter = toWire(
+      await signedAttestRequest(
+        org.account,
+        baseIntent(org.account, now, {
+          domain: "~carol",
+          handle: "acme-university",
+          payload: toBytes32("graduated 2021"),
+          exp: BigInt(now + 3600),
+        }),
+        privy.mint({ sub: org.did, linked: org.linked, now }),
+        31337,
+        deployment.multipass
+      )
+    );
+    const attested = await (await post("/v1/attest", letter)).json();
+    expect(attested.error).toBeUndefined();
+
+    const submitted = await (await post("/v1/submit", attested)).json();
+    expect(submitted.error ?? "").toBe("");
+    expect(submitted.ok).toBe(true);
+
+    // The vouch instance followed the record rather than a name that does not exist.
+    const instances = (await (await fetch(`${API}/v1/instances`)).json()).instances.map(
+      (i: { domain: string }) => i.domain
+    );
+    expect(instances).toContain("~carol");
+
+    const vouches = await (await fetch(`${API}/v1/vouches/carol`)).json();
+    expect(vouches.vouches).toMatchObject([
+      { voucher: "acme-university", statement: "graduated 2021", live: true },
+    ]);
+
+    // The page a graduate lands on: unclaimed, with the letter already there.
+    const profile = await (await fetch(`${API}/v1/profile/carol`)).json();
+    expect(profile.standing).toMatchObject({ claimed: false, received: 1 });
+    expect(profile.names[0].verification.status).toBe("inactive");
+  });
+
   it("rejects a replayed record", async () => {
     const now = Math.floor(Date.now() / 1000);
     const intent = baseIntent(user.account, now, {

@@ -73,6 +73,7 @@ services:
       VIEWCODE_KEY: "0x1111111111111111111111111111111111111111111111111111111111111111"
       DELIVERY_TOKEN: e2e-delivery-token-0123456789
       GAS_TOPUP_WEI: "2000000000000000"
+      ORG_TOKEN: e2e-org-token-0123456789abcdef
       # anvil starts empty, so the index reads from block 0 and polls fast enough for the test loop
       INDEX_POLL_SECONDS: "1"
       RPC_LOG_WINDOW: "5000"
