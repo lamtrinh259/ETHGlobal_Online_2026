@@ -224,25 +224,26 @@ export function bundledDeployment(chainId: string | undefined): Record<string, s
  * addresses fill MULTIPASS / BRIDGE / FACTORY / CHAIN_ID unless set explicitly, and a chain this build
  * ships a deployment for fills whatever is still missing.
  */
+/**
+ * Lay the environment over what a deployment already knows. An empty value is a real answer for a
+ * setting — `DATA_DIR=""` means keep nothing on disk — but it is not an address, so it never blanks one
+ * a deployment supplied.
+ */
+function overlay(known: Record<string, string>, env: Record<string, string | undefined>) {
+  const merged: Record<string, string | undefined> = { ...known };
+  for (const [key, value] of Object.entries(env)) {
+    if (value === undefined) continue;
+    if (value === "" && key in known) continue;
+    merged[key] = value;
+  }
+  return merged;
+}
+
 export function loadConfig(env: Record<string, string | undefined> = process.env): Config {
-  const given = Object.fromEntries(Object.entries(env).filter(([, v]) => v !== undefined && v !== ""));
-  let merged: Record<string, string | undefined> = { ...bundledDeployment(env.CHAIN_ID), ...given };
+  let merged = overlay(bundledDeployment(env.CHAIN_ID), env);
   if (env.DEPLOYMENT_FILE) {
     const d = deploymentFile.parse(JSON.parse(readFileSync(env.DEPLOYMENT_FILE, "utf8")));
-    merged = {
-      CHAIN_ID: String(d.chainId),
-      MULTIPASS: d.multipass,
-      BRIDGE: d.bridge,
-      FACTORY: d.factory,
-      ...(d.namespaceFactory ? { NAMESPACE_FACTORY: d.namespaceFactory } : {}),
-      ...(d.ethRegistry ? { ETH_REGISTRY: d.ethRegistry } : {}),
-      ...(d.ethRegistrar ? { ETH_REGISTRAR: d.ethRegistrar } : {}),
-      ...(d.paymentToken ? { PAYMENT_TOKEN: d.paymentToken } : {}),
-      ...(d.registry ? { REGISTRY: d.registry } : {}),
-      ...(d.permissionedResolver ? { PERMISSIONED_RESOLVER: d.permissionedResolver } : {}),
-      ...(d.universalResolver ? { UNIVERSAL_RESOLVER: d.universalResolver } : {}),
-      ...given,
-    };
+    merged = overlay(fromDeployment(d), env);
   }
   return configSchema.parse(merged) as Config;
 }

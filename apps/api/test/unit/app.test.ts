@@ -2149,3 +2149,15 @@ describe("GET /v1/explain/:name", () => {
     expect(await ask("alice.example.com")).toMatchObject({ kind: "unknown" });
   });
 });
+
+describe("an empty setting means what it says", () => {
+  it("keeps nothing on disk when DATA_DIR is empty, rather than falling back to the container's path", () => {
+    // The merge with a known deployment used to drop every empty value, which silently turned "keep
+    // nothing" into "/data" — a path a test or a local run cannot write.
+    expect(loadConfig({ ...baseEnv, DATA_DIR: "" }).DATA_DIR).toBe("");
+    expect(loadConfig({ ...baseEnv, DATA_DIR: "/tmp/x" }).DATA_DIR).toBe("/tmp/x");
+    // An address is different: an empty value never blanks one the deployment supplied.
+    const filled = loadConfig({ ...baseEnv, CHAIN_ID: "11155111", MULTIPASS: "" });
+    expect(filled.MULTIPASS).toBe("0x418F82fd0014a4CA402F145978bfaF0555a9cA06");
+  });
+});
