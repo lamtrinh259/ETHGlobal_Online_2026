@@ -656,6 +656,43 @@ describe("GET /v1/vouches/:handle", () => {
   });
 });
 
+describe("POST /v1/provision", () => {
+  it("provisions the vouch instance for a live handle, is idempotent, and refuses the rest", async () => {
+    const { chain, state } = fakeChain({
+      names: { "kju-is/alice": { taken: true, wallet: user.account.address, live: true } },
+    });
+    const a = app(chain);
+    expect(await (await post(a, "/v1/provision", { handle: "alice" })).json()).toEqual({
+      handle: "alice",
+      domain: "~alice",
+      created: true,
+    });
+    expect(await (await post(a, "/v1/provision", { handle: "alice" })).json()).toEqual({
+      handle: "alice",
+      domain: "~alice",
+      created: false,
+    });
+    expect(state.instancesCreated).toEqual(["alice"]);
+
+    expect((await post(a, "/v1/provision", { handle: "Not Valid" })).status).toBe(400);
+    const unclaimed = await post(a, "/v1/provision", { handle: "nobody" });
+    expect(unclaimed.status).toBe(403);
+    expect((await unclaimed.json()).error).toContain("nobody.kju-is holds no live record");
+  });
+
+  it("502s when provisioning fails on chain", async () => {
+    const { chain } = fakeChain({
+      names: { "kju-is/alice": { taken: true, wallet: user.account.address, live: true } },
+    });
+    chain.ensureVouchInstance = vi.fn(async () => {
+      throw new Error("relayer does not own the factory");
+    });
+    const res = await post(app(chain), "/v1/provision", { handle: "alice" });
+    expect(res.status).toBe(502);
+    expect((await res.json()).error).toBe("relayer does not own the factory");
+  });
+});
+
 describe("GET /v1/ens/:name", () => {
   const ensApp = (chain: ChainReader) =>
     createApp({

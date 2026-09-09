@@ -27,6 +27,18 @@ HTTP trigger { idToken, intent, signature }
 | `reporter` | `AttestationReporter` the DON writes the record to; unset returns the signed record only |
 | `reportGasLimit` | gas for the forwarder's `onReport` call |
 | `deliveryUrl` | relay endpoint (`apps/api` `/v1/cre/delivery`); empty returns the result only |
+| `provisionUrl` | endpoint the log trigger calls to provision a candidate's vouch instance; empty disables it |
+
+## Two triggers
+
+| Trigger | Handler | What it does |
+|---|---|---|
+| HTTP, in a Nitro enclave | `onAttest` | verifies the identity token and the wallet intent, signs the record as registrar, optionally writes it through the DON |
+| EVM log on `Registered` in the root name domain | `onRegistered` | asks the relay to provision that candidate's `~<handle>` vouch instance |
+
+The log trigger exists because a candidate's vouch instance is a consequence of their name existing.
+Driving it from the chain means it happens whether or not the record came through our own relay, and
+the endpoint it calls needs no secret: it refuses any handle that does not already hold a live record.
 
 ## Who writes the record
 

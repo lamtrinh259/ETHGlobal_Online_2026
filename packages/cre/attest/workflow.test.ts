@@ -6,6 +6,7 @@ import {
   bytesToHex,
   decodeAbiParameters,
   decodeFunctionData,
+  encodeAbiParameters,
   encodeFunctionResult,
   parseAbiParameters,
   recoverTypedDataAddress,
@@ -15,7 +16,16 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { eciesDecrypt } from "@ketsuban/registrar";
-import { encodeReport, initWorkflow, onAttest, parseRequest, serializeResult, type Config } from "./workflow";
+import {
+  encodeReport,
+  handleFromLog,
+  initWorkflow,
+  onAttest,
+  onRegistered,
+  parseRequest,
+  serializeResult,
+  type Config,
+} from "./workflow";
 
 const NOW = 1_800_000_000;
 const REGISTRAR_KEY = "0x000000000000000000000000000000000000000000000000000000000000b0b0" as const;
@@ -24,6 +34,8 @@ const USER_KEY = "0x000000000000000000000000000000000000000000000000000000000000
 const privy = fakePrivy("cltest-app-id");
 const user = fakeUser(USER_KEY);
 const registrar = privateKeyToAccount(REGISTRAR_KEY);
+/** keccak256("Registered(bytes32,(address,bytes32,bytes32,uint96,bytes32,uint256,bytes32))") */
+const REGISTERED_TOPIC = "0x2fb8df3bcbdf51d34b8e8576c995dd85a25f786cb813aef1d1b0d655b0fb5406";
 
 const config: Config = {
   chainSelectorName: "ethereum-testnet-sepolia",
@@ -35,6 +47,7 @@ const config: Config = {
   secretIds: { registrarKey: "REGISTRAR_KEY", viewcodeKey: "VIEWCODE_KEY" },
   authorizedKeys: [],
   deliveryUrl: "",
+  provisionUrl: "",
   reportGasLimit: "1200000",
 };
 
@@ -97,11 +110,16 @@ function fakeTeeRuntime(
         return { result: () => ({ data: Uint8Array.from(Buffer.from(encoded.slice(2), "hex")) }) };
       }
       if (capabilityId.startsWith("http")) {
-        deliveries.push({ url: payload.url, body: Buffer.from(asBytes(payload.body)).toString() });
+        const body = Buffer.from(asBytes(payload.body)).toString();
+        deliveries.push({ url: payload.url, body });
+        // The relay answers the provisioning endpoint and the delivery endpoint differently.
+        const reply = String(payload.url).endsWith("/provision")
+          ? { handle: JSON.parse(body).handle, domain: `~${JSON.parse(body).handle}`, created: true }
+          : { ok: true, txHash: "0xabc" };
         return {
           result: () => ({
             statusCode: opts.deliveryStatus ?? 200,
-            body: stringToBytes(JSON.stringify({ ok: true, txHash: "0xabc" })),
+            body: stringToBytes(JSON.stringify(reply)),
           }),
         };
       }
@@ -283,6 +301,60 @@ describe("writing the record as a DON report", () => {
   });
 });
 
+describe("onRegistered (log trigger)", () => {
+  const PROVISION = "https://relay.example/v1/provision";
+
+  /** A `Registered` log: domainName indexed, the record struct in data. */
+  function registeredLog(handle: string) {
+    return {
+      data: encodeAbiParameters(
+        parseAbiParameters(
+          "(address wallet, bytes32 name, bytes32 id, uint96 nonce, bytes32 domainName, uint256 validUntil, bytes32 payload)"
+        ),
+        [
+          {
+            wallet: user.account.address,
+            name: toBytes32(handle),
+            id: toBytes32("id"),
+            nonce: 1n,
+            domainName: toBytes32("ketsuban"),
+            validUntil: 1_800_000_000n,
+            payload: zeroHash,
+          },
+        ]
+      ),
+    };
+  }
+
+  test("reads the handle out of the log and asks the relay to provision its vouch instance", () => {
+    const { runtime, deliveries } = fakeTeeRuntime({ cfg: { ...config, provisionUrl: PROVISION } as Config });
+    const don = (runtime as any).usingTheDons();
+    expect(onRegistered(don, registeredLog("alice"))).toBe("~alice created");
+    expect(deliveries).toEqual([{ url: PROVISION, body: JSON.stringify({ handle: "alice" }) }]);
+  });
+
+  test("handleFromLog strips the padding a bytes32 name carries", () => {
+    expect(handleFromLog(registeredLog("bob"))).toBe("bob");
+    expect(handleFromLog(registeredLog("a-very-long-handle-31-chars-xyz"))).toBe("a-very-long-handle-31-chars-xyz");
+  });
+
+  test("does nothing when no provisioning endpoint is configured", () => {
+    const { runtime, deliveries } = fakeTeeRuntime();
+    const don = (runtime as any).usingTheDons();
+    expect(onRegistered(don, registeredLog("alice"))).toBe("provisioning disabled");
+    expect(deliveries).toHaveLength(0);
+  });
+
+  test("a relay error surfaces", () => {
+    const { runtime } = fakeTeeRuntime({
+      cfg: { ...config, provisionUrl: PROVISION } as Config,
+      deliveryStatus: 500,
+    });
+    const don = (runtime as any).usingTheDons();
+    expect(() => onRegistered(don, registeredLog("alice"))).toThrow(/provision failed: HTTP 500/);
+  });
+});
+
 describe("serializeResult", () => {
   test("stringifies bigints and nulls a missing view code", () => {
     const s = JSON.parse(
@@ -296,9 +368,18 @@ describe("serializeResult", () => {
 });
 
 describe("initWorkflow", () => {
-  test("registers one HTTP handler inside a Nitro enclave", () => {
+  test("registers the TEE attest handler and the root-domain log trigger", () => {
     const handlers = initWorkflow({ ...config, authorizedKeys: ["0x1111111111111111111111111111111111111111"] });
-    expect(handlers).toHaveLength(1);
+    expect(handlers).toHaveLength(2);
+    expect(handlers[1].fn).toBe(onRegistered);
+    const logTrigger = handlers[1].trigger as any;
+    const b64 = (hex: string) => Buffer.from(hex.slice(2), "hex").toString("base64");
+    expect(logTrigger.config.addresses.map((a: Uint8Array) => Buffer.from(a).toString("base64"))).toEqual([
+      b64(config.multipass),
+    ]);
+    expect(
+      logTrigger.config.topics.map((t: any) => t.values.map((v: Uint8Array) => Buffer.from(v).toString("base64")))
+    ).toEqual([[b64(REGISTERED_TOPIC)], [b64(toBytes32(config.nameDomains[0]))]]);
     expect(handlers[0].fn).toBe(onAttest);
     expect(handlers[0].requirements).toBeDefined();
     const trigger = handlers[0].trigger as any;

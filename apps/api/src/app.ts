@@ -211,6 +211,28 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
   });
 
   /**
+   * Provision a candidate's vouch instance. Idempotent, and open on purpose: it only acts for a
+   * handle that already holds a live record in the root name domain, which the chain decides, so the
+   * Chainlink log-trigger workflow can call it without a shared secret.
+   */
+  app.post("/v1/provision", async (c) => {
+    const body = z
+      .object({ handle: z.string().regex(/^[a-z0-9-]{1,30}$/) })
+      .safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: "handle required" }, 400);
+    const handle = body.data.handle;
+    const rootDomain = config.NAME_DOMAINS[0];
+    if (!rootDomain) return c.json({ error: "no root name domain configured" }, 501);
+    const status = await chain.nameStatus(rootDomain, handle);
+    if (!status.live) return c.json({ error: `${handle}.${rootDomain} holds no live record` }, 403);
+    try {
+      return c.json({ handle, ...(await chain.ensureVouchInstance(handle)) });
+    } catch (e) {
+      return c.json({ error: (e as Error).message }, 502);
+    }
+  });
+
+  /**
    * Resolve a name through the ENSv2 UniversalResolver: the same answer any wallet or indexer gets,
    * with the resolver it reached. Independent of our instance bookkeeping on purpose.
    */

@@ -1,6 +1,7 @@
 import {
   bytesToBase64,
   bytesToHex,
+  handler,
   consensusIdenticalAggregation,
   cre,
   encodeCallMsg,
@@ -25,11 +26,16 @@ import {
 import { MultipassAbi, toBytes32 } from "@peeramid-labs/multipass-client";
 import {
   bytesToString,
+  decodeAbiParameters,
   decodeFunctionResult,
   encodeAbiParameters,
   encodeFunctionData,
+  getAbiItem,
+  hexToBytes,
   parseAbiParameters,
   stringToBytes,
+  toEventSelector,
+  type AbiEvent,
   zeroAddress,
   zeroHash,
   type Address,
@@ -56,6 +62,11 @@ export const configSchema = z.object({
   authorizedKeys: z.array(z.string()).default([]),
   /** Optional relay that submits the record on chain; empty = return only */
   deliveryUrl: z.string().default(""),
+  /**
+   * Endpoint that provisions a candidate's vouch instance. With it set, a log trigger on the root
+   * name domain drives provisioning from what the chain says, not from our own delivery call.
+   */
+  provisionUrl: z.string().default(""),
   /**
    * AttestationReporter to write the signed record to, as a DON report. Set it and the chain write
    * needs no key of ours: the enclave signs, the DON delivers, the reporter pays the domain fee.
@@ -219,6 +230,50 @@ export const deliver = (sendRequester: HTTPSendRequester, url: string, body: str
   return deliveryAck.parse(JSON.parse(bytesToString(response.body)));
 };
 
+// ─── Log trigger: a new root name provisions its vouch instance ───
+const provisionAck = z.object({ handle: z.string(), domain: z.string(), created: z.boolean() });
+type ProvisionAck = z.infer<typeof provisionAck>;
+
+export const provision = (sendRequester: HTTPSendRequester, url: string, handle: string): ProvisionAck => {
+  const response = sendRequester
+    .sendRequest({
+      url,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: bytesToBase64(stringToBytes(JSON.stringify({ handle }))),
+      cacheSettings: { store: false },
+    })
+    .result();
+  if (!ok(response)) throw new Error(`provision failed: HTTP ${response.statusCode}`);
+  return provisionAck.parse(JSON.parse(bytesToString(response.body)));
+};
+
+/** The handle in a `Registered` log: the record struct is the log's only non-indexed field. */
+export function handleFromLog(log: { data?: Uint8Array | string }): string {
+  const data = typeof log.data === "string" ? (log.data as Hex) : bytesToHex(log.data ?? new Uint8Array());
+  const [record] = decodeAbiParameters(
+    parseAbiParameters(
+      "(address wallet, bytes32 name, bytes32 id, uint96 nonce, bytes32 domainName, uint256 validUntil, bytes32 payload)"
+    ),
+    data
+  );
+  return bytesToString(hexToBytes(record.name)).replace(/\u0000+$/, "");
+}
+
+/**
+ * Runs on the DON when a record lands in the root name domain. The candidate's vouch instance is a
+ * consequence of their name existing, so the chain triggers it rather than our relay remembering to.
+ */
+export const onRegistered = (runtime: Runtime<Config>, log: { data?: Uint8Array | string }): string => {
+  const url = runtime.config.provisionUrl;
+  if (!url) return "provisioning disabled";
+  const handle = handleFromLog(log);
+  const ack = new cre.capabilities.HTTPClient()
+    .sendRequest(runtime, provision, consensusIdenticalAggregation<ProvisionAck>())(url, handle)
+    .result();
+  return `${ack.domain} ${ack.created ? "created" : "exists"}`;
+};
+
 // ─── TEE handler ────────────────────────────────────────────
 /**
  * Runs inside the enclave. Only the chain read and the optional delivery cross to the DON;
@@ -251,6 +306,11 @@ export const onAttest = async (runtime: TeeRuntime<Config>, payload: HTTPPayload
 
 export function initWorkflow(config: Config) {
   const http = new cre.capabilities.HTTPCapability();
+  const network = getNetwork({ chainSelectorName: config.chainSelectorName, isTestnet: true });
+  if (!network) throw new Error(`unknown chain ${config.chainSelectorName}`);
+  const evm = new cre.capabilities.EVMClient(network.chainSelector.selector);
+  const registered = toEventSelector(getAbiItem({ abi: MultipassAbi, name: "Registered" }) as AbiEvent);
+  const b64 = (hex: Hex) => bytesToBase64(hexToBytes(hex));
   return [
     cre.handlerInTee(
       http.trigger({
@@ -258,6 +318,14 @@ export function initWorkflow(config: Config) {
       }),
       onAttest,
       [{ tee: "nitro", regions: ["us-west-2"] }]
+    ),
+    // `Registered(bytes32 indexed domainName, Record)` in the root name domain.
+    handler(
+      evm.logTrigger({
+        addresses: [b64(config.multipass as Hex)],
+        topics: [{ values: [b64(registered)] }, { values: [b64(toBytes32(config.nameDomains[0]))] }],
+      }),
+      onRegistered
     ),
   ];
 }

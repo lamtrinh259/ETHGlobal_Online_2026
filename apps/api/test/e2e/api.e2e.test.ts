@@ -283,6 +283,23 @@ describe("api e2e", () => {
     expect(after.gasTopup.available).toBe(false);
   });
 
+  it("provisions a vouch instance for a live handle and refuses one that does not exist", async () => {
+    const call = (handle: string) =>
+      fetch(`${API}/v1/provision`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ handle }),
+      });
+    // alice claimed her name earlier in this suite, so her instance is already there: idempotent.
+    const res = await call("alice");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ handle: "alice", domain: "~alice", created: false });
+
+    const unknown = await call("nobody");
+    expect(unknown.status).toBe(403);
+    expect((await unknown.json()).error).toContain("holds no live record");
+  });
+
   it("rejects a replayed record", async () => {
     const now = Math.floor(Date.now() / 1000);
     const intent = baseIntent(user.account, now, {
