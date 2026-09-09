@@ -32,7 +32,11 @@ The packages generate what the apps import — the registrar's types, and the er
 on purpose: the container build installs before it copies any source, and a hook there fails with nothing
 to compile.
 
-`pnpm -w lint && pnpm -w typecheck && pnpm -w test` is the gate: every package runs its own tests, with
+`pnpm -w lint && pnpm -w typecheck && pnpm -w test` is the gate, and it is where the coverage thresholds
+are enforced: on the CI runner vitest's worker pool finishes the first file and never spawns another, so
+the api suite runs there as one process per file.
+
+ every package runs its own tests, with
 coverage thresholds where the language has them. `pnpm --filter @ketsuban/api test:e2e` is the slow one —
 anvil, the contracts deployed from this source, and the API image, driven from outside. Both run on every
 push through `.github/workflows/ci.yml`, and the e2e needs no secrets: the identity issuer is faked from a
