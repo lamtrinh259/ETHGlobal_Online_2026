@@ -28,17 +28,29 @@ export default async function VerifyPage({ params, searchParams }: Params) {
   const api = createApi(config.apiUrl, config.attestUrl);
   const decoded = decodeURIComponent(name);
   try {
-    const [v, ens] = await Promise.all([
+    const [v, ens, claim] = await Promise.all([
       api.verify(decoded, {
         links: links?.split(","),
         viewCode: viewCode as `0x${string}` | undefined,
       }),
       // The cross-check is a bonus: an unconfigured or unreachable resolver must not break the page.
       api.ens(decoded).catch(() => null),
+      // What the name would claim if it resolved: a reader seeing "no record" deserves to know whether
+      // nobody holds it or whether it could never have meant anything here.
+      api.explain(decoded).catch(() => null),
     ]);
     return (
       <>
         <VerifyCard v={v} />
+        {v.status === "inactive" && claim && (
+          <section className="card" data-testid="would-claim">
+            <h3>What this name would say</h3>
+            <p className="muted">{claim.says}</p>
+            {claim.kind !== "unknown" && (
+              <p className="muted">Nobody holds it yet, so it answers with nothing.</p>
+            )}
+          </section>
+        )}
         {reveal && <Revealed name={decoded} domain={reveal} audience={addressedTo} />}
         <EnsProof ens={ens} name={decoded} />
       </>

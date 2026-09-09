@@ -38,6 +38,11 @@ vi.mock("@/lib/api", async (orig) => ({
     ens: vi.fn(async () => {
       throw new Error("off");
     }),
+    explain: vi.fn(async (name: string) => ({
+      name,
+      says: "alice is a person's name here.",
+      kind: "person" as const,
+    })),
     disclosed: vi.fn(async (_name: string, _domain: string, reader?: string) => {
       // A grant addressed to one wallet opens for that wallet and no other.
       if (!state.disclosed || (state.reader && reader !== state.reader))
@@ -117,6 +122,23 @@ describe("/v/<name> with an opened account", () => {
     await renderPage({ reveal: "x", for: "0xd70B5E8A232Bf67F64658cbDDebe32e1443894a0" });
     await waitFor(() =>
       expect(screen.getAllByTestId("revealed")[1]).toHaveTextContent("Only the addressed wallet")
+    );
+  });
+
+  it("says what an unresolved name would have claimed", async () => {
+    // "No record" is two different facts: nobody holds it, or it could never mean anything here.
+    const { container } = await renderPage({});
+    expect(container.querySelector("[data-testid=would-claim]")).toBeNull();
+
+    const inactive = { ...verification, status: "inactive" as const };
+    vi.spyOn(await import("@/lib/api"), "createApi").mockReturnValueOnce({
+      verify: vi.fn(async () => inactive),
+      ens: vi.fn(async () => null),
+      explain: vi.fn(async () => ({ name: "x", says: "alice is a person's name here.", kind: "person" })),
+    } as never);
+    const page = await renderPage({});
+    expect(page.container.querySelector("[data-testid=would-claim]")?.textContent).toContain(
+      "a person's name here"
     );
   });
 

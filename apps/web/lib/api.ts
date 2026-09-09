@@ -104,6 +104,14 @@ export const contractsSchema = z.object({
   paymentToken: address.nullable().optional(),
 });
 
+export const explainSchema = z.object({
+  name: z.string(),
+  says: z.string(),
+  kind: z.enum(["person", "account", "private", "reference", "unknown"]),
+  domain: z.string().optional(),
+  label: z.string().optional(),
+});
+
 export const ethLabelSchema = z.object({
   label: z.string(),
   registry: address,
@@ -308,6 +316,11 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
 
     async contracts(): Promise<Contracts> {
       return contractsSchema.parse(await readJson(await call(`${base}/v1/instances`)));
+    },
+
+    /** What a name would claim here, whether or not anything resolves at it. */
+    async explain(name: string): Promise<z.infer<typeof explainSchema>> {
+      return explainSchema.parse(await readJson(await call(`${base}/v1/explain/${encodeURIComponent(name)}`)));
     },
 
     /** Who owns a `.eth` label on the registry the bridge checks; `null` owner means nobody here does. */
