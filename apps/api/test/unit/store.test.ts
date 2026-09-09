@@ -33,10 +33,15 @@ describe("PersistentSet", () => {
   it("reports a write it could not make rather than throwing at the caller", () => {
     const errors: string[] = [];
     const spy = vi.spyOn(console, "error").mockImplementation((m) => void errors.push(String(m)));
-    const set = new PersistentSet("gas-topups", "/proc/nope");
+    // A directory under a regular file: mkdir fails with ENOTDIR at once, everywhere. A path under
+    // `/proc` looks the same and is not — on Linux that mkdir never returns.
+    const file = join(mkdtempSync(join(tmpdir(), "ketsuban-store-")), "file");
+    writeFileSync(file, "");
+    const unwritable = join(file, "nope");
+    const set = new PersistentSet("gas-topups", unwritable);
     expect(() => set.add("0xalice")).not.toThrow();
     expect(set.has("0xalice")).toBe(true);
-    expect(errors.some((e) => e.startsWith("store /proc/nope"))).toBe(true);
+    expect(errors.some((e) => e.startsWith(`store ${unwritable}`))).toBe(true);
     spy.mockRestore();
   });
 });
