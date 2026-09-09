@@ -117,30 +117,33 @@ curl -s https://<api-host>/v1/verify/<handle>.<instance>.eth
 
 ## Chainlink CRE write path
 
-The workflow can write the record itself: the nodes sign the payload and the KeystoneForwarder calls
-`AttestationBridge.onReport`. That needs a bridge deployed with the forwarder for the chain.
+The workflow writes the record itself: the nodes sign the payload and the KeystoneForwarder calls
+`AttestationReporter.onReport`, which hands it to the bridge. The reporter holds no privileges, so it
+can be added to a live deployment without moving a single role.
 
-| Chain | KeystoneForwarder |
-|---|---|
-| Ethereum Sepolia | `0xF8344CFd5c43616a4366C34E3EEE75af79a74482` |
+| Chain | KeystoneForwarder | AttestationReporter |
+|---|---|---|
+| Ethereum Sepolia | `0xF8344CFd5c43616a4366C34E3EEE75af79a74482` | `0x91229381Eea9cbebe37950B88e32791f5767FA0e` |
 
 ```bash
 cd packages/contracts
 MULTIPASS=0x418F82fd0014a4CA402F145978bfaF0555a9cA06 \
-PERMISSIONED_RESOLVER=0x4E2d9783cEFF2ed72CD77C14206b29fe246b24F7 \
-ETH_REGISTRY=0xBDC85dD5b15D7ecb354cd7cb6f2c50b4f2c4F0E2 \
-FACTORY=0xc0281d75974155fE8513F623de726F040c4bcC51 \
-OLD_BRIDGE=0xC7283bD9Aad1B08947C841536946Ce4dA9c99929 \
+BRIDGE=0xC7283bD9Aad1B08947C841536946Ce4dA9c99929 \
 CRE_FORWARDER=0xF8344CFd5c43616a4366C34E3EEE75af79a74482 \
 PRIVATE_KEY=$OPERATOR_KEY \
-forge script script/UpgradeBridge.s.sol --rpc-url $SEPOLIA_RPC --broadcast --verify
+forge script script/DeployReporter.s.sol --rpc-url $SEPOLIA_RPC --broadcast --verify
 ```
 
-The script deploys the new bridge, grants it `ROLE_SET_TEXT_ADMIN` and `ROLE_SET_ALIAS` on the stock
-resolver and revokes them from the old one. Every other address stays: Multipass never knew about the
-bridge, and the factory, registries and resolvers are untouched. Afterwards:
+Then put the address in `packages/cre/attest/config.*.json` as `reporter`. Fund the reporter only if a
+served domain charges a fee: a report cannot carry value, so `onReport` pays from its own balance.
+Every domain on the current deployment has a zero fee.
 
-1. Put the new address in `packages/cre/attest/config.*.json` as `bridge`, and in the API and web
-   environments as `BRIDGE` / `NEXT_PUBLIC_*` where they name it.
-2. Fund the bridge if any served domain charges a fee: a DON report cannot carry value, so
-   `onReport` pays from the contract's own balance. Plain transfers to it are accepted.
+### Known limitation on this deployment
+
+The stock `PermissionedResolver`'s root roles still sit with the original deployer address
+(`0x6cF8d74c7875De8C2FFb09228F4bf2A21b25E583`), whose key was in the `.env.swp` leak and has been
+rotated out of use. That address can still grant itself `ROLE_SET_TEXT` and `ROLE_SET_ALIAS` on names
+under this deployment, so text records and aliases here are not safe against whoever holds that key.
+Multipass ownership and the registrar are on the current operator, so records themselves cannot be
+forged. Fixing it means a fresh resolver proxy and fresh instances, which changes every instance
+address; until then treat this deployment as a demo.

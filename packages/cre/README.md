@@ -11,7 +11,7 @@ HTTP trigger { idToken, intent, signature }
        ├─ verifyPublicLeg: intent signature, expiry, nonce, wallet     public
        ├─ getSecret(REGISTRAR_KEY), getSecret(VIEWCODE_KEY)            enclave
        ├─ attestConfidential: verify ES256 token, derive record, sign  enclave
-       ├─ report + writeReport → KeystoneForwarder → AttestationBridge  DON
+       ├─ report + writeReport → KeystoneForwarder → AttestationReporter DON
        └─ optional POST to deliveryUrl via the DON (identical consensus)
 ```
 
@@ -24,21 +24,21 @@ HTTP trigger { idToken, intent, signature }
 | `nameDomains` | domains whose records are `{ handle, keccak(DID), answer }` — the instance subjects |
 | `secretIds` | Vault / `.env` secret IDs for the registrar and view-code keys |
 | `authorizedKeys` | EVM addresses allowed to fire the trigger (empty only in simulation) |
-| `bridge` | `AttestationBridge` the DON writes the record to; unset returns the signed record only |
+| `reporter` | `AttestationReporter` the DON writes the record to; unset returns the signed record only |
 | `reportGasLimit` | gas for the forwarder's `onReport` call |
 | `deliveryUrl` | relay endpoint (`apps/api` `/v1/cre/delivery`); empty returns the result only |
 
 ## Who writes the record
 
-`bridge` is unset in the configs here: the bridge that accepts reports is the one deployed by
-`packages/contracts/script/UpgradeBridge.s.sol` with a `CRE_FORWARDER` constructor argument. Deploy
-it, put its address in `bridge`, and the write path below is live. Until then the workflow returns the
-signed record and `apps/api` writes it with the relayer key.
+Set `reporter` to the `AttestationReporter` deployed by
+`packages/contracts/script/DeployReporter.s.sol` and the write path below is live. Unset, the workflow
+returns the signed record and `apps/api` writes it with the relayer key.
 
 With `bridge` set, the nodes sign the payload (`runtime.report`) and the KeystoneForwarder calls
-`AttestationBridge.onReport`, which registers the record and pays the Multipass fee from its own
-balance. No key of ours is in that path: the enclave signs as registrar, the DON delivers, and the
-bridge only accepts reports from the forwarder for its chain.
+`AttestationReporter.onReport`, which hands the record to the bridge and pays the Multipass fee from
+its own balance. No key of ours is in that path: the enclave signs as registrar, the DON delivers, and
+the reporter only accepts reports from the forwarder for its chain. The reporter holds no privileges,
+so an existing bridge gains this path without any migration.
 
 ```mermaid
 sequenceDiagram
@@ -46,14 +46,16 @@ sequenceDiagram
   participant T as TEE handler
   participant D as DON
   participant F as KeystoneForwarder
+  participant AR as AttestationReporter
   participant AB as AttestationBridge
   participant MP as Multipass
   B->>T: intent + identity token
   T->>T: verify, derive, sign as registrar
   T->>D: report(record, signature)
   D->>F: signed report
-  F->>AB: onReport(metadata, report)
-  AB->>MP: register{value: fee}
+  F->>AR: onReport(metadata, report)
+  AR->>AB: verify{value: fee}
+  AB->>MP: register
 ```
 
 `deliveryUrl` remains for the relay path: `apps/api` provisions a candidate's vouch instance when

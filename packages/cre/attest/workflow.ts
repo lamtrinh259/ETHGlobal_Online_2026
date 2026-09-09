@@ -57,10 +57,10 @@ export const configSchema = z.object({
   /** Optional relay that submits the record on chain; empty = return only */
   deliveryUrl: z.string().default(""),
   /**
-   * AttestationBridge to write the signed record to, as a DON report. Set it and the chain write
-   * needs no key of ours: the enclave signs, the DON delivers, the bridge pays the domain fee.
+   * AttestationReporter to write the signed record to, as a DON report. Set it and the chain write
+   * needs no key of ours: the enclave signs, the DON delivers, the reporter pays the domain fee.
    */
-  bridge: z.string().regex(/^0x[0-9a-fA-F]{40}$/).optional(),
+  reporter: z.string().regex(/^0x[0-9a-fA-F]{40}$/).optional(),
   reportGasLimit: z.string().regex(/^\d+$/).default("1200000"),
 });
 export type Config = z.infer<typeof configSchema>;
@@ -124,7 +124,7 @@ export function encodeReport(result: AttestResult): Hex {
 
 /**
  * Write the record through the DON: `runtime.report` has the nodes sign the payload, the
- * KeystoneForwarder delivers it to the bridge, and the bridge registers it. Returns the tx hash.
+ * KeystoneForwarder delivers it to the reporter, and the reporter registers it. Returns the tx hash.
  */
 export function writeRecord(donRuntime: Runtime<Config>, result: AttestResult): Hex {
   const config = donRuntime.config;
@@ -133,7 +133,7 @@ export function writeRecord(donRuntime: Runtime<Config>, result: AttestResult): 
   const report = donRuntime.report(prepareReportRequest(encodeReport(result))).result();
   const tx = new cre.capabilities.EVMClient(network.chainSelector.selector)
     .writeReport(donRuntime, {
-      receiver: config.bridge as Address,
+      receiver: config.reporter as Address,
       report,
       gasConfig: { gasLimit: config.reportGasLimit },
     })
@@ -238,7 +238,7 @@ export const onAttest = async (runtime: TeeRuntime<Config>, payload: HTTPPayload
     viewcodeKey: runtime.getSecret({ id: config.secretIds.viewcodeKey }).result().value as Hex,
   };
   const result = await attestConfidential(req, onchain.exists ? onchain.id : zeroHash, secrets, env);
-  const txHash = config.bridge ? writeRecord(donRuntime, result) : undefined;
+  const txHash = config.reporter ? writeRecord(donRuntime, result) : undefined;
   const out = serializeResult(result, txHash);
 
   if (config.deliveryUrl) {

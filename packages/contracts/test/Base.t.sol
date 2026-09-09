@@ -9,6 +9,7 @@ import {IRegistry} from "@ensv2/registry/IRegistry.sol";
 import {AttestationRegistry} from "../src/AttestationRegistry.sol";
 import {AttestationResolver} from "../src/AttestationResolver.sol";
 import {AttestationBridge} from "../src/AttestationBridge.sol";
+import {AttestationReporter} from "../src/AttestationReporter.sol";
 import {AttestationFactory} from "../src/AttestationFactory.sol";
 import {PermissionedResolverRoles as R} from "../src/interfaces/IPermissionedResolver.sol";
 import {MockPermissionedResolver} from "./mocks/MockPermissionedResolver.sol";
@@ -46,6 +47,7 @@ abstract contract BaseTest is Test {
     MockEthRegistry internal ethRegistry;
     AttestationFactory internal factory;
     AttestationBridge internal bridge;
+    AttestationReporter internal reporter;
     AttestationRegistry internal registry;
     AttestationResolver internal shim;
 
@@ -67,7 +69,8 @@ abstract contract BaseTest is Test {
         inner = new MockPermissionedResolver(operator);
         ethRegistry = new MockEthRegistry();
         factory = new AttestationFactory(mp, operator);
-        bridge = new AttestationBridge(mp, inner, ethRegistry, factory, operator, forwarder);
+        bridge = new AttestationBridge(mp, inner, ethRegistry, factory, operator);
+        reporter = new AttestationReporter(forwarder, mp, bridge);
 
         vm.prank(operator);
         (registry, shim) = factory.create(INSTANCE, IRegistry(address(ethRegistry)), LABEL, PARENT, inner);

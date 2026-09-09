@@ -225,14 +225,14 @@ describe("onAttest", () => {
 });
 
 describe("writing the record as a DON report", () => {
-  const BRIDGE = "0xC7283bD9Aad1B08947C841536946Ce4dA9c99929";
-  const withBridge = { ...config, bridge: BRIDGE, reportGasLimit: "900000" } as Config;
+  const REPORTER = "0xC7283bD9Aad1B08947C841536946Ce4dA9c99929";
+  const withReporter = { ...config, reporter: REPORTER, reportGasLimit: "900000" } as Config;
 
   test("signs the record in the enclave, reports it from the DON, and returns the tx hash", async () => {
-    const { runtime, reports, writes, deliveries } = fakeTeeRuntime({ cfg: withBridge });
+    const { runtime, reports, writes, deliveries } = fakeTeeRuntime({ cfg: withReporter });
     const out = JSON.parse(await onAttest(runtime, (await request()) as any));
 
-    expect(writes).toEqual([{ receiver: BRIDGE.toLowerCase(), gasLimit: "900000" }]);
+    expect(writes).toEqual([{ receiver: REPORTER.toLowerCase(), gasLimit: "900000" }]);
     expect(out.txHash).toBe(`0x${"dd".repeat(32)}`);
     expect(deliveries).toHaveLength(0);
 
@@ -260,11 +260,11 @@ describe("writing the record as a DON report", () => {
   });
 
   test("a failed write is an error, not a silent success", async () => {
-    const { runtime } = fakeTeeRuntime({ cfg: withBridge, txStatus: 1 });
+    const { runtime } = fakeTeeRuntime({ cfg: withReporter, txStatus: 1 });
     expect(onAttest(runtime, (await request()) as any)).rejects.toThrow(/report write failed/);
   });
 
-  test("without a bridge nothing is written and the result carries no tx hash", async () => {
+  test("without a reporter nothing is written and the result carries no tx hash", async () => {
     const { runtime, writes } = fakeTeeRuntime();
     const out = JSON.parse(await onAttest(runtime, (await request()) as any));
     expect(writes).toHaveLength(0);

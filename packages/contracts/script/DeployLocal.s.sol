@@ -6,6 +6,7 @@ import {Multipass} from "@peeramid-labs/multipass/src/Multipass.sol";
 import {IRegistry} from "@ensv2/registry/IRegistry.sol";
 import {AttestationFactory} from "../src/AttestationFactory.sol";
 import {AttestationBridge} from "../src/AttestationBridge.sol";
+import {AttestationReporter} from "../src/AttestationReporter.sol";
 import {AttestationRegistry} from "../src/AttestationRegistry.sol";
 import {AttestationResolver} from "../src/AttestationResolver.sol";
 import {PermissionedResolverRoles as R} from "../src/interfaces/IPermissionedResolver.sol";
@@ -38,9 +39,9 @@ contract DeployLocal is Script {
         MockPermissionedResolver inner = new MockPermissionedResolver(deployer);
         MockEthRegistry eth = new MockEthRegistry();
         AttestationFactory factory = new AttestationFactory(mp, deployer);
+        AttestationBridge bridge = new AttestationBridge(mp, inner, eth, factory, deployer);
         // Local runs have no KeystoneForwarder; CRE simulation uses the mock address when set.
-        address forwarder = vm.envOr("CRE_FORWARDER", deployer);
-        AttestationBridge bridge = new AttestationBridge(mp, inner, eth, factory, deployer, forwarder);
+        AttestationReporter reporter = new AttestationReporter(vm.envOr("CRE_FORWARDER", deployer), mp, bridge);
         (AttestationRegistry registry, AttestationResolver resolver) =
             factory.create(domain, IRegistry(address(eth)), label, parentName, inner);
         eth.setLabel(label, deployer, registry, address(resolver));
@@ -54,6 +55,7 @@ contract DeployLocal is Script {
         vm.serializeAddress(json, "ethRegistry", address(eth));
         vm.serializeAddress(json, "factory", address(factory));
         vm.serializeAddress(json, "bridge", address(bridge));
+        vm.serializeAddress(json, "reporter", address(reporter));
         vm.serializeAddress(json, "registry", address(registry));
         vm.serializeAddress(json, "resolver", address(resolver));
         vm.serializeString(json, "instanceDomain", label);
