@@ -38,18 +38,9 @@ jobs:
       - run: pnpm --filter @ketsuban/registrar test
       - run: pnpm --filter @ketsuban/contracts test
       - run: pnpm --filter @ketsuban/cre-attest test
-      # One process per file. The pool on this runner finishes the first file and then never spawns
-      # another worker — forks, threads, parallel or not, with coverage or without — and the run hangs
-      # until the job is killed. Coverage thresholds are enforced by `pnpm test` locally.
       - name: api tests
         timeout-minutes: 8
-        working-directory: apps/api
-        run: |
-          for f in test/unit/*.test.ts; do
-            echo "::group::$f"
-            pnpm exec vitest run --no-coverage "$f"
-            echo "::endgroup::"
-          done
+        run: pnpm --filter @ketsuban/api test
       - name: web tests
         timeout-minutes: 8
         run: pnpm --filter @ketsuban/web test

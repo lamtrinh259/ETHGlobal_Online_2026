@@ -218,9 +218,21 @@ type RawRecord = {
   payload: Hex;
 };
 
-/** Poll forever; a failed tick is logged and retried on the next interval. */
-export function startIndexer(indexer: Indexer, everySeconds: number): { stop: () => void } {
+/**
+ * Poll forever; a failed tick is logged and retried on the next interval.
+ *
+ * `stop` is awaitable and immediate: it wakes the sleeping loop rather than letting a shutdown wait out
+ * a whole interval, and the timer is unreferenced so a pending sleep never holds the process open.
+ */
+export function startIndexer(indexer: Indexer, everySeconds: number): { stop: () => Promise<void> } {
   let stopped = false;
+  let wake: (() => void) | undefined;
+  const sleep = (ms: number) =>
+    new Promise<void>((resolve) => {
+      wake = resolve;
+      const timer = setTimeout(resolve, ms);
+      timer.unref?.();
+    });
   const run = async () => {
     while (!stopped) {
       try {
@@ -229,9 +241,15 @@ export function startIndexer(indexer: Indexer, everySeconds: number): { stop: ()
       } catch (err) {
         console.error(`index tick failed · ${(err as Error).message}`);
       }
-      await new Promise((r) => setTimeout(r, everySeconds * 1000));
+      if (!stopped) await sleep(everySeconds * 1000);
     }
   };
-  void run();
-  return { stop: () => void (stopped = true) };
+  const finished = run();
+  return {
+    stop: async () => {
+      stopped = true;
+      wake?.();
+      await finished;
+    },
+  };
 }

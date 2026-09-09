@@ -232,6 +232,18 @@ describe("Indexer", () => {
     expect(fresh.recordsByDomain("kju-is")).toEqual([]);
   });
 
+  it("stops polling at once, and waits for the loop to finish", async () => {
+    // A shutdown should not sit through a whole interval, and nothing should still be ticking after it.
+    const { source } = fakeSource(10n, []);
+    const indexer = new Indexer(source, MULTIPASS, 1n);
+    const loop = startIndexer(indexer, 3600);
+    await vi.waitFor(() => expect(source.head).toHaveBeenCalled());
+    const before = (source.head as ReturnType<typeof vi.fn>).mock.calls.length;
+    await loop.stop();
+    await new Promise((r) => setTimeout(r, 20));
+    expect((source.head as ReturnType<typeof vi.fn>).mock.calls.length).toBe(before);
+  });
+
   it("survives an unreadable snapshot directory and a failing tick", async () => {
     const indexer = new Indexer(fakeSource(10n, []).source, MULTIPASS, 1n, { dataDir: "/proc/nope" });
     const errors: string[] = [];
@@ -247,7 +259,9 @@ describe("Indexer", () => {
     };
     const loop = startIndexer(new Indexer(broken, MULTIPASS, 1n), 0.01);
     await vi.waitFor(() => expect(errors.some((e) => e.includes("index tick failed · dRPC 429"))).toBe(true));
-    loop.stop();
+    // Awaited: a stop that only sets a flag leaves the loop running into the next test, and its timer
+    // keeps the process alive after the file is done.
+    await loop.stop();
     spy.mockRestore();
   });
 });
