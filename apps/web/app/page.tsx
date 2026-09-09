@@ -25,7 +25,8 @@ export default function Home() {
           <span className="door-k">I&apos;m a candidate</span>
           <span className="door-t">Claim your name</span>
           <span className="door-d muted">
-            Sign in, pick a handle, answer the questions employers ask, share one link.
+            Sign in, pick a handle, answer the questions employers ask, share one link. Letters written for
+            you before you arrived attach when you claim it.
           </span>
         </Link>
         <Link href="/vouch" className="door">

@@ -72,7 +72,8 @@ export function ClaimFlow({ renew }: { renew?: string }) {
         ) : (
           <p className="muted">
             One handle, 1–31 characters. It becomes <code>&lt;handle&gt;.{root?.parentName}</code>, which
-            anyone can resolve without this app.
+            anyone can resolve without this app. If a university or employer already wrote for this handle,
+            claiming it attaches their letters to you.
           </p>
         )}
         {!loading && !handle && current && (

@@ -125,12 +125,19 @@ export function Dashboard() {
             </small>
           </p>
         ) : (
-          <p>
-            Nobody can vouch for you until you have a name.{" "}
-            <Link href="/claim" className="primary">
-              Claim yours →
-            </Link>
-          </p>
+          <>
+            <p>
+              A name is what references attach to.{" "}
+              <Link href="/claim" className="primary">
+                Claim yours →
+              </Link>
+            </p>
+            <p className="muted">
+              An organisation can already have written for a handle you have not claimed — claim it and those
+              letters attach to it. People who know you need your name to exist first, because their
+              invitation is signed by the wallet that holds it.
+            </p>
+          </>
         )}
       </Step>
 

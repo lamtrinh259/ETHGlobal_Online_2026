@@ -6,7 +6,7 @@ identity is Privy (embedded wallet, identity token); the view-code key stays on 
 | Route | Who | What |
 |---|---|---|
 | `/` | everyone | Three doors: candidate, voucher, verifier; a returning user gets a dashboard/continue strip. |
-| `/claim` | candidate | The same numbered groups as the profile: pick your name, then one group per question, then share. Resumes from live records; `?renew=<domain>` republishes one record under the held handle. |
+| `/claim` | candidate | Says plainly that an organisation may already have written for an unclaimed handle, and that claiming attaches those letters. The same numbered groups as the profile: pick your name, then one group per question, then share. Resumes from live records; `?renew=<domain>` republishes one record under the held handle. |
 | `/p/<handle>` | verifier / agent | Reads the whole candidate in one call (`GET /v1/profile/:handle`). An unclaimed handle with references waiting says so and links to `/claim`, which is how a graduate finds a letter written before they arrived. The reference page: identity, answers, linked accounts, humanity, graded by a policy (`?answers=&minLinks=&humanity=1`), with the raw names to resolve yourself. |
 | `/verify` | verifier | Policy presets (hiring, landlord, DAO, open) or custom → `/p/<handle>?…&preset=`. A wallet address instead of a handle goes to `/w/<address>`. |
 | `/w/<address>` | verifier | What one wallet holds: live names, attested accounts (masked or public), and the references it wrote. Ungraded on purpose; an address carries no policy. |
