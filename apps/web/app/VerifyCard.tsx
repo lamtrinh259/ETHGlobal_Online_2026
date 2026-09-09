@@ -41,6 +41,13 @@ export function VerifyCard({ v }: { v: Verification }) {
                       : l.optedIn
                         ? "verified, masked — needs a view code"
                         : "verified"}
+                    {/* Read it back yourself: the name resolves for anyone, this page is not the source. */}
+                    {l.ensName && (
+                      <>
+                        {" · "}
+                        <code>{l.ensName}</code>
+                      </>
+                    )}
                   </li>
                 ))}
               </ul>

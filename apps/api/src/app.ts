@@ -881,6 +881,9 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
         chain.resolveText(r, name, "email"),
       ]);
     const active = wallet !== "0x0000000000000000000000000000000000000000";
+    const mounts = new Map((await chain.instances()).map((i) => [i.domain, i]));
+    // The label the person holds: what the private branch names their masked accounts after.
+    const held = name.split(".")[0] ?? "";
     const links = active
       ? await Promise.all(
           opts.linkDomains.map(async (domain) => {
@@ -900,9 +903,17 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
                 disclosed = undefined;
               }
             }
+            // The name a verifier can check in any ENS client: the account's own where it is public,
+            // and the person's in the private branch where it is not.
+            const mount = mounts.get(domain);
+            const label = optedIn ? held : readable(fromBytes32(record.name))?.toLowerCase();
+            const parent = optedIn ? mount?.maskedParentName : mount?.parentName;
+            const ensName =
+              parent && label && /^[a-z0-9_-]{1,63}$/.test(label) ? `${label}.${parent}` : null;
             return {
               domain,
               optedIn,
+              ensName,
               ...(optedIn ? { commitment: record.payload } : {}),
               ...(disclosed ? { disclosed } : {}),
             };

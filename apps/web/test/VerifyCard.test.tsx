@@ -22,6 +22,25 @@ const base: Verification = {
 };
 
 describe("VerifyCard", () => {
+  it("shows the name each account answers at, so a verifier can read it back themselves", () => {
+    render(
+      <VerifyCard
+        v={{
+          ...base,
+          links: [
+            { domain: "x.com", optedIn: false, ensName: "alice_x.com.x.www.ketsuban.eth" },
+            { domain: "google.com", optedIn: true, commitment: "0x02", ensName: "alice.com.google.private-www.ketsuban.eth" },
+          ],
+        }}
+      />
+    );
+    const links = screen.getByTestId("links");
+    expect(links).toHaveTextContent("alice_x.com.x.www.ketsuban.eth");
+    // Even the private one has a name: it says the person is there, not which account.
+    expect(links).toHaveTextContent("alice.com.google.private-www.ketsuban.eth");
+    expect(links).toHaveTextContent("masked");
+  });
+
   it("renders an active record with disclosed, masked and public links, and the warning", () => {
     render(<VerifyCard v={base} />);
     expect(screen.getByRole("heading", { name: "alice.ketsuban.eth" })).toBeInTheDocument();

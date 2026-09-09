@@ -651,10 +651,13 @@ describe("GET /v1/verify/:name", () => {
       {
         domain: "x",
         optedIn: true,
+        // The flat mount has no private branch, so a masked account there has no name to offer.
+        ensName: null,
         commitment: masked.payload,
         disclosed: { handle: "alice_x", platformId: "42" },
       },
-      { domain: "telegram", optedIn: false },
+      // Telegram is not mounted in this deployment, so there is no name to check either.
+      { domain: "telegram", optedIn: false, ensName: null },
     ]);
     expect(body.evidence).toEqual([
       "wallet_binding",
@@ -687,7 +690,9 @@ describe("GET /v1/verify/:name", () => {
     const body = await (
       await app(chain).request(`/v1/verify/alice.kju-is.eth?links=x&viewCode=${keccak256("0x03")}`)
     ).json();
-    expect(body.links).toEqual([{ domain: "x", optedIn: true, commitment: viewCodeCommitment(viewCode) }]);
+    expect(body.links).toEqual([
+      { domain: "x", optedIn: true, ensName: null, commitment: viewCodeCommitment(viewCode) },
+    ]);
   });
 });
 
@@ -1519,7 +1524,29 @@ describe("what a verifier is shown without asking", () => {
     });
     const body = await (await app(chain).request(`/v1/verify/alice.${instance.parentName}`)).json();
     expect(body.evidence).toContain("x_account_control");
-    expect(body.links).toContainEqual({ domain: "x.com", optedIn: false });
+    // A name the verifier can check for themselves, in any ENS client.
+    expect(body.links).toContainEqual({
+      domain: "x.com",
+      optedIn: false,
+      ensName: "alice_x.com.x.www.kju-is.eth",
+    });
+  });
+
+  it("names a masked account after the person, so even a private link is checkable", async () => {
+    const masked = `0x${toBytes32("x").slice(2)}${toBytes32("1").slice(2)}${toBytes32("commit").slice(2)}`;
+    const { chain } = fakeChain({
+      instances: [instance, xComInstance],
+      addr: user.account.address,
+      data: { "ketsuban:link:x.com": masked },
+    });
+    const body = await (await app(chain).request(`/v1/verify/alice.${instance.parentName}`)).json();
+    expect(body.links[0]).toMatchObject({
+      domain: "x.com",
+      optedIn: true,
+      ensName: "alice.com.x.private-www.kju-is.eth",
+    });
+    // The account's own name is never published: only the person's.
+    expect(body.links[0].disclosed).toBeUndefined();
   });
 });
 

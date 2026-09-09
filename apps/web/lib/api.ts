@@ -33,6 +33,8 @@ export const verifySchema = z.object({
     z.object({
       domain: z.string(),
       optedIn: z.boolean(),
+      /** The name this account answers at, which anyone can check in their own ENS client */
+      ensName: z.string().nullable().optional(),
       commitment: z.string().optional(),
       disclosed: z.object({ handle: z.string(), platformId: z.string() }).optional(),
     })
