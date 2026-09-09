@@ -14,6 +14,7 @@ import {
 import { decodeRecord, fromBytes32, isOptedIn } from "@peeramid-labs/multipass-client";
 import type { ChainReader, Instance } from "./chain.js";
 import type { Config } from "./config.js";
+import { PersistentSet } from "./store.js";
 
 const hex = z.string().regex(/^0x[0-9a-fA-F]*$/);
 const decimal = z.string().regex(/^\d+$/);
@@ -395,7 +396,7 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
    * Test-gas for the two transactions a wallet sends itself (profile records, own-name alias).
    * Once per wallet per process, only for wallets that hold a live name and sit below the amount.
    */
-  const toppedUp = new Set<string>();
+  const toppedUp = new PersistentSet("gas-topups", config.DATA_DIR || undefined);
   app.post("/v1/gas", async (c) => {
     if (config.GAS_TOPUP_WEI === 0n) return c.json({ error: "gas top-up disabled" }, 501);
     const body = z

@@ -1,3 +1,6 @@
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { bytesToHex, encodePacked, keccak256, zeroAddress, zeroHash, type Address, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
@@ -1205,6 +1208,24 @@ describe("POST /v1/gas", () => {
     const again = await post(a, "/v1/gas", body);
     expect(again.status).toBe(409);
     expect((await again.json()).error).toMatch(/already/);
+    expect(state.sent).toHaveLength(1);
+  });
+
+  it("remembers a top-up across a restart, so once per wallet means once", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "ketsuban-gas-"));
+    const { chain, state } = fakeChain({ byWallet: [live], balance: 0n });
+    const boot = () =>
+      createApp({
+        config: loadConfig({ ...baseEnv, GAS_TOPUP_WEI: "2000000000000000", DATA_DIR: dir }),
+        chain,
+        now: () => NOW,
+      });
+    expect((await post(boot(), "/v1/gas", body)).status).toBe(200);
+    expect(state.sent).toHaveLength(1);
+
+    // A redeploy used to hand the same wallet another payout.
+    const again = await post(boot(), "/v1/gas", body);
+    expect(again.status).toBe(409);
     expect(state.sent).toHaveLength(1);
   });
 
