@@ -15,70 +15,70 @@
   "namespace": {
     "discord.com": {
       "maskedParentName": "com.discord.private-www.ketsuban.eth",
-      "maskedRegistry": "0x6e0173Ab89F20c6Cb1696162081A77fbe3E4d321",
-      "maskedResolver": "0x704923a1ce373C074922968c8D7eb5462384C875",
+      "maskedRegistry": "0x15fCcD536b5d515f9405b106E7508c71575b4140",
+      "maskedResolver": "0x8ec94F51C01A5289604297bA19574364678E4fD3",
       "parentName": "com.discord.www.ketsuban.eth",
-      "registry": "0x44a82e461bfDC8bCDf9B380E415a3Fa1e6E08925",
-      "resolver": "0x46841157C5C3E085C1da323D9e0322970835032E"
+      "registry": "0xFd6436692Dc52ed44B35Ceae8d432604c915B096",
+      "resolver": "0xdc8Aec383F43977ec8D9bEC1014C5c67ce91fA07"
     },
     "github.com": {
       "maskedParentName": "com.github.private-www.ketsuban.eth",
-      "maskedRegistry": "0x765d2bB8EC7D4f7ad70C8Cc1C0BbAE143686C1b7",
-      "maskedResolver": "0xBd27afcDe920BBB62813c3e444AE74f94779a8f1",
+      "maskedRegistry": "0x8188b04671aE5534b247d7ebeC8E56885e3A9B97",
+      "maskedResolver": "0xe8f0403f01EE0D6F39c55023014CA833b8a115fE",
       "parentName": "com.github.www.ketsuban.eth",
-      "registry": "0xCcaDE4968C47605DFD9D0060E96B1eD289E28bF6",
-      "resolver": "0x5e15a53b97AF9062C7679f3E4d96Eb29bA66f275"
+      "registry": "0x38060F7B35486C4F7C8de1758d2C91f84843d5Ac",
+      "resolver": "0x983Ab545d4f851318D9C3C39acE5ad1844b6c824"
     },
     "gmail.com": {
       "maskedParentName": "com.gmail.private@.ketsuban.eth",
-      "maskedRegistry": "0x952b8039A83b14e04E3A432F0960A8F67Fe7C04e",
-      "maskedResolver": "0xc34ba0266dE1e2F9E9AacA510379d7f9ca4B1d92",
+      "maskedRegistry": "0x5316ea869D5F1Dc4C9d18Fb7C9a4Dad890d5E82F",
+      "maskedResolver": "0xac20fC32336edAcD11DC790F300d57E1edd20E25",
       "parentName": "com.gmail.@.ketsuban.eth",
-      "registry": "0xeb01112Ed26EbB79abdb17593c8315db888a949a",
-      "resolver": "0xc2bd6C3C2D68d029B0D30B167a57B576BbB09f1b"
+      "registry": "0x3541201C4FA762Aa5026cF002407501FA9DBBeC3",
+      "resolver": "0xcb8161eb43F61b6394642c30b5b69ABFdE3cCE3f"
     },
     "google.com": {
       "maskedParentName": "com.google.private-www.ketsuban.eth",
-      "maskedRegistry": "0x76b37207fA87A36E5E7A346Ff4cE64904ba6dD99",
-      "maskedResolver": "0x5EA7c638df930972D7058f67Dc1a368c9E4fD91E",
+      "maskedRegistry": "0xF086914A11893A50a7F29553E7eEA668541Aa440",
+      "maskedResolver": "0x60dC4Cd8a647f19A9154FA0Dc6BB2b2Ea3e3B134",
       "parentName": "com.google.www.ketsuban.eth",
-      "registry": "0x154a874bBb1169B68Dc314178D9FA500dE6C7bB4",
-      "resolver": "0xa2843adf35C4d44b32F52E679474383c54FE3E8E"
+      "registry": "0xacbBc3393fA854977C30B42E1D0D276Ad492FBBE",
+      "resolver": "0xC22DD8903275eAc19A968C76cA61B1E590bAbb47"
     },
     "linkedin.com": {
       "maskedParentName": "com.linkedin.private-www.ketsuban.eth",
-      "maskedRegistry": "0xe27495d203Fae6B3d828AF33e15313AB5C8C7D53",
-      "maskedResolver": "0xa4F4f5F1B30f5Dda3B879789f3f2B82f47c4d2e7",
+      "maskedRegistry": "0x1c7C029fdd9fe137268F6D4Ab69485ec30FEB808",
+      "maskedResolver": "0x4123A252E9A1EA663bE52d32b8823257B01d219C",
       "parentName": "com.linkedin.www.ketsuban.eth",
-      "registry": "0xb59397F521bf2b630727AED0089554A60108eD1b",
-      "resolver": "0x4263EB179847582c4282F48A229CA053A5bc735a"
+      "registry": "0x4a1E40e86DD2f501522B4454abC1Cdd7bCd34d7B",
+      "resolver": "0x3560ccbE0C854c8DF1A798677d59FD65d3a6E390"
     },
     "peeramid.xyz": {
       "maskedParentName": "xyz.peeramid.private@.ketsuban.eth",
-      "maskedRegistry": "0x32504fF016A5AB462AFf5313DC8d665cf87167d5",
-      "maskedResolver": "0x537Ea3A239b8bf10AE6EE7aa6C3d7B8Cb7b1Df7d",
+      "maskedRegistry": "0x1aB00f72cC46dd8903d5B0581d70aa0eA79d4B9e",
+      "maskedResolver": "0x30C498D07aC8F76cfC207F99c7dF013fA4C9813f",
       "parentName": "xyz.peeramid.@.ketsuban.eth",
-      "registry": "0xc2Aa4Ae1eD6928e42E8D4CcAc010499121451111",
-      "resolver": "0xd3912e67d2763DC48a184D344899DC552e743dB3"
+      "registry": "0xb3ABB4135dE16E78Fe53fC5827Bfd9058EdE1fD6",
+      "resolver": "0x0eD155f23eD4Fad7f5796fE42113255F44A02dFc"
     },
     "t.me": {
       "maskedParentName": "me.t.private-www.ketsuban.eth",
-      "maskedRegistry": "0x41e36640c8205e5A421964745e2b2C0c9E3396f8",
-      "maskedResolver": "0xB7D71a5ef6Eca090d231c0f62a26862CA2333fEF",
+      "maskedRegistry": "0x793E1D246c9429759680C21D59746017ADEF2e69",
+      "maskedResolver": "0x179c4c346C9ef69E4819a95a4f350D59b8A2Ca78",
       "parentName": "me.t.www.ketsuban.eth",
-      "registry": "0x3FA1aa112b60f537328c39f12fc23a1e9Fd3ce01",
-      "resolver": "0x09E52821AAeeFa62CA3d29975f426085cA25216e"
+      "registry": "0x959aDF834D2C1FdD876743b40c058EC96B4DeFE5",
+      "resolver": "0x3Ac88937535374f72fCc242b2dEFE787C9D9638f"
     },
     "x.com": {
       "maskedParentName": "com.x.private-www.ketsuban.eth",
-      "maskedRegistry": "0x948AdA265980bE1cCf45e08a29f49c16fBF11D65",
-      "maskedResolver": "0x831198290dc6BB8B50EA14016f85bf43d589EAa5",
+      "maskedRegistry": "0xafe6cE56cAA6EB716261F2115F620DCaeA66A431",
+      "maskedResolver": "0xBD89947cBD86fb992be433675EA2a02693BF2e5B",
       "parentName": "com.x.www.ketsuban.eth",
-      "registry": "0xA5baD6DB3736A86AD8939Be30905e3B518C8648A",
-      "resolver": "0xDD5098B0bEEA8D0b2615496a7396D6CE32B42f43"
+      "registry": "0x5FD37107CAe5C4981420F505b2Ce57ED8D4209Dc",
+      "resolver": "0x4b3e0eaE64b843537BFE49e9344fd2eb75c97A59"
     }
   },
-  "namespaceFactory": "0xf9B9691818bA23315Fb9E2F89ffA0866bdd549E1",
+  "namespaceFactory": "0x01c9c5cA5f9179b9Cce18Bb4b8542B448aCb6a59",
   "paymentToken": "0x768f42455a2d082e23ceef7d51e5787c82d67a39",
   "permissionedResolver": "0x4E2d9783cEFF2ed72CD77C14206b29fe246b24F7",
   "platformInstances": {

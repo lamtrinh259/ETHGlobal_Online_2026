@@ -90,7 +90,7 @@ Sepolia addresses and placeholders for the secrets:
 |---|---|
 | `RPC_URL`, `CHAIN_ID` | Sepolia RPC, `11155111` |
 | `MULTIPASS`, `BRIDGE`, `FACTORY` | from `deployments/11155111.json` |
-| `NAMESPACE_FACTORY` | `0xf9B9691818bA23315Fb9E2F89ffA0866bdd549E1` — the factory holding the DNS namespace, without which platform accounts have no name |
+| `NAMESPACE_FACTORY` | `0x01c9c5cA5f9179b9Cce18Bb4b8542B448aCb6a59` — the factory holding the DNS namespace, without which platform accounts have no name |
 | `RELAYER_KEY` | funded relayer EOA (Privy server wallet later) |
 | `PRIVY_APP_ID`, `PRIVY_VERIFICATION_KEY_JWK` | app id, P-256 JWK from the JWKS endpoint |
 | `NAME_DOMAINS` | comma-separated instance domains |
@@ -184,7 +184,7 @@ address; until then treat this deployment as a demo.
 ## The DNS namespace
 
 Sepolia carries two factories. The original one made the root instance and the flat platform mounts;
-`0xf9B9691818bA23315Fb9E2F89ffA0866bdd549E1` carries the DNS namespace described in
+`0x01c9c5cA5f9179b9Cce18Bb4b8542B448aCb6a59` carries the DNS namespace described in
 [namespace.md](namespace.md), because the first predates `createMirror` and cannot build it. The bridge
 keeps using the original and skips quietly for domains it does not know, so records written into the new
 instances go through unchanged. The API reads both, and the later one wins for a domain both know.
@@ -231,3 +231,8 @@ Three details the ENSv2 Sepolia registrar does not document, each found the hard
   reverts, again with no data.
 - The minted name **does not transfer** — `safeTransferFrom` on the registry reverts — so a relay cannot
   register on someone's behalf and hand it over. That is why this is a wallet flow rather than an API.
+
+A deployment made before the resolver learned to answer for its own children only should be rebuilt:
+`script/SetRootResolver.s.sol` repairs the fallback, and re-running `script/DeployFactory.s.sol` plus
+`script/AddNamespace.s.sol` against the new factory replaces the instances and mirrors with ones that
+carry the check themselves. The grouping levels are reused, so only the mounts change.
