@@ -10,6 +10,8 @@ export default defineConfig({
     globals: true,
     setupFiles: ["./test/setup.ts"],
     include: ["test/**/*.test.{ts,tsx}"],
+    // Same reason as the api: a small runner deadlocks the pool, and these files are fast anyway.
+    fileParallelism: !process.env.CI,
     coverage: {
       provider: "v8",
       include: ["lib/**/*.ts", "app/VerifyCard.tsx", "app/ui.ts"],
