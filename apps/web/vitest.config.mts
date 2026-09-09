@@ -14,6 +14,8 @@ export default defineConfig({
     fileParallelism: !process.env.CI,
     coverage: {
       provider: "v8",
+      // Same as the api: text is what a log shows, and the rest is minutes of writing files.
+      reporter: ["text"],
       include: ["lib/**/*.ts", "app/VerifyCard.tsx", "app/ui.ts"],
       thresholds: { lines: 90, functions: 90, branches: 80 },
     },

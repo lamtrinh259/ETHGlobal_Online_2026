@@ -38,15 +38,14 @@ jobs:
       - run: pnpm --filter @ketsuban/registrar test
       - run: pnpm --filter @ketsuban/contracts test
       - run: pnpm --filter @ketsuban/cre-attest test
-      # Two steps, each bounded by the runner rather than by a shell `timeout`, which kills the parent
-      # and leaves the workers holding the step open. Verbose, so a stall names the test it stalled on.
-      - name: api tests, without the chain stubs
+      # Bounded by the runner, not by a shell `timeout`: that kills the parent and leaves the workers
+      # holding the step open.
+      - name: api tests
         timeout-minutes: 6
-        run: pnpm --filter @ketsuban/api exec vitest run --reporter=verbose --exclude "test/unit/chain.test.ts"
-      - name: api chain stubs
-        timeout-minutes: 6
-        run: pnpm --filter @ketsuban/api exec vitest run --reporter=verbose test/unit/chain.test.ts
-      - run: pnpm --filter @ketsuban/web test
+        run: pnpm --filter @ketsuban/api test
+      - name: web tests
+        timeout-minutes: 8
+        run: pnpm --filter @ketsuban/web test
 
   e2e:
     runs-on: ubuntu-latest
