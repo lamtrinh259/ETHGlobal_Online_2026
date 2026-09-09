@@ -28,7 +28,8 @@ export function whoAmI(user: LinkedAccounts | null | undefined, wallet?: string)
   const tg = user?.telegram?.username;
   if (tg) return { label: `@${tg}`, source: "telegram" };
   const dc = user?.discord?.username;
-  if (dc) return { label: dc, source: "discord" };
+  // Discord writes `peersky#0` for an account with no discriminator; nobody calls themselves that.
+  if (dc) return { label: dc.split("#")[0] || dc, source: "discord" };
   const goog = user?.google?.email;
   if (goog) return { label: goog, source: "google" };
   const mail = user?.email?.address;
@@ -43,7 +44,7 @@ export function linkedDomains(user: LinkedAccounts | null | undefined): string[]
     ["x", user?.twitter?.username],
     ["github", user?.github?.username],
     ["telegram", user?.telegram?.username],
-    ["discord", user?.discord?.username],
+    ["discord", user?.discord?.username?.split("#")[0]],
     ["google", user?.google?.email],
     ["email", user?.email?.address],
   ];
@@ -58,7 +59,7 @@ export function connectedAccounts(user: LinkedAccounts | null | undefined): Conn
     ["x", user?.twitter?.username ? `@${user.twitter.username}` : null],
     ["github", user?.github?.username],
     ["telegram", user?.telegram?.username ? `@${user.telegram.username}` : null],
-    ["discord", user?.discord?.username],
+    ["discord", user?.discord?.username?.split("#")[0]],
     ["google", user?.google?.email],
     ["email", user?.email?.address],
   ];

@@ -11,7 +11,8 @@ describe("whoAmI", () => {
     });
     expect(whoAmI({ github: { username: "gh" } })).toEqual({ label: "gh", source: "github" });
     expect(whoAmI({ telegram: { username: "tg" } })).toEqual({ label: "@tg", source: "telegram" });
-    expect(whoAmI({ discord: { username: "dc#1" } })).toEqual({ label: "dc#1", source: "discord" });
+    expect(whoAmI({ discord: { username: "dc#1" } })).toEqual(// Discord writes `#0` for an account with no discriminator, and nobody calls themselves that.
+      { label: "dc", source: "discord" });
     expect(whoAmI({ google: { email: "a@b.com" } })).toEqual({ label: "a@b.com", source: "google" });
     expect(whoAmI({ email: { address: "c@d.com" } })).toEqual({ label: "c@d.com", source: "email" });
     expect(whoAmI({ id: "did:privy:x" }, WALLET)).toEqual({ label: "0xD70B…94a0", source: "wallet" });

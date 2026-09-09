@@ -84,7 +84,10 @@ export function ReadPermission({ api, links, name }: Props) {
         {masked.map((l) => (
           <li key={l.domain} data-testid={`allow-${l.domain}`}>
             <span className="acct-who">{l.domain}</span>
-            <small className="muted">private</small>
+            {/* Two records for one platform look identical without the name each answers at. */}
+            <small className="muted">
+              {l.ensName ? <code>{l.ensName}</code> : "private, unnamed"}
+            </small>
             <span className="acct-state">
               <button onClick={() => allow(l.domain)} disabled={busy === l.domain}>
                 {busy === l.domain ? "signing…" : "Allow reading"}
