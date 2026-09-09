@@ -933,6 +933,8 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
       vouches: records.map((r) => ({
         voucher: r.name,
         voucherName: rootParent ? `${r.name}.${rootParent}` : null,
+        // The reference is itself a name, in the candidate's own namespace: `<voucher>.<candidate>.<root>`.
+        ensName: vouchInstance ? `${r.name}.${vouchInstance.parentName}` : null,
         wallet: r.wallet,
         statement: fromBytes32(r.payload),
         validUntil: new Date(Number(r.validUntil) * 1000).toISOString(),

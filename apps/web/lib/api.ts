@@ -62,6 +62,8 @@ export const vouchesSchema = z.object({
     z.object({
       voucher: z.string(),
       voucherName: z.string().nullable(),
+      /** The reference's own name, in the candidate's namespace */
+      ensName: z.string().nullable().optional(),
       wallet: z.string(),
       statement: z.string(),
       validUntil: z.string(),

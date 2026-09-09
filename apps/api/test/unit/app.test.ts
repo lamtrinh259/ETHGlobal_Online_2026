@@ -794,6 +794,8 @@ describe("GET /v1/vouches/:handle", () => {
         {
           voucher: "bob",
           voucherName: "bob.kju-is.eth",
+          // The reference is a name of its own, in the candidate's namespace.
+          ensName: "bob.alice.kju-is.eth",
           wallet: user.account.address,
           statement: "worked together 2019-22",
           validUntil: "2027-01-15T08:00:00.000Z",
@@ -805,6 +807,7 @@ describe("GET /v1/vouches/:handle", () => {
         {
           voucher: "carol",
           voucherName: "carol.kju-is.eth",
+          ensName: "carol.alice.kju-is.eth",
           wallet: zeroAddress,
           statement: "revoked",
           validUntil: "2023-11-14T22:13:20.000Z",

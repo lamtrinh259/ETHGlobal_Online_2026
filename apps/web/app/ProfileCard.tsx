@@ -155,6 +155,15 @@ export function ProfileCard({ p, rootParent, policy }: { p: Profile; rootParent:
               )}
               <span className="vouch-meta muted">
                 {v.live ? "live" : "expired"} · until {fmtUtc(v.validUntil)}
+                {/* The reference is a name of its own: read it anywhere, not only here. */}
+                {v.ensName && (
+                  <>
+                    {" · "}
+                    <Link href={`/v/${v.ensName}`}>
+                      <code>{v.ensName}</code>
+                    </Link>
+                  </>
+                )}
               </span>
             </li>
           ))}

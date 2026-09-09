@@ -22,6 +22,7 @@ const profile: Profile = {
     {
       voucher: "bob",
       voucherName: "bob.ketsuban.eth",
+      ensName: "bob.alice.ketsuban.eth",
       wallet: "0x1",
       statement: "worked together 2019-22",
       validUntil: "2027-01-01T00:00:00.000Z",
@@ -49,6 +50,17 @@ const profile: Profile = {
 };
 
 describe("ProfileCard", () => {
+  it("shows each reference as the name it is, linked to its own page", () => {
+    render(<ProfileCard p={profile} rootParent="ketsuban.eth" />);
+    const vouches = screen.getByTestId("vouches");
+    // A reference is a name in the candidate's namespace, readable without this page.
+    expect(vouches).toHaveTextContent("bob.alice.ketsuban.eth");
+    expect(screen.getByRole("link", { name: "bob.alice.ketsuban.eth" })).toHaveAttribute(
+      "href",
+      "/v/bob.alice.ketsuban.eth"
+    );
+  });
+
   it("renders checks with marks, answers, masked links and the warning", () => {
     render(
       <ProfileCard
