@@ -372,7 +372,7 @@ describe("a record lands in the DNS domain of its account", () => {
     ).rejects.toThrow(/not an account at gmail.com/);
   });
 
-  it("masks the label so the private branch still has one to point at", async () => {
+  it("masks the address exactly, since nothing about it is published", async () => {
     const res = await attest(
       await signedRequest(makeIntent({ domain: "example.com", optIn: true })),
       noRecord,
@@ -380,7 +380,11 @@ describe("a record lands in the DNS domain of its account", () => {
       at("example.com")
     );
     const viewCode = deriveViewCode(secrets.viewcodeKey, "example.com", "alice@example.com");
-    expect(decodeRecord(res.record, viewCode)).toEqual({ handle: "alice", platformId: "alice@example.com" });
+    // Whoever is given the view code should read the address the platform issued, not a trimmed label.
+    expect(decodeRecord(res.record, viewCode)).toEqual({
+      handle: "alice@example.com",
+      platformId: "alice@example.com",
+    });
   });
 });
 
@@ -411,5 +415,46 @@ describe("a handle that cannot be an ENS label", () => {
       { ...env, platformDomains: ["discord.com"] }
     );
     expect(fromBytes32(kept.record.name)).toBe("a b");
+  });
+});
+
+describe("a private account publishes nothing about itself", () => {
+  it("masks the handle exactly as the platform writes it, discriminator included", async () => {
+    // Opting in is the answer to "the chain must not say which account this is": the name on chain is
+    // a one-time pad over the handle, so the handle's shape never mattered in the first place.
+    const linked = [
+      { type: "wallet", address: userAccount.address, chain_type: "ethereum" },
+      { type: "discord_oauth", subject: "77", username: "peersky#0" },
+    ];
+    const res = await attest(
+      await signedRequest(makeIntent({ domain: "discord.com", optIn: true }), mintIdToken(linked)),
+      noRecord,
+      secrets,
+      { ...env, platformDomains: ["discord.com"] }
+    );
+    const viewCode = deriveViewCode(secrets.viewcodeKey, "discord.com", "77");
+    expect(decodeRecord(res.record, viewCode)).toEqual({ handle: "peersky#0", platformId: "77" });
+    // Nothing readable is published: the stored name is the pad, not the handle.
+    expect(fromBytes32(res.record.name)).not.toContain("peersky");
+    expect(res.record.payload).not.toBe(zeroHash);
+  });
+
+  it("falls back to the label when the handle is too long to be a name at all", async () => {
+    // A Multipass name is 31 bytes. A longer address still gets a record; the view code opens the part
+    // that fits, which is the label the namespace knows it by.
+    const long = `${"a".repeat(40)}@example.com`;
+    const linked = [
+      { type: "wallet", address: userAccount.address, chain_type: "ethereum" },
+      { type: "email", address: long },
+    ];
+    const res = await attest(
+      await signedRequest(makeIntent({ domain: "example.com", optIn: true }), mintIdToken(linked)),
+      noRecord,
+      secrets,
+      { ...env, platformDomains: ["example.com"] }
+    );
+    const viewCode = deriveViewCode(secrets.viewcodeKey, "example.com", long);
+    // The local part is what fits, so that is what a view code opens.
+    expect(decodeRecord(res.record, viewCode).handle).toBe("a".repeat(31));
   });
 });

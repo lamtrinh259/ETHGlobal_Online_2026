@@ -1,12 +1,13 @@
 import { hmac } from "@noble/hashes/hmac";
 import { sha256 } from "@noble/hashes/sha256";
 import { concatBytes } from "@noble/hashes/utils";
-import { hexToBytes, keccak256, stringToBytes, zeroHash, type Hex } from "viem";
+import { bytesToHex, hexToBytes, keccak256, stringToBytes, zeroHash, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import {
   deriveViewCode,
   maskId,
   maskName,
+  padId,
   registerNameTypes,
   toBytes32,
   viewCodeCommitment,
@@ -66,6 +67,27 @@ export function isNameDomain(
 
 function isSupported(domain: string, env: AttestEnv): boolean {
   return isNameDomain(domain, env) || (env.platformDomains ?? PLATFORM_DOMAIN_NAMES).includes(domain);
+}
+
+/** Mask a platform id, hashing one too long to be stored verbatim so uniqueness survives. */
+function maskedId(subject: string, viewCode: Hex): Hex {
+  if (stringToBytes(subject).length <= 31) return maskId(subject, viewCode);
+  const pad = hexToBytes(padId(viewCode));
+  const id = hexToBytes(idToBytes32(subject));
+  return bytesToHex(id.map((b, i) => b ^ (pad[i] as number)));
+}
+
+/**
+ * What to store as the record's name: a Multipass name is a left-aligned bytes32, so 31 bytes is the
+ * whole budget. The handle as the platform writes it comes first, then the label it takes in its
+ * namespace, and a longer one is cut — a record that says something is better than a refusal, and for
+ * a masked record none of it is readable anyway.
+ */
+function storable(username: string, label?: string): string {
+  const fits = (v: string) => stringToBytes(v).length <= 31;
+  if (fits(username)) return username;
+  if (label && fits(label)) return label;
+  return new TextDecoder().decode(stringToBytes(username).slice(0, 31)).replace(/\uFFFD+$/, "");
 }
 
 /** Fit a platform id into bytes32: verbatim when it fits, keccak otherwise (never throws) */
@@ -207,14 +229,18 @@ export async function attestConfidential(
     const acct: PlatformAccount & { label?: string } = dnsDomain
       ? pickAccountFor(linked, intent.domain)
       : pickPlatformAccount(linked, intent.domain);
-    const named = acct.label ?? acct.username;
+    // A masked record carries the handle exactly as the platform writes it, because nothing about it
+    // reaches the chain: the name is a one-time pad, and only a view code opens it. The label rule is
+    // for public records, which are read as a name.
     if (intent.optIn) {
       viewCode = deriveViewCode(secrets.viewcodeKey, intent.domain, acct.subject);
-      name = maskName(named, viewCode);
-      id = maskId(acct.subject, viewCode);
+      name = maskName(storable(acct.username, acct.label), viewCode);
+      // A platform id longer than a name can hold is hashed first, so two long ids can never collide
+      // into one record; the mask is the same either way.
+      id = maskedId(acct.subject, viewCode);
       payload = viewCodeCommitment(viewCode);
     } else {
-      name = toBytes32(named);
+      name = toBytes32(storable(acct.label ?? acct.username, acct.label));
       id = idToBytes32(acct.subject);
       payload = zeroHash;
     }
