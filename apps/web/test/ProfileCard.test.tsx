@@ -133,7 +133,7 @@ describe("ProfileCard", () => {
     render(<ProfileCard p={{ ...profile, identity: undefined, wallet: null }} rootParent="ketsuban.eth" />);
     const waiting = screen.getByTestId("waiting");
     expect(waiting).toHaveTextContent("1 reference is already written for it");
-    expect(waiting.querySelector("a")).toHaveAttribute("href", "/claim");
+    expect(waiting.querySelector("a")).toHaveAttribute("href", "/me");
 
     // Nothing to claim, nothing to say: with no live reference there is no banner.
     const { container } = render(

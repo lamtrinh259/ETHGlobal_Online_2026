@@ -1,23 +1,10 @@
-import { loadWebConfig } from "@/lib/config";
-import { ClaimFlow } from "./ClaimFlow";
+import { redirect } from "next/navigation";
 
-export const metadata = { title: "Claim your name" };
-
+/**
+ * Claiming used to be its own page, which split the candidate across two screens that each knew half
+ * the state. Everything a candidate does now lives on the profile, so this only forwards old links.
+ */
 export default async function ClaimPage({ searchParams }: { searchParams: Promise<{ renew?: string }> }) {
-  const { renew } = await searchParams;
-  const config = loadWebConfig();
-  const [root, ...subjects] = config.instances;
-  return (
-    <>
-      <section className="hero">
-        <h1>Claim your name</h1>
-        <p>
-          Three steps: sign in, claim <code>&lt;handle&gt;.{root?.parentName}</code>, then answer{" "}
-          {subjects.length === 1 ? "the question" : "the questions"} employers ask. Each answer is its own
-          permanent name under yours.
-        </p>
-      </section>
-      <ClaimFlow renew={renew} />
-    </>
-  );
+  await searchParams;
+  redirect("/me");
 }

@@ -30,12 +30,10 @@ test("the vouch page explains every step in the voucher's own words", async ({ p
   await expect(steps.nth(2)).toContainText("Write and sign the reference for alice");
 });
 
-test("claim and vouch journeys show their steps and the sign-in gate", async ({ page }) => {
+test("the profile and the vouch journey show their steps and the sign-in gate", async ({ page }) => {
+  // Claiming lives on the profile now; the old link still gets there.
   await page.goto("/claim");
-  // One numbered group per thing to do: the name, then one per question.
-  await expect(page.locator(".dash-step")).toHaveCount(2);
-  await expect(page.getByTestId("step-1")).toContainText("Pick your name");
-  await expect(page.getByTestId("step-2")).toContainText("Pick your name first");
+  await expect(page).toHaveURL(/\/me$/);
   await expect(page.getByTestId("signin")).toBeVisible({ timeout: 20000 });
 
   await page.goto("/vouch/alice");
@@ -77,14 +75,14 @@ test("the dashboard is behind the sign-in gate", async ({ page }) => {
   await expect(page.getByTestId("signin")).toBeVisible({ timeout: 20000 });
 });
 
-test("renewal deep link keeps the claim page behind the sign-in gate", async ({ page }) => {
+test("an old renewal link lands on the profile", async ({ page }) => {
   await page.goto("/claim?renew=ketsuban");
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Claim your name");
-  await expect(page.getByTestId("signin")).toBeVisible({ timeout: 20000 });
+  await expect(page).toHaveURL(/\/me$/);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Your page");
 });
 
 test("the header carries the identity, not the forms", async ({ page }) => {
-  await page.goto("/claim");
+  await page.goto("/me");
   await expect(page.getByTestId("who")).toHaveCount(0);
   await expect(page.locator("main")).not.toContainText("signed in as");
 });

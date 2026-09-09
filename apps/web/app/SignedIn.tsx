@@ -23,7 +23,7 @@ export function SignedIn() {
         Welcome back, <strong>{who}</strong>.
       </span>
       <Link href="/me">Your dashboard →</Link>
-      <Link href="/claim">Continue claiming →</Link>
+      <Link href="/me">Your profile →</Link>
     </p>
   );
 }

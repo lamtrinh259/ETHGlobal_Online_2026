@@ -12,10 +12,9 @@ import { useModalEscape } from "./useModalEscape";
 import { waveChars } from "./ui";
 
 const NAV = [
-  { href: "/claim", label: "Claim" },
+  { href: "/me", label: "My profile" },
   { href: "/vouch", label: "Vouch" },
   { href: "/verify", label: "Verify" },
-  { href: "/me", label: "Me" },
 ];
 
 /** A production page pointed at a loopback API cannot work: NEXT_PUBLIC_API_URL was missing at build time. */
@@ -27,7 +26,9 @@ export function apiMisconfigured(apiUrl: string, origin: string): boolean {
 /** A nav entry is active on its own route and its sub-routes; /verify also owns /p and /v pages. */
 export function isActive(path: string, href: string): boolean {
   if (path === href || path.startsWith(`${href}/`)) return true;
-  return href === "/verify" && (path.startsWith("/p/") || path.startsWith("/v/") || path.startsWith("/w/"));
+  if (href === "/verify") return path.startsWith("/p/") || path.startsWith("/v/") || path.startsWith("/w/");
+  // Claiming is part of the profile now; an old link still highlights the right entry.
+  return href === "/me" && path.startsWith("/claim");
 }
 
 function Wordmark() {

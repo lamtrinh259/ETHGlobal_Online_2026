@@ -28,7 +28,7 @@ test("landing renders the shell and the three doors without horizontal overflow"
   await expect(page.getByRole("heading", { level: 1 })).toContainText("cannot be");
   await expect(page.locator(".door")).toHaveCount(3);
   await noOverflow(page);
-  await page.goto("/claim");
+  await page.goto("/me");
   await expect(page.getByTestId("signin")).toBeVisible({ timeout: 20000 });
   await noOverflow(page);
 });
@@ -72,7 +72,7 @@ test("a misconfigured deployment says so before any form", async ({ page }) => {
   await page.route("**/v1/preflight", (route) =>
     route.fulfill({ status: 503, json: { ok: false, warnings: ['domain "google" is not initialised'] } })
   );
-  await page.goto("/claim");
+  await page.goto("/me");
   const banner = page.getByTestId("preflight");
   await expect(banner).toContainText("This deployment is not ready");
   await expect(banner).toContainText("google");
@@ -80,7 +80,7 @@ test("a misconfigured deployment says so before any form", async ({ page }) => {
   // A healthy deployment shows nothing.
   await page.unroute("**/v1/preflight");
   await page.route("**/v1/preflight", (route) => route.fulfill({ json: { ok: true, warnings: [] } }));
-  await page.goto("/claim");
+  await page.goto("/me");
   await expect(page.getByTestId("preflight")).toHaveCount(0);
 });
 

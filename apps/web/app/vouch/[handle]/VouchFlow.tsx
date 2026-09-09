@@ -219,7 +219,7 @@ export function VouchFlow({
             </p>
           )}
           <p>
-            <Link href="/claim">{handle ? "Collect references of your own →" : "Claim your name →"}</Link> ·{" "}
+            <Link href="/me">{handle ? "Collect references of your own →" : "Claim your name →"}</Link> ·{" "}
             <Link href={`/p/${candidate}`}>See {candidate}&apos;s page →</Link> ·{" "}
             <Link href="/me">Your dashboard →</Link>
           </p>

@@ -90,7 +90,7 @@ export function needsAttention(dash: WalletDashboard | undefined, nowMs: number,
         kind: "name" as const,
         label: n.ensName,
         daysLeft: left(n.validUntil),
-        href: `/claim?renew=${n.domain}`,
+        href: "/me",
       })),
     ...dash.links
       .filter((l) => soon(l.validUntil))
@@ -134,7 +134,7 @@ export function nameRows(dash: WalletDashboard | undefined, instances: Instances
       ensName: `${handle}.${i.parentName}`,
       live: live ? { payload: live.payload, validUntil: live.validUntil, nonce: live.nonce } : undefined,
       expired: !live && mine.length > 0,
-      href: live || idx === 0 ? `/claim?renew=${i.domain}` : "/claim",
+      href: `/me`,
     };
   });
 }

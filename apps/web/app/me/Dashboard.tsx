@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { formatEther, type Address } from "viem";
 import { WITHDRAWN } from "@ketsuban/registrar";
@@ -13,6 +13,9 @@ import type { Signer } from "@/lib/chain";
 import { nameRows, needsAttention } from "@/lib/journey";
 import { vouchRequest } from "@/lib/profile";
 import { Step } from "@/app/Step";
+import { AttestFlow } from "@/app/AttestFlow";
+import { Modal } from "@/app/Modal";
+import { questionFor } from "@/lib/questions";
 import { Accounts } from "./Accounts";
 import { InviteLink } from "./InviteLink";
 import { OwnName } from "./OwnName";
@@ -54,6 +57,9 @@ export function Dashboard() {
     ),
   ];
   const siteUrl = typeof window === "undefined" ? "" : window.location.origin;
+  // Claiming a name and answering a question are decisions, so each opens a dialog rather than
+  // unfolding another form into the page.
+  const [publishing, setPublishing] = useState<{ domain: string; title: string; answer?: string }>();
 
   if (!ready) return <p className="muted">loading…</p>;
   if (!authenticated) {
@@ -114,35 +120,52 @@ export function Dashboard() {
         </section>
       )}
 
-      <Step n={1} title="Your name" state={handle ? "done" : "now"}>
+      <Step n={1} title="Prove you are one real person" state="todo">
+        <p className="muted" data-testid="humanity">
+          A short face scan through World, so one person cannot run ten accounts. Partner access is pending,
+          so this stays open and nothing below waits on it.
+        </p>
+      </Step>
+
+      <Step n={2} title="Your accounts" state={liveLinks.length > 0 ? "done" : "now"}>
+        <Accounts links={d.links} onPublished={() => void dash.refetch()} />
+      </Step>
+
+      <Step n={3} title="Your name" state={handle ? "done" : liveLinks.length > 0 ? "now" : "todo"}>
         {handle && rootRow ? (
           <p>
             <Link href={`/p/${handle}`}>
               <code>{rootRow.ensName}</code>
             </Link>{" "}
             <small className="muted">
-              live until {fmtUtc(rootRow.live!.validUntil)} · <Link href={rootRow.href}>renew</Link>
+              live until {fmtUtc(rootRow.live!.validUntil)} ·{" "}
+              <button
+                className="linkish"
+                onClick={() => setPublishing({ domain: root!.domain, title: "Renew your name" })}
+              >
+                renew
+              </button>
             </small>
           </p>
         ) : (
           <>
-            <p>
-              A name is what references attach to.{" "}
-              <Link href="/claim" className="primary">
-                Claim yours →
-              </Link>
-            </p>
             <p className="muted">
-              An organisation can already have written for a handle you have not claimed — claim it and those
-              letters attach to it. People who know you need your name to exist first, because their
-              invitation is signed by the wallet that holds it.
+              A name is what references attach to. An organisation may already have written for a handle you
+              have not claimed — claim it and those letters attach to it.
             </p>
+            <button
+              className="primary"
+              onClick={() => setPublishing({ domain: root!.domain, title: "Claim your name" })}
+              data-testid="claim"
+            >
+              Claim your name
+            </button>
           </>
         )}
       </Step>
 
       {handle && subjectRows.length > 0 && (
-        <Step n={2} title="Your answers" state={answered.length === subjectRows.length ? "done" : "now"}>
+        <Step n={4} title="Your answers" state={answered.length === subjectRows.length ? "done" : "now"}>
           <p className="muted">Each answer is its own permanent name under yours.</p>
           <ul className="acct" data-testid="answers">
             {subjectRows.map((r) => (
@@ -150,7 +173,18 @@ export function Dashboard() {
                 <span className="acct-who">{r.live?.payload ? `“${r.live.payload}”` : "not answered"}</span>
                 <small className="muted">{r.domain}</small>
                 <span className="acct-state">
-                  <Link href={r.href}>{r.live ? "change" : "answer now"}</Link>
+                  <button
+                    className="linkish"
+                    onClick={() =>
+                      setPublishing({
+                        domain: r.domain,
+                        title: `Answer ${r.domain}`,
+                        answer: questionFor(r.domain),
+                      })
+                    }
+                  >
+                    {r.live ? "change" : "answer now"}
+                  </button>
                 </span>
               </li>
             ))}
@@ -158,19 +192,7 @@ export function Dashboard() {
         </Step>
       )}
 
-      <Step
-        n={handle && subjectRows.length > 0 ? 3 : 2}
-        title="Your accounts"
-        state={liveLinks.length > 0 ? "done" : "now"}
-      >
-        <Accounts links={d.links} onPublished={() => void dash.refetch()} />
-      </Step>
-
-      <Step
-        n={handle && subjectRows.length > 0 ? 4 : 3}
-        title="References"
-        state={liveVouchers.length > 0 ? "done" : handle ? "now" : "todo"}
-      >
+      <Step n={5} title="References" state={liveVouchers.length > 0 ? "done" : handle ? "now" : "todo"}>
         {handle ? (
           <>
             <p>
@@ -207,9 +229,12 @@ export function Dashboard() {
           <>
             <p className="muted">References attach to a name, so that comes first.</p>
             <p>
-              <Link href="/claim" className="primary">
-                Claim your name →
-              </Link>
+              <button
+                className="primary"
+                onClick={() => setPublishing({ domain: root!.domain, title: "Claim your name" })}
+              >
+                Claim your name
+              </button>
             </p>
           </>
         )}
@@ -242,6 +267,19 @@ export function Dashboard() {
           </>
         )}
       </Step>
+
+      {publishing && (
+        <Modal title={publishing.title} onClose={() => setPublishing(undefined)}>
+          <AttestFlow
+            key={publishing.domain}
+            fixedDomain={publishing.domain}
+            fixedHandle={handle}
+            title=""
+            answerLabel={publishing.answer}
+            onPublished={() => void dash.refetch()}
+          />
+        </Modal>
+      )}
 
       <details className="advanced" data-testid="advanced">
         <summary>Advanced: gas, ENS records, your own .eth, view codes</summary>

@@ -127,7 +127,7 @@ describe("needsAttention", () => {
     expect(needsAttention(soonDash, now)).toEqual([
       { kind: "link", label: "x link", daysLeft: -8, href: "/me#link" },
       { kind: "given", label: "reference for alice", daysLeft: 3, href: "/vouch/alice" },
-      { kind: "name", label: "bob.ketsuban.eth", daysLeft: 4, href: "/claim?renew=ketsuban" },
+      { kind: "name", label: "bob.ketsuban.eth", daysLeft: 4, href: "/me" },
     ]);
     expect(needsAttention(soonDash, now, 1)).toHaveLength(1);
     expect(needsAttention(undefined, now)).toEqual([]);
@@ -150,16 +150,16 @@ describe("nameRows", () => {
         ensName: "bob.ketsuban.eth",
         live: { payload: "", validUntil: "2027-01-01T00:00:00.000Z", nonce: "1" },
         expired: false,
-        href: "/claim?renew=ketsuban",
+        href: "/me",
       },
       {
         domain: "kju-is",
         ensName: "bob.kju-is.ketsuban.eth",
         live: { payload: "terrible dictator", validUntil: "2027-01-01T00:00:00.000Z", nonce: "1" },
         expired: false,
-        href: "/claim?renew=kju-is",
+        href: "/me",
       },
-      { domain: "uni", ensName: "bob.uni.ketsuban.eth", live: undefined, expired: true, href: "/claim" },
+      { domain: "uni", ensName: "bob.uni.ketsuban.eth", live: undefined, expired: true, href: "/me" },
     ]);
     expect(nameRows(undefined, three)).toEqual([]);
   });

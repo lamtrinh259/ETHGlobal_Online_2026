@@ -21,9 +21,9 @@ export default function Home() {
       <SignedIn />
 
       <div className="doors">
-        <Link href="/claim" className="door">
+        <Link href="/me" className="door">
           <span className="door-k">I&apos;m a candidate</span>
-          <span className="door-t">Claim your name</span>
+          <span className="door-t">Build your profile</span>
           <span className="door-d muted">
             Sign in, pick a handle, answer the questions employers ask, share one link. Letters written for
             you before you arrived attach when you claim it.
