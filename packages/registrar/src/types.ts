@@ -108,6 +108,11 @@ export type AttestEnv = {
   /** Record term in seconds; default 30 days */
   termSeconds?: number;
   /**
+   * Labels a person may not claim in a name domain; default `RESERVED_HANDLES`. Each platform has its
+   * own instance under the root, so those labels are namespaces rather than free handles.
+   */
+  reservedHandles?: readonly string[];
+  /**
    * Multipass domain whose holders are onboarded organisations; they may issue references uninvited.
    * Default "org".
    */

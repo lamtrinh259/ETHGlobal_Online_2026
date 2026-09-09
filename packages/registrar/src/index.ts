@@ -6,6 +6,7 @@ export {
   idToBytes32,
   isNameDomain,
   DEFAULT_NAME_DOMAIN_PREFIXES,
+  RESERVED_HANDLES,
 } from "./attest.js";
 export { INTENT_TYPES, intentDomain, recoverIntentSigner, signIntent } from "./intent.js";
 export { signRecord } from "./attest.js";

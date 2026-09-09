@@ -100,7 +100,11 @@ export function AttestFlow({
   const nameStatus = useNameStatus(api, domain, debounced, isNameDomain && !fixedHandle);
   const answerBytes = new TextEncoder().encode(answer).length;
   const takenByOther =
-    !!nameStatus.data?.taken && !!wallet && nameStatus.data.wallet?.toLowerCase() !== wallet.toLowerCase();
+    !!nameStatus.data?.taken &&
+    !nameStatus.data.reserved &&
+    !!wallet &&
+    nameStatus.data.wallet?.toLowerCase() !== wallet.toLowerCase();
+  const reserved = nameStatus.data?.handle === debounced && !!nameStatus.data?.reserved;
   const attest = useAttest(api);
   const deliver = useDeliver(api, wallet, domain);
 
@@ -301,7 +305,7 @@ export function AttestFlow({
         <button
           className="primary"
           onClick={run}
-          disabled={busy || takenByOther || answerBytes > 31 || nonce.data?.ready === false}
+          disabled={busy || takenByOther || reserved || answerBytes > 31 || nonce.data?.ready === false}
           data-testid="publish"
         >
           {step ? `${step}…` : nonce.data?.exists ? "Sign & update" : "Sign & publish"}

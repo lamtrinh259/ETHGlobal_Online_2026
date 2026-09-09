@@ -124,6 +124,8 @@ export const nameStatusSchema = z.object({
   domain: z.string(),
   handle: z.string(),
   taken: z.boolean(),
+  /** A label a platform namespace already owns, such as `x` or `github`: never free */
+  reserved: z.boolean().optional(),
   wallet: z.string().nullable(),
   live: z.boolean(),
 });

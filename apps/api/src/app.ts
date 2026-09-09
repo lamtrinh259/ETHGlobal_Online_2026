@@ -5,6 +5,7 @@ import { keccak256, stringToBytes, zeroHash, type Address, type Hex } from "viem
 import {
   candidateOf,
   attest,
+  RESERVED_HANDLES,
   signRecord,
   type AttestEnv,
   type AttestRequest,
@@ -423,7 +424,10 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     const domain = c.req.param("domain");
     const handle = c.req.param("handle").toLowerCase();
     if (!/^[a-z0-9-]{1,31}$/.test(handle)) return c.json({ error: "bad handle" }, 400);
-    return c.json({ domain, handle, ...(await chain.nameStatus(domain, handle)) });
+    // A reserved label is not free even when no record holds it: a platform namespace answers there.
+    const reserved = config.NAME_DOMAINS.includes(domain) && RESERVED_HANDLES.includes(handle);
+    const status = await chain.nameStatus(domain, handle);
+    return c.json({ domain, handle, ...status, reserved, taken: status.taken || reserved });
   });
 
   /** A wallet's dashboard: its names per domain and the references it has given (`<prefix>*` domains). */

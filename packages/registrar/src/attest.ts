@@ -29,6 +29,24 @@ const HANDLE_RE = /^[a-z0-9-]{1,31}$/;
 
 export const DEFAULT_NAME_DOMAIN_PREFIXES: readonly string[] = ["~"];
 
+/**
+ * Labels a person may not claim in a name domain, because something else already answers there. Every
+ * platform domain has its own instance under the root, so `x.<root>` is the namespace holding
+ * `alice.x.<root>`: if a person took the handle `x`, their name and that namespace would be the same
+ * name. `www` and `com` are reserved for the grouping namespaces a deployment may add later.
+ */
+export const RESERVED_HANDLES: readonly string[] = [
+  ...PLATFORM_DOMAIN_NAMES,
+  "www",
+  "com",
+  "org",
+  "net",
+  "eth",
+  "me",
+  "addr",
+  "reverse",
+];
+
 /** A name domain is configured explicitly or carries a vouch-instance prefix (`~alice`). */
 export function isNameDomain(
   domain: string,
@@ -166,6 +184,11 @@ export async function attestConfidential(
   if (isNameDomain(intent.domain, env)) {
     if (intent.optIn) throw new Error("intent: name-domain handle is public, opt-in not allowed");
     if (!HANDLE_RE.test(intent.handle)) throw new Error("intent: invalid handle");
+    const reserved = env.reservedHandles ?? RESERVED_HANDLES;
+    // A vouch domain is the candidate's own namespace, so a voucher there may be called anything.
+    if (candidateOf(intent.domain, env.nameDomainPrefixes ?? DEFAULT_NAME_DOMAIN_PREFIXES) === undefined) {
+      if (reserved.includes(intent.handle)) throw new Error(`intent: "${intent.handle}" is a reserved handle`);
+    }
     name = toBytes32(intent.handle);
     id = keccak256(stringToBytes(claims.sub));
     payload = intent.payload;

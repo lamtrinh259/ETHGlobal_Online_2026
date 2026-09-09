@@ -220,6 +220,31 @@ describe("attest — vouch instance (~candidate) domain", () => {
     );
   });
 
+  it("refuses a handle a platform namespace already owns", async () => {
+    // Every platform has its own instance under the root, so `x.<root>` holds `alice.x.<root>`. A
+    // person taking the handle `x` would own that same name.
+    for (const handle of ["x", "github", "email", "www", "com", "reverse"]) {
+      await expect(
+        attest(await signedRequest(makeIntent({ domain: "kju-is", handle })), noRecord, secrets, env)
+      ).rejects.toThrow(`"${handle}" is a reserved handle`);
+    }
+    // A vouch domain is the candidate's own namespace, so anything goes there.
+    await expect(
+      verifyPublicLeg(
+        await signedRequest(makeIntent({ domain: "~alice", handle: "github" }), undefined, undefined, await makeInvite()),
+        noVouchRecord,
+        env
+      )
+    ).resolves.toBeUndefined();
+    // And a deployment can choose its own list.
+    await expect(
+      attest(await signedRequest(makeIntent({ domain: "kju-is", handle: "x" })), noRecord, secrets, {
+        ...env,
+        reservedHandles: ["only-this"],
+      })
+    ).resolves.toMatchObject({ record: { name: toBytes32("x") } });
+  });
+
   it("a deployment may switch invitations off", async () => {
     const req = await signedRequest(makeIntent({ domain: "~alice", handle: "bob" }));
     await expect(verifyPublicLeg(req, noRecord, { ...env, requireInvite: false })).resolves.toBeUndefined();

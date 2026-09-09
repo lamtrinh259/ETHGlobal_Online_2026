@@ -1232,6 +1232,22 @@ describe("GET /v1/standing/:handle", () => {
   });
 });
 
+describe("GET /v1/name/:domain/:handle — reserved labels", () => {
+  it("reports a platform label as taken even when no record holds it", async () => {
+    const { chain } = fakeChain();
+    const a = app(chain);
+    const reserved = await (await a.request("/v1/name/kju-is/github")).json();
+    expect(reserved).toMatchObject({ reserved: true, taken: true, live: false });
+
+    // Free labels are unaffected, and a vouch domain is the candidate's own namespace.
+    expect(await (await a.request("/v1/name/kju-is/alice")).json()).toMatchObject({
+      reserved: false,
+      taken: false,
+    });
+    expect(await (await a.request("/v1/name/~alice/github")).json()).toMatchObject({ reserved: false });
+  });
+});
+
 describe("GET /v1/name/:domain/:handle", () => {
   it("reports availability and the holder", async () => {
     const { chain } = fakeChain({
@@ -1241,6 +1257,7 @@ describe("GET /v1/name/:domain/:handle", () => {
       domain: "kju-is",
       handle: "alice",
       taken: true,
+      reserved: false,
       wallet: user.account.address,
       live: true,
     });
