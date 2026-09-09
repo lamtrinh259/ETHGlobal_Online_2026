@@ -28,6 +28,8 @@ export const configSchema = z.object({
   ETH_REGISTRAR: address.optional(),
   /** ERC-20 the registrar prices names in; mintable on a test chain */
   PAYMENT_TOKEN: address.optional(),
+  /** How long the list of mounts is reused before reading it again; mounts change rarely */
+  MOUNT_CACHE_SECONDS: z.coerce.number().int().nonnegative().default(30),
   /** How many test names one wallet may be given; the relay pays for each */
   ETH_NAMES_PER_WALLET: z.coerce.number().int().positive().default(3),
   /** How long a registered test name lasts (default 28 days) */

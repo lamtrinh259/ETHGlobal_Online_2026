@@ -73,6 +73,7 @@ export class Chain {
   readonly indexer: Indexer;
   readonly walletClient: WalletClient;
   readonly relayer: Address;
+  private mounts?: { at: number; value: Instance[] };
 
   constructor(readonly config: Config) {
     const transport = http(config.RPC_URL);
@@ -110,6 +111,10 @@ export class Chain {
    * later factory wins for a domain both know, and only it answers about private mirrors.
    */
   async instances(): Promise<Instance[]> {
+    // Reading the mounts costs two calls per domain, and every page asks. They change when something
+    // is provisioned, which is when this is cleared, so a short reuse is free correctness.
+    const fresh = this.mounts && Date.now() - this.mounts.at < this.config.MOUNT_CACHE_SECONDS * 1000;
+    if (fresh && this.mounts) return this.mounts.value;
     const factories = [this.config.FACTORY, this.config.NAMESPACE_FACTORY].filter(
       (a): a is Address => !!a
     );
@@ -117,7 +122,14 @@ export class Chain {
     for (const factory of factories) {
       for (const instance of await this.instancesOf(factory)) found.set(instance.domain, instance);
     }
-    return [...found.values()];
+    const value = [...found.values()];
+    this.mounts = { at: Date.now(), value };
+    return value;
+  }
+
+  /** Forget the cached mounts: something was just provisioned and the next read must see it. */
+  private mountsChanged(): void {
+    this.mounts = undefined;
   }
 
   private async instancesOf(factory: Address): Promise<Instance[]> {
@@ -315,6 +327,7 @@ export class Chain {
         args: [handle, inst.registry],
       })
     );
+    this.mountsChanged();
     return { domain, created: true };
   }
 
@@ -387,6 +400,7 @@ export class Chain {
       args: [domainB],
     });
     await this.mount(masked, leaf, mirror.registry);
+    this.mountsChanged();
     return { domain, created: true, parentName };
   }
 
