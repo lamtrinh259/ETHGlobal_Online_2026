@@ -11,6 +11,18 @@ Start with [docs/demo.md](docs/demo.md): the live Sepolia deployment, checkable 
 `cast` against the ENSv2 UniversalResolver. [docs/namespace.md](docs/namespace.md) explains what every
 name means and why a platform is mounted at its own DNS name.
 
+Four claims worth checking, each without asking this service:
+
+| Claim | How to check it |
+|---|---|
+| A platform is the DNS name it is | `demo.com.x.www.ketsuban.eth` resolves; `nobody.com.x.www.ketsuban.eth` and `foo.demo.com.x.www.ketsuban.eth` do not |
+| A private account is named after the person, never itself | `<name>.com.discord.private-www.ketsuban.eth` answers only while both records are live, and says nothing about which account |
+| Profile fields are role-gated on chain | `setText(avatar)` from the holder is allowed; the same key from anyone else, and any other key from the holder, is refused by the resolver |
+| The signature is made in an enclave | `pnpm --filter @ketsuban/cre-attest simulate:dns` signs a record for `x.com` inside the TEE simulator |
+
+The app's own [/names](https://ketsuban.peeramid.xyz/names) page builds the same list from the mounts on
+chain, so it never drifts from what is deployed.
+
 ## Packages
 
 | Package | What |
