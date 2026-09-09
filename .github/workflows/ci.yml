@@ -1,0 +1,46 @@
+# The gate this repo already has, run on every push: lint, types, and every package's own tests.
+# The docker job is separate because it builds images and deploys contracts to anvil, which is slow
+# enough that a failing unit test should not wait for it.
+name: ci
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # Contracts are Foundry; the CRE workflow package runs its tests under bun.
+      - uses: foundry-rs/foundry-toolchain@v1
+      - uses: oven-sh/setup-bun@v2
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -w lint
+      - run: pnpm -w typecheck
+      - run: pnpm -w test
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: foundry-rs/foundry-toolchain@v1
+      - run: pnpm install --frozen-lockfile
+      # anvil, the contracts deployed from this source, and the api image: the whole loop from outside.
+      - run: pnpm --filter @ketsuban/api test:e2e
