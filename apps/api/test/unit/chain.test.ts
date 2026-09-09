@@ -161,3 +161,58 @@ describe("reading the mounts", () => {
     expect(calls.filter((c) => c === "domains")).toHaveLength(2);
   });
 });
+
+describe("relaying a signed record", () => {
+  /** Multipass answers whether the id already has a record, and what the domain charges. */
+  function relaying(chain: Chain, exists: boolean, fees = { fee: 7n, renewalFee: 3n }) {
+    const writes: { address: string; functionName: string; value?: bigint }[] = [];
+    Object.assign(chain, {
+      indexer: { catchUp: async () => undefined },
+      publicClient: {
+        readContract: vi.fn(async ({ functionName }: { functionName: string }) => {
+          if (functionName === "resolveRecord") return [exists, {}];
+          if (functionName === "getDomainState") return fees;
+          throw new Error(`unexpected read ${functionName}`);
+        }),
+        waitForTransactionReceipt: vi.fn(async () => ({ status: "success", blockNumber: 1n })),
+      },
+      walletClient: {
+        chain: { id: 31337 },
+        account: { address: "0x5555555555555555555555555555555555555555" },
+        writeContract: vi.fn(async (call: { address: string; functionName: string; value?: bigint }) => {
+          writes.push({ address: call.address, functionName: call.functionName, value: call.value });
+          return "0xfeed";
+        }),
+      },
+    });
+    return writes;
+  }
+
+  const record = {
+    name: "0x01" as const,
+    id: "0x02" as const,
+    domainName: "0x03" as const,
+    validUntil: 1n,
+    nonce: 1n,
+    wallet: "0x6666666666666666666666666666666666666666" as const,
+    payload: zeroHash,
+  };
+
+  it("registers a first record through the bridge, paying the domain fee", async () => {
+    // The bridge is what grants profile keys, so a first record has to go through it.
+    const chain = new Chain(config);
+    const writes = relaying(chain, false);
+    await chain.submit(record, "0x99");
+    expect(writes).toEqual([{ address: config.BRIDGE, functionName: "verify", value: 7n }]);
+  });
+
+  it("renews an existing one on Multipass instead, because register reverts on a second write", async () => {
+    // This is the bug that reached users as `recordExists`: the same call cannot do both.
+    const chain = new Chain(config);
+    const writes = relaying(chain, true);
+    await chain.submit(record, "0x99");
+    expect(writes).toEqual([
+      { address: config.MULTIPASS, functionName: "renewRecord", value: 3n },
+    ]);
+  });
+});
