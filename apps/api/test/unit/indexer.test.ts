@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -245,7 +245,13 @@ describe("Indexer", () => {
   });
 
   it("survives an unreadable snapshot directory and a failing tick", async () => {
-    const indexer = new Indexer(fakeSource(10n, []).source, MULTIPASS, 1n, { dataDir: "/proc/nope" });
+    // A directory under a regular file: mkdir fails with ENOTDIR at once, everywhere. `/proc/nope` used
+    // to stand in for "unwritable", and on Linux that mkdir never returns at all.
+    const notADir = join(mkdtempSync(join(tmpdir(), "ketsuban-index-")), "file");
+    writeFileSync(notADir, "");
+    const indexer = new Indexer(fakeSource(10n, []).source, MULTIPASS, 1n, {
+      dataDir: join(notADir, "nope"),
+    });
     const errors: string[] = [];
     const spy = vi.spyOn(console, "error").mockImplementation((m) => void errors.push(String(m)));
     await indexer.tick();
