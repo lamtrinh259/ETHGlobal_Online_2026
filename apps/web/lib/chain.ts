@@ -90,6 +90,31 @@ export interface Signer {
   chainId: number;
 }
 
+/**
+ * Put the wallet on the chain this deployment lives on, or say so plainly.
+ *
+ * A wallet sitting on mainnet signs nothing useful here, and viem's own refusal names two chain ids and
+ * a calldata blob. Asking the wallet to switch is one request; a wallet that will not switch is a
+ * sentence, not a stack trace.
+ */
+export async function onTargetChain(signer: Signer): Promise<void> {
+  const current = Number(
+    (await signer.provider.request({ method: "eth_chainId" }).catch(() => undefined)) ?? signer.chainId
+  );
+  if (current === signer.chainId) return;
+  const target = chainFor(signer.chainId);
+  try {
+    await signer.provider.request({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId: `0x${signer.chainId.toString(16)}` }],
+    });
+  } catch {
+    throw new Error(
+      `Your wallet is on chain ${current}; this deployment is on ${target.name} (${signer.chainId}). Switch the network in your wallet and try again.`
+    );
+  }
+}
+
 async function send(
   signer: Signer,
   tx: {
@@ -99,6 +124,7 @@ async function send(
     args: unknown[];
   }
 ): Promise<Hex> {
+  await onTargetChain(signer);
   const chain = chainFor(signer.chainId);
   const transport = custom(signer.provider as Parameters<typeof custom>[0]);
   const wallet = createWalletClient({ account: signer.account, chain, transport });
@@ -168,6 +194,7 @@ function nameArgs(p: EthNameParams) {
  * Returns when the commitment can be used, which the registrar makes the caller wait for.
  */
 export async function commitEthName(signer: Signer, p: EthNameParams): Promise<{ readyAt: number }> {
+  await onTargetChain(signer);
   const chain = chainFor(signer.chainId);
   const transport = custom(signer.provider as Parameters<typeof custom>[0]);
   const pub = createPublicClient({ chain, transport });

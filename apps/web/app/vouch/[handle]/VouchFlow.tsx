@@ -40,7 +40,8 @@ export function VouchFlow({
   const wallet = embedded?.address as Address | undefined;
   const getSigner = async (): Promise<Signer> => {
     if (!embedded) throw new Error("no wallet");
-    await embedded.switchChain(config.chainId);
+    // A browser wallet can refuse this; the write path asks again and says which network to pick.
+    await embedded.switchChain(config.chainId).catch(() => undefined);
     return {
       provider: await embedded.getEthereumProvider(),
       account: embedded.address as Address,

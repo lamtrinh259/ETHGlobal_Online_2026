@@ -17,12 +17,20 @@ const BRIDGE = "0xC7283bD9Aad1B08947C841536946Ce4dA9c99929";
 const HASH = `0x${"ab".repeat(32)}` as Hex;
 
 /** Minimal EIP-1193 wallet: records eth_sendTransaction, answers chain id and receipts. */
-function fakeProvider(status: "0x1" | "0x0" = "0x1") {
+function fakeProvider(status: "0x1" | "0x0" = "0x1", chains: string[] = ["0xaa36a7"]) {
   const sent: { to: string; from: string; data: Hex }[] = [];
+  const switched: unknown[] = [];
+  let chainId = chains[0] as string;
   const request = vi.fn(async ({ method, params }: { method: string; params?: unknown[] }) => {
     switch (method) {
       case "eth_chainId":
-        return "0xaa36a7";
+        return chainId;
+      case "wallet_switchEthereumChain": {
+        switched.push(params![0]);
+        if (chains.length < 2) throw new Error("wallet refused");
+        chainId = chains[1] as string;
+        return null;
+      }
       case "eth_sendTransaction": {
         sent.push(params![0] as { to: string; from: string; data: Hex });
         return HASH;
@@ -50,7 +58,7 @@ function fakeProvider(status: "0x1" | "0x0" = "0x1") {
         throw new Error(`unexpected ${method}`);
     }
   });
-  return { provider: { request } as never, sent, request };
+  return { provider: { request } as never, sent, request, switched };
 }
 
 const signer = (provider: never): Signer => ({ provider, account: ACCOUNT, chainId: 11155111 });
@@ -102,6 +110,25 @@ describe("writeProfileText", () => {
     await expect(
       writeProfileText(signer(p.provider), RESOLVER, "alice.ketsuban.eth", "email", "x")
     ).rejects.toThrow(/reverted/);
+  });
+});
+
+describe("the wallet's own network", () => {
+  it("is switched to this deployment's chain before anything is signed", async () => {
+    // A wallet left on mainnet signs nothing useful here, and viem's refusal is two chain ids and a
+    // calldata blob. One switch request fixes it.
+    const p = fakeProvider("0x1", ["0x1", "0xaa36a7"]);
+    await writeProfileText(signer(p.provider), RESOLVER, "alice.ketsuban.eth", "url", "https://a.example");
+    expect(p.switched).toEqual([{ chainId: "0xaa36a7" }]);
+    expect(p.sent).toHaveLength(1);
+  });
+
+  it("says which network to switch to when the wallet will not", async () => {
+    const p = fakeProvider("0x1", ["0x1"]);
+    await expect(
+      writeProfileText(signer(p.provider), RESOLVER, "alice.ketsuban.eth", "url", "https://a.example")
+    ).rejects.toThrow(/on chain 1.*Sepolia \(11155111\)/);
+    expect(p.sent).toHaveLength(0);
   });
 });
 
