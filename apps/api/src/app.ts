@@ -98,6 +98,16 @@ export function toRequest(w: z.infer<typeof wireRequest>): AttestRequest {
   };
 }
 
+/**
+ * Text that was meant to be read, or nothing. Multipass stores 31 bytes either way: a handle and an
+ * answer are words, a masked name and a view-code commitment are bytes that only look like words.
+ */
+export function readable(value: string): string | undefined {
+  if (value === "") return undefined;
+  // eslint-disable-next-line no-control-regex
+  return /^[\x20-\x7e]+$/.test(value) ? value : undefined;
+}
+
 export function toRecord(w: z.infer<typeof wireRecord>): RegisterMessage {
   return {
     name: w.name as Hex,
@@ -602,16 +612,25 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     // Classify by configuration, which is what decides whether a record carries a handle and an answer.
     const isNameDomain = (d: string) => config.NAME_DOMAINS.includes(d);
     const rootParent = parentOf.get(config.NAME_DOMAINS[0] ?? "") ?? "";
-    const [records, balance] = await Promise.all([
+    // The index lists a wallet's whole history; a candidate's own names come straight from the chain so
+    // the page is right even while a backfill is still running.
+    const [indexed, balance, direct] = await Promise.all([
       chain.listRecordsByWallet(address as Address),
       chain.balance(address as Address),
+      Promise.all(config.NAME_DOMAINS.map((d) => chain.recordFor(address as Address, d))),
     ]);
+    const records = [...indexed];
+    for (const r of direct) {
+      if (r && !records.some((k) => k.domain === r.domain && k.id === r.id)) records.push(r);
+    }
     const isVouch = (d: string) => d.startsWith(config.VOUCH_PREFIX) && d.length > config.VOUCH_PREFIX.length;
     const hasLiveName = records.some((r) => r.live && isNameDomain(r.domain));
     const fmt = (r: (typeof records)[number]) => ({
       domain: r.domain,
-      name: r.name,
-      payload: fromBytes32(r.payload),
+      // A masked record's name and payload are ciphertext and a commitment: decoding them as text
+      // produces mojibake that reads like corruption rather than like privacy working.
+      name: readable(r.name) ?? "",
+      payload: readable(fromBytes32(r.payload)) ?? "",
       validUntil: new Date(Number(r.validUntil) * 1000).toISOString(),
       nonce: r.nonce.toString(),
       live: r.live,
@@ -632,12 +651,16 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
         .map((r) => {
           const optedIn = r.payload !== zeroHash;
           const parent = parentOf.get(r.domain);
+          // A public account is a name any ENS client can read — when its handle can be a label at all.
+          // An email address cannot: `@` and `.` separate labels, they are not characters in one.
+          // Underscores are fine in an ENS label and common in platform handles; `@` and `.` are not.
+          const label = /^[a-z0-9_-]{1,63}$/.test(r.name.toLowerCase()) ? r.name.toLowerCase() : null;
           return {
             ...fmt(r),
             optedIn,
-            // A public account is a name any ENS client can read. A masked one has no readable label,
-            // so there is no name to offer: the record proves control without naming the account.
-            ensName: parent && !optedIn ? `${r.name}.${parent}` : null,
+            ensName: parent && !optedIn && label ? `${label}.${parent}` : null,
+            // Why there is no name, when there is none: privacy, or a handle that cannot be a label.
+            nameless: optedIn ? "private" : label ? null : "not-a-label",
           };
         }),
       given: records

@@ -67,6 +67,14 @@ const deletedLog = (r: Rec, block: bigint): RawLog => ({
   data: encodeAbiParameters([{ type: "bytes32" }], [toBytes32(r.name)]),
 });
 
+const logsIn = (q: LogQuery, logs: RawLog[]) =>
+  logs.filter(
+    (l) =>
+      l.topics[0] === toEventSelector(q.event) &&
+      l.blockNumber >= q.fromBlock &&
+      (q.toBlock === undefined || l.blockNumber <= q.toBlock)
+  );
+
 /** A log source that answers from a fixed script, respecting the window a tick asks for. */
 function fakeSource(head: bigint, logs: RawLog[]) {
   const calls: LogQuery[] = [];
@@ -158,6 +166,28 @@ describe("Indexer", () => {
     await Promise.all([first, second]);
     expect(indexer.status()).toMatchObject({ indexedBlock: 200, records: 2, synced: true });
     expect(indexer.recordsByDomain("~alice").map((r) => r.name)).toEqual(["bob"]);
+  });
+
+  it("commits each window, so a long backfill shows progress instead of nothing", async () => {
+    const alice: Rec = { domain: "kju-is", name: "alice", wallet: ALICE, nonce: 1n };
+    const asked: [bigint, bigint][] = [];
+    const source: LogSource = {
+      head: vi.fn(async () => 250n),
+      logs: vi.fn(async (q: LogQuery) => {
+        if (q.event === REGISTERED) asked.push([q.fromBlock, q.toBlock ?? 0n]);
+        return logsIn(q, [registeredLog(alice, 120n)]);
+      }),
+    };
+    const indexer = new Indexer(source, MULTIPASS, 1n, { window: 100n });
+    await indexer.tick();
+
+    // Three windows of a hundred blocks, each committed: a restart resumes from the last one.
+    expect(asked).toEqual([
+      [1n, 100n],
+      [101n, 200n],
+      [201n, 250n],
+    ]);
+    expect(indexer.status()).toMatchObject({ indexedBlock: 250, records: 1 });
   });
 
   it("catchUp rescans a block the cursor already passed", async () => {

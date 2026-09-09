@@ -51,13 +51,16 @@ export class Indexer implements RecordIndex {
   private headBlock = 0n;
   private queue: Promise<number> = Promise.resolve(0);
   private readonly snapshotPath?: string;
+  /** Blocks per committed step; a long backfill is many of these rather than one silent sweep. */
+  private readonly window: bigint;
 
   constructor(
     private readonly source: LogSource,
     private readonly multipass: Address,
     private readonly deployBlock: bigint,
-    opts: { dataDir?: string } = {}
+    opts: { dataDir?: string; window?: bigint } = {}
   ) {
+    this.window = opts.window ?? 50_000n;
     this.indexedBlock = deployBlock > 0n ? deployBlock - 1n : 0n;
     this.snapshotPath = opts.dataDir ? join(opts.dataDir, "records.json") : undefined;
     this.restore();
@@ -89,6 +92,18 @@ export class Indexer implements RecordIndex {
     const to = include && include > head ? include : head;
     const from = include && include <= this.indexedBlock ? include : this.indexedBlock + 1n;
     if (from > to) return 0;
+
+    // Walk the range in windows, committing each one. A first run over a long history is otherwise a
+    // single tick that publishes nothing until it finishes and starts over after any restart.
+    let changed = 0;
+    for (let start = from; start <= to; start += this.window) {
+      const end = start + this.window - 1n > to ? to : start + this.window - 1n;
+      changed += await this.scan(start, end);
+    }
+    return changed;
+  }
+
+  private async scan(from: bigint, to: bigint): Promise<number> {
     const [registered, renewed, deleted] = await Promise.all([
       this.source.logs({ address: this.multipass, event: REGISTERED, fromBlock: from, toBlock: to }),
       this.source.logs({ address: this.multipass, event: RENEWED, fromBlock: from, toBlock: to }),

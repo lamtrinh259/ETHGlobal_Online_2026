@@ -81,10 +81,10 @@ beforeAll(async () => {
 describe("api e2e", () => {
   it("preflights the deployment it is pointed at", async () => {
     const res = await fetch(`${API}/v1/preflight`);
-    expect(res.status).toBe(200);
     const p = await res.json();
+    expect(JSON.stringify(p.warnings)).toBe("[]");
     expect(p.ok).toBe(true);
-    expect(p.warnings).toEqual([]);
+    expect(res.status).toBe(200);
     expect(p.bridge).toMatchObject({ deployed: true, missing: [] });
     // The key this service signs with must be the one Multipass expects for those domains.
     expect(p.registrar.onchain).toEqual([p.registrar.signsAs]);

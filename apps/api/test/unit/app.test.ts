@@ -32,6 +32,7 @@ import {
 } from "@ketsuban/registrar";
 import {
   decodeRecord,
+  fromBytes32,
   maskId,
   maskName,
   registerNameTypes,
@@ -176,6 +177,9 @@ function fakeChain(state: Partial<State> = {}) {
         s.names[`${domain}/${handle}`] ?? { taken: false, wallet: null, live: false }
     ),
     listRecordsByWallet: vi.fn(async () => s.byWallet),
+    recordFor: vi.fn(async (wallet: Address, domain: string) =>
+      s.byWallet.find((r) => r.domain === domain && r.wallet.toLowerCase() === wallet.toLowerCase())
+    ),
     preflight: vi.fn(async () => s.preflight),
     domainReady: vi.fn(
       async (domain: string) => s.ready[domain] ?? { initialised: true, active: true, registrarOk: true }
@@ -1460,6 +1464,7 @@ describe("GET /v1/wallet/:address", () => {
         live: true,
         optedIn: false,
         ensName: null,
+        nameless: null,
       },
     ]);
     expect(body.given).toEqual([
@@ -1495,7 +1500,12 @@ describe("GET /v1/wallet/:address", () => {
     const withInstance = { ...instance, domain: "x", parentName: "x.kju-is.eth", parentLabel: "x" };
     const open = fakeChain({ instances: [instance, withInstance], byWallet: [link("alice_x", zeroHash)] });
     const body = await (await app(open.chain).request(`/v1/wallet/${user.account.address}`)).json();
-    expect(body.links[0]).toMatchObject({ domain: "x", optedIn: false, ensName: "alice_x.x.kju-is.eth" });
+    expect(body.links[0]).toMatchObject({
+      domain: "x",
+      optedIn: false,
+      ensName: "alice_x.x.kju-is.eth",
+      nameless: null,
+    });
     // It is a linked account, not a name: only configured name domains carry a handle and an answer.
     expect(body.names).toEqual([]);
 
@@ -1505,6 +1515,110 @@ describe("GET /v1/wallet/:address", () => {
     });
     const hidden = await (await app(masked.chain).request(`/v1/wallet/${user.account.address}`)).json();
     expect(hidden.links[0]).toMatchObject({ optedIn: true, ensName: null });
+  });
+
+  it("never renders a masked record's bytes as text", async () => {
+    const viewCode = `0x${"5a".repeat(32)}` as Hex;
+    const { chain } = fakeChain({
+      byWallet: [
+        {
+          domain: "google",
+          // The index decodes bytes32 to text before this route sees it, mojibake and all.
+          name: fromBytes32(maskName("tim@peeramid.xyz", viewCode)),
+          id: maskId("1234", viewCode),
+          wallet: user.account.address,
+          payload: viewCodeCommitment(viewCode),
+          validUntil: 1_800_000_000n,
+          nonce: 2n,
+          live: true,
+        },
+      ],
+    });
+    const body = await (await app(chain).request(`/v1/wallet/${user.account.address}`)).json();
+    // Mojibake reads like corruption; empty reads like privacy, which is what this is.
+    expect(body.links[0]).toMatchObject({
+      domain: "google",
+      name: "",
+      payload: "",
+      optedIn: true,
+      ensName: null,
+      nameless: "private",
+    });
+  });
+
+  it("says why a public account still has no name when its handle cannot be a label", async () => {
+    const link = (name: string) => ({
+      domain: "google",
+      name,
+      id: toBytes32("id"),
+      wallet: user.account.address,
+      payload: zeroHash,
+      validUntil: 1_800_000_000n,
+      nonce: 1n,
+      live: true,
+    });
+    const withInstance = {
+      ...instance,
+      domain: "google",
+      parentName: "google.kju-is.eth",
+      parentLabel: "google",
+    };
+    // An email address is not an ENS label: `@` and `.` separate labels, they are not characters in one.
+    const email = fakeChain({ instances: [instance, withInstance], byWallet: [link("tim@peeramid.xyz")] });
+    const body = await (await app(email.chain).request(`/v1/wallet/${user.account.address}`)).json();
+    expect(body.links[0]).toMatchObject({ ensName: null, nameless: "not-a-label" });
+
+    const handle = fakeChain({ instances: [instance, withInstance], byWallet: [link("peersky")] });
+    const named = await (await app(handle.chain).request(`/v1/wallet/${user.account.address}`)).json();
+    expect(named.links[0]).toMatchObject({ ensName: "peersky.google.kju-is.eth", nameless: null });
+  });
+
+  it("shows a name the index has not caught up to yet, read straight from the chain", async () => {
+    // The exact shape of the live failure: reverse resolution finds the name, the index is still
+    // backfilling and lists nothing.
+    const onChainOnly = {
+      domain: "kju-is",
+      name: "peersky",
+      id: toBytes32("peersky"),
+      wallet: user.account.address,
+      payload: zeroHash,
+      validUntil: 1_800_000_000n,
+      nonce: 1n,
+      live: true,
+    };
+    const { chain } = fakeChain();
+    chain.listRecordsByWallet = vi.fn(async () => []);
+    chain.recordFor = vi.fn(async (_w: Address, domain: string) =>
+      domain === "kju-is" ? onChainOnly : undefined
+    );
+    const body = await (await app(chain).request(`/v1/wallet/${user.account.address}`)).json();
+    expect(body.names).toEqual([
+      {
+        domain: "kju-is",
+        name: "peersky",
+        payload: "",
+        validUntil: "2027-01-15T08:00:00.000Z",
+        nonce: "1",
+        live: true,
+        ensName: "peersky.kju-is.eth",
+      },
+    ]);
+  });
+
+  it("does not list the same record twice when the index has caught up", async () => {
+    const both = {
+      domain: "kju-is",
+      name: "peersky",
+      id: toBytes32("peersky"),
+      wallet: user.account.address,
+      payload: zeroHash,
+      validUntil: 1_800_000_000n,
+      nonce: 1n,
+      live: true,
+    };
+    const { chain } = fakeChain({ byWallet: [both] });
+    const body = await (await app(chain).request(`/v1/wallet/${user.account.address}`)).json();
+    expect(body.names).toHaveLength(1);
   });
 
   it("reports an organisation, and keeps it out of the linked accounts", async () => {

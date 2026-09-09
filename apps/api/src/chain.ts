@@ -78,7 +78,7 @@ export class Chain {
       new RpcSource(this.publicClient, BigInt(config.RPC_LOG_WINDOW)),
       config.MULTIPASS,
       BigInt(config.DEPLOY_BLOCK),
-      { dataDir: config.DATA_DIR || undefined }
+      { dataDir: config.DATA_DIR || undefined, window: BigInt(config.RPC_LOG_WINDOW) * 5n }
     );
   }
 
@@ -389,6 +389,15 @@ export class Chain {
       }
     }
 
+    // A start block far behind the head means a backfill measured in millions of blocks, which looks
+    // like a broken service for as long as it runs. On a fresh chain the gap is small and this is fine.
+    const behind = Number(BigInt(this.indexer.status().head) - BigInt(this.config.DEPLOY_BLOCK));
+    if (behind > 1_000_000) {
+      warnings.push(
+        `DEPLOY_BLOCK is ${this.config.DEPLOY_BLOCK}, ${behind} blocks behind the head: set it to the block the deployment starts at`
+      );
+    }
+
     const relayerBalance = await this.balance(this.relayer);
     if (relayerBalance < this.config.RELAYER_MIN_WEI) {
       warnings.push(
@@ -412,6 +421,10 @@ export class Chain {
     };
   }
 
+  private headOrZero(): bigint {
+    return BigInt(this.indexer.status().head);
+  }
+
   balance(wallet: Address): Promise<bigint> {
     return this.publicClient.getBalance({ address: wallet });
   }
@@ -427,6 +440,39 @@ export class Chain {
     const receipt = await this.publicClient.waitForTransactionReceipt({ hash });
     if (receipt.status !== "success") throw new Error(`gas top-up ${hash} reverted`);
     return hash;
+  }
+
+  /**
+   * One wallet's record in one domain, read straight from Multipass. The index is how a wallet's whole
+   * history is listed, but a candidate's own name must never depend on a backfill having finished:
+   * this answers from the chain in a single call.
+   */
+  async recordFor(wallet: Address, domain: string): Promise<(ListedRecord & { domain: string }) | undefined> {
+    const [ok, r] = await this.publicClient.readContract({
+      address: this.config.MULTIPASS,
+      abi: MultipassAbi,
+      functionName: "resolveRecord",
+      args: [
+        {
+          name: zeroHash,
+          id: zeroHash,
+          wallet,
+          domainName: toBytes32(domain),
+          targetDomain: zeroHash,
+        },
+      ],
+    });
+    if (!ok) return undefined;
+    return {
+      domain,
+      name: fromBytes32(r.name),
+      id: r.id,
+      wallet: r.wallet,
+      payload: r.payload,
+      validUntil: r.validUntil,
+      nonce: r.nonce,
+      live: r.validUntil > BigInt(Math.floor(Date.now() / 1000)),
+    };
   }
 
   /** Records this wallet holds, from the index. */
@@ -572,6 +618,7 @@ export type ChainReader = Pick<
   | "listRecords"
   | "nameStatus"
   | "listRecordsByWallet"
+  | "recordFor"
   | "balance"
   | "sendEth"
   | "indexStatus"

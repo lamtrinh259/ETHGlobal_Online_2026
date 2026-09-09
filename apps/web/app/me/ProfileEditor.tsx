@@ -49,6 +49,18 @@ export function ProfileEditor({ api, name, getSigner }: Props) {
     write.mutate({ signer: await getSigner(), resolver, changes });
   }
 
+  if (contracts.data && resolver === null) {
+    return (
+      <section className="card" data-testid="profile-editor">
+        <h2>ENS profile</h2>
+        <p className="error" role="alert">
+          This deployment has no permissioned resolver configured, so these records cannot be written. Set{" "}
+          <code>PERMISSIONED_RESOLVER</code> on the attester and reload.
+        </p>
+      </section>
+    );
+  }
+
   return (
     <section className="card" data-testid="profile-editor">
       <h2>ENS profile</h2>
@@ -67,7 +79,7 @@ export function ProfileEditor({ api, name, getSigner }: Props) {
           />
         </label>
       ))}
-      {resolver === null && <p className="error">This deployment has no permissioned resolver configured.</p>}
+
       {write.error && (
         <p className="error" role="alert">
           {write.error.message}

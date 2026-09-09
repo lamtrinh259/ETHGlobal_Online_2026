@@ -58,7 +58,11 @@ export const configSchema = z.object({
   DATA_DIR: z.string().default("/data"),
   /** How often the index reads new blocks */
   INDEX_POLL_SECONDS: z.coerce.number().int().positive().default(15),
-  /** Block the factory was deployed at; record listing scans logs from here */
+  /**
+   * Block the deployment starts at; the index scans from here. Leaving it at 0 makes a first run walk
+   * the whole chain, which is slow enough to look broken — set it to the block the contracts were
+   * deployed at.
+   */
   DEPLOY_BLOCK: z.coerce.number().int().nonnegative().default(0),
   /**
    * Whether a statement in a vouch domain needs the candidate's signed invitation. On by default:

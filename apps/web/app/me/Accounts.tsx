@@ -56,6 +56,8 @@ export function Accounts({ links, awaiting, onPublished }: Props) {
                       <>
                         <code>{onChain.ensName}</code> · public
                       </>
+                    ) : onChain.nameless === "not-a-label" ? (
+                      "attested · public, but an email address cannot be an ENS label"
                     ) : (
                       "attested · private"
                     )}
