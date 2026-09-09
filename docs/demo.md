@@ -144,9 +144,10 @@ statement becomes `withdrawn`, which stops counting towards a verifier's minimum
 
 ## 9. Chainlink CRE
 
-`packages/cre` holds one workflow with two triggers: an HTTP trigger whose handler runs inside a Nitro
-enclave and signs the record as registrar, and an EVM log trigger on `Registered` that provisions a
-candidate's vouch instance from what the chain says. With `reporter` configured, the nodes sign the
+`packages/cre` holds one workflow with three handlers: an HTTP trigger whose handler runs inside a Nitro
+enclave and signs the record as registrar, a second whose enclave answers which account a masked record belongs to for whoever the candidate
+allowed, and an EVM log trigger on `Registered` that provisions a candidate's vouch instance from what
+the chain says. With `reporter` configured, the nodes sign the
 payload and the KeystoneForwarder delivers it to `AttestationReporter`, which writes the record — no
 key of ours in that path.
 

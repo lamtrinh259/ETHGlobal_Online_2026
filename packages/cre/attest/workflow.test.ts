@@ -1,7 +1,15 @@
 import { describe, expect, test } from "bun:test";
 import type { TeeRuntime } from "@chainlink/cre-sdk";
 import { baseIntent, fakePrivy, fakeUser, signedAttestRequest, toWire } from "@ketsuban/registrar/testing";
-import { decodeRecord, MultipassAbi, registerNameTypes, toBytes32 } from "@peeramid-labs/multipass-client";
+import {
+  decodeRecord,
+  maskId,
+  maskName,
+  MultipassAbi,
+  registerNameTypes,
+  toBytes32,
+  viewCodeCommitment,
+} from "@peeramid-labs/multipass-client";
 import {
   bytesToHex,
   decodeAbiParameters,
@@ -10,15 +18,18 @@ import {
   encodeFunctionResult,
   parseAbiParameters,
   recoverTypedDataAddress,
+  bytesToString,
+  hexToBytes,
   stringToBytes,
   zeroHash,
   type Hex,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { eciesDecrypt } from "@ketsuban/registrar";
+import { discloseDomain, eciesDecrypt, eciesEncrypt, hashBox, signDisclosure } from "@ketsuban/registrar";
 import {
   encodeReport,
   handleFromLog,
+  onDisclose,
   initWorkflow,
   onAttest,
   onRegistered,
@@ -355,6 +366,86 @@ describe("onRegistered (log trigger)", () => {
   });
 });
 
+describe("onDisclose", () => {
+  const VIEW_CODE = `0x${"5a".repeat(32)}` as const;
+  const holder = user.account.address;
+
+  /** A masked record exactly as the attester publishes one, packed the way the resolver returns it. */
+  function maskedRecord() {
+    const record = {
+      name: maskName("alice_x", VIEW_CODE),
+      id: maskId("1234567890", VIEW_CODE),
+      payload: viewCodeCommitment(VIEW_CODE),
+    };
+    return `0x${record.name.slice(2)}${record.id.slice(2)}${record.payload.slice(2)}` as Hex;
+  }
+
+  async function grant(over: { audience?: Hex; exp?: bigint; name?: string } = {}) {
+    const registrarAccount = privateKeyToAccount(REGISTRAR_KEY);
+    const box = eciesEncrypt(registrarAccount.publicKey, hexToBytes(VIEW_CODE), new Uint8Array(32).fill(4));
+    const disclosure = {
+      name: over.name ?? "alice.kju-is.eth",
+      domain: "x",
+      audience: (over.audience ?? `0x${"00".repeat(20)}`) as Hex,
+      exp: over.exp ?? BigInt(NOW + 3600),
+      boxHash: hashBox(box),
+    };
+    const signature = await signDisclosure(
+      user.account,
+      disclosure as never,
+      discloseDomain(config.chainId, config.multipass as Hex)
+    );
+    return { ...disclosure, exp: disclosure.exp.toString(), box, signature };
+  }
+
+  const payload = async (over: Parameters<typeof grant>[0] = {}, extra: object = {}) => ({
+    input: stringToBytes(
+      JSON.stringify({
+        name: "alice.kju-is.eth",
+        domain: "x",
+        packed: maskedRecord(),
+        holder,
+        grant: await grant(over),
+        ...extra,
+      })
+    ),
+  });
+
+  test("answers the handle inside the enclave, and nothing else leaves", async () => {
+    const { runtime, secretsRequested, evmCalls, deliveries } = fakeTeeRuntime();
+    const out = JSON.parse(await onDisclose(runtime, (await payload()) as any));
+    expect(out).toEqual({
+      name: "alice.kju-is.eth",
+      domain: "x",
+      disclosed: { handle: "alice_x", platformId: "1234567890" },
+    });
+    // Only the registrar key is touched, and nothing is written or sent anywhere.
+    expect(secretsRequested).toEqual(["REGISTRAR_KEY"]);
+    expect(evmCalls).toHaveLength(0);
+    expect(deliveries).toHaveLength(0);
+  });
+
+  test("refuses a grant for another record, an expired one, and one addressed elsewhere", async () => {
+    const { runtime } = fakeTeeRuntime();
+    expect(onDisclose(runtime, (await payload({ name: "bob.kju-is.eth" })) as any)).rejects.toThrow(
+      "grant is for a different record"
+    );
+    expect(onDisclose(runtime, (await payload({ exp: BigInt(NOW - 1) })) as any)).rejects.toThrow("expired");
+    expect(
+      onDisclose(runtime, (await payload({ audience: registrar.address as Hex }, { reader: holder })) as any)
+    ).rejects.toThrow("addressed to a different reader");
+  });
+
+  test("refuses a grant the record's holder did not sign", async () => {
+    const { runtime } = fakeTeeRuntime();
+    const wrongHolder = { ...(await payload()), input: undefined } as never;
+    void wrongHolder;
+    const body = JSON.parse(bytesToString((await payload()).input));
+    const forged = { input: stringToBytes(JSON.stringify({ ...body, holder: registrar.address })) };
+    expect(onDisclose(runtime, forged as any)).rejects.toThrow("not signed by the wallet that holds the record");
+  });
+});
+
 describe("serializeResult", () => {
   test("stringifies bigints and nulls a missing view code", () => {
     const s = JSON.parse(
@@ -368,11 +459,14 @@ describe("serializeResult", () => {
 });
 
 describe("initWorkflow", () => {
-  test("registers the TEE attest handler and the root-domain log trigger", () => {
+  test("registers both enclave handlers and the root-domain log trigger", () => {
     const handlers = initWorkflow({ ...config, authorizedKeys: ["0x1111111111111111111111111111111111111111"] });
-    expect(handlers).toHaveLength(2);
-    expect(handlers[1].fn).toBe(onRegistered);
-    const logTrigger = handlers[1].trigger as any;
+    expect(handlers).toHaveLength(3);
+    expect(handlers.map((h) => h.fn)).toEqual([onAttest, onDisclose, onRegistered]);
+    // Both enclave handlers ask for the same TEE; only the log trigger runs on the plain DON.
+    expect(handlers[0].requirements).toBeDefined();
+    expect(handlers[1].requirements).toBeDefined();
+    const logTrigger = handlers[2].trigger as any;
     const b64 = (hex: string) => Buffer.from(hex.slice(2), "hex").toString("base64");
     expect(logTrigger.config.addresses.map((a: Uint8Array) => Buffer.from(a).toString("base64"))).toEqual([
       b64(config.multipass),

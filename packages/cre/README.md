@@ -29,12 +29,19 @@ HTTP trigger { idToken, intent, signature }
 | `deliveryUrl` | relay endpoint (`apps/api` `/v1/cre/delivery`); empty returns the result only |
 | `provisionUrl` | endpoint the log trigger calls to provision a candidate's vouch instance; empty disables it |
 
-## Two triggers
+## Three handlers
 
 | Trigger | Handler | What it does |
 |---|---|---|
 | HTTP, in a Nitro enclave | `onAttest` | verifies the identity token and the wallet intent, signs the record as registrar, optionally writes it through the DON |
+| HTTP, in a Nitro enclave | `onDisclose` | answers which account a masked record belongs to, for whoever the candidate allowed |
 | EVM log on `Registered` in the root name domain | `onRegistered` | asks the relay to provision that candidate's `~<handle>` vouch instance |
+
+`onDisclose` exists because the registrar key is the only key that can open a candidate's permission,
+and it lives in the enclave. A masked record publishes a commitment; the permission carries the view
+code encrypted to that key; the enclave checks the candidate signed it, that it has not expired, that
+it binds to this ciphertext and that the reader is the one it names, then answers with the handle. The
+handle is the only thing that leaves, and nothing is written anywhere.
 
 The log trigger exists because a candidate's vouch instance is a consequence of their name existing.
 Driving it from the chain means it happens whether or not the record came through our own relay, and

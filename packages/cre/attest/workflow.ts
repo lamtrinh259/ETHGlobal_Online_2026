@@ -18,13 +18,18 @@ import {
 import {
   attestConfidential,
   candidateOf,
+  checkAudience,
+  checkDisclosure,
+  discloseDomain,
+  eciesDecrypt,
+  recoverDiscloseSigner,
   verifyPublicLeg,
   type AttestEnv,
   type AttestRequest,
   type AttestResult,
   type OnchainState,
 } from "@ketsuban/registrar";
-import { MultipassAbi, toBytes32 } from "@peeramid-labs/multipass-client";
+import { decodeRecord, MultipassAbi, toBytes32 } from "@peeramid-labs/multipass-client";
 import {
   bytesToString,
   decodeAbiParameters,
@@ -330,6 +335,79 @@ export const onRegistered = (runtime: Runtime<Config>, log: { data?: Uint8Array 
   return `${ack.domain} ${ack.created ? "created" : "exists"}`;
 };
 
+// ─── Disclosure: the enclave answers who an account belongs to ───
+const discloseSchema = z.object({
+  name: z.string(),
+  domain: z.string(),
+  /** The record as published: masked name, masked id, view-code commitment, packed */
+  packed: hex,
+  /** The wallet that holds the record, read on chain by the caller and checked again here */
+  holder: hex,
+  grant: z.object({
+    name: z.string(),
+    domain: z.string(),
+    audience: hex,
+    exp: z.string().regex(/^\d+$/),
+    boxHash: hex,
+    box: z.object({ ephemeralPubkey: hex, nonce: hex, ciphertext: hex }),
+    signature: hex,
+  }),
+  reader: hex.optional(),
+});
+
+/**
+ * Runs inside the enclave. A masked account publishes a commitment, never a handle; the candidate's
+ * signed permission carries the view code encrypted to the registrar key, which exists only here. So
+ * this is the one place the question "which account is it" can be answered, and the answer is the only
+ * thing that leaves.
+ */
+export const onDisclose = async (runtime: TeeRuntime<Config>, payload: HTTPPayload): Promise<string> => {
+  const config = runtime.config;
+  const input = discloseSchema.parse(JSON.parse(bytesToString(payload.input)));
+  const grant = {
+    name: input.grant.name,
+    domain: input.grant.domain,
+    audience: input.grant.audience as Address,
+    exp: BigInt(input.grant.exp),
+    boxHash: input.grant.boxHash as Hex,
+    box: {
+      ephemeralPubkey: input.grant.box.ephemeralPubkey as Hex,
+      nonce: input.grant.box.nonce as Hex,
+      ciphertext: input.grant.box.ciphertext as Hex,
+    },
+    signature: input.grant.signature as Hex,
+  };
+  if (grant.name !== input.name || grant.domain !== input.domain) {
+    throw new Error("disclosure: grant is for a different record");
+  }
+
+  const signer = await recoverDiscloseSigner(
+    { name: grant.name, domain: grant.domain, audience: grant.audience, exp: grant.exp, boxHash: grant.boxHash },
+    grant.signature,
+    discloseDomain(config.chainId, config.multipass as Address)
+  );
+  checkDisclosure(grant, {
+    holder: input.holder as Address,
+    now: Math.floor(runtime.now().getTime() / 1000),
+    signer,
+  });
+  checkAudience(grant, input.reader as Address | undefined);
+
+  const registrarKey = runtime.getSecret({ id: config.secretIds.registrarKey }).result().value as Hex;
+  const viewCode = bytesToHex(eciesDecrypt(registrarKey, grant.box));
+  const packed = input.packed as Hex;
+  if (packed.length !== 194) throw new Error("disclosure: not a linked-account record");
+  const disclosed = decodeRecord(
+    {
+      name: `0x${packed.slice(2, 66)}` as Hex,
+      id: `0x${packed.slice(66, 130)}` as Hex,
+      payload: `0x${packed.slice(130, 194)}` as Hex,
+    },
+    viewCode
+  );
+  return JSON.stringify({ name: input.name, domain: input.domain, disclosed });
+};
+
 // ─── TEE handler ────────────────────────────────────────────
 /**
  * Runs inside the enclave. Only the chain read and the optional delivery cross to the DON;
@@ -373,6 +451,14 @@ export function initWorkflow(config: Config) {
         authorizedKeys: config.authorizedKeys.map((publicKey) => ({ type: "KEY_TYPE_ECDSA_EVM", publicKey })),
       }),
       onAttest,
+      [{ tee: "nitro", regions: ["us-west-2"] }]
+    ),
+    // The same enclave answers who a masked account belongs to, for whoever the candidate allowed.
+    cre.handlerInTee(
+      http.trigger({
+        authorizedKeys: config.authorizedKeys.map((publicKey) => ({ type: "KEY_TYPE_ECDSA_EVM", publicKey })),
+      }),
+      onDisclose,
       [{ tee: "nitro", regions: ["us-west-2"] }]
     ),
     // `Registered(bytes32 indexed domainName, Record)` in the root name domain.
