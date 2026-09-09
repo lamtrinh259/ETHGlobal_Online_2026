@@ -62,11 +62,9 @@ export function Dashboard() {
   const [rootRow, ...subjectRows] = rows;
   const handle = rootRow?.live ? rootRow.ensName.split(".")[0] : undefined;
   const received = useVouches(api, handle);
-  const liveVouchers = [
-    ...new Set(
-      (received.data?.vouches ?? []).filter((v) => v.live && v.statement !== WITHDRAWN).map((v) => v.voucher)
-    ),
-  ];
+  const liveVouchers = (received.data?.vouches ?? [])
+    .filter((v) => v.live && v.statement !== WITHDRAWN)
+    .filter((v, i, all) => all.findIndex((o) => o.voucher === v.voucher) === i);
   const siteUrl = typeof window === "undefined" ? "" : window.location.origin;
   // Claiming a name and answering a question are decisions, so each opens a dialog rather than
   // unfolding another form into the page.
@@ -249,9 +247,19 @@ export function Dashboard() {
                 <>
                   <strong>{liveVouchers.length} live</strong> from{" "}
                   {liveVouchers.map((v, i) => (
-                    <span key={v}>
+                    <span key={v.voucher}>
                       {i > 0 && ", "}
-                      <Link href={`/p/${v}`}>{v}</Link>
+                      <Link href={`/p/${v.voucher}`}>{v.voucher}</Link>
+                      {/* Each reference is a name in your own namespace, readable without this page. */}
+                      {v.ensName && (
+                        <>
+                          {" ("}
+                          <Link href={`/v/${v.ensName}`}>
+                            <code>{v.ensName}</code>
+                          </Link>
+                          {")"}
+                        </>
+                      )}
                     </span>
                   ))}
                   .
