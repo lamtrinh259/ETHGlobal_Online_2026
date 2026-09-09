@@ -2,7 +2,16 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { bytesToHex, encodePacked, keccak256, zeroAddress, zeroHash, type Address, type Hex } from "viem";
+import {
+  bytesToHex,
+  encodePacked,
+  keccak256,
+  recoverTypedDataAddress,
+  type Address,
+  type Hex,
+  zeroAddress,
+  zeroHash,
+} from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import {
   baseIntent,
@@ -17,6 +26,7 @@ import {
   decodeRecord,
   maskId,
   maskName,
+  registerNameTypes,
   toBytes32,
   viewCodeCommitment,
 } from "@peeramid-labs/multipass-client";
@@ -866,6 +876,70 @@ describe("POST /v1/submit", () => {
     const failed = await post(app(broken.chain), "/v1/submit", attested);
     expect(failed.status).toBe(502);
     expect((await failed.json()).error).toBe("verify reverted");
+  });
+});
+
+describe("POST /v1/org", () => {
+  const orgApp = (chain: ChainReader) =>
+    createApp({
+      config: loadConfig({ ...baseEnv, ORG_TOKEN: "0123456789abcdef0123456789abcdef" }),
+      chain,
+      now: () => NOW,
+    });
+  const token = { "x-org-token": "0123456789abcdef0123456789abcdef" };
+  const body = { wallet: user.account.address, label: "acme-university" };
+
+  it("signs an org record the contract accepts, and renews rather than duplicating", async () => {
+    const { chain, submitted } = fakeChain();
+    const res = await post(orgApp(chain), "/v1/org", body, token);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ ok: true, label: "acme-university", renewal: false });
+
+    const [written] = submitted;
+    expect(written.record).toMatchObject({
+      name: toBytes32("acme-university"),
+      domainName: toBytes32("org"),
+      wallet: user.account.address,
+      nonce: 1n,
+    });
+    // The signature has to come from the registrar, or Multipass rejects it.
+    expect(
+      await recoverTypedDataAddress({
+        domain: {
+          name: baseEnv.MULTIPASS_EIP712_NAME ?? "MultipassDNS",
+          version: "1.0.0",
+          chainId: 31337,
+          verifyingContract: baseEnv.MULTIPASS as Hex,
+        },
+        types: registerNameTypes,
+        primaryType: "registerName",
+        message: written.record,
+        signature: written.signature,
+      })
+    ).toBe(registrar.address);
+
+    const held = `${user.account.address.toLowerCase()}:org`;
+    const existing = fakeChain({
+      records: { [held]: { exists: true, nonce: 3n, id: toBytes32("acme"), wallet: user.account.address } },
+    });
+    const renewed = await post(orgApp(existing.chain), "/v1/org", body, token);
+    expect(await renewed.json()).toMatchObject({ renewal: true });
+    expect(existing.submitted[0].record.nonce).toBe(4n);
+  });
+
+  it("is operator-only, validates its input, and refuses when the domain is not usable", async () => {
+    const { chain } = fakeChain();
+    expect((await post(app(chain), "/v1/org", body, token)).status).toBe(501);
+    expect((await post(orgApp(chain), "/v1/org", body)).status).toBe(401);
+    expect((await post(orgApp(chain), "/v1/org", { wallet: "nope", label: "acme" }, token)).status).toBe(400);
+    expect(
+      (await post(orgApp(chain), "/v1/org", { wallet: body.wallet, label: "Not Valid" }, token)).status
+    ).toBe(400);
+
+    const wrong = fakeChain({ ready: { org: { initialised: true, active: true, registrarOk: false } } });
+    const res = await post(orgApp(wrong.chain), "/v1/org", body, token);
+    expect(res.status).toBe(503);
+    expect((await res.json()).error).toContain('not the registrar for "org"');
   });
 });
 

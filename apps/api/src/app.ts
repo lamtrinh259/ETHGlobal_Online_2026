@@ -1,17 +1,18 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { z } from "zod";
-import { zeroHash, type Address, type Hex } from "viem";
+import { keccak256, stringToBytes, zeroHash, type Address, type Hex } from "viem";
 import {
   candidateOf,
   attest,
+  signRecord,
   type AttestEnv,
   type AttestRequest,
   type AttestResult,
   type RegisterMessage,
   type OnchainState,
 } from "@ketsuban/registrar";
-import { decodeRecord, fromBytes32, isOptedIn } from "@peeramid-labs/multipass-client";
+import { decodeRecord, fromBytes32, isOptedIn, toBytes32 } from "@peeramid-labs/multipass-client";
 import type { ChainReader, Instance } from "./chain.js";
 import type { Config } from "./config.js";
 import { PersistentSet } from "./store.js";
@@ -290,6 +291,50 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
         }
       }
       return c.json({ ok: true, txHash, ...(vouchInstance ? { vouchInstance } : {}) });
+    } catch (e) {
+      return c.json({ ok: false, error: (e as Error).message }, 502);
+    }
+  });
+
+  /**
+   * Onboard an organisation: give a wallet a record in `ORG_DOMAIN` so it can issue references
+   * uninvited. Operator-only by design — the uninvited path is safe only because somebody vouched for
+   * the organisation itself — so it needs `ORG_TOKEN` and no identity token, the subject being a
+   * wallet rather than a person.
+   */
+  app.post("/v1/org", async (c) => {
+    if (!config.ORG_TOKEN || !config.REGISTRAR_KEY) return c.json({ error: "org onboarding disabled" }, 501);
+    if (c.req.header("x-org-token") !== config.ORG_TOKEN) return c.json({ error: "unauthorized" }, 401);
+    const body = z
+      .object({
+        wallet: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
+        label: z.string().regex(/^[a-z0-9-]{1,31}$/),
+      })
+      .safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: "wallet and label required" }, 400);
+
+    const { wallet, label } = body.data;
+    const ready = await chain.domainReady(config.ORG_DOMAIN);
+    if (!ready.initialised || !ready.active)
+      return c.json({ error: `domain "${config.ORG_DOMAIN}" is not usable` }, 503);
+    if (!ready.registrarOk)
+      return c.json({ error: `this service is not the registrar for "${config.ORG_DOMAIN}"` }, 503);
+
+    const onchain = await chain.readOnchain(wallet as Address, config.ORG_DOMAIN);
+    const record: RegisterMessage = {
+      name: toBytes32(label),
+      // An organisation is a wallet, not a DID, so its id comes from the label it registers.
+      id: keccak256(stringToBytes(`org:${label}`)),
+      domainName: toBytes32(config.ORG_DOMAIN),
+      validUntil: BigInt(now() + config.RECORD_TERM_SECONDS),
+      nonce: onchain.nonce + 1n,
+      wallet: wallet as Address,
+      payload: zeroHash,
+    };
+    try {
+      const signature = await signRecord(record, config.REGISTRAR_KEY, env());
+      const txHash = await chain.submit(record, signature);
+      return c.json({ ok: true, label, wallet, txHash, renewal: onchain.exists });
     } catch (e) {
       return c.json({ ok: false, error: (e as Error).message }, 502);
     }

@@ -125,6 +125,24 @@ export async function verifyInvite(req: AttestRequest, onchain: OnchainState, en
  * Everything here is local computation; nothing leaves except the signed
  * record and, if opted in, the view code encrypted to the user.
  */
+/**
+ * Sign a record as the domain registrar. `attestConfidential` derives its record from a person's
+ * identity token; an organisation has no such token — it is a wallet an operator onboarded — so the
+ * fields are given directly and only the signing is shared.
+ */
+export async function signRecord(
+  record: RegisterMessage,
+  registrarKey: Hex,
+  env: Pick<AttestEnv, "chainId" | "multipass" | "eip712">
+): Promise<Hex> {
+  return privateKeyToAccount(registrarKey).signTypedData({
+    domain: { ...env.eip712, chainId: env.chainId, verifyingContract: env.multipass },
+    types: registerNameTypes,
+    primaryType: "registerName",
+    message: record,
+  });
+}
+
 export async function attestConfidential(
   req: AttestRequest,
   onchainId: Hex,
@@ -179,13 +197,7 @@ export async function attestConfidential(
     payload,
   };
 
-  const registrar = privateKeyToAccount(secrets.registrarKey);
-  const signature = await registrar.signTypedData({
-    domain: { ...env.eip712, chainId: env.chainId, verifyingContract: env.multipass },
-    types: registerNameTypes,
-    primaryType: "registerName",
-    message: record,
-  });
+  const signature = await signRecord(record, secrets.registrarKey, env);
 
   let box: AttestResult["viewCode"];
   if (viewCode) {

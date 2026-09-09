@@ -14,6 +14,7 @@ CORS: `CORS_ORIGINS` (comma list, default `*`) — set it to the web app origin 
 | `GET /v1/nonce?wallet=&domain=` | On-chain state for a wallet in a domain; `next` is the nonce to sign into the intent. Also `ready` and `reason`: whether a record in that domain can be written at all (initialised, active, and this attester is its registrar), so the browser learns before the wallet signs. |
 | `GET /v1/name/:domain/:handle` | Is the handle free in that domain; holder wallet and liveness. |
 | `POST /v1/submit` | `{record, signature}` → relays a registrar-signed record through the bridge. No secret needed: Multipass accepts it only because the registrar signed it. |
+| `POST /v1/org` | `{wallet, label}` with `x-org-token` → gives a wallet a record in `ORG_DOMAIN`, which lets it issue references uninvited. Operator-only: the uninvited path is safe only because somebody vouched for the organisation. |
 | `POST /v1/provision` | `{handle}` → provisions the candidate's `~<handle>` vouch instance. Idempotent; refuses a handle with no live record in the root name domain, so it needs no secret. |
 | `POST /v1/gas` | `{wallet}` → relayer sends `GAS_TOPUP_WEI` once to a wallet holding a live name and below that balance (disabled when 0). "Once" is kept in `DATA_DIR`, so a redeploy does not hand out a second payout. |
 | `GET /v1/ens/:name` | The name read through the ENSv2 UniversalResolver: the resolver it reached, the address and text records any ENS client would see (`?keys=` overrides). 501 unless `UNIVERSAL_RESOLVER` is set. |

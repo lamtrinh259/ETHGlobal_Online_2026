@@ -74,6 +74,8 @@ export const configSchema = z.object({
    * of this product.
    */
   ORG_DOMAIN: z.string().min(1).default("org"),
+  /** Shared secret for `POST /v1/org`; without it no organisation can be onboarded through the API */
+  ORG_TOKEN: z.string().min(16).optional(),
   /** Prefix of per-candidate vouch domains (`~alice`) */
   VOUCH_PREFIX: z.string().min(1).default("~"),
   /** Below this the relayer cannot pay for records; the preflight warns. Default 0.002 ETH. */

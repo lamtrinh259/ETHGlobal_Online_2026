@@ -8,6 +8,7 @@ export {
   DEFAULT_NAME_DOMAIN_PREFIXES,
 } from "./attest.js";
 export { INTENT_TYPES, intentDomain, recoverIntentSigner, signIntent } from "./intent.js";
+export { signRecord } from "./attest.js";
 export {
   candidateOf,
   decodeInvite,
