@@ -46,6 +46,7 @@ export const resolverAbi = withErrors(
     "function addr(bytes32 node) view returns (address)",
     "function text(bytes32 node, string key) view returns (string)",
     "function data(bytes32 node, string key) view returns (bytes)",
+    "function name(bytes32 node) view returns (string)",
   ])
 );
 

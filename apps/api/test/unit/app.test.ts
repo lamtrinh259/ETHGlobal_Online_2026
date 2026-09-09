@@ -95,6 +95,7 @@ type State = {
   sent: { to: Address; value: bigint }[];
   preflight: Preflight;
   ready: Record<string, { initialised: boolean; active: boolean; registrarOk: boolean }>;
+  reverse: Record<string, string>;
 };
 
 function fakeChain(state: Partial<State> = {}) {
@@ -107,6 +108,7 @@ function fakeChain(state: Partial<State> = {}) {
     instancesCreated: [],
     byWallet: [],
     names: {},
+    reverse: {},
     ready: {},
     instances: [instance],
     preflight: {
@@ -154,6 +156,7 @@ function fakeChain(state: Partial<State> = {}) {
       async (_r: Address, name: string, key: string) => s.texts[`${name}/${key}`] ?? s.texts[key] ?? ""
     ),
     resolveAddr: vi.fn(async () => s.addr),
+    reverseName: vi.fn(async (_r: Address, wallet: Address) => s.reverse[wallet.toLowerCase()] ?? ""),
     resolveUniversal: vi.fn(async (name: string, keys: string[]) => {
       if (s.universal instanceof Error) throw s.universal;
       return {
@@ -1378,6 +1381,22 @@ describe("GET /v1/name/:domain/:handle", () => {
       wallet: null,
     });
     expect((await app(chain).request("/v1/name/kju-is/bad%20name")).status).toBe(400);
+  });
+});
+
+describe("GET /v1/reverse/:address", () => {
+  it("answers what an address is called, from the Multipass record", async () => {
+    const { chain } = fakeChain({ reverse: { [user.account.address.toLowerCase()]: "alice.kju-is.eth" } });
+    const body = await (await app(chain).request(`/v1/reverse/${user.account.address}`)).json();
+    expect(body.name).toBe("alice.kju-is.eth");
+    expect(body.names).toEqual([{ domain: "kju-is", name: "alice.kju-is.eth", resolver: instance.resolver }]);
+    expect(body.note).toContain("not from a reverse registry");
+    expect(chain.reverseName).toHaveBeenCalledWith(instance.resolver, user.account.address);
+
+    const unknown = await (await app(chain).request(`/v1/reverse/${registrar.address}`)).json();
+    expect(unknown.name).toBeNull();
+    expect(unknown.names).toEqual([]);
+    expect((await app(chain).request("/v1/reverse/nope")).status).toBe(400);
   });
 });
 

@@ -15,6 +15,7 @@ import {
   useNonce,
   usePreflight,
   useProfileWrite,
+  useReverse,
   useVerification,
   useVouches,
   useWalletDashboard,
@@ -79,6 +80,12 @@ function fakeApi(): Api {
     })),
     gas: vi.fn(async () => ({ hash: "0xhash3" as Hex, amount: "1" })),
     contracts: vi.fn(async () => ({ instances: [], bridge: WALLET, permissionedResolver: WALLET })),
+    reverse: vi.fn(async (address: string) => ({
+      address,
+      name: "alice.ketsuban.eth",
+      names: [{ domain: "ketsuban", name: "alice.ketsuban.eth", resolver: WALLET }],
+      note: "answered from the Multipass record, not from a reverse registry",
+    })),
     preflight: vi.fn(async () => ({
       ok: false,
       warnings: ['domain "google" is not initialised on Multipass'],
@@ -175,6 +182,12 @@ describe("hooks", () => {
     expect(noHandle.result.current.fetchStatus).toBe("idle");
     const vouches = renderHook(() => useVouches(api, "alice"), { wrapper: wrapper() });
     await waitFor(() => expect(vouches.result.current.data?.handle).toBe("alice"));
+
+    const rev = renderHook(() => useReverse(api, WALLET), { wrapper: wrapper() });
+    await waitFor(() => expect(rev.result.current.data?.name).toBe("alice.ketsuban.eth"));
+    expect(
+      renderHook(() => useReverse(api, undefined), { wrapper: wrapper() }).result.current.fetchStatus
+    ).toBe("idle");
 
     const pre = renderHook(() => usePreflight(api), { wrapper: wrapper() });
     await waitFor(() => expect(pre.result.current.data?.warnings).toHaveLength(1));

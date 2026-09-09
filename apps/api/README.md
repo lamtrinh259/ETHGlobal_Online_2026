@@ -21,6 +21,7 @@ CORS: `CORS_ORIGINS` (comma list, default `*`) — set it to the web app origin 
 | `GET /v1/enclave-key` | The registrar's public key: what a candidate encrypts a view code to, so only the enclave can open it. |
 | `POST /v1/disclose` | A candidate's signed permission to read one masked account, carrying the view code encrypted to that key. Refused unless the wallet holding the record signed it, it is unexpired, and the signature binds to that exact ciphertext. |
 | `GET /v1/disclose/:name/:domain` | Opens it: the enclave decrypts the view code, decodes the record, and answers the handle. `?reader=` must match a grant addressed to one wallet. |
+| `GET /v1/reverse/:address` | What an address is called, read from its Multipass record through the instance resolver. No reverse registry is involved, which is why it works today; a third-party client reaches the same answer once ENS's reverse namespace points here. |
 | `GET /v1/standing/:handle` | Live references a handle's wallet gave and it received; `/v1/vouches` carries it per live voucher. |
 | `GET /v1/wallet/:address` | A wallet's names, linked-account records, references given, and `org` when it holds a live record in `ORG_DOMAIN` (its dashboard). |
 | `GET /v1/profile/:handle` | The whole candidate in one read: every instance name with its verification, the references written for them, and the candidate's standing. Facts only; grading against a policy is the reader's job. |

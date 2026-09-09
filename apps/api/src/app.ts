@@ -559,6 +559,33 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     return c.json({ domain, handle, ...status, reserved, taken: status.taken || reserved });
   });
 
+  /**
+   * What an address is called. Multipass holds the record, so the resolver can answer the reverse
+   * question without any reverse registry: useful to a verifier who has an address and nothing else.
+   */
+  app.get("/v1/reverse/:address", async (c) => {
+    const address = c.req.param("address");
+    if (!/^0x[0-9a-fA-F]{40}$/.test(address)) return c.json({ error: "bad address" }, 400);
+    const instances = await chain.instances();
+    const named = await Promise.all(
+      instances
+        .filter((i) => config.NAME_DOMAINS.includes(i.domain))
+        .map(async (i) => ({
+          domain: i.domain,
+          name: await chain.reverseName(i.resolver, address as Address).catch(() => ""),
+          resolver: i.resolver,
+        }))
+    );
+    const found = named.filter((n) => n.name !== "");
+    return c.json({
+      address,
+      name: found[0]?.name ?? null,
+      names: found,
+      note: "answered from the Multipass record, not from a reverse registry",
+      warning: WARNING,
+    });
+  });
+
   /** A wallet's dashboard: its names per domain and the references it has given (`<prefix>*` domains). */
   app.get("/v1/wallet/:address", async (c) => {
     const address = c.req.param("address");

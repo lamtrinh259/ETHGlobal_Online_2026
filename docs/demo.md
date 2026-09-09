@@ -73,7 +73,21 @@ cast call 0x4a1817d13E9cF196f471725176355c1234b63c70 \
 A masked account has no readable label, so there is no name to offer: the record still proves the
 person controls an account on that platform, without saying which.
 
-## 3. Who wrote it
+## 3. The other direction
+
+A verifier who has only an address asks what it is called. The answer comes from the Multipass record
+through the instance resolver, so no reverse registry is involved:
+
+```bash
+curl -s $API/v1/reverse/0xEE4811b9462956C9C3535E79c08776D769CA9F3a | jq '{name, names}'
+```
+
+```
+alice.ketsuban.eth     via the root resolver
+alice.x.ketsuban.eth   via the x resolver
+```
+
+## 4. Who wrote it
 
 ```bash
 curl -s $API/v1/standing/bob | jq
@@ -83,7 +97,7 @@ curl -s $API/v1/wallet/0xEE4811b9462956C9C3535E79c08776D769CA9F3a | jq '{names: 
 A voucher's standing is their own record: how many references they gave and received. Following it is
 how a verifier judges the person speaking, not just the sentence.
 
-## 4. The browser flow
+## 5. The browser flow
 
 1. `/claim` — sign in, pick a name, answer each question. Four numbered groups, one subject each.
 2. `/me` — connect and attest an account, create an invite link, see who has vouched.
@@ -96,7 +110,7 @@ how a verifier judges the person speaking, not just the sentence.
 Two rules the UI enforces before a wallet signs anything: only someone the candidate invited can write
 a reference for them, and a domain that cannot be written disables the button with the reason.
 
-## 5. A letter before the person
+## 6. A letter before the person
 
 An onboarded organisation — a university, a former employer — writes a reference for a handle nobody
 has claimed. The relay creates the candidate's vouch instance from that signed record, so the letter
@@ -108,13 +122,13 @@ curl -s -H "x-org-token: $ORG_TOKEN" -H 'content-type: application/json' \
   -d '{"wallet":"0x…","label":"acme-university"}' $API/v1/org | jq
 ```
 
-## 6. What a withdrawal looks like
+## 7. What a withdrawal looks like
 
 A voucher can withdraw. The record stays, the old statement stays in the history, and the live
 statement becomes `withdrawn`, which stops counting towards a verifier's minimum and reads as
 "withdrawn by the voucher" on the page. Nothing disappears.
 
-## 7. Chainlink CRE
+## 8. Chainlink CRE
 
 `packages/cre` holds one workflow with two triggers: an HTTP trigger whose handler runs inside a Nitro
 enclave and signs the record as registrar, and an EVM log trigger on `Registered` that provisions a

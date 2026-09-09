@@ -496,6 +496,26 @@ export class Chain {
     return { resolver, addr: decodeAbiParameters([{ type: "address" }], addrOut)[0], texts };
   }
 
+  /**
+   * Reverse resolution, straight from Multipass: the resolver takes `<40 hex>.addr.reverse`, reads the
+   * record that wallet holds in its domain, and answers with that name. No reverse registry is involved,
+   * which is why it works today — a third-party client reaches it only once ENS's reverse namespace
+   * points here.
+   */
+  async reverseName(resolver: Address, wallet: Address): Promise<string> {
+    const reverse = `${wallet.slice(2).toLowerCase()}.addr.reverse`;
+    const out = await this.publicClient.readContract({
+      address: resolver,
+      abi: resolverAbi,
+      functionName: "resolve",
+      args: [
+        dnsEncode(reverse),
+        encodeFunctionData({ abi: resolverAbi, functionName: "name", args: [namehash(reverse)] }),
+      ],
+    });
+    return decodeAbiParameters([{ type: "string" }], out)[0];
+  }
+
   /** ENSIP-10 read through the instance resolver */
   async resolveText(resolver: Address, name: string, key: string): Promise<string> {
     const out = await this.publicClient.readContract({
@@ -544,6 +564,7 @@ export type ChainReader = Pick<
   | "submit"
   | "resolveText"
   | "resolveUniversal"
+  | "reverseName"
   | "resolveAddr"
   | "resolveData"
   | "relayer"

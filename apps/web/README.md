@@ -16,6 +16,10 @@ identity is Privy (embedded wallet, identity token); the view-code key stays on 
 | `/v/<name>` | anyone | One name's verification card, server-rendered (`generateMetadata` for unfurls). `?viewCode=0x…&links=x` discloses opted-in links. Both this and `/p/<handle>` cross-check the name through the ENSv2 UniversalResolver (`EnsProof`). |
 | `/api/health` | ops | Readiness probe for the container HEALTHCHECK. |
 
+The profile ends with "How you appear on chain": every name anyone can read (your name, each public
+account, each answer), why a private account has none, and the reverse answer — what a client asking
+about your address gets, read from the Multipass record rather than a reverse registry.
+
 Attesting an account happens in a `Modal`: signing is a decision that interrupts, not a section of the
 page. Privacy is a `Switch`, on by default, worded as what it does — you decide who can read your handle.
 `Step` is the shared numbered group used by the profile and the claim journey. `AttestFlow` disables publishing when `GET /v1/nonce` reports the domain cannot be written (not

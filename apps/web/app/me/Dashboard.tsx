@@ -19,6 +19,7 @@ import { questionFor } from "@/lib/questions";
 import { Accounts } from "./Accounts";
 import { InviteLink } from "./InviteLink";
 import { OwnName } from "./OwnName";
+import { OnChain } from "./OnChain";
 import { Privacy } from "./Privacy";
 import { ProfileEditor } from "./ProfileEditor";
 
@@ -267,6 +268,8 @@ export function Dashboard() {
           </>
         )}
       </Step>
+
+      <OnChain api={api} wallet={wallet} dash={d} />
 
       {publishing && (
         <Modal title={publishing.title} onClose={() => setPublishing(undefined)}>

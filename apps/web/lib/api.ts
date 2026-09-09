@@ -120,6 +120,14 @@ export const profileSchema = z.object({
 });
 export type ProfileRead = z.infer<typeof profileSchema>;
 
+export const reverseSchema = z.object({
+  address: z.string(),
+  name: z.string().nullable(),
+  names: z.array(z.object({ domain: z.string(), name: z.string(), resolver: z.string() })),
+  note: z.string(),
+});
+export type ReverseRead = z.infer<typeof reverseSchema>;
+
 export const nameStatusSchema = z.object({
   domain: z.string(),
   handle: z.string(),
@@ -259,6 +267,10 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
 
     async contracts(): Promise<Contracts> {
       return contractsSchema.parse(await readJson(await call(`${base}/v1/instances`)));
+    },
+
+    async reverse(address: string): Promise<ReverseRead> {
+      return reverseSchema.parse(await readJson(await call(`${base}/v1/reverse/${address}`)));
     },
 
     async nameStatus(domain: string, handle: string): Promise<NameStatus> {

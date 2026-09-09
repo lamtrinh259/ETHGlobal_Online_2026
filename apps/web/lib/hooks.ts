@@ -142,3 +142,12 @@ export function usePreflight(api: Api) {
     retry: false,
   });
 }
+
+/** What an address is called, read from its Multipass record through the instance resolver. */
+export function useReverse(api: Api, address: Address | undefined) {
+  return useQuery({
+    queryKey: ["reverse", address],
+    queryFn: () => api.reverse(address as Address),
+    enabled: !!address,
+  });
+}
