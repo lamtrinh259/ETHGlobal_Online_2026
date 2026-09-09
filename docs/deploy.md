@@ -216,15 +216,18 @@ curl -s $API/healthz | jq .config
 Most deployment problems are one variable naming the wrong contract, and this is how to see that without
 shell access to the container. `GET /v1/preflight` goes further and checks the chain agrees.
 
-## Handing someone a test `.eth`
+## Getting a test `.eth`
 
 `linkOwnName` only accepts a label the caller owns on the ENSv2 registry, which on a test deployment
-nobody does. `POST /v1/eth-name` registers one for a wallet that already holds a name here, and
-`POST /v1/eth-name/finish` completes it once the registrar's commitment has aged; the relay pays in the
-mock payment token, which it mints. It needs `ETH_REGISTRAR`, `PAYMENT_TOKEN` and `PERMISSIONED_RESOLVER`.
+nobody does. The dashboard offers to register one, from the person's own wallet: mint the mock payment
+token, approve it, commit, wait, register. `/v1/instances` publishes `ethRegistrar` and `paymentToken`
+so the browser can do it, and the registration itself never touches the relay.
 
-Two details the registrar does not document: `register` reverts with **no reason at all** when both the
-subregistry and the resolver are zero, so a resolver is always passed; and the commitment is only usable
-inside a window, roughly a minute after it was made until a few minutes later. Outside that window the
-revert is again empty, so the relay checks the age itself and answers `202 {retryAt}` rather than
-spending on a call that cannot succeed.
+Three details the ENSv2 Sepolia registrar does not document, each found the hard way:
+
+- `register` reverts with **no reason at all** when both the subregistry and the resolver are zero, so a
+  resolver is always passed.
+- It mints **only to its caller**: `register(..., owner, ...)` with an owner other than `msg.sender`
+  reverts, again with no data.
+- The minted name **does not transfer** — `safeTransferFrom` on the registry reverts — so a relay cannot
+  register on someone's behalf and hand it over. That is why this is a wallet flow rather than an API.

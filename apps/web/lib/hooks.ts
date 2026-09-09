@@ -4,7 +4,15 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import type { Address, Hex } from "viem";
 import { createApi, type Api, type AttestResult, type Verification } from "./api";
-import { linkOwnName, writeProfileText, type ProfileKey, type Signer } from "./chain";
+import {
+  commitEthName,
+  linkOwnName,
+  registerEthName,
+  writeProfileText,
+  type EthNameParams,
+  type ProfileKey,
+  type Signer,
+} from "./chain";
 import type { WebConfig } from "./config";
 
 /** One client per config; the hooks below are the only place components touch the API. */
@@ -85,27 +93,19 @@ export function useEthLabel(api: Api, label: string) {
 }
 
 /**
- * Get a `.eth` name on a test deployment: commit, wait out the registrar's minimum age, register. One
- * mutation so the button is one button, and the wait is visible rather than a mystery.
+ * Get a `.eth` name on a test deployment. The registrar mints only to whoever calls it, and the names it
+ * mints do not transfer, so this has to be the person's own wallet: pay, commit, wait, register.
  */
-export function useClaimEthName(api: Api, onDone: () => void) {
+export function useClaimEthName(onDone: () => void) {
   const [waitingUntil, setWaitingUntil] = useState<number>();
   const mutation = useMutation({
-    mutationFn: async ({ label, wallet }: { label: string; wallet: Address }) => {
-      const committed = await api.claimEthName(label, wallet, "commit");
-      let readyAt = (committed.readyAt ?? 0) * 1000;
-      // The registrar's window has a floor and a ceiling; the relay says when to come back, and says it
-      // again if the commitment aged out while we waited.
-      for (let attempt = 0; attempt < 3; attempt++) {
-        setWaitingUntil(readyAt);
-        const left = readyAt - Date.now();
-        if (left > 0) await new Promise((r) => setTimeout(r, left + 1000));
-        setWaitingUntil(undefined);
-        const done = await api.claimEthName(label, wallet, "finish");
-        if (!done.retryAt) return done;
-        readyAt = done.retryAt * 1000;
-      }
-      throw new Error("the registrar kept asking us to wait; try again in a minute");
+    mutationFn: async ({ signer, params }: { signer: Signer; params: EthNameParams }) => {
+      const { readyAt } = await commitEthName(signer, params);
+      setWaitingUntil(readyAt * 1000);
+      const left = readyAt * 1000 - Date.now();
+      if (left > 0) await new Promise((r) => setTimeout(r, left));
+      setWaitingUntil(undefined);
+      return registerEthName(signer, params);
     },
     onSuccess: onDone,
     onError: () => setWaitingUntil(undefined),

@@ -49,9 +49,6 @@ function fakeApi(): Api {
   return {
     nonce: vi.fn(async () => ({ exists: nonce > 1n, next: nonce, ready: true, reason: null })),
     attest: vi.fn(async () => result),
-    claimEthName: vi.fn(async (label: string, _wallet: string, step: string) =>
-      step === "commit" ? { label, readyAt: Math.floor(Date.now() / 1000) } : { label, owner: WALLET }
-    ),
     ethLabel: vi.fn(async (label: string) => ({
       label,
       registry: WALLET,

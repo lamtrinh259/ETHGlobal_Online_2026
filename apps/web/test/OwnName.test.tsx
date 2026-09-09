@@ -8,7 +8,11 @@ const state = {
 const claim = vi.fn();
 
 vi.mock("@/lib/hooks", () => ({
-  useContracts: () => ({ data: { bridge: "0x01", canRegisterNames: state.canRegisterNames } }),
+  useContracts: () => ({
+    data: state.canRegisterNames
+      ? { bridge: "0x01", ethRegistrar: "0x02", paymentToken: "0x03", permissionedResolver: "0x04" }
+      : { bridge: "0x01", ethRegistrar: null, paymentToken: null, permissionedResolver: null },
+  }),
   useEthLabel: () => ({ data: { label: "alice", registry: "0x02", owner: state.owner }, refetch: vi.fn() }),
   useClaimEthName: () => ({ mutate: claim, isPending: false, error: null, waitingUntil: undefined }),
   useLinkOwnName: () => ({ mutate: vi.fn(), isPending: false, error: null, isSuccess: false, data: undefined }),

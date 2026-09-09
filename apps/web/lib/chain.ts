@@ -1,10 +1,15 @@
 import {
+  concatHex,
   createPublicClient,
   createWalletClient,
   custom,
   defineChain,
+  keccak256,
   namehash,
   parseAbi,
+  toHex,
+  zeroAddress,
+  zeroHash,
   type Abi,
   type Address,
   type Chain,
@@ -32,6 +37,32 @@ export const resolverWriteAbi = [
 ];
 export const bridgeWriteAbi = [
   ...parseAbi(["function linkOwnName(bytes32 domain, string label)"]),
+  ...errorsAbi,
+];
+
+/**
+ * The ENSv2 `.eth` registrar, and the token it prices names in. Registering is two transactions with a
+ * wait between them, and it has to come from the wallet that will hold the name: the registrar mints
+ * only to its caller, and the names it mints do not transfer.
+ */
+export const registrarWriteAbi = [
+  ...parseAbi([
+    "function commit(bytes32 commitment)",
+    "function commitmentAt(bytes32 commitment) view returns (uint64)",
+    "function isAvailable(string label) view returns (bool)",
+    "function getRegisterPrice(string label, uint64 duration, address paymentToken) view returns (uint256 base, uint256 premium)",
+    "function makeCommitment(string label, address owner, bytes32 secret, address subregistry, address resolver, uint64 duration, bytes32 referrer) pure returns (bytes32)",
+    "function register(string label, address owner, bytes32 secret, address subregistry, address resolver, uint64 duration, address paymentToken, bytes32 referrer) returns (uint256)",
+  ]),
+  ...errorsAbi,
+];
+
+export const tokenWriteAbi = [
+  ...parseAbi([
+    "function balanceOf(address) view returns (uint256)",
+    "function approve(address spender, uint256 amount) returns (bool)",
+    "function mint(address to, uint256 amount)",
+  ]),
   ...errorsAbi,
 ];
 
@@ -63,7 +94,7 @@ async function send(
   signer: Signer,
   tx: {
     address: Address;
-    abi: typeof resolverWriteAbi | typeof bridgeWriteAbi;
+    abi: Abi;
     functionName: string;
     args: unknown[];
   }
@@ -108,5 +139,102 @@ export function linkOwnName(signer: Signer, bridge: Address, domain: string, lab
     abi: bridgeWriteAbi,
     functionName: "linkOwnName",
     args: [toBytes32(domain), label],
+  });
+}
+
+export type EthNameParams = {
+  registrar: Address;
+  token: Address;
+  resolver: Address;
+  label: string;
+  owner: Address;
+  /** How long the name is registered for, in seconds */
+  duration: bigint;
+};
+
+/** The secret is derived from the owner and the label, so both steps agree without storing anything. */
+function nameSecret(label: string, owner: Address): Hex {
+  return keccak256(concatHex([toHex(`ketsuban:${label}`), owner]));
+}
+
+function nameArgs(p: EthNameParams) {
+  return [p.label, p.owner, nameSecret(p.label, p.owner), zeroAddress, p.resolver, p.duration] as const;
+}
+
+/**
+ * Step one: pay for the name and record the intent to register it. The registrar reverts with no reason
+ * at all when both the subregistry and the resolver are zero, so a resolver is always passed.
+ *
+ * Returns when the commitment can be used, which the registrar makes the caller wait for.
+ */
+export async function commitEthName(signer: Signer, p: EthNameParams): Promise<{ readyAt: number }> {
+  const chain = chainFor(signer.chainId);
+  const transport = custom(signer.provider as Parameters<typeof custom>[0]);
+  const pub = createPublicClient({ chain, transport });
+  const [base, premium] = await pub.readContract({
+    address: p.registrar,
+    abi: registrarWriteAbi,
+    functionName: "getRegisterPrice",
+    args: [p.label, p.duration, p.token],
+  });
+  const price = base + premium;
+  const balance = await pub.readContract({
+    address: p.token,
+    abi: tokenWriteAbi,
+    functionName: "balanceOf",
+    args: [p.owner],
+  });
+  // The payment token mints freely on a test chain, which is the only chain this flow is for.
+  if (balance < price) {
+    await send(signer, {
+      address: p.token,
+      abi: tokenWriteAbi,
+      functionName: "mint",
+      args: [p.owner, price - balance],
+    });
+  }
+  await send(signer, {
+    address: p.token,
+    abi: tokenWriteAbi,
+    functionName: "approve",
+    args: [p.registrar, price],
+  });
+  const commitment = await pub.readContract({
+    address: p.registrar,
+    abi: registrarWriteAbi,
+    functionName: "makeCommitment",
+    args: [...nameArgs(p), zeroHash],
+  });
+  const existing = await pub.readContract({
+    address: p.registrar,
+    abi: registrarWriteAbi,
+    functionName: "commitmentAt",
+    args: [commitment],
+  });
+  if (existing === 0n) {
+    await send(signer, {
+      address: p.registrar,
+      abi: registrarWriteAbi,
+      functionName: "commit",
+      args: [commitment],
+    });
+  }
+  const at = await pub.readContract({
+    address: p.registrar,
+    abi: registrarWriteAbi,
+    functionName: "commitmentAt",
+    args: [commitment],
+  });
+  // Slack for block timestamps lagging wall clock: one second early is a revert.
+  return { readyAt: Number(at) + 75 };
+}
+
+/** Step two, once the commitment has aged: the name is registered to the wallet that signs this. */
+export function registerEthName(signer: Signer, p: EthNameParams): Promise<Hex> {
+  return send(signer, {
+    address: p.registrar,
+    abi: registrarWriteAbi,
+    functionName: "register",
+    args: [...nameArgs(p), p.token, zeroHash],
   });
 }

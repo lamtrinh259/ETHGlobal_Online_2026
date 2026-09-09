@@ -303,81 +303,12 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
       bridge: config.BRIDGE,
       permissionedResolver: config.PERMISSIONED_RESOLVER ?? null,
       ethRegistry: config.ETH_REGISTRY ?? null,
-      // Whether this deployment can hand someone a `.eth` name to bring, which only a test chain can.
-      canRegisterNames: !!config.ETH_REGISTRAR && !!config.PAYMENT_TOKEN,
+      // The registrar mints only to its caller and the names do not transfer, so registering is
+      // something the person's own wallet does; the browser needs these two addresses to do it.
+      ethRegistrar: config.ETH_REGISTRAR ?? null,
+      paymentToken: config.PAYMENT_TOKEN ?? null,
     })
   );
-
-  /**
-   * Hand someone a `.eth` name on a test deployment, so "bring your own name" is not a dead end for a
-   * person who has nowhere to get one. Two steps, because the registrar wants a commitment to age
-   * first; the relay pays, in a token it can mint.
-   *
-   * Only for a wallet this deployment already knows — someone holding a live name here — and only for
-   * a label nobody owns. Both are checked before anything is spent.
-   */
-  async function nameRequest(c: Context) {
-    if (!config.ETH_REGISTRAR || !config.PAYMENT_TOKEN)
-      return { error: c.json({ error: "this deployment cannot register names" }, 501) };
-    const body = await c.req.json().catch(() => null);
-    const parsed = z
-      .object({ label: z.string().regex(/^[a-z0-9-]{3,63}$/), wallet: z.string().regex(/^0x[0-9a-fA-F]{40}$/) })
-      .safeParse(body);
-    if (!parsed.success) return { error: c.json({ error: "label and wallet required" }, 400) };
-    const { label, wallet } = parsed.data;
-    // Read the chain, not only the index: a name claimed before this deployment's start block is still
-    // a name, and the person holding it should not be told they are a stranger.
-    const held = await Promise.all(config.NAME_DOMAINS.map((d) => chain.recordFor(wallet as Address, d)));
-    if (!held.some((r) => r?.live))
-      return { error: c.json({ error: "claim a name here first" }, 403) };
-    const owner = await chain.ethLabelOwner(label);
-    if (owner && owner !== zeroAddress)
-      return { error: c.json({ error: `${label}.eth is already owned`, owner }, 409) };
-    const mine = namesGiven.get(wallet.toLowerCase()) ?? [];
-    if (!mine.includes(label) && mine.length >= config.ETH_NAMES_PER_WALLET)
-      return {
-        error: c.json(
-          { error: `this wallet has already been given ${mine.length} names here`, names: mine },
-          429
-        ),
-      };
-    return { label, wallet: wallet as Address };
-  }
-
-  // The relay pays for every name it registers, so a wallet gets a few and not a farm of them.
-  const namesGiven = new PersistentMap<string[]>(
-    "eth-names",
-    config.DATA_DIR || undefined,
-    (raw) => (Array.isArray(raw) ? (raw as string[]) : []),
-    (value) => value
-  );
-
-  app.post("/v1/eth-name", async (c) => {
-    const req = await nameRequest(c);
-    if ("error" in req) return req.error;
-    try {
-      const { readyAt } = await chain.ethNameCommit(req.label, req.wallet);
-      return c.json({ label: req.label, readyAt, step: "committed" });
-    } catch (e) {
-      return c.json({ error: explainRevert(e) }, 502);
-    }
-  });
-
-  /** Second step: the commitment has aged, so the name can be registered to them. */
-  app.post("/v1/eth-name/finish", async (c) => {
-    const req = await nameRequest(c);
-    if ("error" in req) return req.error;
-    try {
-      const done = await chain.ethNameRegister(req.label, req.wallet);
-      // The commitment is not usable yet — too new, or aged out and replaced. Come back at `retryAt`.
-      if ("retryAt" in done) return c.json({ label: req.label, retryAt: done.retryAt }, 202);
-      const key = req.wallet.toLowerCase();
-      namesGiven.set(key, [...new Set([...(namesGiven.get(key) ?? []), req.label])]);
-      return c.json({ label: req.label, owner: done.owner, txHash: done.txHash });
-    } catch (e) {
-      return c.json({ error: explainRevert(e) }, 502);
-    }
-  });
 
   /**
    * Who owns a `.eth` label on the registry the bridge checks. A name held on another ENS deployment

@@ -28,9 +28,21 @@ export function OwnName({ api, wallet, domain, parentLabel, handle, getSigner }:
   const owner = useEthLabel(api, valid ? label : "");
   const held = owner.data?.owner?.toLowerCase();
   const mine = !!held && !!wallet && held === wallet.toLowerCase();
-  // A test deployment can hand out names, so nobody is stuck without one to bring.
-  const claim = useClaimEthName(api, () => owner.refetch());
-  const canClaim = !!contracts.data?.canRegisterNames && valid && !held && !!wallet;
+  // A test deployment lets someone register a name for themselves, so nobody is stuck without one to
+  // bring. It is their wallet that registers: the registrar mints only to whoever calls it.
+  const claim = useClaimEthName(() => owner.refetch());
+  const registrar = contracts.data?.ethRegistrar;
+  const token = contracts.data?.paymentToken;
+  const resolver = contracts.data?.permissionedResolver;
+  const canClaim = !!registrar && !!token && !!resolver && valid && !held && !!wallet;
+
+  async function register() {
+    if (!registrar || !token || !resolver || !wallet) return;
+    claim.mutate({
+      signer: await getSigner(),
+      params: { registrar, token, resolver, label, owner: wallet, duration: 2_419_200n },
+    });
+  }
 
   async function run() {
     if (!contracts.data) return;
@@ -66,12 +78,12 @@ export function OwnName({ api, wallet, domain, parentLabel, handle, getSigner }:
       )}
       {canClaim && (
         <p className="row">
-          <button onClick={() => claim.mutate({ label, wallet })} disabled={claim.isPending} data-testid="own-name-claim">
-            {claim.isPending ? "registering…" : `Register ${label}.eth here`}
+          <button onClick={register} disabled={claim.isPending} data-testid="own-name-claim">
+            {claim.isPending ? "registering…" : `Register ${label}.eth to this wallet`}
           </button>
           {claim.waitingUntil && (
             <small className="muted" data-testid="own-name-waiting">
-              the registrar makes this two steps, a minute apart
+              the registrar makes this two signatures, a minute apart
             </small>
           )}
         </p>
