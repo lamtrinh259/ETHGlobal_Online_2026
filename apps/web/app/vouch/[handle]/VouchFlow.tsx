@@ -84,7 +84,11 @@ export function VouchFlow({
 
       {loading && <p className="muted">loading…</p>}
 
-      {!loading && stage === "signin" && <AttestFlow fixedDomain="x" title="Sign in to begin" hideForm />}
+      {/* Signing in writes nothing, so the gate stands in the root name domain rather than a platform
+          this deployment may not even hold. */}
+      {!loading && stage === "signin" && (
+        <AttestFlow fixedDomain={root?.domain ?? ""} title="Sign in to begin" hideForm />
+      )}
 
       {!loading && stage === "onboarding" && (
         <section className="card" data-testid="onboarding-gate">
