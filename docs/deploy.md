@@ -192,7 +192,7 @@ instances go through unchanged. The API reads both, and the later one wins for a
 Adding a platform or a mail host later is one re-runnable command:
 
 ```bash
-DEPLOYMENT_FILE=deployments/11155111.json FACTORY=0xf9B9691818bA23315Fb9E2F89ffA0866bdd549E1 \
+DEPLOYMENT_FILE=deployments/11155111.json FACTORY=0x01c9c5cA5f9179b9Cce18Bb4b8542B448aCb6a59 \
 REGISTRAR=0x8583AD4a0F59Ba45C7E201318C6F774F31f7bbC8 PRIVATE_KEY=$OPERATOR_KEY \
 WWW_NAMES=reddit.com AT_NAMES=proton.me \
 forge script script/AddNamespace.s.sol --rpc-url $SEPOLIA_RPC --broadcast
