@@ -142,3 +142,9 @@ pnpm test:e2e    # docker: anvil + DeployLocal.s.sol + api image, full loop from
 The e2e stack is project `ketsuban-e2e` on network `ketsuban_e2e` (`E2E_SUBNET`, default `10.211.7.0/24`) with loopback-only
 ports `E2E_ANVIL_PORT` (18545) and `E2E_API_PORT` (18787), so it never collides with other compose projects on the
 same machine.
+
+## A note for anyone adding tests here
+
+Stand in for "unwritable" with a directory beneath a regular file, which gives `ENOTDIR` at once on any
+system. A path under `/proc` looks equivalent and is not: on Linux that `mkdir` never returns, so the suite
+passes on a developer's machine and hangs forever on a runner.
