@@ -16,7 +16,11 @@ const profile: Profile = {
       expiresAt: "2026-10-08T09:14:22.000Z",
     },
   ],
-  links: [{ domain: "x", optedIn: true, commitment: "0x01" }],
+  links: [
+    { domain: "x", optedIn: true, commitment: "0x01" },
+    { domain: "x.com", optedIn: false, ensName: "alice_x.com.x.www.ketsuban.eth" },
+    { domain: "discord.com", optedIn: true, ensName: "alice.com.discord.private-www.ketsuban.eth" },
+  ],
   humanity: null,
   vouches: [
     {
@@ -50,6 +54,15 @@ const profile: Profile = {
 };
 
 describe("ProfileCard", () => {
+  it("shows the name each account answers at, public or private", () => {
+    render(<ProfileCard p={profile} rootParent="ketsuban.eth" />);
+    const links = screen.getByTestId("links");
+    // The account in the open, and the private one named after the person: both checkable elsewhere.
+    expect(links).toHaveTextContent("alice_x.com.x.www.ketsuban.eth");
+    expect(links).toHaveTextContent("alice.com.discord.private-www.ketsuban.eth");
+    expect(links).toHaveTextContent("verified, masked");
+  });
+
   it("shows each reference as the name it is, linked to its own page", () => {
     render(<ProfileCard p={profile} rootParent="ketsuban.eth" />);
     const vouches = screen.getByTestId("vouches");

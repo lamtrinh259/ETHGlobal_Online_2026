@@ -115,6 +115,15 @@ export function ProfileCard({ p, rootParent, policy }: { p: Profile; rootParent:
               ) : (
                 "verified"
               )}
+              {/* The name it answers at: a reader can check the account without trusting this page. */}
+              {l.ensName && (
+                <>
+                  {" · "}
+                  <Link href={`/v/${l.ensName}`}>
+                    <code>{l.ensName}</code>
+                  </Link>
+                </>
+              )}
             </li>
           ))}
         </ul>
