@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useLinkAccount, usePrivy } from "@privy-io/react-auth";
 import { AttestFlow } from "@/app/AttestFlow";
 import { Modal } from "@/app/Modal";
 import type { WalletDashboard } from "@/lib/api";
 import { connectedAccounts, domainFor } from "@/lib/identity";
 import { useWebConfig } from "@/app/providers";
+import { apiFor, useContracts } from "@/lib/hooks";
 
 type Props = {
   links: WalletDashboard["links"];
@@ -21,10 +22,14 @@ type Props = {
  */
 export function Accounts({ links, awaiting, onPublished }: Props) {
   const config = useWebConfig();
+  const api = useMemo(() => apiFor(config), [config]);
+  // What the deployment actually holds, read from the chain through the API. The browser's own config
+  // lists only the name domains, which is not the same question.
+  const contracts = useContracts(api);
   const { user } = usePrivy();
   const { linkTwitter, linkTelegram, linkGithub, linkDiscord, linkGoogle } = useLinkAccount();
   const [attesting, setAttesting] = useState<string>();
-  const domains = config.instances.map((i) => i.domain);
+  const domains = (contracts.data?.instances ?? []).map((i) => i.domain);
   // Where each account would be attested in this deployment: `x.com` where the namespace is deployed,
   // the flat platform where it is not, and nothing at all when neither exists.
   const connected = connectedAccounts(user).map((a) => ({ ...a, target: domainFor(a, domains) }));
@@ -67,7 +72,7 @@ export function Accounts({ links, awaiting, onPublished }: Props) {
                   </span>
                 ) : !a.target ? (
                   <span className="acct-state" data-testid={`unmounted-${a.domain}`}>
-                    no namespace here for {a.label.split("@").pop()}
+                    this build has no namespace for {a.domain}
                   </span>
                 ) : awaiting === a.target ? (
                   <span className="acct-state" data-testid={`awaiting-${a.domain}`}>

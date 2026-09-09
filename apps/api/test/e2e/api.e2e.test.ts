@@ -267,6 +267,45 @@ describe("api e2e", () => {
     });
   });
 
+  it("mounts a namespace nobody deployed, on demand, for an ordinary mail host", async () => {
+    // `nowhere.test` is in no deploy list. A person with an address there attests, and the relay builds
+    // the levels, the instance and the mirror before handing back the signature.
+    const now = Math.floor(Date.now() / 1000);
+    const linked = [
+      { type: "wallet", address: user.account.address, chain_type: "ethereum" },
+      { type: "email", address: "alice@nowhere.test" },
+    ];
+    const idToken = privy.mint({ sub: user.did, linked, now });
+    const intent = baseIntent(user.account, now, { domain: "nowhere.test", optIn: false, exp: BigInt(now + 3600) });
+    const req = toWire(await signedAttestRequest(user.account, intent, idToken, 31337, deployment.multipass));
+    const attested = await (
+      await fetch(`${API}/v1/attest`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(req),
+      })
+    ).json();
+    expect(attested.error).toBeUndefined();
+    expect(fromBytes32(attested.record.name)).toBe("alice");
+
+    const { instances } = await (await fetch(`${API}/v1/instances`)).json();
+    const mounted = instances.find((i: { domain: string }) => i.domain === "nowhere.test");
+    expect(mounted).toMatchObject({
+      parentName: `test.nowhere.@.${deployment.instanceParent}`,
+      maskedParentName: `test.nowhere.private@.${deployment.instanceParent}`,
+    });
+
+    // And the record it was signed for goes through, which is the whole point of mounting first.
+    const delivered = await (
+      await fetch(`${API}/v1/cre/delivery`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-delivery-token": "e2e-delivery-token-0123456789" },
+        body: JSON.stringify(attested),
+      })
+    ).json();
+    expect(delivered.ok).toBe(true);
+  });
+
   it("provisions the candidate's vouch instance and lets a verified voucher write under it", async () => {
     const now = Math.floor(Date.now() / 1000);
     // Bob: a second human with his own wallet and linked accounts.

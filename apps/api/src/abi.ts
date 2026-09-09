@@ -30,6 +30,8 @@ export const factoryAbi = withErrors(
     "function domains() view returns (bytes32[])",
     "function isInstance(bytes32 domain) view returns (bool)",
     "function create(bytes32 domain, address parent, string parentLabel, string parentName, address inner) returns (address registry, address resolver)",
+    "function create(bytes32 domain, address parent, string parentLabel, string parentName, address inner, uint8 visibility) returns (address registry, address resolver)",
+    "function createMirror(bytes32 domain, bytes32 nameDomain, address parent, string parentLabel, string parentName, address inner) returns (address registry, address resolver)",
     "function mirror(bytes32 domain) view returns (Instance)",
   ])
 );
@@ -38,6 +40,7 @@ export const registryAbi = withErrors(
   parseAbi([
     "function setSubregistry(string label, address sub)",
     "function getSubregistry(string label) view returns (address)",
+    "function findOwner(string label) view returns (address)",
   ])
 );
 

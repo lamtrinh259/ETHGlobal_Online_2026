@@ -49,6 +49,11 @@ function fakeApi(): Api {
   return {
     nonce: vi.fn(async () => ({ exists: nonce > 1n, next: nonce, ready: true, reason: null })),
     attest: vi.fn(async () => result),
+    ethLabel: vi.fn(async (label: string) => ({
+      label,
+      registry: WALLET,
+      owner: label === "alice" ? WALLET : null,
+    })),
     deliver: vi.fn(async () => {
       nonce += 1n;
       return { ok: true as const, txHash: `0x${"ab".repeat(32)}` as `0x${string}` };

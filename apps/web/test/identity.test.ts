@@ -66,8 +66,13 @@ describe("which domain an account is attested into", () => {
 
   it("sends an email to the domain that issued it", () => {
     expect(domainFor(mail, ["x.com", "peeramid.xyz"])).toBe("peeramid.xyz");
-    // A mail host nobody deployed has no namespace here, and saying so beats a revert after signing.
-    expect(domainFor(mail, ["x.com"])).toBeUndefined();
+    // A mail host nobody deployed yet is still the answer: the relay mounts it during the attestation.
+    expect(domainFor(mail, ["x.com"])).toBe("peeramid.xyz");
+  });
+
+  it("has nothing to offer for a platform this build does not know", () => {
+    expect(domainFor({ domain: "myspace", label: "tom" }, ["x.com"])).toBeUndefined();
+    expect(domainFor({ domain: "email", label: "not-an-address" }, ["x.com"])).toBeUndefined();
   });
 
   it("still answers to a flat deployment", () => {

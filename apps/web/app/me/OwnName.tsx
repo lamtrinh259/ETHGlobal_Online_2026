@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { Address } from "viem";
 import type { Api } from "@/lib/api";
 import type { Signer } from "@/lib/chain";
-import { useContracts, useLinkOwnName } from "@/lib/hooks";
+import { useContracts, useEthLabel, useLinkOwnName } from "@/lib/hooks";
 
 type Props = {
   api: Api;
@@ -23,6 +23,11 @@ export function OwnName({ api, wallet, domain, parentLabel, handle, getSigner }:
   const link = useLinkOwnName(wallet);
   const [label, setLabel] = useState(handle);
   const valid = LABEL_RE.test(label);
+  // The bridge reverts with NotNameOwner for a label this wallet does not hold, and a name registered on
+  // a different ENS deployment is not on this registry at all. Say which before charging for the answer.
+  const owner = useEthLabel(api, valid ? label : "");
+  const held = owner.data?.owner?.toLowerCase();
+  const mine = !!held && !!wallet && held === wallet.toLowerCase();
 
   async function run() {
     if (!contracts.data) return;
@@ -49,6 +54,13 @@ export function OwnName({ api, wallet, domain, parentLabel, handle, getSigner }:
           data-testid="own-name-label"
         />
       </label>
+      {owner.data && !mine && (
+        <p className="muted" data-testid="own-name-owner">
+          {held
+            ? `${label}.eth is held by ${held.slice(0, 6)}…${held.slice(-4)}, not this wallet.`
+            : `Nobody holds ${label}.eth on the registry this bridge checks. Register it there first, or it is on a different ENS deployment.`}
+        </p>
+      )}
       {link.error && (
         <p className="error" role="alert">
           {link.error.message}
@@ -62,7 +74,7 @@ export function OwnName({ api, wallet, domain, parentLabel, handle, getSigner }:
       <button
         className="primary"
         onClick={run}
-        disabled={!valid || !contracts.data || link.isPending}
+        disabled={!valid || !mine || !contracts.data || link.isPending}
         data-testid="own-name-link"
       >
         {link.isPending ? "linking…" : "Link"}

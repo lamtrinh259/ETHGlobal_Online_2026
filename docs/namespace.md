@@ -70,6 +70,18 @@ Each name in the list becomes a Multipass domain, an instance in the open branch
 private one. The API reads the mounts back from the factory, so a record's ENS name is whatever the
 chain says it is — no list to keep in step.
 
+## A domain nobody deployed yet
+
+Nobody can enumerate every mail host in advance, so the relay builds one on demand. When an account is
+attested into a DNS domain this deployment does not hold, `/v1/attest` verifies the request first — the
+identity token, the wallet link, and that the address really was issued by that domain — and only then
+mounts the grouping levels, the instance and the mirror, before returning the signature. The person sees
+an ordinary attestation; the operator pays for a handful of small deployments once per domain.
+
+Nothing is mounted for a request the attester refuses, and a mount that fails returns 503 rather than a
+signature for a domain that does not exist. `NAMESPACE_FACTORY` must be set, or the relay has no factory
+new enough to build a mirror and the domain is refused as before.
+
 ## What a client attests into
 
 The web app asks the deployment, not a table: a connected X account goes to `x.com` where that is

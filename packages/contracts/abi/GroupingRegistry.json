@@ -1,0 +1,436 @@
+{
+  "abi": [
+    {
+      "type": "constructor",
+      "inputs": [
+        {
+          "name": "parent",
+          "type": "address",
+          "internalType": "contract IRegistry"
+        },
+        {
+          "name": "parentLabel",
+          "type": "string",
+          "internalType": "string"
+        },
+        {
+          "name": "owner",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "PARENT",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "",
+          "type": "address",
+          "internalType": "contract IRegistry"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "getParent",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "",
+          "type": "address",
+          "internalType": "contract IRegistry"
+        },
+        {
+          "name": "",
+          "type": "string",
+          "internalType": "string"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "getResolver",
+      "inputs": [
+        {
+          "name": "",
+          "type": "string",
+          "internalType": "string"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "stateMutability": "pure"
+    },
+    {
+      "type": "function",
+      "name": "getSubregistry",
+      "inputs": [
+        {
+          "name": "label",
+          "type": "string",
+          "internalType": "string"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "address",
+          "internalType": "contract IRegistry"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "owner",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "renounceOwnership",
+      "inputs": [],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "setSubregistry",
+      "inputs": [
+        {
+          "name": "label",
+          "type": "string",
+          "internalType": "string"
+        },
+        {
+          "name": "sub",
+          "type": "address",
+          "internalType": "contract IRegistry"
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "transferOwnership",
+      "inputs": [
+        {
+          "name": "newOwner",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "event",
+      "name": "ExpiryUpdated",
+      "inputs": [
+        {
+          "name": "tokenId",
+          "type": "uint256",
+          "indexed": true,
+          "internalType": "uint256"
+        },
+        {
+          "name": "newExpiry",
+          "type": "uint64",
+          "indexed": true,
+          "internalType": "uint64"
+        },
+        {
+          "name": "sender",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "LabelRegistered",
+      "inputs": [
+        {
+          "name": "tokenId",
+          "type": "uint256",
+          "indexed": true,
+          "internalType": "uint256"
+        },
+        {
+          "name": "labelHash",
+          "type": "bytes32",
+          "indexed": true,
+          "internalType": "bytes32"
+        },
+        {
+          "name": "label",
+          "type": "string",
+          "indexed": false,
+          "internalType": "string"
+        },
+        {
+          "name": "owner",
+          "type": "address",
+          "indexed": false,
+          "internalType": "address"
+        },
+        {
+          "name": "expiry",
+          "type": "uint64",
+          "indexed": false,
+          "internalType": "uint64"
+        },
+        {
+          "name": "sender",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "LabelReserved",
+      "inputs": [
+        {
+          "name": "tokenId",
+          "type": "uint256",
+          "indexed": true,
+          "internalType": "uint256"
+        },
+        {
+          "name": "labelHash",
+          "type": "bytes32",
+          "indexed": true,
+          "internalType": "bytes32"
+        },
+        {
+          "name": "label",
+          "type": "string",
+          "indexed": false,
+          "internalType": "string"
+        },
+        {
+          "name": "expiry",
+          "type": "uint64",
+          "indexed": false,
+          "internalType": "uint64"
+        },
+        {
+          "name": "sender",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "LabelUnregistered",
+      "inputs": [
+        {
+          "name": "tokenId",
+          "type": "uint256",
+          "indexed": true,
+          "internalType": "uint256"
+        },
+        {
+          "name": "sender",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "OwnershipTransferred",
+      "inputs": [
+        {
+          "name": "previousOwner",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "newOwner",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "ParentUpdated",
+      "inputs": [
+        {
+          "name": "parent",
+          "type": "address",
+          "indexed": true,
+          "internalType": "contract IRegistry"
+        },
+        {
+          "name": "label",
+          "type": "string",
+          "indexed": false,
+          "internalType": "string"
+        },
+        {
+          "name": "sender",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "RegistryCreated",
+      "inputs": [],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "ResolverUpdated",
+      "inputs": [
+        {
+          "name": "tokenId",
+          "type": "uint256",
+          "indexed": true,
+          "internalType": "uint256"
+        },
+        {
+          "name": "resolver",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "sender",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "SubregistryUpdated",
+      "inputs": [
+        {
+          "name": "tokenId",
+          "type": "uint256",
+          "indexed": true,
+          "internalType": "uint256"
+        },
+        {
+          "name": "subregistry",
+          "type": "address",
+          "indexed": true,
+          "internalType": "contract IRegistry"
+        },
+        {
+          "name": "sender",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "TokenRegenerated",
+      "inputs": [
+        {
+          "name": "oldTokenId",
+          "type": "uint256",
+          "indexed": true,
+          "internalType": "uint256"
+        },
+        {
+          "name": "newTokenId",
+          "type": "uint256",
+          "indexed": true,
+          "internalType": "uint256"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "URIUpdated",
+      "inputs": [
+        {
+          "name": "uri",
+          "type": "string",
+          "indexed": false,
+          "internalType": "string"
+        },
+        {
+          "name": "renderer",
+          "type": "address",
+          "indexed": false,
+          "internalType": "address"
+        },
+        {
+          "name": "sender",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "error",
+      "name": "OwnableInvalidOwner",
+      "inputs": [
+        {
+          "name": "owner",
+          "type": "address",
+          "internalType": "address"
+        }
+      ]
+    },
+    {
+      "type": "error",
+      "name": "OwnableUnauthorizedAccount",
+      "inputs": [
+        {
+          "name": "account",
+          "type": "address",
+          "internalType": "address"
+        }
+      ]
+    }
+  ],
+  "bytecode": "0x60a060405234801561000f575f5ffd5b506040516108dd3803806108dd83398101604081905261002e9161013a565b806001600160a01b03811661005c57604051631e4fbdf760e01b81525f600482015260240160405180910390fd5b610065816100b0565b506001600160a01b038316608052600161007f8382610291565b506040517fce2f8c55f0f6fbc489417a09291281b739419d412c063df417ab075e6f052687905f90a150505061034b565b5f80546001600160a01b038381166001600160a01b0319831681178455604051919092169283917f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e09190a35050565b6001600160a01b0381168114610113575f5ffd5b50565b634e487b7160e01b5f52604160045260245ffd5b8051610135816100ff565b919050565b5f5f5f6060848603121561014c575f5ffd5b8351610157816100ff565b60208501519093506001600160401b03811115610172575f5ffd5b8401601f81018613610182575f5ffd5b80516001600160401b0381111561019b5761019b610116565b604051601f8201601f19908116603f011681016001600160401b03811182821017156101c9576101c9610116565b6040528181528282016020018810156101e0575f5ffd5b8160208401602083015e5f602083830101528094505050506102046040850161012a565b90509250925092565b600181811c9082168061022157607f821691505b60208210810361023f57634e487b7160e01b5f52602260045260245ffd5b50919050565b601f82111561028c57805f5260205f20601f840160051c8101602085101561026a5750805b601f840160051c820191505b81811015610289575f8155600101610276565b50505b505050565b81516001600160401b038111156102aa576102aa610116565b6102be816102b8845461020d565b84610245565b6020601f8211600181146102f0575f83156102d95750848201515b5f19600385901b1c1916600184901b178455610289565b5f84815260208120601f198516915b8281101561031f57878501518255602094850194600190920191016102ff565b508482101561033c57868401515f19600387901b60f8161c191681555b50505050600190811b01905550565b6080516105746103695f395f8181608e01526101a001526105745ff3fe608060405234801561000f575f5ffd5b5060043610610085575f3560e01c80638da5cb5b116100585780638da5cb5b14610100578063e4ae7d7714610110578063eae2805214610125578063f2fde38b14610138575f5ffd5b8063122b83f91461008957806335af6216146100cd578063715018a6146100e057806380f76021146100ea575b5f5ffd5b6100b07f000000000000000000000000000000000000000000000000000000000000000081565b6040516001600160a01b0390911681526020015b60405180910390f35b6100b06100db3660046103eb565b61014b565b6100e8610188565b005b6100f261019b565b6040516100c492919061042a565b5f546001600160a01b03166100b0565b6100b061011e3660046103eb565b5f92915050565b6100e8610133366004610482565b610253565b6100e86101463660046104d5565b6102e9565b5f60025f848460405161015f9291906104f7565b604080519182900390912082526020820192909252015f20546001600160a01b03169392505050565b61019061032b565b6101995f610357565b565b5f60607f000000000000000000000000000000000000000000000000000000000000000060018080546101cd90610506565b80601f01602080910402602001604051908101604052809291908181526020018280546101f990610506565b80156102445780601f1061021b57610100808354040283529160200191610244565b820191905f5260205f20905b81548152906001019060200180831161022757829003601f168201915b50505050509050915091509091565b61025b61032b565b8060025f858560405161026f9291906104f7565b60408051918290039091208252602082019290925281015f2080546001600160a01b0319166001600160a01b039384161790555133918316906102b590869086906104f7565b604051908190038120907fca9c8d517128edd416adf5719242ca6ff93ce234442d95234da53c0ae8a10540905f90a4505050565b6102f161032b565b6001600160a01b03811661031f57604051631e4fbdf760e01b81525f60048201526024015b60405180910390fd5b61032881610357565b50565b5f546001600160a01b031633146101995760405163118cdaa760e01b8152336004820152602401610316565b5f80546001600160a01b038381166001600160a01b0319831681178455604051919092169283917f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e09190a35050565b5f5f83601f8401126103b6575f5ffd5b50813567ffffffffffffffff8111156103cd575f5ffd5b6020830191508360208285010111156103e4575f5ffd5b9250929050565b5f5f602083850312156103fc575f5ffd5b823567ffffffffffffffff811115610412575f5ffd5b61041e858286016103a6565b90969095509350505050565b60018060a01b0383168152604060208201525f82518060408401528060208501606085015e5f606082850101526060601f19601f8301168401019150509392505050565b6001600160a01b0381168114610328575f5ffd5b5f5f5f60408486031215610494575f5ffd5b833567ffffffffffffffff8111156104aa575f5ffd5b6104b6868287016103a6565b90945092505060208401356104ca8161046e565b809150509250925092565b5f602082840312156104e5575f5ffd5b81356104f08161046e565b9392505050565b818382375f9101908152919050565b600181811c9082168061051a57607f821691505b60208210810361053857634e487b7160e01b5f52602260045260245ffd5b5091905056fea2646970667358221220ef154ab4096a3b1aacab2d9a5b0dab93e715f7090111f79943837aeba330a8a364736f6c634300081c0033"
+}

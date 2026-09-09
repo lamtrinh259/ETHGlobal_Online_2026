@@ -66,17 +66,19 @@ export function connectedAccounts(user: LinkedAccounts | null | undefined): Conn
 }
 
 /**
- * The domain this deployment would attest an account into. A platform mounted at its own DNS name takes
+ * The domain this deployment attests an account into. A platform mounted at its own DNS name takes
  * `x.com`; an email takes the domain that issued the address, so `tim@peeramid.xyz` lands in
- * `peeramid.xyz`. Deployments that predate the DNS namespace still answer to the flat name.
+ * `peeramid.xyz`. A deployment that predates the DNS namespace still answers to the flat name.
  *
- * Nothing comes back when the deployment has no namespace for the account, which the UI says out loud
- * rather than letting someone sign into a revert.
+ * A DNS domain nobody has deployed yet is still the answer: the relay mounts it when the account is
+ * attested, so nobody with an ordinary mail host is turned away. Nothing comes back only when the
+ * account has no domain at all — a platform this build does not know.
  */
 export function domainFor(account: ConnectedAccount, domains: readonly string[]): string | undefined {
   const dns = account.domain === "email" ? emailHost(account.label) : PLATFORM_DNS_NAMES[account.domain];
   if (dns && domains.includes(dns)) return dns;
-  return domains.includes(account.domain) ? account.domain : undefined;
+  if (domains.includes(account.domain)) return account.domain;
+  return dns;
 }
 
 function emailHost(address: string): string | undefined {

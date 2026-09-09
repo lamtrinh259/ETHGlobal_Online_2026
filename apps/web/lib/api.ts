@@ -87,10 +87,19 @@ export const contractsSchema = z.object({
       resolver: address,
       parentName: z.string(),
       parentLabel: z.string(),
+      /** Where a masked record in this domain is named, when the deployment has a private branch */
+      maskedParentName: z.string().optional(),
     })
   ),
   bridge: address,
   permissionedResolver: address.nullable(),
+  ethRegistry: address.nullable().optional(),
+});
+
+export const ethLabelSchema = z.object({
+  label: z.string(),
+  registry: address,
+  owner: address.nullable(),
 });
 export type Contracts = z.infer<typeof contractsSchema>;
 
@@ -283,6 +292,11 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
 
     async contracts(): Promise<Contracts> {
       return contractsSchema.parse(await readJson(await call(`${base}/v1/instances`)));
+    },
+
+    /** Who owns a `.eth` label on the registry the bridge checks; `null` owner means nobody here does. */
+    async ethLabel(label: string): Promise<z.infer<typeof ethLabelSchema>> {
+      return ethLabelSchema.parse(await readJson(await call(`${base}/v1/eth-label/${label}`)));
     },
 
     /** The key a view code is encrypted to, so only the enclave can open a disclosure. */

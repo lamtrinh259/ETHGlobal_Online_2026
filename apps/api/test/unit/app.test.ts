@@ -349,6 +349,8 @@ describe("GET /healthz", () => {
       instances: [instance, xInstance],
       bridge: baseEnv.BRIDGE,
       permissionedResolver: null,
+      // The registry the bridge checks for "bring your own .eth"; null when none is configured.
+      ethRegistry: null,
     });
     const withResolver = createApp({
       config: loadConfig({ ...baseEnv, PERMISSIONED_RESOLVER: baseEnv.FACTORY }),
@@ -1432,6 +1434,92 @@ describe("GET /v1/reverse/:address", () => {
     expect(unknown.name).toBeNull();
     expect(unknown.names).toEqual([]);
     expect((await app(chain).request("/v1/reverse/nope")).status).toBe(400);
+  });
+});
+
+describe("a domain nobody deployed yet", () => {
+  it("mounts the namespace once the attester agrees the account belongs to it", async () => {
+    // Nobody can enumerate every mail host, so the relay builds one on demand rather than telling a
+    // person with an ordinary address to come back later.
+    const { chain } = fakeChain({ ready: { "example.com": { initialised: false, active: false, registrarOk: true } } });
+    chain.ensureNamespace = vi.fn(async (domain: string) => ({ domain, created: true, parentName: "com.example.@.kju-is.eth" }));
+    const env2 = { ...baseEnv, NAMESPACE_FACTORY: baseEnv.FACTORY };
+    const res = await app(chain, env2).request("/v1/attest", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(await wireRequest({ domain: "example.com" })),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(fromBytes32(body.record.domainName)).toBe("example.com");
+    // Named by the label it takes inside that namespace, not by the whole address.
+    expect(fromBytes32(body.record.name)).toBe("alice");
+    expect(chain.ensureNamespace).toHaveBeenCalledWith("example.com");
+  });
+
+  it("does not spend for a request the attester refuses", async () => {
+    // The address belongs to example.com, so gmail.com must neither sign nor mount.
+    const { chain } = fakeChain({ ready: { "gmail.com": { initialised: false, active: false, registrarOk: true } } });
+    chain.ensureNamespace = vi.fn(async (domain: string) => ({ domain, created: true, parentName: "x" }));
+    const res = await app(chain, { ...baseEnv, NAMESPACE_FACTORY: baseEnv.FACTORY }).request("/v1/attest", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(await wireRequest({ domain: "gmail.com" })),
+    });
+    expect(res.status).toBe(422);
+    expect((await res.json()).error).toContain("not an account at gmail.com");
+    expect(chain.ensureNamespace).not.toHaveBeenCalled();
+  });
+
+  it("says what failed when the mount does not go through, rather than handing back a dead signature", async () => {
+    const { chain } = fakeChain({ ready: { "example.com": { initialised: false, active: false, registrarOk: true } } });
+    chain.ensureNamespace = vi.fn(async () => {
+      throw new Error("relayer out of gas");
+    });
+    const res = await app(chain, { ...baseEnv, NAMESPACE_FACTORY: baseEnv.FACTORY }).request("/v1/attest", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(await wireRequest({ domain: "example.com" })),
+    });
+    expect(res.status).toBe(503);
+    expect((await res.json()).error).toContain("could not mount");
+  });
+
+  it("still refuses a domain no account could belong to", async () => {
+    const { chain } = fakeChain({ ready: { myspace: { initialised: false, active: false, registrarOk: true } } });
+    const res = await app(chain).request("/v1/attest", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(await wireRequest({ domain: "myspace" })),
+    });
+    expect(res.status).toBe(503);
+    expect((await res.json()).error).toContain("not initialised");
+  });
+});
+
+describe("GET /v1/eth-label/:label", () => {
+  it("says who owns the label on the registry the bridge checks", async () => {
+    // `linkOwnName` reverts with NotNameOwner for anyone else, and a name held on another ENS
+    // deployment is simply not here. Both answers are worth having before a wallet signs.
+    const { chain } = fakeChain();
+    chain.ethLabelOwner = vi.fn(async (label: string) =>
+      label === "alice" ? user.account.address : zeroAddress
+    );
+    const app2 = app(chain, { ...baseEnv, ETH_REGISTRY: baseEnv.BRIDGE });
+
+    const mine = await (await app2.request("/v1/eth-label/alice")).json();
+    expect(mine).toEqual({ label: "alice", registry: baseEnv.BRIDGE, owner: user.account.address });
+
+    const nobody = await (await app2.request("/v1/eth-label/test-account-123456")).json();
+    expect(nobody.owner).toBeNull();
+
+    expect((await app2.request("/v1/eth-label/not a label")).status).toBe(400);
+  });
+
+  it("says so when no registry is configured, instead of pretending nobody owns it", async () => {
+    const { chain } = fakeChain();
+    const res = await app(chain).request("/v1/eth-label/alice");
+    expect(res.status).toBe(501);
   });
 });
 

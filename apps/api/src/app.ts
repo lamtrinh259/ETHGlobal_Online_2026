@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { z } from "zod";
-import { bytesToHex, keccak256, stringToBytes, zeroHash, type Address, type Hex } from "viem";
+import { bytesToHex, keccak256, stringToBytes, zeroAddress, zeroHash, type Address, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import {
   candidateOf,
@@ -22,7 +22,9 @@ import {
   type OnchainState,
 } from "@ketsuban/registrar";
 import { decodeRecord, fromBytes32, isOptedIn, toBytes32 } from "@peeramid-labs/multipass-client";
+import { isDnsName, platformOf } from "@ketsuban/registrar";
 import type { ChainReader, Instance } from "./chain.js";
+import { explainRevert } from "./errors.js";
 import type { Config } from "./config.js";
 import { PersistentMap, PersistentSet } from "./store.js";
 
@@ -166,9 +168,20 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
    * "must exist": it is created from the first signed record, which is how an organisation writes for
    * someone who has no name yet.
    */
+  /**
+   * A DNS domain nobody has deployed yet is not a dead end: the relay builds its namespace on demand,
+   * the way it provisions a candidate's vouch instance. Only the operator pays, so the request has to
+   * have proved itself first — this runs after the attester has verified the identity token and that
+   * the account really was issued by that domain.
+   */
+  function provisionableNamespace(domain: string): boolean {
+    return !!config.NAMESPACE_FACTORY && isDnsName(domain) && !!platformOf(domain);
+  }
+
   async function writeBlocker(domain: string): Promise<string | null> {
     const ready = await chain.domainReady(domain);
-    const provisionable = candidateOf(domain, [config.VOUCH_PREFIX]) !== undefined;
+    const provisionable =
+      candidateOf(domain, [config.VOUCH_PREFIX]) !== undefined || provisionableNamespace(domain);
     if (!ready.initialised)
       return provisionable ? null : `domain "${domain}" is not initialised on Multipass`;
     if (!ready.active) return `domain "${domain}" is not active on Multipass`;
@@ -237,8 +250,29 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
       instances: await chain.instances(),
       bridge: config.BRIDGE,
       permissionedResolver: config.PERMISSIONED_RESOLVER ?? null,
+      ethRegistry: config.ETH_REGISTRY ?? null,
     })
   );
+
+  /**
+   * Who owns a `.eth` label on the registry the bridge checks. A name held on another ENS deployment
+   * is not here at all, which is the whole answer someone needs before paying for a reverted call.
+   */
+  app.get("/v1/eth-label/:label", async (c) => {
+    const label = c.req.param("label").toLowerCase();
+    if (!/^[a-z0-9-]{1,63}$/.test(label)) return c.json({ error: "bad label" }, 400);
+    if (!config.ETH_REGISTRY) return c.json({ error: "no eth registry configured" }, 501);
+    try {
+      const owner = await chain.ethLabelOwner(label);
+      return c.json({
+        label,
+        registry: config.ETH_REGISTRY,
+        owner: owner && owner !== zeroAddress ? owner : null,
+      });
+    } catch (e) {
+      return c.json({ error: explainRevert(e) }, 502);
+    }
+  });
 
   /** Current on-chain state for (wallet, domain): the browser needs the nonce to build an intent. */
   app.get("/v1/nonce", async (c) => {
@@ -275,18 +309,32 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     // signature the user already gave is wasted either way.
     const blocker = await writeBlocker(req.intent.domain);
     if (blocker) return c.json({ error: blocker }, 503);
+    const domain = req.intent.domain;
+    const pending = provisionableNamespace(domain);
+    let result;
     try {
       const onchain = await readFor(req);
-      const result = await attest(
+      const base = await env();
+      result = await attest(
         req,
         onchain,
         { registrarKey: config.REGISTRAR_KEY, viewcodeKey: config.VIEWCODE_KEY },
-        await env()
+        // A domain about to be provisioned is one this deployment will hold in a moment. The attester
+        // still has to agree the account belongs to it, which is what makes the spend safe.
+        pending ? { ...base, platformDomains: [...(base.platformDomains ?? []), domain] } : base
       );
-      return c.json(serialize(result));
     } catch (e) {
       return c.json({ error: (e as Error).message }, 422);
     }
+    // Only now, with the account proven: the signature is worthless until the domain exists on chain.
+    if (pending) {
+      try {
+        await chain.ensureNamespace(domain);
+      } catch (e) {
+        return c.json({ error: `could not mount "${domain}": ${explainRevert(e)}` }, 503);
+      }
+    }
+    return c.json(serialize(result));
   });
 
   /**

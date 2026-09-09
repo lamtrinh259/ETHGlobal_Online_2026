@@ -18,7 +18,14 @@ let instances = [
   instance("x.com", "com.x.www.ketsuban.eth"),
   instance("google.com", "com.google.www.ketsuban.eth"),
 ];
-vi.mock("@/app/providers", () => ({ useWebConfig: () => ({ instances }) }));
+vi.mock("@/app/providers", () => ({
+  useWebConfig: () => ({ apiUrl: "http://api.test", attestUrl: "http://api.test" }),
+}));
+// The deployment's own mounts, which is what decides where an account is attested.
+vi.mock("@/lib/hooks", () => ({
+  apiFor: () => ({}),
+  useContracts: () => ({ data: { instances } }),
+}));
 vi.mock("@/app/AttestFlow", () => ({ AttestFlow: () => <div /> }));
 
 const { Accounts } = await import("@/app/me/Accounts");
@@ -71,12 +78,13 @@ describe("Accounts", () => {
     expect(row).not.toHaveTextContent("public");
   });
 
-  it("says so when this deployment has no namespace for an account", () => {
-    // Nobody deploys every mail host. Saying it here beats a revert after the person has signed.
-    instances = [instance("ketsuban", "ketsuban.eth"), instance("x.com", "com.x.www.ketsuban.eth")];
+  it("still offers to attest into a namespace nobody has deployed yet", () => {
+    // Nobody can deploy every mail host up front, so the relay mounts one during the attestation. The
+    // row offers the action rather than turning the person away.
+    instances = [instance("ketsuban", "ketsuban.eth")];
     render(<Accounts links={[]} onPublished={vi.fn()} />);
-    expect(screen.getByTestId("unmounted-google")).toHaveTextContent("no namespace here");
-    expect(screen.queryByTestId("attest-google")).toBeNull();
+    expect(screen.getByTestId("attest-google")).toBeVisible();
     expect(screen.getByTestId("attest-x")).toBeVisible();
+    expect(screen.queryByTestId("unmounted-google")).toBeNull();
   });
 });

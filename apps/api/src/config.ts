@@ -21,6 +21,8 @@ export const configSchema = z.object({
   FACTORY: address,
   /** A later factory carrying the DNS namespace, when the first one is too old to have built it */
   NAMESPACE_FACTORY: address.optional(),
+  /** ENSv2 `.eth` registry the bridge checks ownership against, for "bring your own name" */
+  ETH_REGISTRY: address.optional(),
   /** Relayer key that submits `bridge.verify`; a Privy server wallet replaces it in production */
   RELAYER_KEY: hex,
   PRIVY_APP_ID: z.string(),
@@ -120,6 +122,8 @@ export type Config = Omit<
   | "PERMISSIONED_RESOLVER"
   | "UNIVERSAL_RESOLVER"
   | "REGISTRAR_ADDRESS"
+  | "NAMESPACE_FACTORY"
+  | "ETH_REGISTRY"
 > & {
   MULTIPASS: Address;
   BRIDGE: Address;
@@ -131,6 +135,8 @@ export type Config = Omit<
   PERMISSIONED_RESOLVER?: Address;
   UNIVERSAL_RESOLVER?: Address;
   REGISTRAR_ADDRESS?: Address;
+  NAMESPACE_FACTORY?: Address;
+  ETH_REGISTRY?: Address;
 };
 
 /**
@@ -155,6 +161,7 @@ const deploymentFile = z.object({
   bridge: address,
   factory: address,
   namespaceFactory: address.optional(),
+  ethRegistry: address.optional(),
   registry: address.optional(),
   permissionedResolver: address.optional(),
   universalResolver: address.optional(),
@@ -174,6 +181,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
       BRIDGE: d.bridge,
       FACTORY: d.factory,
       ...(d.namespaceFactory ? { NAMESPACE_FACTORY: d.namespaceFactory } : {}),
+      ...(d.ethRegistry ? { ETH_REGISTRY: d.ethRegistry } : {}),
       ...(d.registry ? { REGISTRY: d.registry } : {}),
       ...(d.permissionedResolver ? { PERMISSIONED_RESOLVER: d.permissionedResolver } : {}),
       ...(d.universalResolver ? { UNIVERSAL_RESOLVER: d.universalResolver } : {}),

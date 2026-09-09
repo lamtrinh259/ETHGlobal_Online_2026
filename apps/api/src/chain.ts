@@ -17,7 +17,15 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { MultipassAbi, fromBytes32, toBytes32 } from "@peeramid-labs/multipass-client";
-import { PLATFORM_DOMAIN_NAMES, type OnchainState, type RegisterMessage } from "@ketsuban/registrar";
+import {
+  groupingFor,
+  isDnsName,
+  PLATFORM_DOMAIN_NAMES,
+  platformOf,
+  type OnchainState,
+  type RegisterMessage,
+} from "@ketsuban/registrar";
+import groupingRegistry from "@ketsuban/contracts/GroupingRegistry" with { type: "json" };
 import { bridgeAbi, factoryAbi, registryAbi, resolverAbi, universalResolverAbi } from "./abi.js";
 import { RpcSource } from "./logs.js";
 import { Indexer, type IndexStatus, type IndexedRecord } from "./indexer.js";
@@ -139,6 +147,21 @@ export class Chain {
         };
       })
     );
+  }
+
+  /**
+   * Who owns a `.eth` label on the ENSv2 registry the bridge checks. `linkOwnName` reverts with
+   * `NotNameOwner` for anyone else, and a name registered on a different deployment is simply not here,
+   * so the answer is worth having before a wallet is asked to sign.
+   */
+  async ethLabelOwner(label: string): Promise<Address | undefined> {
+    if (!this.config.ETH_REGISTRY) return undefined;
+    return (await this.publicClient.readContract({
+      address: this.config.ETH_REGISTRY,
+      abi: registryAbi,
+      functionName: "findOwner",
+      args: [label],
+    })) as Address;
   }
 
   /**
@@ -287,6 +310,157 @@ export class Chain {
       })
     );
     return { domain, created: true };
+  }
+
+  /**
+   * Mount a DNS domain that nobody has deployed yet: the grouping levels it needs, its instance in the
+   * open branch, and its mirror in the private one. A person with an address at a mail host nobody
+   * anticipated should not be told to come back later, so the relay builds the namespace on demand, the
+   * same way it provisions a candidate's vouch instance.
+   *
+   * Idempotent and safe to call for a domain that already exists: every step checks first.
+   */
+  async ensureNamespace(domain: string): Promise<{ domain: string; created: boolean; parentName: string }> {
+    const factory = this.config.NAMESPACE_FACTORY;
+    const { REGISTRY, PERMISSIONED_RESOLVER, REGISTRAR_ADDRESS } = this.config;
+    if (!factory || !REGISTRY || !PERMISSIONED_RESOLVER || !REGISTRAR_ADDRESS)
+      throw new Error(
+        "a namespace needs NAMESPACE_FACTORY, REGISTRY, PERMISSIONED_RESOLVER and REGISTRAR_ADDRESS"
+      );
+    if (!isDnsName(domain)) throw new Error(`"${domain}" is not a DNS name`);
+    const domainB = toBytes32(domain);
+    const existing = await this.publicClient.readContract({
+      address: factory,
+      abi: factoryAbi,
+      functionName: "instance",
+      args: [domainB],
+    });
+    if (existing.registry !== zeroAddress)
+      return { domain, created: false, parentName: existing.parentName };
+
+    const root = (await this.instances()).find(
+      (i) => i.registry.toLowerCase() === REGISTRY.toLowerCase()
+    );
+    if (!root) throw new Error("root registry is not a known instance");
+    const group = groupingFor(platformOf(domain) ?? "email");
+    const labels = domain.toLowerCase().split(".");
+    const leaf = labels[labels.length - 1] as string;
+
+    await this.ensureDomainOnMultipass(domainB, REGISTRAR_ADDRESS);
+    const open = await this.walkLevels(REGISTRY, [group.open, ...labels.slice(0, -1)]);
+    // The mount's own name includes its label: an account under `x.com` reads `<handle>.com.x.www.<root>`.
+    const parentName = [...[...labels].reverse(), group.open, root.parentName].join(".");
+    await this.write({
+      address: factory,
+      abi: factoryAbi,
+      functionName: "create",
+      args: [domainB, open, leaf, parentName, PERMISSIONED_RESOLVER, 1],
+    });
+    const instance = await this.publicClient.readContract({
+      address: factory,
+      abi: factoryAbi,
+      functionName: "instance",
+      args: [domainB],
+    });
+    await this.mount(open, leaf, instance.registry);
+
+    // The private branch names a masked account after the person holding it, so it reads the root
+    // domain for the label and this domain for the account.
+    const masked = await this.walkLevels(REGISTRY, [group.masked, ...labels.slice(0, -1)]);
+    const maskedName = [...[...labels].reverse(), group.masked, root.parentName].join(".");
+    await this.write({
+      address: factory,
+      abi: factoryAbi,
+      functionName: "createMirror",
+      args: [domainB, toBytes32(root.domain), masked, leaf, maskedName, PERMISSIONED_RESOLVER],
+    });
+    const mirror = await this.publicClient.readContract({
+      address: factory,
+      abi: factoryAbi,
+      functionName: "mirror",
+      args: [domainB],
+    });
+    await this.mount(masked, leaf, mirror.registry);
+    return { domain, created: true, parentName };
+  }
+
+  /** Initialise and activate a Multipass domain that has never been used. */
+  private async ensureDomainOnMultipass(domainB: Hex, registrar: Address): Promise<void> {
+    const state = await this.publicClient.readContract({
+      address: this.config.MULTIPASS,
+      abi: MultipassAbi,
+      functionName: "getDomainState",
+      args: [domainB],
+    });
+    if (state.name === zeroHash) {
+      await this.write({
+        address: this.config.MULTIPASS,
+        abi: MultipassAbi,
+        functionName: "initializeDomain",
+        args: [registrar, 0n, 0n, domainB, 0n, 0n],
+      });
+    }
+    if (!state.isActive) {
+      await this.write({
+        address: this.config.MULTIPASS,
+        abi: MultipassAbi,
+        functionName: "activateDomain",
+        args: [domainB],
+      });
+    }
+  }
+
+  /**
+   * Walk down a chain of grouping levels from `parent`, deploying the ones that are missing. Returns the
+   * registry the instance itself mounts under.
+   */
+  private async walkLevels(parent: Address, labels: string[]): Promise<Address> {
+    let at = parent;
+    for (const label of labels) {
+      const found = await this.publicClient.readContract({
+        address: at,
+        abi: registryAbi,
+        functionName: "getSubregistry",
+        args: [label],
+      });
+      if (found !== zeroAddress) {
+        at = found;
+        continue;
+      }
+      const hash = await this.walletClient.deployContract({
+        chain: this.walletClient.chain,
+        account: this.walletClient.account!,
+        abi: groupingRegistry.abi,
+        bytecode: groupingRegistry.bytecode as Hex,
+        args: [at, label, this.walletClient.account!.address],
+      });
+      const receipt = await this.wait(hash);
+      const level = receipt.contractAddress;
+      if (!level) throw new Error(`level "${label}": no contract address in receipt`);
+      await this.mount(at, label, level);
+      at = level;
+    }
+    return at;
+  }
+
+  private async mount(parent: Address, label: string, child: Address): Promise<void> {
+    await this.write({
+      address: parent,
+      abi: registryAbi,
+      functionName: "setSubregistry",
+      args: [label, child],
+    });
+  }
+
+  /** One owner transaction, waited for: provisioning is a sequence and a dropped step leaves a gap. */
+  private async write(call: Record<string, unknown>): Promise<void> {
+    await this.wait(
+      await this.walletClient.writeContract({
+        chain: this.walletClient.chain,
+        account: this.walletClient.account!,
+        ...call,
+      } as Parameters<typeof this.walletClient.writeContract>[0])
+    );
   }
 
   /** Whether `handle` is taken in `domain`, and by which wallet */
@@ -532,6 +706,7 @@ export class Chain {
     await this.indexer
       .catchUp(receipt.blockNumber)
       .catch((err) => console.error(`index catch-up failed · ${err.message}`));
+    return receipt;
   }
 
   /**
@@ -648,6 +823,8 @@ export type ChainReader = Pick<
   | "indexStatus"
   | "preflight"
   | "domainReady"
+  | "ethLabelOwner"
+  | "ensureNamespace"
 >;
 
 function toListed(r: IndexedRecord): ListedRecord & { domain: string } {
