@@ -27,12 +27,14 @@ export const configSchema = z.object({
   ETH_REGISTRAR: address.optional(),
   /** ERC-20 the registrar prices names in; mintable on a test chain */
   PAYMENT_TOKEN: address.optional(),
+  /** How many test names one wallet may be given; the relay pays for each */
+  ETH_NAMES_PER_WALLET: z.coerce.number().int().positive().default(3),
   /** How long a registered test name lasts (default 28 days) */
   ETH_NAME_DURATION: z.coerce.number().int().positive().default(2_419_200),
   /** The registrar's minimum commitment age, waited out between the two steps */
   COMMITMENT_WAIT_SECONDS: z.coerce.number().int().nonnegative().default(60),
   /** How long a commitment stays usable; past this the registrar reverts and a new one is needed */
-  COMMITMENT_MAX_AGE_SECONDS: z.coerce.number().int().positive().default(300),
+  COMMITMENT_MAX_AGE_SECONDS: z.coerce.number().int().positive().default(240),
   /** Relayer key that submits `bridge.verify`; a Privy server wallet replaces it in production */
   RELAYER_KEY: hex,
   PRIVY_APP_ID: z.string(),

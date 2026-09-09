@@ -490,23 +490,30 @@ export class Chain {
    * out of the registrar's window. Outside that window `register` reverts with no reason at all, so the
    * age is checked here rather than discovered as a failure someone has already paid for.
    */
-  private async usableCommitment(label: string, owner: Address): Promise<{ at: number }> {
+  private async usableCommitment(label: string, owner: Address): Promise<{ at: number; secret: Hex }> {
     const registrar = this.requireRegistrar();
+    const window = this.config.COMMITMENT_MAX_AGE_SECONDS;
+    const epoch = Math.floor(this.now() / window);
+    // The registrar refuses to replace a commitment that has not expired, so a stale attempt cannot
+    // simply re-commit the same one. Deriving the secret per window makes the next attempt a different
+    // commitment; the previous window is checked too, for an attempt that started just before the turn.
+    for (const candidate of [epoch, epoch - 1]) {
+      const secret = this.nameSecret(label, owner, candidate);
+      const at = await this.commitmentAge(registrar, label, owner, secret);
+      if (at > 0 && this.now() - at < window) return { at, secret };
+    }
+    const secret = this.nameSecret(label, owner, epoch);
+    return { at: await this.commitNow(registrar, label, owner, secret), secret };
+  }
+
+  private async commitmentAge(registrar: Address, label: string, owner: Address, secret: Hex): Promise<number> {
     const commitment = await this.publicClient.readContract({
       address: registrar,
       abi: ethRegistrarAbi,
       functionName: "makeCommitment",
-      args: [
-        label,
-        owner,
-        this.nameSecret(label, owner),
-        zeroAddress,
-        this.nameResolver(),
-        this.nameDuration(),
-        zeroHash,
-      ],
+      args: [label, owner, secret, zeroAddress, this.nameResolver(), this.nameDuration(), zeroHash],
     });
-    const already = Number(
+    return Number(
       await this.publicClient.readContract({
         address: registrar,
         abi: ethRegistrarAbi,
@@ -514,8 +521,6 @@ export class Chain {
         args: [commitment],
       })
     );
-    const usable = already > 0 && this.now() - already < this.config.COMMITMENT_MAX_AGE_SECONDS;
-    return { at: usable ? already : await this.commitNow(registrar, commitment) };
   }
 
   /** A few seconds of slack: block timestamps lag wall clock, and one second early is a revert. */
@@ -527,20 +532,20 @@ export class Chain {
     return Math.floor(Date.now() / 1000);
   }
 
-  private async commitNow(registrar: Address, commitment: Hex): Promise<number> {
+  private async commitNow(registrar: Address, label: string, owner: Address, secret: Hex): Promise<number> {
+    const commitment = await this.publicClient.readContract({
+      address: registrar,
+      abi: ethRegistrarAbi,
+      functionName: "makeCommitment",
+      args: [label, owner, secret, zeroAddress, this.nameResolver(), this.nameDuration(), zeroHash],
+    });
     await this.write({
       address: registrar,
       abi: ethRegistrarAbi,
       functionName: "commit",
       args: [commitment],
     });
-    const at = await this.publicClient.readContract({
-      address: registrar,
-      abi: ethRegistrarAbi,
-      functionName: "commitmentAt",
-      args: [commitment],
-    });
-    return Number(at);
+    return this.commitmentAge(registrar, label, owner, secret);
   }
 
   async ethNameRegister(
@@ -549,7 +554,8 @@ export class Chain {
   ): Promise<{ owner: Address; txHash: Hex } | { retryAt: number }> {
     const registrar = this.requireRegistrar();
     // Too new or aged out: the caller waits rather than paying for a revert with nothing to read.
-    const readyAt = this.readyAt((await this.usableCommitment(label, owner)).at);
+    const { at, secret } = await this.usableCommitment(label, owner);
+    const readyAt = this.readyAt(at);
     if (this.now() < readyAt) return { retryAt: readyAt };
     const token = this.config.PAYMENT_TOKEN;
     if (!token) throw new Error("registering a name needs PAYMENT_TOKEN");
@@ -590,7 +596,7 @@ export class Chain {
       address: registrar,
       abi: ethRegistrarAbi,
       functionName: "register",
-      args: [label, owner, this.nameSecret(label, owner), zeroAddress, this.nameResolver(), duration, token, zeroHash],
+      args: [label, owner, secret, zeroAddress, this.nameResolver(), duration, token, zeroHash],
     } as const;
     await this.publicClient.simulateContract(call);
     const txHash = await this.walletClient.writeContract({
@@ -622,9 +628,9 @@ export class Chain {
   }
 
   /** Derived from a server secret, so both steps agree without anything being stored between them. */
-  private nameSecret(label: string, owner: Address): Hex {
+  private nameSecret(label: string, owner: Address, epoch: number): Hex {
     const key = this.config.VIEWCODE_KEY ?? this.config.RELAYER_KEY;
-    return keccak256(concatHex([key, toHex(label), owner]));
+    return keccak256(concatHex([key, toHex(label), owner, toHex(BigInt(epoch), { size: 8 })]));
   }
 
   /** Whether `handle` is taken in `domain`, and by which wallet */

@@ -1658,6 +1658,30 @@ describe("POST /v1/eth-name", () => {
     expect(taken.chain.ethNameCommit).not.toHaveBeenCalled();
   });
 
+  it("gives a wallet a few names, not a farm of them", async () => {
+    // Every registration costs the relay gas and a mint, so the generosity has a limit.
+    const { chain } = fakeChain({ byWallet: [held] });
+    chain.ethLabelOwner = vi.fn(async () => zeroAddress);
+    chain.ethNameCommit = vi.fn(async () => ({ readyAt: NOW }));
+    chain.ethNameRegister = vi.fn(async () => ({ owner: user.account.address, txHash: "0xfeed" as const }));
+    const app2 = app(chain, { ...env2, ETH_NAMES_PER_WALLET: "2" });
+    const ask = (label: string, path = "/v1/eth-name/finish") =>
+      app2.request(path, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ label, wallet: user.account.address }),
+      });
+
+    expect((await ask("first-name")).status).toBe(200);
+    expect((await ask("second-name")).status).toBe(200);
+    const third = await ask("third-name");
+    expect(third.status).toBe(429);
+    expect((await third.json()).names).toEqual(["first-name", "second-name"]);
+    // Finishing one already given is not a new name, so it is never refused.
+    expect((await ask("first-name")).status).toBe(200);
+    expect((await ask("first-name", "/v1/eth-name")).status).toBe(200);
+  });
+
   it("says so when this deployment has no registrar to register with", async () => {
     const { chain } = fakeChain({ byWallet: [held] });
     const res = await app(chain).request("/v1/eth-name", {

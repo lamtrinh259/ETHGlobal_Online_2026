@@ -333,8 +333,24 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     const owner = await chain.ethLabelOwner(label);
     if (owner && owner !== zeroAddress)
       return { error: c.json({ error: `${label}.eth is already owned`, owner }, 409) };
+    const mine = namesGiven.get(wallet.toLowerCase()) ?? [];
+    if (!mine.includes(label) && mine.length >= config.ETH_NAMES_PER_WALLET)
+      return {
+        error: c.json(
+          { error: `this wallet has already been given ${mine.length} names here`, names: mine },
+          429
+        ),
+      };
     return { label, wallet: wallet as Address };
   }
+
+  // The relay pays for every name it registers, so a wallet gets a few and not a farm of them.
+  const namesGiven = new PersistentMap<string[]>(
+    "eth-names",
+    config.DATA_DIR || undefined,
+    (raw) => (Array.isArray(raw) ? (raw as string[]) : []),
+    (value) => value
+  );
 
   app.post("/v1/eth-name", async (c) => {
     const req = await nameRequest(c);
@@ -355,6 +371,8 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
       const done = await chain.ethNameRegister(req.label, req.wallet);
       // The commitment is not usable yet — too new, or aged out and replaced. Come back at `retryAt`.
       if ("retryAt" in done) return c.json({ label: req.label, retryAt: done.retryAt }, 202);
+      const key = req.wallet.toLowerCase();
+      namesGiven.set(key, [...new Set([...(namesGiven.get(key) ?? []), req.label])]);
       return c.json({ label: req.label, owner: done.owner, txHash: done.txHash });
     } catch (e) {
       return c.json({ error: explainRevert(e) }, 502);
