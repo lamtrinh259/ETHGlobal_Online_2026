@@ -14,7 +14,7 @@ try {
 }
 const chain = new Chain(config);
 const app = createApp({ config, chain });
-startIndexer(chain.indexer, config.INDEX_POLL_SECONDS);
+const index = startIndexer(chain.indexer, config.INDEX_POLL_SECONDS);
 
 // Say it once, at boot: a deployment pointed at the wrong contract should not wait for a user to
 // sign something before it complains.
@@ -33,6 +33,18 @@ void chain
   })
   .catch((err) => console.error(`preflight failed · ${(err as Error).message}`));
 
-serve({ fetch: app.fetch, port: config.PORT }, (info) => {
+const server = serve({ fetch: app.fetch, port: config.PORT }, (info) => {
   console.log(JSON.stringify({ msg: "api listening", port: info.port, chainId: config.CHAIN_ID }));
 });
+
+// A deploy replaces this container: stop polling and let the in-flight tick finish, so the snapshot on
+// disk is whole and the next boot resumes from it rather than rescanning.
+for (const signal of ["SIGTERM", "SIGINT"] as const) {
+  process.on(signal, () => {
+    void (async () => {
+      console.log(JSON.stringify({ msg: "shutting down", signal }));
+      await index.stop();
+      server.close(() => process.exit(0));
+    })();
+  });
+}
