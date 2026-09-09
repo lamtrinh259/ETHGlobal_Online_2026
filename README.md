@@ -1,5 +1,7 @@
 # Ketsuban
 
+[![ci](https://github.com/lamtrinh259/ETHGlobal_Online_2026/actions/workflows/ci.yml/badge.svg)](https://github.com/lamtrinh259/ETHGlobal_Online_2026/actions/workflows/ci.yml)
+
 Non-deletable, human-verified references. A reference is a Multipass record whose registrar signature is produced
 inside a Chainlink CRE enclave from a Privy identity token and a wallet-signed intent; ENSv2 makes every record a
 name (`<handle>.<instance>.eth`) that any wallet or agent can resolve without integrating with us.
