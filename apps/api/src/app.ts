@@ -183,13 +183,26 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     const domain = c.req.query("domain");
     if (!wallet || !/^0x[0-9a-fA-F]{40}$/.test(wallet) || !domain)
       return c.json({ error: "wallet and domain required" }, 400);
-    const s = await chain.readOnchain(wallet as Address, domain);
+    const [s, ready] = await Promise.all([
+      chain.readOnchain(wallet as Address, domain),
+      chain.domainReady(domain),
+    ]);
+    const reason = !ready.initialised
+      ? `domain "${domain}" is not initialised on Multipass`
+      : !ready.active
+        ? `domain "${domain}" is not active on Multipass`
+        : !ready.registrarOk
+          ? `this attester is not the registrar for "${domain}"`
+          : null;
     return c.json({
       exists: s.exists,
       nonce: s.nonce.toString(),
       next: (s.nonce + 1n).toString(),
       id: s.id,
       wallet: s.wallet,
+      // The browser asks for a nonce right before it signs, so this is where it learns not to.
+      ready: reason === null,
+      reason,
     });
   });
 

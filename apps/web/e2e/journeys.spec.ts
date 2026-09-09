@@ -87,3 +87,23 @@ test("a vouch page with no invitation says so instead of offering the form", asy
   await page.goto("/vouch/alice?invite=not-a-real-token");
   await expect(page.locator(".journey li")).toHaveCount(3);
 });
+
+test("a domain that cannot be written disables the publish button with the reason", async ({ page }) => {
+  await page.route("**/v1/nonce**", (route) =>
+    route.fulfill({
+      json: {
+        exists: false,
+        nonce: "0",
+        next: "1",
+        id: `0x${"00".repeat(32)}`,
+        wallet: `0x${"00".repeat(20)}`,
+        ready: false,
+        reason: 'domain "google" is not initialised on Multipass',
+      },
+    })
+  );
+  await page.goto("/claim");
+  // Behind the sign-in gate there is no form, so the reason has nowhere to show yet; the gate stands.
+  await expect(page.getByTestId("signin")).toBeVisible({ timeout: 20000 });
+  await expect(page.getByTestId("publish")).toHaveCount(0);
+});

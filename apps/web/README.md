@@ -15,7 +15,9 @@ identity is Privy (embedded wallet, identity token); the view-code key stays on 
 | `/v/<name>` | anyone | One name's verification card, server-rendered (`generateMetadata` for unfurls). `?viewCode=0x…&links=x` discloses opted-in links. Both this and `/p/<handle>` cross-check the name through the ENSv2 UniversalResolver (`EnsProof`). |
 | `/api/health` | ops | Readiness probe for the container HEALTHCHECK. |
 
-`Step` is the shared numbered group used by the profile and the claim journey. `AttestFlow` is the single publishing component — it checks handle availability as you type (`GET /v1/name/:domain/:handle`)
+`Step` is the shared numbered group used by the profile and the claim journey. `AttestFlow` disables publishing when `GET /v1/nonce` reports the domain cannot be written (not
+initialised, not active, or this attester is not its registrar) and shows that reason, so nobody signs
+into a revert. `AttestFlow` is the single publishing component — it checks handle availability as you type (`GET /v1/name/:domain/:handle`)
 and turns into "Sign & update" when the wallet already holds a record (the newer nonce supersedes the old one); journeys pass `fixedDomain` / `fixedHandle` / `onPublished` to
 sequence it. `lib/profile.ts` folds per-name verifications into the page and grades the policy; `lib/journey.ts` derives
 journey progress from the wallet dashboard (both pure, tested).

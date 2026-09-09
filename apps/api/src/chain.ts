@@ -290,6 +290,32 @@ export class Chain {
 
   /** Every record a wallet has registered (any domain), current state, with liveness */
   /**
+   * Can this service write a record in `domain` at all? Read before the wallet signs: a domain that
+   * was never initialised, or one whose registrar is not the key this service signs with, fails after
+   * the signature otherwise — which is the worst moment to find out.
+   */
+  async domainReady(
+    domain: string
+  ): Promise<{ initialised: boolean; active: boolean; registrarOk: boolean }> {
+    const d = await this.publicClient.readContract({
+      address: this.config.MULTIPASS,
+      abi: MultipassAbi,
+      functionName: "getDomainState",
+      args: [toBytes32(domain)],
+    });
+    const signsAs = this.config.REGISTRAR_KEY
+      ? privateKeyToAccount(this.config.REGISTRAR_KEY).address
+      : this.config.REGISTRAR_ADDRESS;
+    return {
+      initialised: d.name !== zeroHash,
+      active: d.isActive,
+      // Without a configured registrar this service does not sign; the enclave does, and only the
+      // chain knows whether that key matches.
+      registrarOk: !signsAs || d.registrar.toLowerCase() === signsAs.toLowerCase(),
+    };
+  }
+
+  /**
    * Check the deployment this service is pointed at, not a freshly deployed copy of the source. A
    * contract can be missing the function we call — the live bridge predates more than one of them —
    * and a domain can be inactive or held by a different registrar. Both fail at the worst moment
@@ -532,6 +558,7 @@ export type ChainReader = Pick<
   | "sendEth"
   | "indexStatus"
   | "preflight"
+  | "domainReady"
 >;
 
 function toListed(r: IndexedRecord): ListedRecord & { domain: string } {

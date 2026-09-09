@@ -73,6 +73,7 @@ type State = {
   balance: bigint;
   sent: { to: Address; value: bigint }[];
   preflight: Preflight;
+  ready: Record<string, { initialised: boolean; active: boolean; registrarOk: boolean }>;
 };
 
 function fakeChain(state: Partial<State> = {}) {
@@ -84,6 +85,7 @@ function fakeChain(state: Partial<State> = {}) {
     listed: {},
     instancesCreated: [],
     byWallet: [],
+    ready: {},
     instances: [instance],
     preflight: {
       ok: true,
@@ -150,6 +152,9 @@ function fakeChain(state: Partial<State> = {}) {
     ),
     listRecordsByWallet: vi.fn(async () => s.byWallet),
     preflight: vi.fn(async () => s.preflight),
+    domainReady: vi.fn(
+      async (domain: string) => s.ready[domain] ?? { initialised: true, active: true, registrarOk: true }
+    ),
     indexStatus: vi.fn(() => ({
       indexedBlock: 1_000,
       head: 1_000,
@@ -322,6 +327,8 @@ describe("GET /v1/nonce", () => {
       next: "3",
       id: toBytes32("1"),
       wallet: user.account.address,
+      ready: true,
+      reason: null,
     });
     const fresh = await (
       await app(chain).request(`/v1/nonce?wallet=${user.account.address}&domain=telegram`)
@@ -756,6 +763,38 @@ describe("POST /v1/attest — vouch invitations", () => {
       )
     );
     expect((await post(open, "/v1/attest", wire)).status).toBe(200);
+  });
+});
+
+describe("GET /v1/nonce — readiness", () => {
+  it("tells the browser not to sign for a domain that cannot be written", async () => {
+    const cases: [string, { initialised: boolean; active: boolean; registrarOk: boolean }, string][] = [
+      [
+        "google",
+        { initialised: false, active: false, registrarOk: true },
+        'domain "google" is not initialised on Multipass',
+      ],
+      [
+        "github",
+        { initialised: true, active: false, registrarOk: true },
+        'domain "github" is not active on Multipass',
+      ],
+      [
+        "x",
+        { initialised: true, active: true, registrarOk: false },
+        'this attester is not the registrar for "x"',
+      ],
+    ];
+    for (const [domain, ready, reason] of cases) {
+      const { chain } = fakeChain({ ready: { [domain]: ready } });
+      const body = await (
+        await app(chain).request(`/v1/nonce?wallet=${user.account.address}&domain=${domain}`)
+      ).json();
+      expect(body.ready).toBe(false);
+      expect(body.reason).toBe(reason);
+      // The nonce is still reported: the browser shows why, it does not lose its place.
+      expect(body.next).toBe("1");
+    }
   });
 });
 

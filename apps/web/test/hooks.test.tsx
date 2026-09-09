@@ -46,7 +46,7 @@ const result: AttestResult = {
 function fakeApi(): Api {
   let nonce = 1n;
   return {
-    nonce: vi.fn(async () => ({ exists: nonce > 1n, next: nonce })),
+    nonce: vi.fn(async () => ({ exists: nonce > 1n, next: nonce, ready: true, reason: null })),
     attest: vi.fn(async () => result),
     deliver: vi.fn(async () => {
       nonce += 1n;
@@ -132,11 +132,11 @@ describe("hooks", () => {
     expect(api.nonce).not.toHaveBeenCalled();
 
     rerender({ wallet: WALLET });
-    await waitFor(() => expect(r.current.n.data).toEqual({ exists: false, next: 1n }));
+    await waitFor(() => expect(r.current.n.data).toMatchObject({ exists: false, next: 1n }));
     expect(api.nonce).toHaveBeenCalledWith(WALLET, "x");
 
     await r.current.d.mutateAsync(result);
-    await waitFor(() => expect(r.current.n.data).toEqual({ exists: true, next: 2n }));
+    await waitFor(() => expect(r.current.n.data).toMatchObject({ exists: true, next: 2n }));
     expect(api.deliver).toHaveBeenCalledWith(result);
   });
 

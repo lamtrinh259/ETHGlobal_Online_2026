@@ -277,6 +277,11 @@ export function AttestFlow({
         )}
       </fieldset>
 
+      {nonce.data && !nonce.data.ready && (
+        <p className="error" role="alert" data-testid="not-ready">
+          {nonce.data.reason} — signing would fail, so the button is disabled until that is fixed.
+        </p>
+      )}
       {nonce.data?.exists && (
         <p className="muted" data-testid="renewal-note">
           You already hold a record here. Publishing again writes a newer one (nonce {nonce.data.next}); the
@@ -286,7 +291,7 @@ export function AttestFlow({
       <button
         className="primary"
         onClick={run}
-        disabled={busy || takenByOther || answerBytes > 31}
+        disabled={busy || takenByOther || answerBytes > 31 || nonce.data?.ready === false}
         data-testid="publish"
       >
         {step ? `${step}…` : nonce.data?.exists ? "Sign & update" : "Sign & publish"}

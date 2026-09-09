@@ -198,14 +198,20 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
     });
 
   return {
-    async nonce(wallet: string, domain: string): Promise<{ exists: boolean; next: bigint }> {
+    async nonce(
+      wallet: string,
+      domain: string
+    ): Promise<{ exists: boolean; next: bigint; ready: boolean; reason: string | null }> {
       const b = (await readJson(
         await call(`${base}/v1/nonce?wallet=${wallet}&domain=${encodeURIComponent(domain)}`)
       )) as {
         exists: boolean;
         next: string;
+        ready?: boolean;
+        reason?: string | null;
       };
-      return { exists: b.exists, next: BigInt(b.next) };
+      // An older deployment does not report readiness; absence means "no reason not to".
+      return { exists: b.exists, next: BigInt(b.next), ready: b.ready !== false, reason: b.reason ?? null };
     },
 
     /** POST the signed request to the attester (API node fallback or CRE HTTP trigger) */

@@ -233,7 +233,15 @@ describe("api client", () => {
 
   it("reads nonce, attests, delivers and verifies with the right URLs and bodies", async () => {
     const { fn, calls } = fetchMock({
-      "http://api.test/v1/nonce": { body: { exists: true, nonce: "2", next: "3" } },
+      "http://api.test/v1/nonce": {
+        body: {
+          exists: true,
+          nonce: "2",
+          next: "3",
+          ready: false,
+          reason: 'domain "google" is not initialised',
+        },
+      },
       "http://api.test/v1/attest": { body: result },
       "http://api.test/v1/submit": { body: { ok: true, txHash: `0x${"ab".repeat(32)}` } },
       "http://api.test/v1/cre/delivery": { body: { ok: true, txHash: `0x${"cd".repeat(32)}` } },
@@ -345,7 +353,12 @@ describe("api client", () => {
     });
     const api = createApi("http://api.test/", "http://api.test/v1/attest", fn);
 
-    expect(await api.nonce(account.address, "x")).toEqual({ exists: true, next: 3n });
+    expect(await api.nonce(account.address, "x")).toEqual({
+      exists: true,
+      next: 3n,
+      ready: false,
+      reason: 'domain "google" is not initialised',
+    });
     expect(calls[0].url).toBe(`http://api.test/v1/nonce?wallet=${account.address}&domain=x`);
 
     expect(await api.attest({ a: 1 })).toEqual(result);
