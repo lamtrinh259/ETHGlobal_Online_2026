@@ -216,6 +216,13 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     const parsed = wireRequest.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return c.json({ error: "bad request", issues: parsed.error.issues }, 400);
     const req = toRequest(parsed.data);
+    // Refuse before signing: a domain this attester cannot write produces a revert later, and the
+    // signature the user already gave is wasted either way.
+    const ready = await chain.domainReady(req.intent.domain);
+    if (!ready.initialised) return c.json({ error: `domain "${req.intent.domain}" is not initialised` }, 503);
+    if (!ready.active) return c.json({ error: `domain "${req.intent.domain}" is not active` }, 503);
+    if (!ready.registrarOk)
+      return c.json({ error: `this attester is not the registrar for "${req.intent.domain}"` }, 503);
     try {
       const onchain = await readFor(req);
       const result = await attest(

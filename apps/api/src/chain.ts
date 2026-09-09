@@ -357,15 +357,6 @@ export class Chain {
         const registrar = d.registrar;
         if (d.name === zeroHash) warnings.push(`domain "${domain}" is not initialised on Multipass`);
         else if (!d.isActive) warnings.push(`domain "${domain}" is not active on Multipass`);
-        if (
-          d.name !== zeroHash &&
-          this.config.REGISTRAR_ADDRESS &&
-          registrar.toLowerCase() !== this.config.REGISTRAR_ADDRESS.toLowerCase()
-        ) {
-          warnings.push(
-            `domain "${domain}" registrar is ${registrar}, not the configured ${this.config.REGISTRAR_ADDRESS}`
-          );
-        }
         return {
           domain,
           initialised: d.name !== zeroHash,
@@ -382,12 +373,18 @@ export class Chain {
     const configuredRegistrar = this.config.REGISTRAR_KEY
       ? privateKeyToAccount(this.config.REGISTRAR_KEY).address
       : this.config.REGISTRAR_ADDRESS;
+    // One root cause, one warning: a wrong key mismatches every domain, and nine copies of that line
+    // buries whatever else is wrong.
     const onchainRegistrars = [...new Set(domains.filter((d) => d.initialised).map((d) => d.registrar))];
-    if (configuredRegistrar && onchainRegistrars.length > 0) {
-      const wrong = onchainRegistrars.filter((r) => r.toLowerCase() !== configuredRegistrar.toLowerCase());
+    if (configuredRegistrar) {
+      const wrong = domains.filter(
+        (d) => d.initialised && d.registrar.toLowerCase() !== configuredRegistrar.toLowerCase()
+      );
       if (wrong.length > 0) {
+        const expected = [...new Set(wrong.map((d) => d.registrar))];
         warnings.push(
-          `registrar mismatch: this service signs as ${configuredRegistrar}, Multipass expects ${wrong.join(", ")}`
+          `this service signs as ${configuredRegistrar}, but ${wrong.length} domain${wrong.length === 1 ? "" : "s"} ` +
+            `(${wrong.map((d) => d.domain).join(", ")}) expect ${expected.join(", ")}`
         );
       }
     }

@@ -71,7 +71,9 @@ naming the rule that failed and the knob to change, which is what `/v1/submit` r
 
 ## Troubleshooting a deploy
 
-`GET /v1/preflight` answers the first question: is this service pointed at the contracts it thinks it
+`POST /v1/attest` refuses with 503 before signing anything when the requested domain is not
+initialised, not active, or has a different registrar, so a wrong configuration never costs a user a
+signature. `GET /v1/preflight` answers the first question: is this service pointed at the contracts it thinks it
 is. It checks that the bridge, Multipass and the factory have code, that the deployed bridge's
 dispatch table contains the functions this build calls, and that every domain the attester may be asked for — name domains and platform domains alike — is
 initialised and active with the expected registrar. The same check runs once at boot and prints one line per problem. It exists

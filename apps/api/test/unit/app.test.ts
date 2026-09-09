@@ -390,6 +390,22 @@ describe("POST /v1/attest (node registrar fallback)", () => {
     expect(ok.record.nonce).toBe("3");
   });
 
+  it("refuses before signing when the domain cannot be written", async () => {
+    const cases: [{ initialised: boolean; active: boolean; registrarOk: boolean }, string][] = [
+      [{ initialised: false, active: false, registrarOk: true }, 'domain "x" is not initialised'],
+      [{ initialised: true, active: false, registrarOk: true }, 'domain "x" is not active'],
+      [{ initialised: true, active: true, registrarOk: false }, 'this attester is not the registrar for "x"'],
+    ];
+    for (const [ready, error] of cases) {
+      const { chain, submitted } = fakeChain({ ready: { x: ready } });
+      const res = await post(app(chain), "/v1/attest", await wireRequest());
+      expect(res.status).toBe(503);
+      expect((await res.json()).error).toBe(error);
+      // Nothing was signed and nothing was sent.
+      expect(submitted).toHaveLength(0);
+    }
+  });
+
   it("400s malformed bodies and 501s when the registrar is disabled", async () => {
     const { chain } = fakeChain();
     expect((await post(app(chain), "/v1/attest", { idToken: 1 })).status).toBe(400);
