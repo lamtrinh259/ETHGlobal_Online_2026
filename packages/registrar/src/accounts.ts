@@ -49,10 +49,17 @@ export function dnsNameFor(domain: string, account: { username?: string }): stri
   return PLATFORM_DNS_NAMES[domain];
 }
 
-/** The label an account takes inside that namespace: a handle, or an email's local part. */
+/**
+ * The label an account takes inside that namespace: a handle, or an email's local part. A discriminator
+ * is not part of the handle — Discord writes `peersky#0` for an account that has none — so it comes off.
+ *
+ * Nothing comes back when what is left cannot be an ENS label. That is not a refusal: the record is
+ * still written under the handle itself, it simply has no name to be read by.
+ */
 export function labelFor(domain: string, account: { username?: string }): string | undefined {
-  const raw = domain === "email" ? (account.username ?? "").split("@")[0] : (account.username ?? "");
-  const label = raw.toLowerCase();
+  const [handle = ""] = (account.username ?? "").split("#");
+  const [local = ""] = handle.split("@");
+  const label = (domain === "email" ? local : handle).toLowerCase();
   return /^[a-z0-9_-]{1,63}$/.test(label) ? label : undefined;
 }
 
@@ -128,7 +135,10 @@ export function pickPlatformAccount(linked: LinkedAccount[], domain: string): Pl
  * only accepts an address issued by it, so `gmail.com` never holds a record for an address at
  * `peeramid.xyz`, and the label is what is left once the domain is taken off.
  */
-export function pickAccountFor(linked: LinkedAccount[], domain: string): PlatformAccount & { label: string } {
+export function pickAccountFor(
+  linked: LinkedAccount[],
+  domain: string
+): PlatformAccount & { label?: string } {
   const platform = platformOf(domain);
   if (!platform) throw new Error(`accounts: unknown domain "${domain}"`);
   const acct = pickPlatformAccount(linked, platform);
@@ -136,7 +146,8 @@ export function pickAccountFor(linked: LinkedAccount[], domain: string): Platfor
   if (isDnsName(domain) && dns !== domain) {
     throw new Error(`accounts: ${acct.username} is not an account at ${domain}`);
   }
+  // A handle that cannot be a label still gets a record: it is proof of control either way, and only
+  // the ENS name is lost. Refusing here would turn an ordinary Discord handle into a dead end.
   const label = labelFor(platform, acct);
-  if (!label) throw new Error(`accounts: "${acct.username}" cannot be an ENS label`);
-  return { ...acct, label };
+  return label ? { ...acct, label } : acct;
 }

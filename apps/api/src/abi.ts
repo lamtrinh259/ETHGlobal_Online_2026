@@ -36,6 +36,26 @@ export const factoryAbi = withErrors(
   ])
 );
 
+/** The ENSv2 `.eth` registrar and the ERC-20 it prices in — a test chain mints the token freely. */
+export const ethRegistrarAbi = withErrors(
+  parseAbi([
+    "function commit(bytes32 commitment)",
+    "function commitmentAt(bytes32 commitment) view returns (uint64)",
+    "function isAvailable(string label) view returns (bool)",
+    "function getRegisterPrice(string label, uint64 duration, address paymentToken) view returns (uint256 base, uint256 premium)",
+    "function makeCommitment(string label, address owner, bytes32 secret, address subregistry, address resolver, uint64 duration, bytes32 referrer) pure returns (bytes32)",
+    "function register(string label, address owner, bytes32 secret, address subregistry, address resolver, uint64 duration, address paymentToken, bytes32 referrer) returns (uint256)",
+  ])
+);
+
+export const paymentTokenAbi = withErrors(
+  parseAbi([
+    "function balanceOf(address) view returns (uint256)",
+    "function approve(address spender, uint256 amount) returns (bool)",
+    "function mint(address to, uint256 amount)",
+  ])
+);
+
 export const registryAbi = withErrors(
   parseAbi([
     "function setSubregistry(string label, address sub)",

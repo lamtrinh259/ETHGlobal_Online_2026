@@ -96,6 +96,7 @@ export const contractsSchema = z.object({
   bridge: address,
   permissionedResolver: address.nullable(),
   ethRegistry: address.nullable().optional(),
+  canRegisterNames: z.boolean().optional(),
 });
 
 export const ethLabelSchema = z.object({
@@ -299,6 +300,18 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
     /** Who owns a `.eth` label on the registry the bridge checks; `null` owner means nobody here does. */
     async ethLabel(label: string): Promise<z.infer<typeof ethLabelSchema>> {
       return ethLabelSchema.parse(await readJson(await call(`${base}/v1/eth-label/${label}`)));
+    },
+
+    /** Ask the relay to register a test `.eth` name; the registrar makes this two steps. */
+    async claimEthName(label: string, wallet: Address, step: "commit" | "finish") {
+      const path = step === "commit" ? "/v1/eth-name" : "/v1/eth-name/finish";
+      return (await readJson(
+        await call(`${base}${path}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ label, wallet }),
+        })
+      )) as { label: string; readyAt?: number; owner?: string; txHash?: string };
     },
 
     /** The key a view code is encrypted to, so only the enclave can open a disclosure. */

@@ -6,6 +6,7 @@
   "childRegistry": "0xA976CB21597c555F92e7A5de2dAAF06A3c0D63F7",
   "childResolver": "0x24d0F1dc28D9d05342C2c2ceA459C3f0Dffb18D8",
   "creForwarder": "0xF8344CFd5c43616a4366C34E3EEE75af79a74482",
+  "ethRegistrar": "0xa88553f454b77203b0d036a05c894d555eaaa2cc",
   "ethRegistry": "0xBDC85dD5b15D7ecb354cd7cb6f2c50b4f2c4F0E2",
   "factory": "0xc0281d75974155fE8513F623de726F040c4bcC51",
   "instanceDomain": "ketsuban",
@@ -78,6 +79,7 @@
     }
   },
   "namespaceFactory": "0xf9B9691818bA23315Fb9E2F89ffA0866bdd549E1",
+  "paymentToken": "0x768f42455a2d082e23ceef7d51e5787c82d67a39",
   "permissionedResolver": "0x4E2d9783cEFF2ed72CD77C14206b29fe246b24F7",
   "platformInstances": {
     "discord": {

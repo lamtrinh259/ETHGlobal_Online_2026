@@ -31,6 +31,9 @@ describe("a platform is a DNS name", () => {
 
   it("takes the label from the handle, or an email's local part", () => {
     expect(labelFor("x", { username: "alice_x" })).toBe("alice_x");
+    // A discriminator is not part of the handle: Discord writes `#0` for an account that has none.
+    expect(labelFor("discord", { username: "peersky#0" })).toBe("peersky");
+    expect(labelFor("discord", { username: "peersky#1234" })).toBe("peersky");
     expect(labelFor("email", { username: "tim@peeramid.xyz" })).toBe("tim");
     expect(labelFor("email", { username: "Tim.P@peeramid.xyz" })).toBeUndefined();
     expect(labelFor("x", { username: "has space" })).toBeUndefined();
@@ -76,8 +79,15 @@ describe("a DNS domain says which platform it is", () => {
     expect(() => pickAccountFor(linked, "myspace")).toThrow(/unknown/);
   });
 
-  it("refuses an account whose handle cannot be a label", () => {
+  it("keeps an account whose handle cannot be a label, without a label", () => {
+    // The record still proves control; only the ENS name is lost, and refusing would be a dead end.
     const linked = [{ type: "twitter_oauth", subject: "42", username: "has space" }];
-    expect(() => pickAccountFor(linked, "x.com")).toThrow(/label/);
+    expect(pickAccountFor(linked, "x.com")).toEqual({ subject: "42", username: "has space" });
+    const discord = [{ type: "discord_oauth", subject: "7", username: "peersky#0" }];
+    expect(pickAccountFor(discord, "discord.com")).toEqual({
+      subject: "7",
+      username: "peersky#0",
+      label: "peersky",
+    });
   });
 });

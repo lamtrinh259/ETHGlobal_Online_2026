@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import type { Address, Hex } from "viem";
 import { createApi, type Api, type AttestResult, type Verification } from "./api";
 import { linkOwnName, writeProfileText, type ProfileKey, type Signer } from "./chain";
@@ -81,6 +82,28 @@ export function useEthLabel(api: Api, label: string) {
     staleTime: 30_000,
     retry: false,
   });
+}
+
+/**
+ * Get a `.eth` name on a test deployment: commit, wait out the registrar's minimum age, register. One
+ * mutation so the button is one button, and the wait is visible rather than a mystery.
+ */
+export function useClaimEthName(api: Api, onDone: () => void) {
+  const [waitingUntil, setWaitingUntil] = useState<number>();
+  const mutation = useMutation({
+    mutationFn: async ({ label, wallet }: { label: string; wallet: Address }) => {
+      const committed = await api.claimEthName(label, wallet, "commit");
+      const readyAt = (committed.readyAt ?? 0) * 1000;
+      setWaitingUntil(readyAt);
+      const left = readyAt - Date.now();
+      if (left > 0) await new Promise((r) => setTimeout(r, left + 2000));
+      setWaitingUntil(undefined);
+      return api.claimEthName(label, wallet, "finish");
+    },
+    onSuccess: onDone,
+    onError: () => setWaitingUntil(undefined),
+  });
+  return { ...mutation, waitingUntil };
 }
 
 export function useContracts(api: Api) {

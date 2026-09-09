@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { cors } from "hono/cors";
 import { z } from "zod";
 import { bytesToHex, keccak256, stringToBytes, zeroAddress, zeroHash, type Address, type Hex } from "viem";
@@ -303,8 +303,61 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
       bridge: config.BRIDGE,
       permissionedResolver: config.PERMISSIONED_RESOLVER ?? null,
       ethRegistry: config.ETH_REGISTRY ?? null,
+      // Whether this deployment can hand someone a `.eth` name to bring, which only a test chain can.
+      canRegisterNames: !!config.ETH_REGISTRAR && !!config.PAYMENT_TOKEN,
     })
   );
+
+  /**
+   * Hand someone a `.eth` name on a test deployment, so "bring your own name" is not a dead end for a
+   * person who has nowhere to get one. Two steps, because the registrar wants a commitment to age
+   * first; the relay pays, in a token it can mint.
+   *
+   * Only for a wallet this deployment already knows — someone holding a live name here — and only for
+   * a label nobody owns. Both are checked before anything is spent.
+   */
+  async function nameRequest(c: Context) {
+    if (!config.ETH_REGISTRAR || !config.PAYMENT_TOKEN)
+      return { error: c.json({ error: "this deployment cannot register names" }, 501) };
+    const body = await c.req.json().catch(() => null);
+    const parsed = z
+      .object({ label: z.string().regex(/^[a-z0-9-]{3,63}$/), wallet: z.string().regex(/^0x[0-9a-fA-F]{40}$/) })
+      .safeParse(body);
+    if (!parsed.success) return { error: c.json({ error: "label and wallet required" }, 400) };
+    const { label, wallet } = parsed.data;
+    // Read the chain, not only the index: a name claimed before this deployment's start block is still
+    // a name, and the person holding it should not be told they are a stranger.
+    const held = await Promise.all(config.NAME_DOMAINS.map((d) => chain.recordFor(wallet as Address, d)));
+    if (!held.some((r) => r?.live))
+      return { error: c.json({ error: "claim a name here first" }, 403) };
+    const owner = await chain.ethLabelOwner(label);
+    if (owner && owner !== zeroAddress)
+      return { error: c.json({ error: `${label}.eth is already owned`, owner }, 409) };
+    return { label, wallet: wallet as Address };
+  }
+
+  app.post("/v1/eth-name", async (c) => {
+    const req = await nameRequest(c);
+    if ("error" in req) return req.error;
+    try {
+      const { readyAt } = await chain.ethNameCommit(req.label, req.wallet);
+      return c.json({ label: req.label, readyAt, step: "committed" });
+    } catch (e) {
+      return c.json({ error: explainRevert(e) }, 502);
+    }
+  });
+
+  /** Second step: the commitment has aged, so the name can be registered to them. */
+  app.post("/v1/eth-name/finish", async (c) => {
+    const req = await nameRequest(c);
+    if ("error" in req) return req.error;
+    try {
+      const { owner, txHash } = await chain.ethNameRegister(req.label, req.wallet);
+      return c.json({ label: req.label, owner, txHash });
+    } catch (e) {
+      return c.json({ error: explainRevert(e) }, 502);
+    }
+  });
 
   /**
    * Who owns a `.eth` label on the registry the bridge checks. A name held on another ENS deployment

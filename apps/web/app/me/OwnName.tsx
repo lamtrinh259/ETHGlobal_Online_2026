@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { Address } from "viem";
 import type { Api } from "@/lib/api";
 import type { Signer } from "@/lib/chain";
-import { useContracts, useEthLabel, useLinkOwnName } from "@/lib/hooks";
+import { useClaimEthName, useContracts, useEthLabel, useLinkOwnName } from "@/lib/hooks";
 
 type Props = {
   api: Api;
@@ -28,6 +28,9 @@ export function OwnName({ api, wallet, domain, parentLabel, handle, getSigner }:
   const owner = useEthLabel(api, valid ? label : "");
   const held = owner.data?.owner?.toLowerCase();
   const mine = !!held && !!wallet && held === wallet.toLowerCase();
+  // A test deployment can hand out names, so nobody is stuck without one to bring.
+  const claim = useClaimEthName(api, () => owner.refetch());
+  const canClaim = !!contracts.data?.canRegisterNames && valid && !held && !!wallet;
 
   async function run() {
     if (!contracts.data) return;
@@ -58,7 +61,24 @@ export function OwnName({ api, wallet, domain, parentLabel, handle, getSigner }:
         <p className="muted" data-testid="own-name-owner">
           {held
             ? `${label}.eth is held by ${held.slice(0, 6)}…${held.slice(-4)}, not this wallet.`
-            : `Nobody holds ${label}.eth on the registry this bridge checks. Register it there first, or it is on a different ENS deployment.`}
+            : `Nobody holds ${label}.eth on the registry this bridge checks. It may be on a different ENS deployment.`}
+        </p>
+      )}
+      {canClaim && (
+        <p className="row">
+          <button onClick={() => claim.mutate({ label, wallet })} disabled={claim.isPending} data-testid="own-name-claim">
+            {claim.isPending ? "registering…" : `Register ${label}.eth here`}
+          </button>
+          {claim.waitingUntil && (
+            <small className="muted" data-testid="own-name-waiting">
+              the registrar makes this two steps, a minute apart
+            </small>
+          )}
+        </p>
+      )}
+      {claim.error && (
+        <p className="error" role="alert">
+          {claim.error.message}
         </p>
       )}
       {link.error && (

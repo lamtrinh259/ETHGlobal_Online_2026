@@ -1,10 +1,12 @@
 import {
+  concatHex,
   createPublicClient,
   createWalletClient,
   decodeAbiParameters,
   encodeFunctionData,
   getAbiItem,
   http,
+  keccak256,
   namehash,
   toFunctionSelector,
   toHex,
@@ -26,7 +28,15 @@ import {
   type RegisterMessage,
 } from "@ketsuban/registrar";
 import groupingRegistry from "@ketsuban/contracts/GroupingRegistry" with { type: "json" };
-import { bridgeAbi, factoryAbi, registryAbi, resolverAbi, universalResolverAbi } from "./abi.js";
+import {
+  bridgeAbi,
+  ethRegistrarAbi,
+  factoryAbi,
+  paymentTokenAbi,
+  registryAbi,
+  resolverAbi,
+  universalResolverAbi,
+} from "./abi.js";
 import { RpcSource } from "./logs.js";
 import { Indexer, type IndexStatus, type IndexedRecord } from "./indexer.js";
 import { explainRevert } from "./errors.js";
@@ -463,6 +473,110 @@ export class Chain {
     );
   }
 
+  /**
+   * Register a `.eth` name to someone on a test deployment. The registrar wants a commitment first and
+   * a minimum age between the two steps, so this is two calls: `ethNameCommit` then, once `readyAt` has
+   * passed, `ethNameRegister`. The secret is derived rather than stored, so the second call recomputes
+   * exactly the commitment the first one made.
+   *
+   * The relay pays, in a token it can mint, which is only true of a test chain.
+   */
+  async ethNameCommit(label: string, owner: Address): Promise<{ readyAt: number }> {
+    const registrar = this.requireRegistrar();
+    const commitment = await this.publicClient.readContract({
+      address: registrar,
+      abi: ethRegistrarAbi,
+      functionName: "makeCommitment",
+      args: [label, owner, this.nameSecret(label, owner), zeroAddress, zeroAddress, this.nameDuration(), zeroHash],
+    });
+    const already = await this.publicClient.readContract({
+      address: registrar,
+      abi: ethRegistrarAbi,
+      functionName: "commitmentAt",
+      args: [commitment],
+    });
+    const at =
+      already > 0n ? Number(already) : await this.commitNow(registrar, commitment);
+    return { readyAt: at + this.config.COMMITMENT_WAIT_SECONDS };
+  }
+
+  private async commitNow(registrar: Address, commitment: Hex): Promise<number> {
+    await this.write({
+      address: registrar,
+      abi: ethRegistrarAbi,
+      functionName: "commit",
+      args: [commitment],
+    });
+    const at = await this.publicClient.readContract({
+      address: registrar,
+      abi: ethRegistrarAbi,
+      functionName: "commitmentAt",
+      args: [commitment],
+    });
+    return Number(at);
+  }
+
+  async ethNameRegister(label: string, owner: Address): Promise<{ owner: Address; txHash: Hex }> {
+    const registrar = this.requireRegistrar();
+    const token = this.config.PAYMENT_TOKEN;
+    if (!token) throw new Error("registering a name needs PAYMENT_TOKEN");
+    const duration = this.nameDuration();
+    const [base, premium] = await this.publicClient.readContract({
+      address: registrar,
+      abi: ethRegistrarAbi,
+      functionName: "getRegisterPrice",
+      args: [label, duration, token],
+    });
+    const price = base + premium;
+    const me = this.walletClient.account!.address;
+    const balance = await this.publicClient.readContract({
+      address: token,
+      abi: paymentTokenAbi,
+      functionName: "balanceOf",
+      args: [me],
+    });
+    // The test token mints freely; a chain where it does not is a chain this feature is not for.
+    if (balance < price) {
+      await this.write({
+        address: token,
+        abi: paymentTokenAbi,
+        functionName: "mint",
+        args: [me, price - balance],
+      });
+    }
+    await this.write({
+      address: token,
+      abi: paymentTokenAbi,
+      functionName: "approve",
+      args: [registrar, price],
+    });
+    const txHash = await this.walletClient.writeContract({
+      chain: this.walletClient.chain,
+      account: this.walletClient.account!,
+      address: registrar,
+      abi: ethRegistrarAbi,
+      functionName: "register",
+      args: [label, owner, this.nameSecret(label, owner), zeroAddress, zeroAddress, duration, token, zeroHash],
+    });
+    await this.wait(txHash);
+    return { owner, txHash };
+  }
+
+  private requireRegistrar(): Address {
+    if (!this.config.ETH_REGISTRAR) throw new Error("this deployment has no ETH_REGISTRAR");
+    return this.config.ETH_REGISTRAR;
+  }
+
+  private nameDuration(): bigint {
+    return BigInt(this.config.ETH_NAME_DURATION);
+  }
+
+  /** Derived from a server secret, so both steps agree without anything being stored between them. */
+  private nameSecret(label: string, owner: Address): Hex {
+    const key = this.config.VIEWCODE_KEY ?? this.config.RELAYER_KEY;
+    return keccak256(concatHex([key, toHex(label), owner]));
+  }
+
   /** Whether `handle` is taken in `domain`, and by which wallet */
   async nameStatus(
     domain: string,
@@ -832,6 +946,8 @@ export type ChainReader = Pick<
   | "domainReady"
   | "ethLabelOwner"
   | "ensureNamespace"
+  | "ethNameCommit"
+  | "ethNameRegister"
 >;
 
 function toListed(r: IndexedRecord): ListedRecord & { domain: string } {

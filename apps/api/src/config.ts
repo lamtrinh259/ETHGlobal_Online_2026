@@ -23,6 +23,14 @@ export const configSchema = z.object({
   NAMESPACE_FACTORY: address.optional(),
   /** ENSv2 `.eth` registry the bridge checks ownership against, for "bring your own name" */
   ETH_REGISTRY: address.optional(),
+  /** ENSv2 `.eth` registrar, so a test deployment can hand someone a name to bring */
+  ETH_REGISTRAR: address.optional(),
+  /** ERC-20 the registrar prices names in; mintable on a test chain */
+  PAYMENT_TOKEN: address.optional(),
+  /** How long a registered test name lasts (default 28 days) */
+  ETH_NAME_DURATION: z.coerce.number().int().positive().default(2_419_200),
+  /** The registrar's minimum commitment age, waited out between the two steps */
+  COMMITMENT_WAIT_SECONDS: z.coerce.number().int().nonnegative().default(60),
   /** Relayer key that submits `bridge.verify`; a Privy server wallet replaces it in production */
   RELAYER_KEY: hex,
   PRIVY_APP_ID: z.string(),
@@ -124,6 +132,8 @@ export type Config = Omit<
   | "REGISTRAR_ADDRESS"
   | "NAMESPACE_FACTORY"
   | "ETH_REGISTRY"
+  | "ETH_REGISTRAR"
+  | "PAYMENT_TOKEN"
 > & {
   MULTIPASS: Address;
   BRIDGE: Address;
@@ -137,6 +147,8 @@ export type Config = Omit<
   REGISTRAR_ADDRESS?: Address;
   NAMESPACE_FACTORY?: Address;
   ETH_REGISTRY?: Address;
+  ETH_REGISTRAR?: Address;
+  PAYMENT_TOKEN?: Address;
 };
 
 /**
@@ -162,6 +174,8 @@ const deploymentFile = z.object({
   factory: address,
   namespaceFactory: address.optional(),
   ethRegistry: address.optional(),
+  ethRegistrar: address.optional(),
+  paymentToken: address.optional(),
   registry: address.optional(),
   permissionedResolver: address.optional(),
   universalResolver: address.optional(),
@@ -182,6 +196,8 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
       FACTORY: d.factory,
       ...(d.namespaceFactory ? { NAMESPACE_FACTORY: d.namespaceFactory } : {}),
       ...(d.ethRegistry ? { ETH_REGISTRY: d.ethRegistry } : {}),
+      ...(d.ethRegistrar ? { ETH_REGISTRAR: d.ethRegistrar } : {}),
+      ...(d.paymentToken ? { PAYMENT_TOKEN: d.paymentToken } : {}),
       ...(d.registry ? { REGISTRY: d.registry } : {}),
       ...(d.permissionedResolver ? { PERMISSIONED_RESOLVER: d.permissionedResolver } : {}),
       ...(d.universalResolver ? { UNIVERSAL_RESOLVER: d.universalResolver } : {}),

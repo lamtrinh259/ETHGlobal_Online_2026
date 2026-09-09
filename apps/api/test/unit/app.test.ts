@@ -375,6 +375,7 @@ describe("GET /healthz", () => {
       permissionedResolver: null,
       // The registry the bridge checks for "bring your own .eth"; null when none is configured.
       ethRegistry: null,
+      canRegisterNames: false,
     });
     const withResolver = createApp({
       config: loadConfig({ ...baseEnv, PERMISSIONED_RESOLVER: baseEnv.FACTORY }),
@@ -1571,6 +1572,85 @@ describe("what a verifier is shown without asking", () => {
     });
     // The account's own name is never published: only the person's.
     expect(body.links[0].disclosed).toBeUndefined();
+  });
+});
+
+describe("POST /v1/eth-name", () => {
+  const env2 = {
+    ...baseEnv,
+    ETH_REGISTRY: baseEnv.BRIDGE,
+    ETH_REGISTRAR: baseEnv.FACTORY,
+    PAYMENT_TOKEN: baseEnv.MULTIPASS,
+  };
+  const held = {
+    domain: "kju-is",
+    name: "alice",
+    id: toBytes32("alice"),
+    wallet: user.account.address,
+    payload: zeroHash,
+    validUntil: 1_800_000_000n,
+    nonce: 1n,
+    live: true,
+  };
+
+  it("registers a test name to the wallet, in two steps, because the registrar wants a commitment first", async () => {
+    // Someone who has just claimed a handle has nowhere to get a `.eth` on this test deployment, so
+    // linking their own name is a dead end. The relay registers one to them.
+    const { chain } = fakeChain({ byWallet: [held] });
+    chain.ethLabelOwner = vi.fn(async () => zeroAddress);
+    chain.ethNameCommit = vi.fn(async () => ({ readyAt: NOW + 60 }));
+    chain.ethNameRegister = vi.fn(async () => ({ owner: user.account.address, txHash: "0xfeed" as const }));
+    const app2 = app(chain, env2);
+
+    const started = await app2.request("/v1/eth-name", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ label: "alice-test", wallet: user.account.address }),
+    });
+    expect(started.status).toBe(200);
+    expect(await started.json()).toEqual({ label: "alice-test", readyAt: NOW + 60, step: "committed" });
+    expect(chain.ethNameCommit).toHaveBeenCalledWith("alice-test", user.account.address);
+
+    const done = await app2.request("/v1/eth-name/finish", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ label: "alice-test", wallet: user.account.address }),
+    });
+    expect(await done.json()).toMatchObject({ label: "alice-test", owner: user.account.address });
+  });
+
+  it("only for someone this deployment already knows, and only for a free label", async () => {
+    const { chain } = fakeChain({ byWallet: [] });
+    chain.ethLabelOwner = vi.fn(async () => zeroAddress);
+    chain.ethNameCommit = vi.fn(async () => ({ readyAt: NOW + 60 }));
+    const stranger = await app(chain, env2).request("/v1/eth-name", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ label: "alice-test", wallet: user.account.address }),
+    });
+    expect(stranger.status).toBe(403);
+    expect(chain.ethNameCommit).not.toHaveBeenCalled();
+
+    const taken = fakeChain({ byWallet: [held] });
+    taken.chain.ethLabelOwner = vi.fn(async () => registrar.address);
+    taken.chain.ethNameCommit = vi.fn(async () => ({ readyAt: NOW + 60 }));
+    const res = await app(taken.chain, env2).request("/v1/eth-name", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ label: "alice-test", wallet: user.account.address }),
+    });
+    expect(res.status).toBe(409);
+    expect(taken.chain.ethNameCommit).not.toHaveBeenCalled();
+  });
+
+  it("says so when this deployment has no registrar to register with", async () => {
+    const { chain } = fakeChain({ byWallet: [held] });
+    const res = await app(chain).request("/v1/eth-name", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ label: "alice-test", wallet: user.account.address }),
+    });
+    expect(res.status).toBe(501);
   });
 });
 

@@ -383,3 +383,33 @@ describe("a record lands in the DNS domain of its account", () => {
     expect(decodeRecord(res.record, viewCode)).toEqual({ handle: "alice", platformId: "alice@example.com" });
   });
 });
+
+describe("a handle that cannot be an ENS label", () => {
+  it("is still attested, under the handle itself", async () => {
+    // Discord writes `peersky#0` for an account with no discriminator. The record proves control
+    // either way; only the name is lost, and refusing would be a dead end for an ordinary account.
+    const linked = [
+      { type: "wallet", address: userAccount.address, chain_type: "ethereum" },
+      { type: "discord_oauth", subject: "77", username: "peersky#0" },
+    ];
+    const res = await attest(
+      await signedRequest(makeIntent({ domain: "discord.com" }), mintIdToken(linked)),
+      noRecord,
+      secrets,
+      { ...env, platformDomains: ["discord.com"] }
+    );
+    expect(fromBytes32(res.record.name)).toBe("peersky");
+
+    const odd = [
+      { type: "wallet", address: userAccount.address, chain_type: "ethereum" },
+      { type: "discord_oauth", subject: "78", username: "a b" },
+    ];
+    const kept = await attest(
+      await signedRequest(makeIntent({ domain: "discord.com" }), mintIdToken(odd)),
+      noRecord,
+      secrets,
+      { ...env, platformDomains: ["discord.com"] }
+    );
+    expect(fromBytes32(kept.record.name)).toBe("a b");
+  });
+});
