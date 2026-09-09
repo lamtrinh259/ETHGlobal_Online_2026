@@ -355,6 +355,8 @@ export function Dashboard() {
               parentLabel={root!.parentLabel}
               handle={handle}
               getSigner={getSigner}
+              balance={d.balance}
+              onGetGas={d.gasTopup.available ? () => gas.mutate(api) : undefined}
             />
           </>
         )}

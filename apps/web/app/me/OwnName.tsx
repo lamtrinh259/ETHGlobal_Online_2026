@@ -13,12 +13,16 @@ type Props = {
   parentLabel: string;
   handle: string;
   getSigner: () => Promise<Signer>;
+  /** This wallet's balance in wei: registering a name is a transaction it sends itself */
+  balance?: string;
+  /** Offered when the deployment still has test ETH for this wallet */
+  onGetGas?: () => void;
 };
 
 const LABEL_RE = /^[a-z0-9-]{3,63}$/;
 
 /** Bring your own `.eth`: `<parentLabel>.<label>.eth` becomes an alias of `<handle>.<root>`. */
-export function OwnName({ api, wallet, domain, parentLabel, handle, getSigner }: Props) {
+export function OwnName({ api, wallet, domain, parentLabel, handle, getSigner, balance, onGetGas }: Props) {
   const contracts = useContracts(api);
   const link = useLinkOwnName(wallet);
   const [label, setLabel] = useState(handle);
@@ -34,7 +38,9 @@ export function OwnName({ api, wallet, domain, parentLabel, handle, getSigner }:
   const registrar = contracts.data?.ethRegistrar;
   const token = contracts.data?.paymentToken;
   const resolver = contracts.data?.permissionedResolver;
-  const canClaim = !!registrar && !!token && !!resolver && valid && !held && !!wallet;
+  // Claiming is the person's own transaction, so an empty wallet is the thing to say first.
+  const broke = balance !== undefined && BigInt(balance) === 0n;
+  const canClaim = !!registrar && !!token && !!resolver && valid && !held && !!wallet && !broke;
 
   async function register() {
     if (!registrar || !token || !resolver || !wallet) return;
@@ -88,6 +94,18 @@ export function OwnName({ api, wallet, domain, parentLabel, handle, getSigner }:
           {held
             ? `${label}.eth is held by ${held.slice(0, 6)}…${held.slice(-4)}, not this wallet. Try another label.`
             : `${label}.eth is free on this registry.`}
+        </p>
+      )}
+      {broke && !held && (
+        <p className="row" data-testid="own-name-gas">
+          <small className="muted">
+            This one is yours to send, so the wallet needs a little ETH for gas.
+          </small>
+          {onGetGas && (
+            <button onClick={onGetGas} data-testid="own-name-get-gas">
+              Get test ETH
+            </button>
+          )}
         </p>
       )}
       {canClaim && (

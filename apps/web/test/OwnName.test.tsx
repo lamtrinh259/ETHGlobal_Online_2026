@@ -60,6 +60,24 @@ describe("bringing your own .eth", () => {
     expect(screen.queryByTestId("own-name-claim")).toBeNull();
   });
 
+  it("asks for gas before offering to claim, since the person sends that transaction", () => {
+    state.owner = null;
+    state.canRegisterNames = true;
+    const onGetGas = vi.fn();
+    render(<OwnName {...props} balance="0" onGetGas={onGetGas} />);
+    expect(screen.getByTestId("own-name-gas")).toHaveTextContent("needs a little ETH for gas");
+    expect(screen.getByTestId("own-name-get-gas")).toBeVisible();
+    expect(screen.queryByTestId("own-name-claim")).toBeNull();
+  });
+
+  it("offers the claim once the wallet can pay for it", () => {
+    state.owner = null;
+    state.canRegisterNames = true;
+    render(<OwnName {...props} balance="2000000000000000" />);
+    expect(screen.getByTestId("own-name-claim")).toBeVisible();
+    expect(screen.queryByTestId("own-name-gas")).toBeNull();
+  });
+
   it("offers nothing to register where the deployment cannot", () => {
     state.owner = null;
     state.canRegisterNames = false;
