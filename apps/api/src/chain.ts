@@ -246,13 +246,15 @@ export class Chain {
   async ensureVouchInstance(handle: string): Promise<{ domain: string; created: boolean }> {
     const domain = `${this.config.VOUCH_PREFIX}${handle}`;
     const domainB = toBytes32(domain);
-    const exists = await this.publicClient.readContract({
-      address: this.config.FACTORY,
-      abi: factoryAbi,
-      functionName: "isInstance",
-      args: [domainB],
-    });
-    if (exists) return { domain, created: false };
+    // A candidate's namespace is created by the newest factory this deployment has, so it gets a
+    // resolver that answers for its own children; the older one is still read for what it already made.
+    const factory = this.config.NAMESPACE_FACTORY ?? this.config.FACTORY;
+    const known = await Promise.all(
+      [...new Set([factory, this.config.FACTORY])].map((address) =>
+        this.publicClient.readContract({ address, abi: factoryAbi, functionName: "isInstance", args: [domainB] })
+      )
+    );
+    if (known.some(Boolean)) return { domain, created: false };
     const { REGISTRY, PERMISSIONED_RESOLVER, REGISTRAR_ADDRESS } = this.config;
     if (!REGISTRY || !PERMISSIONED_RESOLVER || !REGISTRAR_ADDRESS)
       throw new Error("vouch instances need REGISTRY, PERMISSIONED_RESOLVER and REGISTRAR_ADDRESS");
@@ -292,14 +294,14 @@ export class Chain {
     await this.wait(
       await this.walletClient.writeContract({
         ...w,
-        address: this.config.FACTORY,
+        address: factory,
         abi: factoryAbi,
         functionName: "create",
         args: [domainB, REGISTRY, handle, `${handle}.${rootParent}`, PERMISSIONED_RESOLVER],
       })
     );
     const inst = await this.publicClient.readContract({
-      address: this.config.FACTORY,
+      address: factory,
       abi: factoryAbi,
       functionName: "instance",
       args: [domainB],
