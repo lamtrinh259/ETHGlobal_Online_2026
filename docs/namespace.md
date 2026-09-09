@@ -1,0 +1,77 @@
+# The namespace
+
+A person's name is the root: `alice.ketsuban.eth`. Everything else hangs off grouping levels reserved
+beside it, so a person can be called anything without colliding with a platform.
+
+## Why it is shaped this way
+
+A platform is a DNS name. Mounting an account at `alice.x.ketsuban.eth` puts the platform `x` on the
+same level as a person called `x`, and says nothing about which service is meant: the DNS name `x.com`
+says both. An email address is not a handle at all, so mail hosts are grouped apart under `@`.
+
+A DNS name mounts **first label first**. `x.com` walks `www` → `x` → `com`, which reads back as
+`com.x.www.ketsuban.eth`. A service that hands out subdomains keeps them apart that way:
+`tenant.acme.com` is its own chain rather than a level inside the accounts of `acme.com`.
+
+```mermaid
+graph TD
+  root["ketsuban.eth<br/>people: alice, bob"]
+  root --> www["www"]
+  root --> at["@"]
+  root --> pwww["private-www"]
+  root --> pat["private@"]
+  www --> x["x"] --> xcom["com<br/>x.com accounts"]
+  www --> gh["github"] --> ghcom["com<br/>github.com accounts"]
+  at --> pe["peeramid"] --> pexyz["xyz<br/>peeramid.xyz addresses"]
+  pwww --> px["x"] --> pxcom["com<br/>people with a masked X account"]
+  xcom --> alice_x["alice_x"]
+  pexyz --> tim["tim"]
+  pxcom --> alice["alice"]
+```
+
+| Record | Name |
+| --- | --- |
+| A person | `alice.ketsuban.eth` |
+| A public X account | `alice_x.com.x.www.ketsuban.eth` |
+| A public address at peeramid.xyz | `tim.xyz.peeramid.@.ketsuban.eth` |
+| A masked X account | `alice.com.x.private-www.ketsuban.eth` |
+| A reference | `bob.alice.ketsuban.eth` |
+
+## The private branch
+
+An account someone keeps behind a view code has a masked name: a one-time pad over the handle, which is
+unreadable and cannot be a label anyone would ask for. So the mirror names the **person** instead.
+`alice.com.x.private-www.ketsuban.eth` resolves to Alice's wallet and says the holder of
+`alice.ketsuban.eth` has an account on X. Which account stays behind the view code.
+
+`MaskedMirrorRegistry` enforces both halves: the label must be a live name in the root domain, and that
+wallet must hold a live masked record in the platform domain. The open branch under `www` refuses to
+answer for a masked record at all, so the two never leak into each other.
+
+## Reserved labels
+
+`www`, `@`, `private-www` and `private@` are mounted at the root, so nobody can be called them. The flat
+platform names (`x`, `google`, …) stay reserved too, for deployments that predate this namespace and
+mount platforms directly under the root.
+
+## Deploying it
+
+`script/AddNamespace.s.sol` builds the whole thing from one operator key and is re-runnable: a level or
+instance that already exists is reused, so adding a platform later disturbs nothing.
+
+```bash
+DEPLOYMENT_FILE=deployments/sepolia.json REGISTRAR=0x… PRIVATE_KEY=$OPERATOR_KEY \
+WWW_NAMES=x.com,github.com,google.com,discord.com,linkedin.com,t.me \
+AT_NAMES=peeramid.xyz \
+forge script script/AddNamespace.s.sol --rpc-url $SEPOLIA_RPC --broadcast
+```
+
+Each name in the list becomes a Multipass domain, an instance in the open branch, and a mirror in the
+private one. The API reads the mounts back from the factory, so a record's ENS name is whatever the
+chain says it is — no list to keep in step.
+
+## What a client attests into
+
+The web app asks the deployment, not a table: a connected X account goes to `x.com` where that is
+mounted and to `x` where it is not, and an email goes to the domain that issued it. A mail host nobody
+deployed has no namespace, and the app says so rather than letting someone sign into a revert.

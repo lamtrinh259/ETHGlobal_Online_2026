@@ -8,7 +8,8 @@ Any subject can be an instance — a question, a university cohort, an organisat
 argument, never a source artifact.
 
 Start with [docs/demo.md](docs/demo.md): the live Sepolia deployment, checkable with `curl` and with
-`cast` against the ENSv2 UniversalResolver.
+`cast` against the ENSv2 UniversalResolver. [docs/namespace.md](docs/namespace.md) explains what every
+name means and why a platform is mounted at its own DNS name.
 
 ## Packages
 

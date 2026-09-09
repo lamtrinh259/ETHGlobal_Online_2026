@@ -60,18 +60,19 @@ cast call 0x4a1817d13E9cF196f471725176355c1234b63c70 \
 
 A reference is `<voucher>.<candidate>.<root>`, so the same call works for `bob.alice.ketsuban.eth`.
 
-An attested account is a name too. Each platform has its own instance under the root, so a public
-handle resolves on its own:
+An attested account is a name too. A platform is mounted at the DNS name it is, so a public handle
+resolves on its own (see [the namespace](namespace.md)):
 
 ```bash
 cast call 0x4a1817d13E9cF196f471725176355c1234b63c70 \
   "resolve(bytes,bytes)(bytes,address)" \
-  $(cast --to-dns-name alice.x.ketsuban.eth) \
-  $(cast calldata "addr(bytes32)" $(cast namehash alice.x.ketsuban.eth)) --rpc-url $SEPOLIA_RPC
+  $(cast --to-dns-name alice_x.com.x.www.ketsuban.eth) \
+  $(cast calldata "addr(bytes32)" $(cast namehash alice_x.com.x.www.ketsuban.eth)) --rpc-url $SEPOLIA_RPC
 ```
 
-A masked account has no readable label, so there is no name to offer: the record still proves the
-person controls an account on that platform, without saying which.
+A masked account has no readable label of its own, so the private branch names the person instead:
+`alice.com.x.private-www.ketsuban.eth` says the holder of `alice.ketsuban.eth` is on X, and which
+account stays behind the view code.
 
 ## 3. The other direction
 
@@ -83,8 +84,8 @@ curl -s $API/v1/reverse/0xEE4811b9462956C9C3535E79c08776D769CA9F3a | jq '{name, 
 ```
 
 ```
-alice.ketsuban.eth     via the root resolver
-alice.x.ketsuban.eth   via the x resolver
+alice.ketsuban.eth               via the root resolver
+alice_x.com.x.www.ketsuban.eth   via the x.com resolver
 ```
 
 ## 4. Who wrote it

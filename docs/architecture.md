@@ -41,7 +41,10 @@ One Multipass domain ↔ one ENS parent name. `AttestationFactory.create(domain,
 deploys the registry/resolver pair and records it; the bridge finds instances by `record.domainName`. Instances nest
 through `AttestationRegistry.setSubregistry`.
 
-Global, shared by every instance: platform domains (`x`, `telegram`, …), `humanity`, `org`, the stock
+Platforms are mounted at their own DNS names under grouping levels — `x.com` at `com.x.www.<root>`, a
+mail host under the at-sign level, both mirrored for masked records. See [the namespace](namespace.md).
+
+Global, shared by every instance: platform domains (`x.com`, `t.me`, …), `humanity`, `org`, the stock
 PermissionedResolver, the bridge, the factory, the CRE workflow, the API.
 
 ## Record lifecycle
