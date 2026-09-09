@@ -76,6 +76,18 @@ export function hasLinkedWallet(linked: LinkedAccount[], wallet: string): boolea
   );
 }
 
+/**
+ * The platform a domain stands for. A DNS name that is a platform's own is that platform; any other DNS
+ * name is an email domain, because nobody could enumerate every mail host. A bare word is a flat domain
+ * from a deployment that predates the DNS namespace.
+ */
+export function platformOf(domain: string): string | undefined {
+  const named = Object.entries(PLATFORM_DNS_NAMES).find(([, dns]) => dns === domain);
+  if (named) return named[0];
+  if (isDnsName(domain)) return "email";
+  return PLATFORM_DOMAINS[domain] ? domain : undefined;
+}
+
 export type PlatformAccount = { subject: string; username: string };
 
 /**
@@ -109,4 +121,22 @@ export function pickPlatformAccount(linked: LinkedAccount[], domain: string): Pl
   if (!subject) throw new Error(`accounts: ${type} account has no subject`);
   if (!username) throw new Error(`accounts: ${type} account has no handle`);
   return { subject: String(subject), username };
+}
+
+/**
+ * The account a domain asks for, with the label it takes inside that domain's namespace. An email domain
+ * only accepts an address issued by it, so `gmail.com` never holds a record for an address at
+ * `peeramid.xyz`, and the label is what is left once the domain is taken off.
+ */
+export function pickAccountFor(linked: LinkedAccount[], domain: string): PlatformAccount & { label: string } {
+  const platform = platformOf(domain);
+  if (!platform) throw new Error(`accounts: unknown domain "${domain}"`);
+  const acct = pickPlatformAccount(linked, platform);
+  const dns = dnsNameFor(platform, acct);
+  if (isDnsName(domain) && dns !== domain) {
+    throw new Error(`accounts: ${acct.username} is not an account at ${domain}`);
+  }
+  const label = labelFor(platform, acct);
+  if (!label) throw new Error(`accounts: "${acct.username}" cannot be an ENS label`);
+  return { ...acct, label };
 }

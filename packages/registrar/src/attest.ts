@@ -14,7 +14,9 @@ import {
 } from "@peeramid-labs/multipass-client";
 import {
   hasLinkedWallet,
+  isDnsName,
   parseLinkedAccounts,
+  pickAccountFor,
   pickPlatformAccount,
   PLATFORM_DOMAIN_NAMES,
 } from "./accounts.js";
@@ -194,14 +196,19 @@ export async function attestConfidential(
     id = keccak256(stringToBytes(claims.sub));
     payload = intent.payload;
   } else {
-    const acct = pickPlatformAccount(linked, intent.domain);
+    // A DNS domain is a namespace, so the record is named by the label it takes there: `alice_x` in
+    // `x.com`, `tim` in `peeramid.xyz`. A flat domain keeps the whole handle, as its records already do.
+    const acct = isDnsName(intent.domain)
+      ? pickAccountFor(linked, intent.domain)
+      : pickPlatformAccount(linked, intent.domain);
+    const named = "label" in acct ? acct.label : acct.username;
     if (intent.optIn) {
       viewCode = deriveViewCode(secrets.viewcodeKey, intent.domain, acct.subject);
-      name = maskName(acct.username, viewCode);
+      name = maskName(named, viewCode);
       id = maskId(acct.subject, viewCode);
       payload = viewCodeCommitment(viewCode);
     } else {
-      name = toBytes32(acct.username);
+      name = toBytes32(named);
       id = idToBytes32(acct.subject);
       payload = zeroHash;
     }

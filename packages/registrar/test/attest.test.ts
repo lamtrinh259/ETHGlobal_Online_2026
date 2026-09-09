@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { bytesToHex, keccak256, recoverTypedDataAddress, stringToBytes, zeroHash } from "viem";
-import { decodeRecord, fromBytes32, registerNameTypes, toBytes32 } from "@peeramid-labs/multipass-client";
+import {
+  decodeRecord,
+  deriveViewCode,
+  fromBytes32,
+  registerNameTypes,
+  toBytes32,
+} from "@peeramid-labs/multipass-client";
 import { attest, attestConfidential, idToBytes32, verifyPublicLeg } from "../src/attest.js";
 import { eciesDecrypt } from "../src/ecies.js";
 import {
@@ -335,5 +341,45 @@ describe("idToBytes32", () => {
     expect(idToBytes32("abc")).toBe(toBytes32("abc"));
     const long = "x".repeat(40);
     expect(idToBytes32(long)).toBe(keccak256(stringToBytes(long)));
+  });
+});
+
+describe("a record lands in the DNS domain of its account", () => {
+  const at = (domain: string) => ({ ...env, platformDomains: [domain] });
+
+  it("takes the label, not the whole handle, when the domain is a DNS name", async () => {
+    const res = await attest(
+      await signedRequest(makeIntent({ domain: "example.com" })),
+      noRecord,
+      secrets,
+      at("example.com")
+    );
+    expect(fromBytes32(res.record.name)).toBe("alice");
+    expect(fromBytes32(res.record.domainName)).toBe("example.com");
+
+    const onX = await attest(
+      await signedRequest(makeIntent({ domain: "x.com" })),
+      noRecord,
+      secrets,
+      at("x.com")
+    );
+    expect(fromBytes32(onX.record.name)).toBe("alice");
+  });
+
+  it("refuses an address issued by a different domain", async () => {
+    await expect(
+      attest(await signedRequest(makeIntent({ domain: "gmail.com" })), noRecord, secrets, at("gmail.com"))
+    ).rejects.toThrow(/not an account at gmail.com/);
+  });
+
+  it("masks the label so the private branch still has one to point at", async () => {
+    const res = await attest(
+      await signedRequest(makeIntent({ domain: "example.com", optIn: true })),
+      noRecord,
+      secrets,
+      at("example.com")
+    );
+    const viewCode = deriveViewCode(secrets.viewcodeKey, "example.com", "alice@example.com");
+    expect(decodeRecord(res.record, viewCode)).toEqual({ handle: "alice", platformId: "alice@example.com" });
   });
 });
