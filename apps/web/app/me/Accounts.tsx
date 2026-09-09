@@ -77,15 +77,8 @@ export function Accounts({ links, onPublished }: Props) {
           title={`Attest ${connected.find((a) => a.domain === attesting)?.label ?? attesting}`}
           onClose={() => setAttesting(undefined)}
         >
-          <AttestFlow
-            key={attesting}
-            fixedDomain={attesting}
-            title=""
-            onPublished={() => {
-              setAttesting(undefined);
-              onPublished();
-            }}
-          />
+          {/* The dialog stays open on success so the confirmation is read, not flashed. */}
+          <AttestFlow key={attesting} fixedDomain={attesting} title="" onPublished={onPublished} />
         </Modal>
       )}
     </div>

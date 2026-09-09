@@ -190,11 +190,13 @@ export function AttestFlow({
 
   const result = attest.data;
   const txHash = deliver.data?.txHash;
+  // Once it is on chain there is nothing left to fill in: the form would only invite a second write.
+  const settled = !!txHash;
 
   return (
     <div className="card">
       {title && <h2>{title}</h2>}
-      {!isNameDomain && allowLinking && (
+      {!settled && !isNameDomain && allowLinking && (
         <fieldset>
           <legend>Link an account</legend>
           <div className="row">
@@ -207,7 +209,7 @@ export function AttestFlow({
         </fieldset>
       )}
 
-      <fieldset>
+      <fieldset hidden={settled}>
         <legend className={fixedDomain ? "visually-hidden" : ""}>Record</legend>
         {fixedDomain ? null : (
           <label>
@@ -284,25 +286,27 @@ export function AttestFlow({
         )}
       </fieldset>
 
-      {nonce.data && !nonce.data.ready && (
+      {!settled && nonce.data && !nonce.data.ready && (
         <p className="error" role="alert" data-testid="not-ready">
           {nonce.data.reason} — signing would fail, so the button is disabled until that is fixed.
         </p>
       )}
-      {nonce.data?.exists && (
+      {!settled && nonce.data?.exists && (
         <p className="muted" data-testid="renewal-note">
           You already hold a record here. Publishing again writes a newer one (nonce {nonce.data.next}); the
           previous stays visible in the history — that is how a statement is revoked.
         </p>
       )}
-      <button
-        className="primary"
-        onClick={run}
-        disabled={busy || takenByOther || answerBytes > 31 || nonce.data?.ready === false}
-        data-testid="publish"
-      >
-        {step ? `${step}…` : nonce.data?.exists ? "Sign & update" : "Sign & publish"}
-      </button>
+      {!settled && (
+        <button
+          className="primary"
+          onClick={run}
+          disabled={busy || takenByOther || answerBytes > 31 || nonce.data?.ready === false}
+          data-testid="publish"
+        >
+          {step ? `${step}…` : nonce.data?.exists ? "Sign & update" : "Sign & publish"}
+        </button>
+      )}
 
       {error && (
         <p className="error" role="alert">

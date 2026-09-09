@@ -1,0 +1,96 @@
+import { render, screen } from "@testing-library/react";
+import { describe, expect, it, vi, beforeEach } from "vitest";
+
+/**
+ * AttestFlow is mostly wallet plumbing, so these tests cover the one thing a reader of the screen
+ * depends on: what it claims after a publish. Saying "signed" when the relay refused the record is the
+ * difference between a stale list and a lie.
+ */
+const privy = {
+  ready: true,
+  authenticated: true,
+  login: vi.fn(),
+  user: { id: "did:privy:x" },
+};
+const wallets = [{ walletClientType: "privy", address: "0xEE4811b9462956C9C3535E79c08776D769CA9F3a" }];
+
+vi.mock("@privy-io/react-auth", () => ({
+  usePrivy: () => privy,
+  useWallets: () => ({ wallets }),
+  useIdentityToken: () => ({ identityToken: "token" }),
+  useSignTypedData: () => ({ signTypedData: vi.fn(async () => ({ signature: "0xsig" })) }),
+  useLinkAccount: () => ({
+    linkTwitter: vi.fn(),
+    linkTelegram: vi.fn(),
+    linkGithub: vi.fn(),
+    linkDiscord: vi.fn(),
+    linkGoogle: vi.fn(),
+  }),
+}));
+
+const state = {
+  deliverError: undefined as Error | undefined,
+  txHash: undefined as string | undefined,
+  attestData: undefined as object | undefined,
+};
+
+vi.mock("@/lib/hooks", () => ({
+  apiFor: () => ({}),
+  useNonce: () => ({ data: { exists: false, next: 1n, ready: true, reason: null } }),
+  useNameStatus: () => ({ data: undefined }),
+  useAttest: () => ({ data: state.attestData, error: undefined, isPending: false, reset: vi.fn() }),
+  useDeliver: () => ({
+    data: state.txHash ? { txHash: state.txHash } : undefined,
+    error: state.deliverError,
+    isPending: false,
+    reset: vi.fn(),
+  }),
+}));
+
+vi.mock("@/app/providers", () => ({
+  useWebConfig: () => ({
+    chainId: 11155111,
+    multipass: "0x418F82fd0014a4CA402F145978bfaF0555a9cA06",
+    nameDomains: ["ketsuban"],
+    instances: [{ domain: "ketsuban", parentName: "ketsuban.eth", parentLabel: "ketsuban" }],
+    apiUrl: "http://api.test",
+    attestUrl: "http://api.test/v1/attest",
+  }),
+}));
+
+const record = {
+  name: `0x${"61".repeat(32)}`,
+  id: `0x${"00".repeat(32)}`,
+  domainName: `0x${"67".repeat(32)}`,
+  validUntil: "1791531339",
+  nonce: "1",
+  wallet: wallets[0].address,
+  payload: `0x${"00".repeat(32)}`,
+};
+
+const { AttestFlow } = await import("@/app/AttestFlow");
+
+beforeEach(() => {
+  state.deliverError = undefined;
+  state.txHash = undefined;
+  state.attestData = undefined;
+});
+
+describe("AttestFlow after signing", () => {
+  it("says the relay refused it, and keeps the form so it can be retried", () => {
+    state.attestData = { record, signature: "0xsig", viewCode: null };
+    state.deliverError = new Error("invalidSignature: not the registrar");
+    render(<AttestFlow fixedDomain="google" />);
+    expect(screen.getByTestId("published")).toHaveTextContent("Signed, but not written");
+    expect(screen.getByTestId("published")).toHaveTextContent("nothing changed on chain");
+    expect(screen.getByTestId("publish")).toBeVisible();
+  });
+
+  it("confirms a real write and removes the form, so nothing invites a second one", () => {
+    state.attestData = { record, signature: "0xsig", viewCode: null };
+    state.txHash = `0x${"ab".repeat(32)}`;
+    render(<AttestFlow fixedDomain="google" />);
+    expect(screen.getByTestId("published")).toHaveTextContent("Published.");
+    expect(screen.queryByTestId("publish")).toBeNull();
+  });
+});
