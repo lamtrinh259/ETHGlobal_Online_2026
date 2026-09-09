@@ -95,6 +95,15 @@ export default async function WalletPage({ params }: Params) {
                   <span className="acct-who">{l.domain}</span>
                   <span className="acct-state">
                     {l.optedIn ? "masked — needs a view code to read" : `public: ${l.name}`}
+                    {/* The name it answers at, so a reader can check it without this page. */}
+                    {l.ensName && (
+                      <>
+                        {" · "}
+                        <Link href={`/v/${l.ensName}`}>
+                          <code>{l.ensName}</code>
+                        </Link>
+                      </>
+                    )}
                   </span>
                 </li>
               ))}

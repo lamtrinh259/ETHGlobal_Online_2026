@@ -18,7 +18,11 @@ export function OnChain({ api, wallet, dash }: Props) {
     ...dash.names.filter((n) => n.live).map((n) => ({ name: n.ensName, what: n.payload || "your name" })),
     ...dash.links
       .filter((l) => l.live && l.ensName)
-      .map((l) => ({ name: l.ensName as string, what: `${l.domain}, public` })),
+      .map((l) => ({
+        name: l.ensName as string,
+        // A private account has a name too, and it says something narrower: that you are there at all.
+        what: l.optedIn ? `${l.domain} — you are there, not which account` : `${l.domain}, in the open`,
+      })),
   ];
   const masked = dash.links.filter((l) => l.live && !l.ensName);
 
@@ -59,10 +63,27 @@ export function OnChain({ api, wallet, dash }: Props) {
 
       <h3>Asked the other way round</h3>
       {reverse.data?.name ? (
-        <p data-testid="reverse">
-          Anything resolving your address gets <code>{reverse.data.name}</code>. That answer comes from your
-          Multipass record through the instance resolver, so it needs no reverse registry and no account here.
-        </p>
+        <div data-testid="reverse">
+          <p>
+            Anything resolving your address gets <code>{reverse.data.name}</code>. That answer comes from
+            your Multipass record through the instance resolver, so it needs no reverse registry and no
+            account here.
+          </p>
+          {reverse.data.names.length > 1 && (
+            <ul className="acct" data-testid="reverse-names">
+              {reverse.data.names.map((n) => (
+                <li key={n.name}>
+                  <span className="acct-who">
+                    <code>{n.name}</code>
+                  </span>
+                  <small className="muted">
+                    {n.kind === "private" ? "private branch" : n.kind === "account" ? n.domain : "your name"}
+                  </small>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       ) : (
         <p className="muted" data-testid="reverse">
           Your address resolves to no name yet; claiming one is what gives it an answer.

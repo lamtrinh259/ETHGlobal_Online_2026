@@ -137,6 +137,28 @@ export const WARNING =
 export type AppDeps = { config: Config; chain: ChainReader; now?: () => number };
 
 /** Split `<handle>.<parentName>` against the known instances */
+/**
+ * The ENS name a linked account answers at: the account's own where it is public, and the person's in
+ * the private branch where it is not. Shared by the dashboard and by reverse resolution, so both say
+ * the same thing about the same record.
+ */
+export function linkName(
+  record: { name: string; payload: string },
+  mount: Instance | undefined,
+  held: string | undefined
+): { ensName: string | null; nameless: string | null } {
+  const optedIn = record.payload !== zeroHash;
+  const label = /^[a-z0-9_-]{1,63}$/.test(record.name.toLowerCase()) ? record.name.toLowerCase() : null;
+  const masked = optedIn && mount?.maskedParentName && held ? `${held}.${mount.maskedParentName}` : null;
+  const open = !optedIn && label && mount?.parentName ? `${label}.${mount.parentName}` : null;
+  const ensName = open ?? masked;
+  return {
+    ensName,
+    // Why there is no name, when there is none: privacy, or a handle that cannot be a label.
+    nameless: ensName ? null : optedIn ? "private" : label ? null : "not-a-label",
+  };
+}
+
 export function locate(
   name: string,
   instances: Instance[]
@@ -722,13 +744,34 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
           domain: i.domain,
           name: await chain.reverseName(i.resolver, address as Address).catch(() => ""),
           resolver: i.resolver,
+          kind: "name" as const,
         }))
     );
     const found = named.filter((n) => n.name !== "");
+    // The accounts this wallet attested are names too. They come from the index rather than another
+    // round of resolver calls, and they are the same names the dashboard shows.
+    const mountOf = new Map(instances.map((i) => [i.domain, i]));
+    const records = await chain.listRecordsByWallet(address as Address).catch(() => []);
+    const held = found[0]?.name?.split(".")[0];
+    const accounts = records
+      .filter((r) => r.live && mountOf.has(r.domain) && !config.NAME_DOMAINS.includes(r.domain))
+      .map((r) => {
+        const mount = mountOf.get(r.domain);
+        const { ensName } = linkName(r, mount, held);
+        return ensName
+          ? {
+              domain: r.domain,
+              name: ensName,
+              resolver: (r.payload !== zeroHash ? mount?.maskedResolver : mount?.resolver) as Address,
+              kind: r.payload !== zeroHash ? ("private" as const) : ("account" as const),
+            }
+          : undefined;
+      })
+      .filter((n): n is NonNullable<typeof n> => !!n && !!n.resolver);
     return c.json({
       address,
       name: found[0]?.name ?? null,
-      names: found,
+      names: [...found, ...accounts],
       note: "answered from the Multipass record, not from a reverse registry",
       warning: WARNING,
     });
@@ -740,9 +783,7 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     if (!/^0x[0-9a-fA-F]{40}$/.test(address)) return c.json({ error: "bad address" }, 400);
     const instances = await chain.instances();
     const parentOf = new Map(instances.map((i) => [i.domain, i.parentName]));
-    const maskedParentOf = new Map(
-      instances.filter((i) => i.maskedParentName).map((i) => [i.domain, i.maskedParentName as string])
-    );
+    const mountOf = new Map(instances.map((i) => [i.domain, i]));
     // Every platform domain has its own instance now, so an instance no longer means "a name domain".
     // Classify by configuration, which is what decides whether a record carries a handle and an answer.
     const isNameDomain = (d: string) => config.NAME_DOMAINS.includes(d);
@@ -785,23 +826,8 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
         .filter((r) => !isNameDomain(r.domain) && !isVouch(r.domain) && r.domain !== config.ORG_DOMAIN)
         .map((r) => {
           const optedIn = r.payload !== zeroHash;
-          const parent = parentOf.get(r.domain);
-          // A public account is a name any ENS client can read — when its handle can be a label at all.
-          // An email address cannot: `@` and `.` separate labels, they are not characters in one.
-          // Underscores are fine in an ENS label and common in platform handles; `@` and `.` are not.
-          const label = /^[a-z0-9_-]{1,63}$/.test(r.name.toLowerCase()) ? r.name.toLowerCase() : null;
-          // A masked account has no readable name of its own, so the private branch names the person:
-          // `alice.com.x.private-www.<root>` says the holder of `alice.<root>` has an account there.
-          const maskedParent = maskedParentOf.get(r.domain);
           const held = records.find((k) => k.live && isNameDomain(k.domain))?.name;
-          const maskedName = optedIn && maskedParent && held ? `${held}.${maskedParent}` : null;
-          return {
-            ...fmt(r),
-            optedIn,
-            ensName: (parent && !optedIn && label ? `${label}.${parent}` : maskedName) ?? null,
-            // Why there is no name, when there is none: privacy, or a handle that cannot be a label.
-            nameless: maskedName ? null : optedIn ? "private" : label ? null : "not-a-label",
-          };
+          return { ...fmt(r), optedIn, ...linkName(r, mountOf.get(r.domain), held) };
         }),
       given: records
         .filter((r) => isVouch(r.domain))

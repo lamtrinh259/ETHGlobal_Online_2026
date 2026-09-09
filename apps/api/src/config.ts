@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { z } from "zod";
 import type { Address, Hex } from "viem";
 
@@ -185,12 +186,45 @@ const deploymentFile = z.object({
   universalResolver: address.optional(),
 });
 
+/** The addresses a deployment artifact carries, as environment values. */
+function fromDeployment(d: z.infer<typeof deploymentFile>): Record<string, string> {
+  return {
+    CHAIN_ID: String(d.chainId),
+    MULTIPASS: d.multipass,
+    BRIDGE: d.bridge,
+    FACTORY: d.factory,
+    ...(d.namespaceFactory ? { NAMESPACE_FACTORY: d.namespaceFactory } : {}),
+    ...(d.ethRegistry ? { ETH_REGISTRY: d.ethRegistry } : {}),
+    ...(d.ethRegistrar ? { ETH_REGISTRAR: d.ethRegistrar } : {}),
+    ...(d.paymentToken ? { PAYMENT_TOKEN: d.paymentToken } : {}),
+    ...(d.registry ? { REGISTRY: d.registry } : {}),
+    ...(d.permissionedResolver ? { PERMISSIONED_RESOLVER: d.permissionedResolver } : {}),
+    ...(d.universalResolver ? { UNIVERSAL_RESOLVER: d.universalResolver } : {}),
+  };
+}
+
+/**
+ * The deployment this build ships for a chain, when it has one. An operator sets the keys and the RPC;
+ * every address is already known, and half of every deployment problem has been one of them missing.
+ */
+export function bundledDeployment(chainId: string | undefined): Record<string, string> {
+  if (!chainId) return {};
+  try {
+    const require = createRequire(import.meta.url);
+    return fromDeployment(deploymentFile.parse(require(`@ketsuban/contracts/deployments/${chainId}.json`)));
+  } catch {
+    return {};
+  }
+}
+
 /**
  * Load from the environment; when `DEPLOYMENT_FILE` points at a forge deployment artifact its
- * addresses fill MULTIPASS / BRIDGE / FACTORY / CHAIN_ID unless set explicitly.
+ * addresses fill MULTIPASS / BRIDGE / FACTORY / CHAIN_ID unless set explicitly, and a chain this build
+ * ships a deployment for fills whatever is still missing.
  */
 export function loadConfig(env: Record<string, string | undefined> = process.env): Config {
-  let merged = { ...env };
+  const given = Object.fromEntries(Object.entries(env).filter(([, v]) => v !== undefined && v !== ""));
+  let merged: Record<string, string | undefined> = { ...bundledDeployment(env.CHAIN_ID), ...given };
   if (env.DEPLOYMENT_FILE) {
     const d = deploymentFile.parse(JSON.parse(readFileSync(env.DEPLOYMENT_FILE, "utf8")));
     merged = {
@@ -205,7 +239,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
       ...(d.registry ? { REGISTRY: d.registry } : {}),
       ...(d.permissionedResolver ? { PERMISSIONED_RESOLVER: d.permissionedResolver } : {}),
       ...(d.universalResolver ? { UNIVERSAL_RESOLVER: d.universalResolver } : {}),
-      ...Object.fromEntries(Object.entries(env).filter(([, v]) => v !== undefined && v !== "")),
+      ...given,
     };
   }
   return configSchema.parse(merged) as Config;

@@ -51,14 +51,28 @@ export function OwnName({ api, wallet, domain, parentLabel, handle, getSigner }:
 
   return (
     <section className="card" data-testid="own-name">
-      <h2>Bring your own .eth</h2>
+      <h2>{mine ? "Bring your own .eth" : "Your name on Ethereum"}</h2>
       <p className="muted">
-        Own <code>{label || "<label>"}.eth</code> on the ENSv2 registry with this wallet? Then{" "}
-        <code>
-          {parentLabel}.{label || "<label>"}.eth
-        </code>{" "}
-        will resolve to the same records as <code>{handle}</code>. The bridge checks ownership in the same
-        transaction.
+        {mine ? (
+          <>
+            You hold <code>{label}.eth</code>. Link it and{" "}
+            <code>
+              {parentLabel}.{label}.eth
+            </code>{" "}
+            resolves to the same records as <code>{handle}</code>; the bridge checks ownership in the same
+            transaction.
+          </>
+        ) : (
+          <>
+            <code>{label || "<label>"}.eth</code> is an ENS name of your own, outside this deployment
+            entirely. Claim it and{" "}
+            <code>
+              {parentLabel}.{label || "<label>"}.eth
+            </code>{" "}
+            resolves to the same records as <code>{handle}</code>. You register it yourself, from this
+            wallet: the registrar hands names only to whoever asks for them.
+          </>
+        )}
       </p>
       <label>
         Your .eth label
@@ -70,21 +84,23 @@ export function OwnName({ api, wallet, domain, parentLabel, handle, getSigner }:
         />
       </label>
       {owner.data && !mine && (
-        <p className="muted" data-testid="own-name-owner">
+        <p className={held ? "muted" : ""} data-testid="own-name-owner">
           {held
-            ? `${label}.eth is held by ${held.slice(0, 6)}…${held.slice(-4)}, not this wallet.`
-            : `Nobody holds ${label}.eth on the registry this bridge checks. It may be on a different ENS deployment.`}
+            ? `${label}.eth is held by ${held.slice(0, 6)}…${held.slice(-4)}, not this wallet. Try another label.`
+            : `${label}.eth is free on this registry.`}
         </p>
       )}
       {canClaim && (
         <p className="row">
           <button onClick={register} disabled={claim.isPending} data-testid="own-name-claim">
-            {claim.isPending ? "registering…" : `Register ${label}.eth to this wallet`}
+            {claim.isPending ? "registering…" : `Claim ${label}.eth`}
           </button>
-          {claim.waitingUntil && (
+          {claim.waitingUntil ? (
             <small className="muted" data-testid="own-name-waiting">
               the registrar makes this two signatures, a minute apart
             </small>
+          ) : (
+            <small className="muted">you pay for the name; on this testnet the token mints itself</small>
           )}
         </p>
       )}

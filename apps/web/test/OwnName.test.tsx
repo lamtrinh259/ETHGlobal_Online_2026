@@ -31,12 +31,14 @@ const props = {
 };
 
 describe("bringing your own .eth", () => {
-  it("offers to register the name when nobody here holds it", () => {
+  it("offers the free name as something to claim, paid for by the person", () => {
     state.owner = null;
+    state.canRegisterNames = true;
     render(<OwnName {...props} />);
     // The revert this replaces said only NotNameOwner, which told the person nothing they could act on.
-    expect(screen.getByTestId("own-name-owner")).toHaveTextContent("Nobody holds alice.eth");
-    expect(screen.getByTestId("own-name-claim")).toBeVisible();
+    expect(screen.getByTestId("own-name-owner")).toHaveTextContent("alice.eth is free");
+    expect(screen.getByTestId("own-name-claim")).toHaveTextContent("Claim alice.eth");
+    expect(screen.getByTestId("own-name")).toHaveTextContent("you pay for the name");
     expect(screen.getByTestId("own-name-link")).toBeDisabled();
   });
 
@@ -52,6 +54,7 @@ describe("bringing your own .eth", () => {
     state.owner = "0x1111111111111111111111111111111111111111";
     render(<OwnName {...props} />);
     expect(screen.getByTestId("own-name-owner")).toHaveTextContent("is held by 0x1111…1111");
+    expect(screen.getByTestId("own-name-owner")).toHaveTextContent("Try another label");
     expect(screen.getByTestId("own-name-link")).toBeDisabled();
     // Registering is not on offer for a name someone owns.
     expect(screen.queryByTestId("own-name-claim")).toBeNull();

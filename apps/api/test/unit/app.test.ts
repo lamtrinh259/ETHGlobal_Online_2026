@@ -1469,7 +1469,9 @@ describe("GET /v1/reverse/:address", () => {
     const { chain } = fakeChain({ reverse: { [user.account.address.toLowerCase()]: "alice.kju-is.eth" } });
     const body = await (await app(chain).request(`/v1/reverse/${user.account.address}`)).json();
     expect(body.name).toBe("alice.kju-is.eth");
-    expect(body.names).toEqual([{ domain: "kju-is", name: "alice.kju-is.eth", resolver: instance.resolver }]);
+    expect(body.names).toEqual([
+      { domain: "kju-is", name: "alice.kju-is.eth", resolver: instance.resolver, kind: "name" },
+    ]);
     expect(body.note).toContain("not from a reverse registry");
     expect(chain.reverseName).toHaveBeenCalledWith(instance.resolver, user.account.address);
 
@@ -1654,6 +1656,40 @@ describe("GET /v1/eth-label/:label", () => {
     const { chain } = fakeChain();
     const res = await app(chain).request("/v1/eth-label/alice");
     expect(res.status).toBe(501);
+  });
+});
+
+describe("GET /v1/reverse: the accounts are names too", () => {
+  it("lists what a wallet answers to, its own name and every account it attested", async () => {
+    // The dashboard and reverse resolution must agree: same records, same names, one rule.
+    const record = (domain: string, name: string, payload: string) => ({
+      domain,
+      name,
+      id: toBytes32(name),
+      wallet: user.account.address,
+      payload: toBytes32(payload),
+      validUntil: 1_800_000_000n,
+      nonce: 1n,
+      live: true,
+    });
+    const { chain } = fakeChain({
+      instances: [instance, xComInstance],
+      reverse: { [user.account.address.toLowerCase()]: "alice.kju-is.eth" },
+      byWallet: [
+        record("kju-is", "alice", "hi"),
+        record("x.com", "alice_x", ""),
+        record("x.com", "\u009f\u00c2", "commitment"),
+      ],
+    });
+    const body = await (await app(chain).request(`/v1/reverse/${user.account.address}`)).json();
+    expect(body.name).toBe("alice.kju-is.eth");
+    expect(body.names.map((n: { name: string; kind: string }) => [n.kind, n.name])).toEqual([
+      ["name", "alice.kju-is.eth"],
+      ["account", "alice_x.com.x.www.kju-is.eth"],
+      // The masked one is named after the person, and answered by the mirror.
+      ["private", "alice.com.x.private-www.kju-is.eth"],
+    ]);
+    expect(body.names[2].resolver).toBe(xComInstance.maskedResolver);
   });
 });
 
@@ -2032,5 +2068,43 @@ describe("POST /v1/gas", () => {
     expect((await res.json()).error).toMatch(/live name/);
     expect(state.sent).toEqual([]);
     expect(nameless.state.sent).toEqual([]);
+  });
+});
+
+describe("a deployment this build already knows", () => {
+  it("fills the addresses an operator did not set, without overriding the ones they did", async () => {
+    // Half of every deployment problem has been one address missing from an environment. The chain id
+    // is enough to know them: this build ships the deployment it was built against.
+    const { loadConfig } = await import("../../src/config.js");
+    const minimal = loadConfig({
+      RPC_URL: "https://rpc.example",
+      CHAIN_ID: "11155111",
+      RELAYER_KEY: baseEnv.RELAYER_KEY,
+      PRIVY_APP_ID: baseEnv.PRIVY_APP_ID,
+      PRIVY_VERIFICATION_KEY_JWK: baseEnv.PRIVY_VERIFICATION_KEY_JWK,
+      NAME_DOMAINS: "ketsuban",
+    });
+    expect(minimal.MULTIPASS).toBe("0x418F82fd0014a4CA402F145978bfaF0555a9cA06");
+    expect(minimal.PERMISSIONED_RESOLVER).toBe("0x4E2d9783cEFF2ed72CD77C14206b29fe246b24F7");
+    expect(minimal.NAMESPACE_FACTORY).toBeTruthy();
+    expect(minimal.ETH_REGISTRAR).toBeTruthy();
+
+    // What the operator sets still wins: a fork or a fresh deployment is theirs to name.
+    const overridden = loadConfig({
+      RPC_URL: "https://rpc.example",
+      CHAIN_ID: "11155111",
+      MULTIPASS: baseEnv.MULTIPASS,
+      RELAYER_KEY: baseEnv.RELAYER_KEY,
+      PRIVY_APP_ID: baseEnv.PRIVY_APP_ID,
+      PRIVY_VERIFICATION_KEY_JWK: baseEnv.PRIVY_VERIFICATION_KEY_JWK,
+      NAME_DOMAINS: "ketsuban",
+    });
+    expect(overridden.MULTIPASS).toBe(baseEnv.MULTIPASS);
+  });
+
+  it("says what is missing on a chain it ships nothing for", () => {
+    expect(() =>
+      loadConfig({ RPC_URL: "https://rpc.example", CHAIN_ID: "999999", RELAYER_KEY: baseEnv.RELAYER_KEY })
+    ).toThrow();
   });
 });

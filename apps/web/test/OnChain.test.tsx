@@ -28,6 +28,11 @@ const dash: WalletDashboard = {
   links: [
     { ...rec("x", "alice_x"), optedIn: false, ensName: "alice_x.x.ketsuban.eth" },
     { ...rec("google", "masked"), optedIn: true, ensName: null },
+    {
+      ...rec("discord.com", "masked"),
+      optedIn: true,
+      ensName: "alice.com.discord.private-www.ketsuban.eth",
+    },
     { ...rec("github", "old", "", false), optedIn: false, ensName: "old.github.ketsuban.eth" },
   ],
   given: [],
@@ -41,12 +46,30 @@ const api = (name: string | null) =>
     reverse: vi.fn(async (address: string) => ({
       address,
       name,
-      names: name ? [{ domain: "ketsuban", name, resolver: WALLET }] : [],
+      names: name
+        ? [
+            { domain: "ketsuban", name, resolver: WALLET, kind: "name" as const },
+            { domain: "x.com", name: "alice_x.com.x.www.ketsuban.eth", resolver: WALLET, kind: "account" as const },
+          ]
+        : [],
       note: "answered from the Multipass record, not from a reverse registry",
     })),
   }) as unknown as Api;
 
 describe("OnChain", () => {
+  it("names a private account for what it claims, and lists every name the address answers to", async () => {
+    render(<OnChain api={api("alice.ketsuban.eth")} wallet={WALLET} dash={dash} />, { wrapper: wrapper() });
+    const names = screen.getByTestId("onchain-names");
+    // The private branch is a name too, and it says something narrower than a public one.
+    expect(names).toHaveTextContent("alice.com.discord.private-www.ketsuban.eth");
+    expect(names).toHaveTextContent("you are there, not which account");
+    expect(names).toHaveTextContent("x, in the open");
+    // Asked the other way round, the address answers to all of them.
+    await waitFor(() =>
+      expect(screen.getByTestId("reverse-names")).toHaveTextContent("alice_x.com.x.www.ketsuban.eth")
+    );
+  });
+
   it("lists every readable name, says why a private account has none, and shows the reverse answer", async () => {
     render(<OnChain api={api("alice.ketsuban.eth")} wallet={WALLET} dash={dash} />, { wrapper: wrapper() });
 

@@ -145,7 +145,15 @@ export type Disclosed = z.infer<typeof disclosedSchema>;
 export const reverseSchema = z.object({
   address: z.string(),
   name: z.string().nullable(),
-  names: z.array(z.object({ domain: z.string(), name: z.string(), resolver: z.string() })),
+  names: z.array(
+    z.object({
+      domain: z.string(),
+      name: z.string(),
+      resolver: z.string(),
+      /** Their own name, an account in the open, or an account named in the private branch */
+      kind: z.enum(["name", "account", "private"]).optional(),
+    })
+  ),
   note: z.string(),
 });
 export type ReverseRead = z.infer<typeof reverseSchema>;
