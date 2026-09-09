@@ -13,6 +13,49 @@ export const PLATFORM_DOMAINS: Readonly<Record<string, string>> = {
 
 export const PLATFORM_DOMAIN_NAMES: readonly string[] = Object.keys(PLATFORM_DOMAINS);
 
+/**
+ * The DNS name each platform actually is. A record under `x` collides with a person called `x` and
+ * says nothing about which service; `x.com` says both. These become the ENS namespace an account
+ * resolves in: `<handle>.x.com.www.<root>`.
+ *
+ * Email has no single name here: the address carries its own domain, which is the point of `dnsNameFor`.
+ */
+export const PLATFORM_DNS_NAMES: Readonly<Record<string, string>> = {
+  x: "x.com",
+  telegram: "t.me",
+  discord: "discord.com",
+  github: "github.com",
+  google: "google.com",
+  linkedin: "linkedin.com",
+};
+
+/** Is this a DNS name a namespace can be built from: labels of `[a-z0-9-]`, at least two of them. */
+export function isDnsName(value: string): boolean {
+  const labels = value.toLowerCase().split(".");
+  return labels.length >= 2 && labels.every((l) => /^[a-z0-9-]{1,63}$/.test(l));
+}
+
+/**
+ * Where an account's name belongs: a platform's own DNS name, or for an email the domain it was issued
+ * by. Returns nothing when the account cannot name a namespace — an email with no domain, a platform
+ * this deployment does not map.
+ */
+export function dnsNameFor(domain: string, account: { username?: string }): string | undefined {
+  if (domain === "email") {
+    const at = (account.username ?? "").lastIndexOf("@");
+    const host = at === -1 ? "" : account.username!.slice(at + 1).toLowerCase();
+    return isDnsName(host) ? host : undefined;
+  }
+  return PLATFORM_DNS_NAMES[domain];
+}
+
+/** The label an account takes inside that namespace: a handle, or an email's local part. */
+export function labelFor(domain: string, account: { username?: string }): string | undefined {
+  const raw = domain === "email" ? (account.username ?? "").split("@")[0] : (account.username ?? "");
+  const label = raw.toLowerCase();
+  return /^[a-z0-9_-]{1,63}$/.test(label) ? label : undefined;
+}
+
 export function toPrivyType(domain: string): string {
   const t = PLATFORM_DOMAINS[domain];
   if (!t) throw new Error(`accounts: unknown platform domain "${domain}"`);

@@ -1,4 +1,11 @@
-import { concatHex, keccak256, recoverTypedDataAddress, type Address, type Hex, type TypedDataDomain } from "viem";
+import {
+  concatHex,
+  keccak256,
+  recoverTypedDataAddress,
+  type Address,
+  type Hex,
+  type TypedDataDomain,
+} from "viem";
 import type { PrivateKeyAccount } from "viem/accounts";
 import type { EciesBox } from "./types.js";
 

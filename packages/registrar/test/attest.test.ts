@@ -231,7 +231,12 @@ describe("attest — vouch instance (~candidate) domain", () => {
     // A vouch domain is the candidate's own namespace, so anything goes there.
     await expect(
       verifyPublicLeg(
-        await signedRequest(makeIntent({ domain: "~alice", handle: "github" }), undefined, undefined, await makeInvite()),
+        await signedRequest(
+          makeIntent({ domain: "~alice", handle: "github" }),
+          undefined,
+          undefined,
+          await makeInvite()
+        ),
         noVouchRecord,
         env
       )

@@ -187,7 +187,8 @@ export async function attestConfidential(
     const reserved = env.reservedHandles ?? RESERVED_HANDLES;
     // A vouch domain is the candidate's own namespace, so a voucher there may be called anything.
     if (candidateOf(intent.domain, env.nameDomainPrefixes ?? DEFAULT_NAME_DOMAIN_PREFIXES) === undefined) {
-      if (reserved.includes(intent.handle)) throw new Error(`intent: "${intent.handle}" is a reserved handle`);
+      if (reserved.includes(intent.handle))
+        throw new Error(`intent: "${intent.handle}" is a reserved handle`);
     }
     name = toBytes32(intent.handle);
     id = keccak256(stringToBytes(claims.sub));

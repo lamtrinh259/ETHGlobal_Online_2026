@@ -41,8 +41,12 @@ describe("disclosure grants", () => {
 
   it("cannot be replayed as an intent, and binds to one ciphertext", async () => {
     const signature = await signDisclosure(alice, base, discloseDomain(11155111, MULTIPASS));
-    expect(await recoverDiscloseSigner(base, signature, discloseDomain(11155111, MULTIPASS))).toBe(alice.address);
-    expect(await recoverDiscloseSigner(base, signature, intentDomain(11155111, MULTIPASS))).not.toBe(alice.address);
+    expect(await recoverDiscloseSigner(base, signature, discloseDomain(11155111, MULTIPASS))).toBe(
+      alice.address
+    );
+    expect(await recoverDiscloseSigner(base, signature, intentDomain(11155111, MULTIPASS))).not.toBe(
+      alice.address
+    );
 
     const other = eciesEncrypt(enclave.publicKey, new Uint8Array(32).fill(1), new Uint8Array(32).fill(2));
     expect(() =>

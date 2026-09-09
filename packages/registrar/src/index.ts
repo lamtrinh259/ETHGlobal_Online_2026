@@ -44,4 +44,5 @@ export {
   toPrivyType,
 } from "./accounts.js";
 export { eciesEncrypt, eciesDecrypt } from "./ecies.js";
+export { dnsNameFor, isDnsName, labelFor, PLATFORM_DNS_NAMES } from "./accounts.js";
 export { base64urlDecode, base64urlEncode } from "./base64url.js";

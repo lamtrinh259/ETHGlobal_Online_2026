@@ -7,25 +7,19 @@ import {IMultipass} from "@peeramid-labs/multipass/src/interfaces/IMultipass.sol
 import {LibMultipass} from "@peeramid-labs/multipass/src/libraries/LibMultipass.sol";
 import {LibLabel} from "./libraries/LibLabel.sol";
 
-/// @notice ENSv2 subname registry for one attestation instance: every label under the parent name
-///         resolves iff a live Multipass record exists for it in `DOMAIN`. Expiry is enforced here
-///         because Multipass `resolveRecord` does not check `validUntil`. No tokens, no transfers.
+/// @notice The private half of a platform's namespace: `alice.com.x.private-www.<root>` says that the
+///         person who holds `alice.<root>` has an account on X, and nothing more. The account's own
+///         handle stays behind the view code it was masked with.
 ///
-///         Subregistries let an instance nest others (e.g. a subject namespace under a root); they
-///         are set by the owner, typically the factory operator, and never derived from records.
-contract AttestationRegistry is IRegistry, Ownable {
-    /// @notice Which records this mount answers for. A platform's public branch under `www` names
-    ///         accounts by their handle, so it must stay silent about an account someone chose to mask:
-    ///         that one is a one-time pad over the handle, and it is represented, by the person's own
-    ///         name, in `MaskedMirrorRegistry`. A masked record carries a view-code commitment as its
-    ///         payload. `Any` is for a name domain, where the payload is the person's answer.
-    enum Visibility {
-        Any,
-        Public
-    }
-
+///         The label is the person's name, not the account's, because a masked name is a one-time pad
+///         over the handle: unreadable, and the whole point is that it stays that way. So this registry
+///         answers a name-domain label, then checks that the wallet holding it also holds a masked
+///         record in the platform domain. Both have to be live.
+contract MaskedMirrorRegistry is IRegistry, Ownable {
     IMultipass public immutable MP;
-    Visibility public immutable VISIBILITY;
+    /// @notice Domain the label is looked up in: the root instance where people hold their names
+    bytes32 public immutable NAME_DOMAIN;
+    /// @notice Platform domain the masked account must exist in
     bytes32 public immutable DOMAIN;
     address public immutable RESOLVER;
     IRegistry public immutable PARENT;
@@ -34,15 +28,15 @@ contract AttestationRegistry is IRegistry, Ownable {
 
     constructor(
         IMultipass mp,
+        bytes32 nameDomain,
         bytes32 domain,
         address resolver,
         IRegistry parent,
         string memory parentLabel,
-        address owner,
-        Visibility visibility
+        address owner
     ) Ownable(owner) {
         MP = mp;
-        VISIBILITY = visibility;
+        NAME_DOMAIN = nameDomain;
         DOMAIN = domain;
         RESOLVER = resolver;
         PARENT = parent;
@@ -50,7 +44,7 @@ contract AttestationRegistry is IRegistry, Ownable {
         emit RegistryCreated();
     }
 
-    /// @notice Mount (or unmount with `address(0)`) a child instance under `label`.
+    /// @notice Mount (or unmount with `address(0)`) a child registry under `label`.
     function setSubregistry(string calldata label, IRegistry sub) external onlyOwner {
         _subregistries[keccak256(bytes(label))] = sub;
         emit SubregistryUpdated(uint256(keccak256(bytes(label))), sub, msg.sender);
@@ -65,10 +59,14 @@ contract AttestationRegistry is IRegistry, Ownable {
     function getResolver(string calldata label) external view returns (address) {
         (bool fits, bytes32 name) = LibLabel.toBytes32(bytes(label));
         if (!fits) return address(0);
-        (bool ok, LibMultipass.Record memory r) =
-            MP.resolveRecord(LibMultipass.NameQuery(DOMAIN, address(0), name, bytes32(0), bytes32(0)));
-        if (!ok || r.validUntil <= block.timestamp) return address(0);
-        if (VISIBILITY == Visibility.Public && r.payload != bytes32(0)) return address(0);
+        (bool held, LibMultipass.Record memory person) =
+            MP.resolveRecord(LibMultipass.NameQuery(NAME_DOMAIN, address(0), name, bytes32(0), bytes32(0)));
+        if (!held || person.validUntil <= block.timestamp) return address(0);
+        (bool has, LibMultipass.Record memory account) =
+            MP.resolveRecord(LibMultipass.NameQuery(DOMAIN, person.wallet, bytes32(0), bytes32(0), bytes32(0)));
+        if (!has || account.validUntil <= block.timestamp) return address(0);
+        // A public account belongs in the branch that names it; only a masked one is represented here.
+        if (account.payload == bytes32(0)) return address(0);
         return RESOLVER;
     }
 
