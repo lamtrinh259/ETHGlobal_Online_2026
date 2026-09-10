@@ -83,7 +83,7 @@ function maskedId(subject: string, viewCode: Hex): Hex {
  * namespace, and a longer one is cut — a record that says something is better than a refusal, and for
  * a masked record none of it is readable anyway.
  */
-function storable(username: string, label?: string): string {
+export function storable(username: string, label?: string): string {
   const fits = (v: string) => stringToBytes(v).length <= 31;
   if (fits(username)) return username;
   if (label && fits(label)) return label;

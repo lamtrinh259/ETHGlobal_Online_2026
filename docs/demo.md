@@ -130,6 +130,16 @@ how a verifier judges the person speaking, not just the sentence.
    resolve independently.
 5. `/w/<address>` — the same from an address rather than a handle.
 
+Finding the person first: `/v1/who?domain=x.com&handle=bob` says who holds an account, and
+`/v1/find?q=bob` lists everyone of that name with the references each has received, most first.
+Nothing on chain decides which `bob` anybody means — the one people have actually vouched for is the
+evidence, and it gets truer over time rather than being settled by whoever registered first.
+
+A private account is the exception: the chain holds a one-time pad, so no search can match it. Whoever
+the candidate gave a view code to can pass it as `&viewCode=0x…`, which computes the masked name and
+matches exactly. Without the code the answer says a private account exists rather than "nobody",
+because reporting nobody invites writing a second page for a person who already has one.
+
 Referring is non-permissioned: anyone may write a reference for anyone, and the subject need not have
 claimed a handle yet. A reference the candidate did not ask for is written all the same and reported
 as `solicited: false`, which the card shows as an **unsolicited** badge — a note on the reference, not

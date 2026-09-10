@@ -9,7 +9,7 @@ export {
   RESERVED_HANDLES,
 } from "./attest.js";
 export { INTENT_TYPES, intentDomain, recoverIntentSigner, signIntent } from "./intent.js";
-export { signRecord, solicitedBy, verifyInvite } from "./attest.js";
+export { signRecord, solicitedBy, storable, verifyInvite } from "./attest.js";
 export {
   checkAudience,
   checkDisclosure,

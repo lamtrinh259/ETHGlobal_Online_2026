@@ -884,6 +884,38 @@ describe("GET /v1/who — finding a person by an account", () => {
     expect(res.note).toMatch(/private/i);
   });
 
+  it("finds a private account for whoever holds its view code", async () => {
+    // A view code is 32 bytes the candidate chose to hand over, so holding it is the permission. With
+    // it the masked name can be computed and matched exactly — no scanning, and nothing to guess.
+    const viewCode = `0x${"5a".repeat(32)}` as Hex;
+    const masked = {
+      ...bobOnX,
+      name: maskName("bob", viewCode),
+      payload: viewCodeCommitment(viewCode),
+    };
+    const { chain } = fakeChain({
+      listed: { "x.com": [masked] },
+      byWallet: [{ ...bobOnX, domain: "kju-is", name: "bobby" }],
+    });
+    const a = app(chain);
+
+    const found = await (await a.request(`/v1/who?domain=x.com&handle=bob&viewCode=${viewCode}`)).json();
+    expect(found).toMatchObject({ found: true, candidate: "bobby" });
+
+    // The wrong code computes a different mask and matches nothing: the code is the whole gate.
+    const wrong = await (
+      await a.request(`/v1/who?domain=x.com&handle=bob&viewCode=0x${"11".repeat(32)}`)
+    ).json();
+    expect(wrong.found).toBe(false);
+    // And without one, the same account is unfindable, as it must be.
+    expect((await (await a.request("/v1/who?domain=x.com&handle=bob")).json()).found).toBe(false);
+  });
+
+  it("refuses a view code that is not one", async () => {
+    const { chain } = fakeChain({ listed: { "x.com": [] } });
+    expect((await app(chain).request("/v1/who?domain=x.com&handle=bob&viewCode=nope")).status).toBe(400);
+  });
+
   it("says nothing was found for an account nobody has attested", async () => {
     const { chain } = fakeChain({ listed: { "x.com": [] } });
     const res = await (await app(chain).request("/v1/who?domain=x.com&handle=nobody")).json();
@@ -893,6 +925,61 @@ describe("GET /v1/who — finding a person by an account", () => {
   it("refuses a search that names no account", async () => {
     const { chain } = fakeChain();
     expect((await app(chain).request("/v1/who?domain=x.com")).status).toBe(400);
+  });
+});
+
+describe("GET /v1/find — telling two people of the same name apart", () => {
+  const person = (name: string) => ({
+    name,
+    id: toBytes32(name),
+    wallet: user.account.address,
+    payload: zeroHash,
+    validUntil: 1_800_000_000n,
+    nonce: 1n,
+    live: true,
+  });
+  const vouch = (voucher: string) => ({ ...person(voucher), id: toBytes32(`v-${voucher}`) });
+
+  it("ranks people of a similar name by how many references they have received", async () => {
+    // Nothing enforces which `bob` is the real one. The one people have actually vouched for is the
+    // one they mean, and that becomes truer over time rather than being decided up front.
+    const { chain } = fakeChain({
+      listed: {
+        "kju-is": [person("bob"), person("bobby"), person("bob-the-second")],
+        "~bob": [vouch("carol")],
+        "~bobby": [vouch("carol"), vouch("dave"), vouch("erin")],
+        "~bob-the-second": [],
+      },
+      names: {
+        "kju-is/bob": { taken: true, wallet: user.account.address, live: true },
+        "kju-is/bobby": { taken: true, wallet: user.account.address, live: true },
+        "kju-is/bob-the-second": { taken: true, wallet: user.account.address, live: true },
+      },
+    });
+    const found = await (await app(chain).request("/v1/find?q=bob")).json();
+    expect(found.matches.map((m: { handle: string }) => m.handle)).toEqual([
+      "bobby",
+      "bob",
+      "bob-the-second",
+    ]);
+    expect(found.matches[0]).toMatchObject({ handle: "bobby", received: 3 });
+  });
+
+  it("matches on what was typed, not on everything in the domain", async () => {
+    const { chain } = fakeChain({ listed: { "kju-is": [person("bob"), person("carol")] } });
+    const found = await (await app(chain).request("/v1/find?q=car")).json();
+    expect(found.matches.map((m: { handle: string }) => m.handle)).toEqual(["carol"]);
+  });
+
+  it("answers with nothing to pick rather than an error when the name is new", async () => {
+    const { chain } = fakeChain({ listed: { "kju-is": [person("bob")] } });
+    const found = await (await app(chain).request("/v1/find?q=zebedee")).json();
+    expect(found).toEqual({ q: "zebedee", matches: [] });
+  });
+
+  it("refuses a search too short to mean anything", async () => {
+    const { chain } = fakeChain();
+    expect((await app(chain).request("/v1/find?q=a")).status).toBe(400);
   });
 });
 

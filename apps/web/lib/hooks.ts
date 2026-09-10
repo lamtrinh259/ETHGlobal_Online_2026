@@ -130,6 +130,26 @@ export function useRevoke(api: Api, name: string | undefined) {
   });
 }
 
+/** Which person did you mean: handles like this one, most-referenced first. */
+export function useFind(api: Api, q: string) {
+  return useQuery({
+    queryKey: ["find", q],
+    queryFn: () => api.find(q),
+    enabled: q.trim().length >= 2,
+    staleTime: 10_000,
+  });
+}
+
+/** Who holds a platform account here; only accounts attested in the open can be found. */
+export function useWho(api: Api, domain: string, handle: string, viewCode?: string) {
+  return useQuery({
+    queryKey: ["who", domain, handle, viewCode ?? ""],
+    queryFn: () => api.who(domain, handle, viewCode),
+    enabled: !!domain && handle.trim().length >= 2,
+    staleTime: 10_000,
+  });
+}
+
 export function useContracts(api: Api) {
   return useQuery({ queryKey: ["contracts"], queryFn: () => api.contracts(), staleTime: Infinity });
 }

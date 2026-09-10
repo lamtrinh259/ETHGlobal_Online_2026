@@ -59,6 +59,8 @@ function fakeApi(): Api {
     nonce: vi.fn(async () => ({ exists: nonce > 1n, next: nonce, ready: true, reason: null })),
     attest: vi.fn(async () => result),
     uploadAvatar: vi.fn(async () => ({ id: "a.png", url: "https://api.test/v1/avatar/a.png" })),
+    find: vi.fn(async (q: string) => ({ q, matches: [] })),
+    who: vi.fn(async (domain: string, handle: string) => ({ found: false, domain, handle })),
     disclosures: vi.fn(async (name: string) => ({ name, grants: [] })),
     revoke: vi.fn(async () => ({ ok: true as const, id: `0x${"11".repeat(32)}`, domains: ["x"] })),
     explain: vi.fn(async (name: string) => ({ name, says: "", kind: "unknown" as const })),

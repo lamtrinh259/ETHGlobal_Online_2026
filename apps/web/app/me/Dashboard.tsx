@@ -216,6 +216,7 @@ export function Dashboard() {
 
       <Step n={5} title="Refer someone" state={d.given.length > 0 ? "done" : "now"}>
         <ReferSomeone
+          api={api}
           onGo={(who, ask) => router.push(`/vouch/${who}${ask ? `?ask=${encodeURIComponent(ask.id)}` : ""}`)}
         />
         {subjectRows.length > 0 && (

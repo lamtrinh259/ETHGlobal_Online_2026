@@ -1,5 +1,7 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { Api } from "@/lib/api";
 
 vi.mock("@/app/providers", () => ({
   useWebConfig: () => ({
@@ -9,58 +11,108 @@ vi.mock("@/app/providers", () => ({
   }),
 }));
 
-const { ReferSomeone, POPULAR_ASKS } = await import("@/app/me/ReferSomeone");
+const state = {
+  matches: [] as { handle: string; claimed: boolean; given: number; received: number }[],
+  who: { found: false } as Record<string, unknown>,
+  askedWith: undefined as string | undefined,
+};
+const api = {
+  find: vi.fn(async (q: string) => ({ q, matches: state.matches })),
+  who: vi.fn(async (domain: string, handle: string, viewCode?: string) => {
+    state.askedWith = viewCode;
+    return { domain, handle, ...state.who };
+  }),
+} as unknown as Api;
 
-describe("referring someone", () => {
-  it("takes a handle and sends you to write the reference, invited or not", () => {
-    const go = vi.fn();
-    render(<ReferSomeone onGo={go} />);
-    fireEvent.change(screen.getByTestId("refer-handle"), { target: { value: "Bob" } });
-    fireEvent.click(screen.getByTestId("refer-go"));
-    // Lowercased, because a handle is a label: `Bob` and `bob` are the same person.
-    expect(go).toHaveBeenCalledWith("bob");
+const { ReferSomeone, POPULAR_ASKS, askById } = await import("@/app/me/ReferSomeone");
+
+const wrapper = () => {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return ({ children }: { children: React.ReactNode }) => (
+    <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+  );
+};
+const refer = (onGo = vi.fn()) => {
+  render(<ReferSomeone api={api} onGo={onGo} />, { wrapper: wrapper() });
+  return onGo;
+};
+
+describe("referring someone by their account", () => {
+  beforeEach(() => {
+    state.matches = [];
+    state.who = { found: false };
   });
 
-  it("will not send you to write a reference for nobody", () => {
-    render(<ReferSomeone onGo={vi.fn()} />);
-    expect(screen.getByTestId("refer-go")).toBeDisabled();
+  it("looks the account up on the platform it belongs to", async () => {
+    state.who = { found: true, candidate: "bobby", standing: { claimed: true, given: 0, received: 4 } };
+    refer();
+    fireEvent.change(screen.getByTestId("account-handle"), { target: { value: "@bob" } });
+    await waitFor(() => expect(screen.getByTestId("who-result")).toHaveTextContent("bobby"));
+    // The evidence that this is the right person travels with the answer.
+    expect(screen.getByTestId("who-result")).toHaveTextContent("4");
   });
 
-  it("says plainly that an invitation is not needed", () => {
-    render(<ReferSomeone onGo={vi.fn()} />);
-    expect(screen.getByTestId("refer-someone")).toHaveTextContent(/anyone/i);
+  it("finds a private account when the searcher was given its view code", async () => {
+    // The code is the permission: nothing else can find a masked record, and the candidate chose to
+    // hand it over. Offering the field is what makes a private account referable at all.
+    const code = `0x${"5a".repeat(32)}`;
+    state.who = { found: true, candidate: "bobby", standing: { claimed: true, given: 0, received: 2 } };
+    refer();
+    fireEvent.change(screen.getByTestId("account-handle"), { target: { value: "bob" } });
+    fireEvent.click(screen.getByTestId("have-viewcode"));
+    fireEvent.change(screen.getByTestId("viewcode"), { target: { value: code } });
+    await waitFor(() => expect(state.askedWith).toBe(code));
+    await waitFor(() => expect(screen.getByTestId("who-result")).toHaveTextContent("bobby"));
   });
 
-  it("offers the references people are commonly asked to give", () => {
-    // A blank box asks the visitor to invent something; a short list of real asks does not.
-    render(<ReferSomeone onGo={vi.fn()} />);
-    const asks = screen.getByTestId("popular-asks");
-    expect(POPULAR_ASKS.length).toBeGreaterThan(0);
-    for (const ask of POPULAR_ASKS) expect(asks).toHaveTextContent(ask.label);
-  });
-
-  it("includes the question this deployment was built around", () => {
-    // KJU is the subject instance this deployment ships with; it belongs in the list by name.
-    expect(POPULAR_ASKS.some((a) => /kim jong un/i.test(a.label))).toBe(true);
-  });
-
-  it("fills the statement from a popular ask rather than making it up", () => {
-    const go = vi.fn();
-    render(<ReferSomeone onGo={go} />);
-    fireEvent.change(screen.getByTestId("refer-handle"), { target: { value: "bob" } });
-    fireEvent.click(screen.getByTestId(`ask-${POPULAR_ASKS[0].id}`));
-    expect(go).toHaveBeenCalledWith("bob", POPULAR_ASKS[0]);
+  it("says a private account cannot be searched, instead of offering to start a second page", async () => {
+    // Writing a new page for someone who already has one is the failure this warning prevents.
+    state.who = { found: false, note: "a private account cannot be searched — ask them for their page" };
+    refer();
+    fireEvent.change(screen.getByTestId("account-handle"), { target: { value: "bob" } });
+    await waitFor(() => expect(screen.getByTestId("who-result")).toHaveTextContent(/private account/i));
   });
 });
 
-describe("carrying a popular ask through to the reference", () => {
-  it("turns an ask id back into the prompt the writer answers", async () => {
-    const { askById } = await import("@/app/me/ReferSomeone");
-    // The link carries the id; the vouch page has to recover what it means without guessing.
+describe("referring someone by name", () => {
+  beforeEach(() => {
+    state.matches = [];
+    state.who = { found: false };
+  });
+
+  it("shows every bob with the references each has, most first, and lets you pick", async () => {
+    // Nothing decides which `bob` is meant; the one people have vouched for is the evidence.
+    state.matches = [
+      { handle: "bobby", claimed: true, given: 1, received: 3 },
+      { handle: "bob", claimed: true, given: 0, received: 1 },
+    ];
+    const go = refer();
+    fireEvent.click(screen.getByTestId("by-name"));
+    fireEvent.change(screen.getByTestId("name-query"), { target: { value: "bob" } });
+
+    await waitFor(() => expect(screen.getByTestId("match-bobby")).toBeInTheDocument());
+    expect(screen.getByTestId("match-bobby")).toHaveTextContent("3");
+    fireEvent.click(screen.getByTestId("pick-bobby"));
+    expect(go).toHaveBeenCalledWith("bobby");
+  });
+
+  it("offers a new page only once the search has answered, so nobody splits a person in two", async () => {
+    state.matches = [{ handle: "bob", claimed: true, given: 0, received: 2 }];
+    const go = refer();
+    fireEvent.click(screen.getByTestId("by-name"));
+    fireEvent.change(screen.getByTestId("name-query"), { target: { value: "bob" } });
+    await waitFor(() => expect(screen.getByTestId("match-bob")).toBeInTheDocument());
+
+    // Still possible — two people really can share a name — but after seeing who is already here.
+    fireEvent.click(screen.getByTestId("refer-new"));
+    expect(go).toHaveBeenCalledWith("bob");
+  });
+
+  it("still offers the references people are commonly asked for, including this deployment's", () => {
+    refer();
+    for (const ask of POPULAR_ASKS) expect(screen.getByTestId("popular-asks")).toHaveTextContent(ask.label);
+    expect(POPULAR_ASKS.some((a) => /kim jong un/i.test(a.label))).toBe(true);
     expect(askById("kju-is")?.label).toMatch(/kim jong un/i);
-    expect(askById("worked-together")?.placeholder).toBe("CTO at Acme 2019-22");
-    // An id nobody offers is not an error: the writer gets the plain form.
     expect(askById("made-up")).toBeUndefined();
-    expect(askById(undefined)).toBeUndefined();
   });
 });

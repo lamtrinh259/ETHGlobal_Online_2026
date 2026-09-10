@@ -28,8 +28,8 @@ import {
   type RegisterMessage,
   type OnchainState,
 } from "@ketsuban/registrar";
-import { decodeRecord, fromBytes32, isOptedIn, toBytes32 } from "@peeramid-labs/multipass-client";
-import { explainName, isDnsName, platformOf } from "@ketsuban/registrar";
+import { decodeRecord, fromBytes32, isOptedIn, maskName, toBytes32 } from "@peeramid-labs/multipass-client";
+import { explainName, isDnsName, platformOf, storable } from "@ketsuban/registrar";
 import type { ChainReader, Instance } from "./chain.js";
 import { explainRevert } from "./errors.js";
 import type { Config } from "./config.js";
@@ -552,14 +552,48 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
    * handle, so no search can match it — and reporting that as "nobody" would invite writing a second
    * page for someone who already has one. It is said plainly instead.
    */
+  /**
+   * People whose handle looks like what was typed, most-referenced first.
+   *
+   * Two people can be called `bob`, and nothing on chain decides which one anybody means. The one
+   * people have actually written references for is the one they mean, and that answer gets truer over
+   * time rather than being settled up front by whoever registered first. So this ranks rather than
+   * picks, and the person referring makes the call with the evidence in front of them.
+   */
+  app.get("/v1/find", async (c) => {
+    const q = c.req.query("q")?.trim().toLowerCase().replace(/^@/, "") ?? "";
+    if (q.length < 2) return c.json({ error: "search for at least two characters" }, 400);
+
+    const rootDomain = config.NAME_DOMAINS[0] ?? "";
+    const live = (await chain.listRecords(rootDomain)).filter((r) => r.live);
+    const hits = live.filter((r) => r.name.toLowerCase().includes(q)).slice(0, 10);
+    const matches = await Promise.all(
+      hits.map(async (r) => {
+        const s = await standing(r.name);
+        return { handle: r.name, wallet: r.wallet, ...s };
+      })
+    );
+    // Most references first; a tie falls back to the shorter name, which is the plainer one.
+    matches.sort((a, b) => b.received - a.received || a.handle.length - b.handle.length);
+    return c.json({ q, matches });
+  });
+
   app.get("/v1/who", async (c) => {
     const domain = c.req.query("domain");
-    const handle = c.req.query("handle")?.trim().toLowerCase().replace(/^@/, "");
+    const handle = c.req.query("handle")?.trim().replace(/^@/, "");
     if (!domain || !handle) return c.json({ error: "domain and handle required" }, 400);
+    const viewCode = c.req.query("viewCode");
+    if (viewCode !== undefined && !/^0x[0-9a-fA-F]{64}$/.test(viewCode)) {
+      return c.json({ error: "viewCode must be 32 bytes of hex" }, 400);
+    }
 
     const records = await chain.listRecords(domain);
     const live = records.filter((r) => r.live);
-    const match = live.find((r) => r.name.toLowerCase() === handle);
+    // A view code is 32 bytes the candidate handed over, so holding it is the permission. With it the
+    // masked name is computed and matched exactly; without it a private account cannot be found at all.
+    const match = viewCode
+      ? live.find((r) => r.name === maskName(storable(handle), viewCode as Hex))
+      : live.find((r) => r.name.toLowerCase() === handle.toLowerCase());
     if (!match) {
       // A masked record carries a view-code commitment where a public one carries nothing; the name
       // itself is a pad and cannot be re-encoded, let alone matched.
@@ -567,7 +601,7 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
       return c.json({
         found: false,
         domain,
-        handle,
+        handle: handle.toLowerCase(),
         ...(masked
           ? {
               note: "someone here attested a private account on this platform, and a private account cannot be searched — ask them for their page rather than starting a new one",
@@ -582,9 +616,11 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     return c.json({
       found: true,
       domain,
-      handle,
+      handle: handle.toLowerCase(),
       wallet: match.wallet,
       candidate: candidate ?? null,
+      // How many references they hold, so the same evidence is on screen here as in a name search.
+      standing: candidate ? await standing(candidate) : null,
     });
   });
 

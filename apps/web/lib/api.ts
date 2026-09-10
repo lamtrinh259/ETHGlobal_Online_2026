@@ -161,6 +161,34 @@ export const disclosedSchema = z.object({
 export type Disclosed = z.infer<typeof disclosedSchema>;
 
 /** What a name is sharing right now: enough to say who can read what, never the grant itself. */
+/** A person whose handle looks like what was typed, with the references that say who they are. */
+export const findSchema = z.object({
+  q: z.string(),
+  matches: z.array(
+    z.object({
+      handle: z.string(),
+      wallet: z.string().optional(),
+      claimed: z.boolean(),
+      given: z.number(),
+      received: z.number(),
+    })
+  ),
+});
+export type Found = z.infer<typeof findSchema>;
+export type Match = Found["matches"][number];
+
+/** Who holds a platform account here, or why they cannot be found. */
+export const whoSchema = z.object({
+  found: z.boolean(),
+  domain: z.string(),
+  handle: z.string(),
+  wallet: z.string().optional(),
+  candidate: z.string().nullable().optional(),
+  note: z.string().optional(),
+  standing: z.object({ claimed: z.boolean(), given: z.number(), received: z.number() }).nullable().optional(),
+});
+export type Who = z.infer<typeof whoSchema>;
+
 export const grantsSchema = z.object({
   name: z.string(),
   grants: z.array(
@@ -375,6 +403,19 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
         body: JSON.stringify(wire),
       });
       return (await readJson(res)) as { ok: true; id: Hex; domains: string[]; expiresAt: string };
+    },
+
+    /** People whose handle looks like this, most-referenced first: which `bob` did you mean. */
+    async find(q: string): Promise<Found> {
+      return findSchema.parse(await readJson(await call(`${base}/v1/find?q=${encodeURIComponent(q)}`)));
+    },
+
+    /** Who holds a platform account here; a private account cannot be found and says so. */
+    async who(domain: string, handle: string, viewCode?: string): Promise<Who> {
+      const q = new URLSearchParams({ domain, handle });
+      // Only someone the candidate gave the code to can find a private account; it is the permission.
+      if (viewCode) q.set("viewCode", viewCode);
+      return whoSchema.parse(await readJson(await call(`${base}/v1/who?${q.toString()}`)));
     },
 
     /** Live permissions on a name, so its holder can see who can read which account. */
