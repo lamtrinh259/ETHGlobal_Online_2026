@@ -109,6 +109,13 @@ const vouchInstance: Instance = {
 };
 
 type State = {
+  /** What the index reports about itself; defaults to a healthy, durable, caught-up index */
+  index: Partial<{
+    lastError: string | null;
+    staleForSeconds: number | null;
+    durable: boolean;
+    snapshotError: string | null;
+  }>;
   records: Record<string, { exists: boolean; nonce: bigint; id: Hex; wallet: Address }>;
   texts: Record<string, string>;
   addr: Address;
@@ -168,6 +175,7 @@ function fakeChain(state: Partial<State> = {}) {
     },
     balance: 0n,
     sent: [],
+    index: {},
     ...state,
   };
   const submitted: { record: RegisterMessage; signature: Hex }[] = [];
@@ -224,6 +232,11 @@ function fakeChain(state: Partial<State> = {}) {
       head: 1_000,
       records: s.byWallet.length,
       synced: true,
+      lastError: null,
+      staleForSeconds: 0,
+      durable: true,
+      snapshotError: null,
+      ...s.index,
     })),
     balance: vi.fn(async () => s.balance),
     sendEth: vi.fn(async (to: Address, value: bigint) => {
@@ -1840,6 +1853,35 @@ describe("POST /v1/provision", () => {
     const res = await post(app(chain), "/v1/provision", { handle: "alice" });
     expect(res.status).toBe(502);
     expect((await res.json()).error).toBe("relayer does not own the factory");
+  });
+});
+
+/**
+ * The index is where every list in the product comes from, and both of its failures are quiet: one
+ * serves stale answers while the service looks healthy, the other costs nothing until the next restart
+ * and then reads the whole history again with the product blank. Detecting them is only worth
+ * something if a deployment is told, and preflight is where a deployment is inspected.
+ */
+describe("what preflight says about the index", () => {
+  it("says nothing when it is reading and can save", async () => {
+    const { chain } = fakeChain();
+    const body = await (await app(chain).request("/v1/preflight")).json();
+    expect(body.warnings.join(" ")).not.toMatch(/index/);
+  });
+
+  it("says the lists are answered from what it held when it stopped", async () => {
+    const { chain } = fakeChain({ index: { lastError: "rpc: connection reset", staleForSeconds: 92 } });
+    const said = (await (await app(chain).request("/v1/preflight")).json()).warnings.join(" ");
+    expect(said).toMatch(/has not read the chain for 92s/);
+    expect(said).toMatch(/connection reset/);
+    expect(said).toMatch(/every list is answered from what it held/);
+  });
+
+  it("says a snapshot it cannot write costs the next restart, not this one", async () => {
+    const { chain } = fakeChain({ index: { durable: false, snapshotError: "ENOSPC: no space left" } });
+    const said = (await (await app(chain).request("/v1/preflight")).json()).warnings.join(" ");
+    expect(said).toMatch(/cannot write its snapshot/);
+    expect(said).toMatch(/it still serves/);
   });
 });
 

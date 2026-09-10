@@ -496,6 +496,7 @@ export function createApp({
       // Storage is not on chain, but a deployment that cannot keep a permission is misconfigured in
       // exactly the way this endpoint exists to report.
       const store = grantStore.health();
+      const index = chain.indexStatus();
       const warnings = [
         ...p.warnings,
         ...(store.durable
@@ -503,6 +504,24 @@ export function createApp({
           : ["DATA_DIR is not set: permissions and gas top-ups are kept in memory and lost on restart"]),
         ...(store.durable && !store.writable
           ? [`DATA_DIR cannot be written (${store.lastError}): nothing kept here survives a restart`]
+          : []),
+        /*
+         * The index is where every list in the product comes from, and both of its failures are quiet.
+         * One serves stale answers while the service looks healthy; the other costs nothing until the
+         * next restart and then reads the whole history again with the product blank. Neither is worth
+         * detecting if nothing says so where a deployment is inspected.
+         */
+        ...(index.lastError
+          ? [
+              `the index has not read the chain for ${index.staleForSeconds ?? "?"}s (${index.lastError}): ` +
+                `every list is answered from what it held when it stopped`,
+            ]
+          : []),
+        ...(index.snapshotError
+          ? [
+              `the index cannot write its snapshot (${index.snapshotError}): it still serves, and the ` +
+                `next restart reads the whole history again`,
+            ]
           : []),
       ];
       return c.json({ ...p, warnings }, p.ok ? 200 : 503);
