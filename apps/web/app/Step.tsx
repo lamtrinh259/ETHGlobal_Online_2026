@@ -10,15 +10,18 @@ export function Step({
   n,
   title,
   state,
+  anchor,
   children,
 }: {
   n: number;
   title: string;
   state: StepState;
+  /** Where the score links to when this step is what is missing */
+  anchor?: string;
   children: ReactNode;
 }) {
   return (
-    <section className={`card dash-step dash-${state}`} data-testid={`step-${n}`}>
+    <section id={anchor} className={`card dash-step dash-${state}`} data-testid={`step-${n}`}>
       <span className="dash-num" aria-hidden>
         {/* Pending is not a step someone can take: it waits on something outside this deployment. */}
         {state === "done" ? "✓" : state === "pending" ? "…" : n}

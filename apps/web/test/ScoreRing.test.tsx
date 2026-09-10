@@ -32,6 +32,22 @@ describe("the score at the top of a profile", () => {
     expect(screen.getByTestId("part-name").className).toMatch(/done/);
   });
 
+  it("sends you to the step that fixes each part, so the number is a way in", () => {
+    // A score that only grades is a verdict. Every part is the next thing to do, so it links to it.
+    const { score, parts } = at({
+      hasName: false,
+      accounts: 0,
+      profile: { avatar: "", description: "", url: "" },
+      references: 0,
+    });
+    render(<ScoreRing score={score} parts={parts} />);
+    expect(screen.getByTestId("part-name").querySelector("a")).toHaveAttribute("href", "#name");
+    expect(screen.getByTestId("part-accounts").querySelector("a")).toHaveAttribute("href", "#accounts");
+    expect(screen.getByTestId("part-references").querySelector("a")).toHaveAttribute("href", "#references");
+    // The profile lives in the same step as the name, so it must not link somewhere that is not there.
+    expect(screen.getByTestId("part-profile").querySelector("a")).toHaveAttribute("href", "#name");
+  });
+
   it("is readable without colour, for anyone who cannot use it", () => {
     const { score, parts } = at({
       hasName: false,

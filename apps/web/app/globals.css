@@ -1045,6 +1045,13 @@ details.advanced[open] > summary {
   align-items: center;
   gap: var(--sp-sm, 8px);
 }
+a.score-part-label {
+  color: inherit;
+  text-decoration: none;
+}
+a.score-part-label:hover strong {
+  text-decoration: underline;
+}
 .score-part-label {
   display: flex;
   flex-direction: column;

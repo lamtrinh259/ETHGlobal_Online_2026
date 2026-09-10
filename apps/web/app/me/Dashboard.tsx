@@ -160,7 +160,7 @@ export function Dashboard() {
         </p>
       </Step>
 
-      <Step n={2} title="Your accounts" state={liveLinks.length > 0 ? "done" : "now"}>
+      <Step n={2} title="Your accounts" anchor="accounts" state={liveLinks.length > 0 ? "done" : "now"}>
         <Accounts
           links={d.links}
           handle={handle}
@@ -177,6 +177,7 @@ export function Dashboard() {
 
       <Step
         n={3}
+        anchor="name"
         title="Your name and profile"
         state={handle ? "done" : liveLinks.length > 0 ? "now" : "todo"}
       >
@@ -231,7 +232,7 @@ export function Dashboard() {
         )}
       </Step>
 
-      <Step n={4} title="Refer someone" state={d.given.length > 0 ? "done" : "now"}>
+      <Step n={4} anchor="refer" title="Refer someone" state={d.given.length > 0 ? "done" : "now"}>
         <ReferSomeone
           api={api}
           onGo={(who, ask) => router.push(`/vouch/${who}${ask ? `?ask=${encodeURIComponent(ask.id)}` : ""}`)}
@@ -270,7 +271,12 @@ export function Dashboard() {
         )}
       </Step>
 
-      <Step n={5} title="References" state={liveVouchers.length > 0 ? "done" : handle ? "now" : "todo"}>
+      <Step
+        n={5}
+        anchor="references"
+        title="References"
+        state={liveVouchers.length > 0 ? "done" : handle ? "now" : "todo"}
+      >
         {handle ? (
           <>
             <p>

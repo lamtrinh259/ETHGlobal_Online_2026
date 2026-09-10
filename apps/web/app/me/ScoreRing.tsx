@@ -1,5 +1,13 @@
 import type { ScorePart } from "@/lib/score";
 
+/** Where each part is fixed. A name and the profile it resolves to are one step, so they share one. */
+const STEPS: Record<ScorePart["id"], string> = {
+  references: "references",
+  name: "name",
+  accounts: "accounts",
+  profile: "name",
+};
+
 const ICONS: Record<ScorePart["id"], string> = {
   references: "✍",
   name: "◈",
@@ -28,10 +36,11 @@ export function ScoreRing({ score, parts }: { score: number; parts: ScorePart[] 
         {parts.map((p) => (
           <li key={p.id} className={p.done ? "done" : "todo"} data-testid={`part-${p.id}`}>
             <span aria-hidden>{ICONS[p.id]}</span>
-            <span className="score-part-label">
+            {/* Every part is the next thing to do, so it links to the step that does it. */}
+            <a href={`#${STEPS[p.id]}`} className="score-part-label">
               <strong>{p.label}</strong>
               <small className="muted">{p.hint}</small>
-            </span>
+            </a>
             <span className="score-part-worth muted">
               {p.earned}/{p.weight}
             </span>
