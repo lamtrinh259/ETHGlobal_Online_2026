@@ -1312,13 +1312,14 @@ describe("POST /v1/submit", () => {
     expect(state.instancesCreated).toEqual(["nobody"]);
     expect(submitted).toHaveLength(1);
 
-    // A record in a domain that already has an instance provisions nothing.
-    const known = fakeChain();
-    await post(app(known.chain), "/v1/submit", {
+    // A name claimed in the root domain provisions that person's own vouch instance, so somebody can
+    // refer them straight away rather than only after the first reference arranges it.
+    const claimed = fakeChain();
+    await post(app(claimed.chain), "/v1/submit", {
       record: { ...record, domainName: toBytes32("kju-is") },
       signature: "0xabc",
     });
-    expect(known.state.instancesCreated).toEqual([]);
+    expect(claimed.state.instancesCreated).toEqual(["acme-university"]);
   });
 
   it("relays a registrar-signed record with no token, and reports a chain failure", async () => {
@@ -1403,6 +1404,40 @@ describe("POST /v1/org", () => {
     const res = await post(orgApp(wrong.chain), "/v1/org", body, token);
     expect(res.status).toBe(503);
     expect((await res.json()).error).toContain('not the registrar for "org"');
+  });
+});
+
+describe("the two ways a signed record is delivered", () => {
+  const rootRecord = () => ({
+    record: {
+      name: toBytes32("alice"),
+      id: toBytes32("a"),
+      domainName: toBytes32("kju-is"),
+      validUntil: String(NOW + 3600),
+      nonce: "1",
+      wallet: user.account.address,
+      payload: zeroHash,
+    },
+    signature: `0x${"11".repeat(65)}` as Hex,
+  });
+
+  it("provisions the same things whichever route delivered the record", async () => {
+    // The browser posts to /v1/submit and the enclave to /v1/cre/delivery. They write the same record,
+    // so anything one of them arranges the other has to arrange too — a claim that provisions a vouch
+    // instance on one path and not the other is a person nobody can refer until someone else tries.
+    const browser = fakeChain();
+    expect((await post(app(browser.chain), "/v1/submit", rootRecord())).status).toBe(200);
+
+    const enclave = fakeChain();
+    const viaEnclave = await app(enclave.chain).request("/v1/cre/delivery", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-delivery-token": baseEnv.DELIVERY_TOKEN as string },
+      body: JSON.stringify(rootRecord()),
+    });
+    expect(viaEnclave.status).toBe(200);
+
+    expect(browser.chain.ensureVouchInstance).toHaveBeenCalledWith("alice");
+    expect(enclave.chain.ensureVouchInstance).toHaveBeenCalledWith("alice");
   });
 });
 

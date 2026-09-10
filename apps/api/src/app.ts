@@ -721,25 +721,53 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
   });
 
   /**
+   * Write a registrar-signed record, and arrange what has to exist around it.
+   *
+   * Both delivery routes go through here on purpose. They accept the same record and differ only in
+   * who is allowed to call them, so anything one of them arranges the other must arrange too: when
+   * they drifted, a statement written through the enclave reverted for a candidate who had claimed
+   * nothing, and a name claimed from a browser never got the instance others write references into.
+   */
+  async function deliver(record: RegisterMessage, signature: Hex) {
+    // The candidate's vouch domain has to exist before a statement can be written into it.
+    await ensureVouchDomain(record);
+    const txHash = await chain.submit(record, signature);
+    // A newly claimed root name gets its own vouch instance, so others can refer that person.
+    let vouchInstance: { domain: string; created: boolean } | undefined;
+    if (config.NAME_DOMAINS[0] && fromBytes32(record.domainName) === config.NAME_DOMAINS[0]) {
+      try {
+        vouchInstance = await chain.ensureVouchInstance(fromBytes32(record.name));
+      } catch (e) {
+        // The record is written either way; the instance is arranged again on the first reference.
+        vouchInstance = undefined;
+        console.error(
+          JSON.stringify({
+            msg: "vouch instance provisioning failed",
+            handle: fromBytes32(record.name),
+            error: (e as Error).message,
+          })
+        );
+      }
+    }
+    return { ok: true as const, txHash, ...(vouchInstance ? { vouchInstance } : {}) };
+  }
+
+  /**
    * Submit a registrar-signed record from a browser. No secret: the record is only accepted because
    * the registrar signed it, so relaying someone else's signed record writes exactly what they asked
-   * for and nothing more. The token-gated delivery route stays for the enclave, which also asks for
-   * the candidate's vouch instance to be provisioned.
+   * for and nothing more. The token-gated route below is the enclave's.
    */
   app.post("/v1/submit", async (c) => {
     const parsed = wireDelivery.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return c.json({ ok: false, error: "bad request", issues: parsed.error.issues }, 400);
     try {
-      const record = toRecord(parsed.data.record);
-      await ensureVouchDomain(record);
-      const txHash = await chain.submit(record, parsed.data.signature as Hex);
-      return c.json({ ok: true, txHash });
+      return c.json(await deliver(toRecord(parsed.data.record), parsed.data.signature as Hex));
     } catch (e) {
       return c.json({ ok: false, error: (e as Error).message }, 502);
     }
   });
 
-  /** CRE external delivery: submit a registrar-signed record through the bridge. */
+  /** CRE external delivery: the same write, gated on the delivery token. */
   app.post("/v1/cre/delivery", async (c) => {
     if (config.DELIVERY_TOKEN && c.req.header("x-delivery-token") !== config.DELIVERY_TOKEN) {
       return c.json({ ok: false, error: "unauthorized" }, 401);
@@ -747,29 +775,7 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     const parsed = wireDelivery.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return c.json({ ok: false, error: "bad request", issues: parsed.error.issues }, 400);
     try {
-      const record = toRecord(parsed.data.record);
-      // The candidate's vouch domain has to exist before a statement can be written into it. The
-      // browser path already does this; without it here, referring someone who has claimed nothing
-      // reverts as an uninitialised domain — which is exactly the person the open model is for.
-      await ensureVouchDomain(record);
-      const txHash = await chain.submit(record, parsed.data.signature as Hex);
-      // A newly claimed root name gets its vouch instance so others can write references under it.
-      let vouchInstance: { domain: string; created: boolean } | undefined;
-      if (config.NAME_DOMAINS[0] && fromBytes32(record.domainName) === config.NAME_DOMAINS[0]) {
-        try {
-          vouchInstance = await chain.ensureVouchInstance(fromBytes32(record.name));
-        } catch (e) {
-          vouchInstance = undefined;
-          console.error(
-            JSON.stringify({
-              msg: "vouch instance provisioning failed",
-              handle: fromBytes32(record.name),
-              error: (e as Error).message,
-            })
-          );
-        }
-      }
-      return c.json({ ok: true, txHash, ...(vouchInstance ? { vouchInstance } : {}) });
+      return c.json(await deliver(toRecord(parsed.data.record), parsed.data.signature as Hex));
     } catch (e) {
       return c.json({ ok: false, error: (e as Error).message }, 502);
     }
