@@ -129,6 +129,9 @@ describe("ProfileCard", () => {
               url: "https://alice.example",
               email: null,
             },
+            // Always present on a parsed verification, and the page reads it: a fixture cast past the
+            // type is the one place it can be missing.
+            references: [],
           } as never,
         }}
         rootParent="ketsuban.eth"
@@ -221,5 +224,50 @@ describe("ProfileCard", () => {
     expect(screen.getByText("unclaimed")).toBeInTheDocument();
     expect(screen.queryByTestId("answers")).toBeNull();
     expect(screen.getByText("none")).toBeInTheDocument();
+  });
+});
+
+/**
+ * A page carrying only what others said about somebody reads as a dossier. What they said about
+ * anybody else is the half they wrote themselves, and this page did not show it while their own
+ * verification did — two routes to one question, answered differently depending on which link a
+ * reader happened to follow.
+ */
+describe("what the candidate has said about others", () => {
+  const gave = (refs: unknown[]) => ({
+    ...profile,
+    identity: { profile: null, references: refs } as never,
+  });
+
+  it("lists the references they gave, with where each one is read", () => {
+    render(
+      <ProfileCard
+        p={gave([
+          {
+            kind: "answer",
+            subject: "kju-is",
+            subjectName: "kju-is.ketsuban.eth",
+            statement: "a terrible dictator",
+            ensName: "alice.kju-is.ketsuban.eth",
+            validUntil: "2027-01-01T00:00:00.000Z",
+          },
+        ])}
+        rootParent="ketsuban.eth"
+      />
+    );
+    const refs = screen.getByTestId("references");
+    expect(refs).toHaveTextContent("What do you think of Kim Jong Un?");
+    expect(refs).toHaveTextContent("a terrible dictator");
+    expect(refs).toHaveTextContent("alice.kju-is.ketsuban.eth");
+  });
+
+  it("says nothing at all when they have referred nobody", () => {
+    render(<ProfileCard p={gave([])} rootParent="ketsuban.eth" />);
+    expect(screen.queryByTestId("references")).toBeNull();
+  });
+
+  it("says nothing for a handle nobody holds, which has said nothing", () => {
+    render(<ProfileCard p={{ ...profile, identity: undefined }} rootParent="ketsuban.eth" />);
+    expect(screen.queryByTestId("references")).toBeNull();
   });
 });

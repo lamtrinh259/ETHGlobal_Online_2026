@@ -2,6 +2,7 @@ import Link from "next/link";
 import { describePolicy, type Policy, type Profile } from "@/lib/profile";
 import { questionTitle } from "@/lib/questions";
 import { ProfileHead } from "./ProfileHead";
+import { ReferencesGiven } from "./ReferencesGiven";
 import { VouchList } from "./VouchList";
 import { fmtUtc } from "./ui";
 
@@ -125,6 +126,11 @@ export function ProfileCard({ p, rootParent, policy }: { p: Profile; rootParent:
           ))}
         </ul>
       )}
+
+      {/* What they said about others, alongside what others said about them. This page carried only the
+          second half, while their own verification carried both — two routes to one question, answered
+          differently depending on which link a reader happened to follow. */}
+      {p.identity && <ReferencesGiven references={p.identity.references} />}
 
       <VouchList vouches={p.vouches} handle={p.handle} />
 

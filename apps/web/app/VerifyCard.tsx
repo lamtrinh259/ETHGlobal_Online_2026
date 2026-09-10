@@ -1,8 +1,8 @@
 import Link from "next/link";
 import type { Verification } from "@/lib/api";
-import { questionTitle } from "@/lib/questions";
 import { PlatformIcon } from "./PlatformIcon";
 import { ProfileHead } from "./ProfileHead";
+import { ReferencesGiven } from "./ReferencesGiven";
 import { fmtUtc } from "./ui";
 
 /** `x_account_control` is a field name, not a sentence. This is the same fact, said. */
@@ -50,40 +50,7 @@ export function VerifyCard({ v }: { v: Verification }) {
         <>
           {/* What they have said about others. The page used to show a bare `answer` field, which
               meant nothing once a person could answer about more than one subject. */}
-          {v.references.length > 0 && (
-            <section className="v-block">
-              <h3>References given</h3>
-              <ul className="v-refs" data-testid="references">
-                {v.references.map((ref) => (
-                  <li key={ref.ensName ?? `${ref.kind}:${ref.subject}`}>
-                    {/* The graph is only worth showing if a reader can walk it: the subject, and the
-                        name this reference itself answers at, both lead somewhere. */}
-                    <span className="v-ref-subject">
-                      {ref.subjectName ? (
-                        <Link href={`/v/${ref.subjectName}`}>
-                          {ref.kind === "answer" ? questionTitle(ref.subject) : ref.subject}
-                        </Link>
-                      ) : ref.kind === "answer" ? (
-                        questionTitle(ref.subject)
-                      ) : (
-                        ref.subject
-                      )}
-                    </span>
-                    <strong className="v-ref-statement">{ref.statement || <em>no words</em>}</strong>
-                    {ref.ensName && (
-                      <Link
-                        className="v-ref-name"
-                        href={`/v/${ref.ensName}`}
-                        title="read it back in any ENS client"
-                      >
-                        <code>{ref.ensName}</code>
-                      </Link>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
+          <ReferencesGiven references={v.references} />
 
           <section className="v-block">
             <h3>Accounts</h3>
