@@ -14,7 +14,7 @@ import { buildStamp, waveChars } from "./ui";
 
 const NAV = [
   { href: "/me", label: "My profile" },
-  { href: "/vouch", label: "Vouch" },
+  { href: "/vouch", label: "Refer" },
   { href: "/verify", label: "Verify" },
   { href: "/names", label: "Names" },
 ];
