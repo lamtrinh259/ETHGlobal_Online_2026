@@ -14,6 +14,7 @@ import {
   createPublicClient,
   createWalletClient,
   http,
+  hexToBytes,
   namehash,
   parseAbi,
   zeroAddress,
@@ -29,7 +30,14 @@ import {
   signedInvite,
   toWire,
 } from "@ketsuban/registrar/testing";
-import { eciesDecrypt } from "@ketsuban/registrar";
+import {
+  discloseDomain,
+  eciesDecrypt,
+  eciesEncrypt,
+  hashBox,
+  signDisclosure,
+  signRevocation,
+} from "@ketsuban/registrar";
 import { decodeRecord, fromBytes32, MultipassAbi, toBytes32 } from "@peeramid-labs/multipass-client";
 import { APP_ID, PRIVY_SEED } from "./global-setup.js";
 
@@ -230,6 +238,118 @@ describe("api e2e", () => {
     const disclosed = await (await fetch(`${API}/v1/verify/${name}?links=x&viewCode=${viewCode}`)).json();
     expect(disclosed.links[0].disclosed).toEqual({ handle: "alice", platformId: "1234567890123456789" });
     expect(disclosed.evidence).toContain("x_account_control");
+  });
+
+  it("shares a masked account with one reader, lists it, and takes it back", async () => {
+    // The whole permission loop against a real chain: only the enclave key can open the grant, only the
+    // wallet that holds the record can sign one, and revoking makes the account masked again.
+    const now = Math.floor(Date.now() / 1000);
+    // Alice already has an `x` record from an earlier test; renewing it takes the next nonce, and the
+    // renewal carries a fresh view code, which is the one this grant is for.
+    const { next } = await (await fetch(`${API}/v1/nonce?wallet=${user.account.address}&domain=x`)).json();
+    const intent = baseIntent(user.account, now, {
+      domain: "x",
+      optIn: true,
+      nonce: BigInt(next),
+      exp: BigInt(now + 3600),
+    });
+    const idToken = privy.mint({ sub: user.did, linked: user.linked, now });
+    const req = toWire(await signedAttestRequest(user.account, intent, idToken, 31337, deployment.multipass));
+    const attested = await (
+      await fetch(`${API}/v1/attest`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(req),
+      })
+    ).json();
+    expect(attested.error).toBeUndefined();
+    const viewCode = bytesToHex(eciesDecrypt(USER_KEY, attested.viewCode));
+    await fetch(`${API}/v1/cre/delivery`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-delivery-token": "e2e-delivery-token-0123456789" },
+      body: JSON.stringify(attested),
+    });
+
+    const name = `alice.${deployment.instanceParent}`;
+    const reader = privateKeyToAccount(`0x${"b0".repeat(32)}` as Hex);
+    const { publicKey } = await (await fetch(`${API}/v1/enclave-key`)).json();
+
+    // The view code travels encrypted to the enclave: the service that stores this cannot read it.
+    const box = eciesEncrypt(publicKey, hexToBytes(viewCode as Hex), new Uint8Array(32).fill(11));
+    const disclosure = {
+      name,
+      domain: "x",
+      audience: reader.address,
+      exp: BigInt(now + 3600),
+      boxHash: hashBox(box),
+    };
+    const grant = await (
+      await fetch(`${API}/v1/disclose`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          ...disclosure,
+          exp: disclosure.exp.toString(),
+          box,
+          signature: await signDisclosure(
+            user.account,
+            disclosure,
+            discloseDomain(31337, deployment.multipass)
+          ),
+        }),
+      })
+    ).json();
+    expect(grant.ok).toBe(true);
+
+    const opened = await (await fetch(`${API}/v1/disclose/${name}/x?reader=${reader.address}`)).json();
+    expect(opened.disclosed).toEqual({ handle: "alice", platformId: "1234567890123456789" });
+    // Addressed to one wallet: anyone else asking gets nothing, grant or no grant.
+    expect((await fetch(`${API}/v1/disclose/${name}/x`)).status).toBe(403);
+
+    const listed = await (await fetch(`${API}/v1/disclosures/${name}`)).json();
+    expect(listed.grants).toContainEqual({
+      domain: "x",
+      audience: reader.address,
+      expiresAt: new Date((now + 3600) * 1000).toISOString(),
+    });
+
+    // A stranger cannot close someone else's account: the chain says who holds the record.
+    const stranger = await fetch(`${API}/v1/revoke`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        name,
+        domain: "x",
+        at: now.toString(),
+        signature: await signRevocation(
+          reader,
+          { name, domain: "x", at: BigInt(now) },
+          discloseDomain(31337, deployment.multipass)
+        ),
+      }),
+    });
+    expect(stranger.status).toBe(422);
+    expect((await fetch(`${API}/v1/disclose/${name}/x?reader=${reader.address}`)).status).toBe(200);
+
+    const at = Math.floor(Date.now() / 1000);
+    const revoked = await fetch(`${API}/v1/revoke`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        name,
+        domain: "x",
+        at: at.toString(),
+        signature: await signRevocation(
+          user.account,
+          { name, domain: "x", at: BigInt(at) },
+          discloseDomain(31337, deployment.multipass)
+        ),
+      }),
+    });
+    expect(revoked.status).toBe(200);
+    // Masked again: the reader who could open it a moment ago now gets the same answer as a stranger.
+    expect((await fetch(`${API}/v1/disclose/${name}/x?reader=${reader.address}`)).status).toBe(404);
+    expect((await (await fetch(`${API}/v1/disclosures/${name}`)).json()).grants).toEqual([]);
   });
 
   it("attests an account into the DNS domain it belongs to, and names it there", async () => {
