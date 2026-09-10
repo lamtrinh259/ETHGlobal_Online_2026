@@ -196,7 +196,7 @@ export type InstanceRead = {
   domain: string;
   parentName: string;
   description: string | null;
-  records?: { description: string; url: string; avatar: string };
+  records?: { name?: string; description: string; url: string; avatar: string };
   answers: { handle: string; ensName: string; answer: string; validUntil: string }[];
 };
 

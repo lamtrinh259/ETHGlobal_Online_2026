@@ -449,3 +449,74 @@ describe("addresses that arrive in the wrong case", () => {
     expect(config.multipass).toBe("0x418F82fd0014a4CA402F145978bfaF0555a9cA06");
   });
 });
+
+describe("every read the client offers", () => {
+  /** One fake service answering everything, so a wrong path or a wrong schema fails here. */
+  function serving() {
+    const calls: string[] = [];
+    const bodies: Record<string, unknown> = {
+      "/v1/instance/": {
+        domain: "kju-is",
+        parentName: "kju-is.ketsuban.eth",
+        description: null,
+        records: { name: "Kim Jong Un", description: "d", url: "u", avatar: "a" },
+        answers: [],
+      },
+      "/v1/find": { q: "bob", matches: [] },
+      "/v1/who": { found: false, domain: "x.com", handle: "bob" },
+      "/v1/invites/": { handle: "alice", invites: [] },
+      "/v1/invite/": { code: "abcd1234", invite: {} },
+      "/v1/disclosures/": { name: "alice.ketsuban.eth", grants: [] },
+      "/v1/vouches/": { handle: "alice", domain: "~alice", vouches: [], warning: "w" },
+      "/v1/reverse/": { address: "0x1", name: null, names: [], primary: null, note: "" },
+      "/v1/eth-label/": {
+        label: "alice",
+        registry: "0x0000000000000000000000000000000000000002",
+        owner: null,
+      },
+      "/v1/explain/": { name: "n", says: "s", kind: "person" },
+    };
+    const fn = vi.fn(async (url: string) => {
+      calls.push(url);
+      const hit = Object.entries(bodies).find(([k]) => url.includes(k));
+      return new Response(JSON.stringify(hit ? hit[1] : null), {
+        status: hit ? 200 : 404,
+        headers: { "content-type": "application/json" },
+      });
+    });
+    return {
+      api: createApi("http://api.test", "http://api.test/v1/attest", fn as unknown as typeof fetch),
+      calls,
+    };
+  }
+
+  it("asks the path each one is documented at, and parses what comes back", async () => {
+    // Every one of these builds a URL and parses a schema. A wrong path or a field that moved fails
+    // at runtime on a page, where it reads as the feature being broken rather than the client.
+    const { api, calls } = serving();
+
+    expect((await api.instance("kju-is")).records?.name).toBe("Kim Jong Un");
+    expect((await api.find("bob")).q).toBe("bob");
+    expect((await api.who("x.com", "bob")).found).toBe(false);
+    expect((await api.invites("alice")).invites).toEqual([]);
+    expect((await api.invite("abcd1234")).code).toBe("abcd1234");
+    expect((await api.disclosures("alice.ketsuban.eth")).grants).toEqual([]);
+    expect((await api.vouches("alice")).vouches).toEqual([]);
+    expect((await api.reverse("0x1")).name).toBeNull();
+    expect((await api.ethLabel("alice")).owner).toBeNull();
+    expect((await api.explain("n")).kind).toBe("person");
+
+    // The paths themselves, so a rename cannot pass by being consistently wrong.
+    expect(calls.some((u) => u.endsWith("/v1/instance/kju-is"))).toBe(true);
+    expect(calls.some((u) => u.includes("/v1/who?domain=x.com&handle=bob"))).toBe(true);
+    expect(calls.some((u) => u.endsWith("/v1/invites/alice"))).toBe(true);
+  });
+
+  it("carries a view code when one is given, and leaves it off when it is not", async () => {
+    // The code is the whole permission for a private lookup; dropping it silently would look like the
+    // account simply not existing.
+    const { api, calls } = serving();
+    await api.who("x.com", "bob", `0x${"5a".repeat(32)}`);
+    expect(calls.some((u) => u.includes(`viewCode=0x${"5a".repeat(32)}`))).toBe(true);
+  });
+});
