@@ -3,17 +3,15 @@ import type { ReactNode } from "react";
 export type StepState = "done" | "now" | "todo" | "pending";
 
 /**
- * One numbered group with one subject. Shared by the profile and the claim journey so a candidate
- * sees the same shape in both places: a number that carries the state, a title, and the work.
+ * One group with one subject, shared by the profile and the claim journey: a mark that carries the
+ * state, a title, and the work.
  */
 export function Step({
-  n,
   title,
   state,
   anchor,
   children,
 }: {
-  n: number;
   title: string;
   state: StepState;
   /** Where the score links to when this step is what is missing */
@@ -21,10 +19,11 @@ export function Step({
   children: ReactNode;
 }) {
   return (
-    <section id={anchor} className={`card dash-step dash-${state}`} data-testid={`step-${n}`}>
+    <section id={anchor} className={`card dash-step dash-${state}`} data-testid={`step-${anchor ?? title}`}>
+      {/* A tick when it is done and nothing when it is not: these are things to do, not an order to
+          do them in, so numbering them said something untrue. */}
       <span className="dash-num" aria-hidden>
-        {/* Pending is not a step someone can take: it waits on something outside this deployment. */}
-        {state === "done" ? "✓" : state === "pending" ? "…" : n}
+        {state === "done" ? "✓" : state === "pending" ? "…" : "·"}
       </span>
       <div>
         <h2>{title}</h2>

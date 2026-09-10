@@ -122,13 +122,16 @@ how a verifier judges the person speaking, not just the sentence.
 
 ## 5. The browser flow
 
-1. `/claim` — sign in, pick a name, answer each question. Four numbered groups, one subject each.
-2. `/me` — connect and attest an account, create an invite link, see who has vouched.
-3. `/vouch/<handle>?invite=…` — a voucher signs in, proves how they know the candidate, writes a few
-   words and, if they want, a letter.
-4. `/p/<handle>` — the reference page, graded against the verifier's own policy, with the raw names to
+1. `/me` — everything a candidate does. One profile card: name, humanity badge, a 0-100 score of how
+   far the profile has got, and the social accounts behind it. Below that, two things to do — refer
+   someone, and collect references. (`/claim` only redirects here; it used to be a second screen that
+   knew half the state.)
+2. `/vouch/<handle>` — anyone can write a reference for anyone, invitation or not. An invitation makes
+   it a reference the candidate asked for; without one it is written all the same and marked
+   unsolicited. `?ask=<id>` opens it on one of the references people are commonly asked for.
+3. `/p/<handle>` — the reference page, graded against the verifier's own policy, with the raw names to
    resolve independently.
-5. `/w/<address>` — the same from an address rather than a handle.
+4. `/w/<address>` — the same from an address rather than a handle.
 
 Finding the person first: `/v1/who?domain=x.com&handle=bob` says who holds an account, and
 `/v1/find?q=bob` lists everyone of that name with the references each has received, most first.

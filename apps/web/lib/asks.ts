@@ -7,12 +7,21 @@ import { questionTitle } from "./questions";
  * Kept out of the component that renders it: the vouch page is a server component and reads an ask
  * straight from the URL, which it cannot do from a module marked `"use client"`.
  */
-export type Ask = { id: string; label: string; placeholder: string };
+export type Ask = {
+  id: string;
+  label: string;
+  placeholder: string;
+  /** Why anyone would answer it: a recommendation without a reason is just a suggestion */
+  why: string;
+};
 
 export const POPULAR_ASKS: Ask[] = [
-  { id: "kju-is", label: questionTitle("kju-is"), placeholder: "a terrible dictator" },
-  { id: "worked-together", label: "How you worked together", placeholder: "CTO at Acme 2019-22" },
-  { id: "know-them", label: "How you know them", placeholder: "co-founded Acme with them" },
+  {
+    id: "kju-is",
+    label: questionTitle("kju-is"),
+    placeholder: "a terrible dictator",
+    why: "Verifiers use the answer to test whether a subject is affiliated with North Korean operators.",
+  },
 ];
 
 /** What an `?ask=` in a reference link means. An id nobody offers gives the plain form, not an error. */

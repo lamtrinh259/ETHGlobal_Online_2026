@@ -133,3 +133,22 @@ are the same sentence.
 The web app asks the deployment, not a table: a connected X account goes to `x.com` where that is
 mounted and to `x` where it is not, and an email goes to the domain that issued it. A mail host nobody
 deployed has no namespace, and the app says so rather than letting someone sign into a revert.
+
+## Saying what a subject instance is for
+
+A question is only worth answering if a reader knows what the answer is for. `kju-is` asks what
+someone thinks of Kim Jong Un, and the point is not the opinion: a verifier uses it to test whether a
+subject is affiliated with North Korean operators, who will not answer it freely.
+
+That belongs on the instance's own name, so any ENS client reads the purpose beside the answers:
+
+```bash
+PERMISSIONED_RESOLVER=0x4E2d9783cEFF2ed72CD77C14206b29fe246b24F7 \
+NAME=kju-is.ketsuban.eth KEY=description \
+VALUE="Answering this question lets a verifier test whether a subject is affiliated with North Korean operators, who will not answer it freely." \
+PRIVATE_KEY=$OPERATOR_KEY \
+forge script script/SetInstanceText.s.sol --rpc-url $RPC --broadcast
+```
+
+The script grants itself the text role for that key before writing. A root operator can set the key
+without one today; the grant is what keeps the write working when that role moves.

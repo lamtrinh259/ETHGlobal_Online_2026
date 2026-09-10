@@ -49,13 +49,13 @@ export function ReferSomeone({ api, onGo }: { api: Api; onGo: (handle: string, a
         </button>
       </p>
 
-      <h3>References people are asked for</h3>
+      <h3>Recommended</h3>
       <ul className="acct" data-testid="popular-asks">
         {POPULAR_ASKS.map((ask) => (
           <li key={ask.id}>
             <span className="acct-id">
               <strong>{ask.label}</strong>
-              <small className="muted">“{ask.placeholder}”</small>
+              <small className="muted">{ask.why}</small>
             </span>
             <span className="acct-state">
               <button onClick={() => open(ask)} data-testid={`ask-${ask.id}`}>

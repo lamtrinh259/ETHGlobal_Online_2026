@@ -188,7 +188,7 @@ export function Dashboard() {
         </section>
       )}
 
-      <Step n={1} anchor="refer" title="Refer someone" state={d.given.length > 0 ? "done" : "now"}>
+      <Step anchor="refer" title="References given" state={d.given.length > 0 ? "done" : "now"}>
         <ReferSomeone
           api={api}
           onGo={(who, ask) => router.push(`/vouch/${who}${ask ? `?ask=${encodeURIComponent(ask.id)}` : ""}`)}
@@ -225,12 +225,37 @@ export function Dashboard() {
             </ul>
           </details>
         )}
+        {d.given.length > 0 && (
+          <>
+            <ul className="vouches" data-testid="dash-given">
+              {d.given.map((g) => (
+                <li key={`${g.domain}:${g.nonce}`} className={g.live ? "live" : "expired"}>
+                  <span className="vouch-who">
+                    for <Link href={`/p/${g.candidate}`}>{g.candidate}</Link>
+                  </span>
+                  <span className="vouch-what">
+                    {g.payload === WITHDRAWN ? "withdrawn" : `“${g.payload}”`}
+                  </span>
+                  <span className="vouch-meta muted">
+                    {g.live ? "live" : "expired"} · until {fmtUtc(g.validUntil)} ·{" "}
+                    <Link href={`/vouch/${g.candidate}`}>update</Link>
+                    {g.live && g.payload !== WITHDRAWN && (
+                      <>
+                        {" · "}
+                        <Link href={`/vouch/${g.candidate}?withdraw=1`}>withdraw</Link>
+                      </>
+                    )}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
       </Step>
 
       <Step
-        n={5}
         anchor="references"
-        title="References"
+        title="References received"
         state={liveVouchers.length > 0 ? "done" : handle ? "now" : "todo"}
       >
         {handle ? (
@@ -277,34 +302,6 @@ export function Dashboard() {
           </>
         ) : (
           <p className="muted">Claim a name first.</p>
-        )}
-
-        {d.given.length > 0 && (
-          <>
-            <h3>References you gave</h3>
-            <ul className="vouches" data-testid="dash-given">
-              {d.given.map((g) => (
-                <li key={`${g.domain}:${g.nonce}`} className={g.live ? "live" : "expired"}>
-                  <span className="vouch-who">
-                    for <Link href={`/p/${g.candidate}`}>{g.candidate}</Link>
-                  </span>
-                  <span className="vouch-what">
-                    {g.payload === WITHDRAWN ? "withdrawn" : `“${g.payload}”`}
-                  </span>
-                  <span className="vouch-meta muted">
-                    {g.live ? "live" : "expired"} · until {fmtUtc(g.validUntil)} ·{" "}
-                    <Link href={`/vouch/${g.candidate}`}>update</Link>
-                    {g.live && g.payload !== WITHDRAWN && (
-                      <>
-                        {" · "}
-                        <Link href={`/vouch/${g.candidate}?withdraw=1`}>withdraw</Link>
-                      </>
-                    )}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </>
         )}
       </Step>
 

@@ -125,13 +125,17 @@ describe("referring someone by name", () => {
   it("opens straight into the ask that was picked, rather than asking twice", () => {
     // Choosing "How you worked together" is already half the answer; the dialog should remember it.
     render(<ReferSomeone api={api} onGo={vi.fn()} />, { wrapper: wrapper() });
-    fireEvent.click(screen.getByTestId(`ask-${POPULAR_ASKS[1].id}`));
-    expect(screen.getByTestId("refer-dialog")).toHaveTextContent(POPULAR_ASKS[1].label);
+    fireEvent.click(screen.getByTestId(`ask-${POPULAR_ASKS[0].id}`));
+    expect(screen.getByTestId("refer-dialog")).toHaveTextContent(POPULAR_ASKS[0].label);
   });
 
-  it("still offers the references people are commonly asked for, including this deployment's", () => {
+  it("recommends the question this deployment exists to ask, and says why it is worth answering", () => {
     render(<ReferSomeone api={api} onGo={vi.fn()} />, { wrapper: wrapper() });
-    for (const ask of POPULAR_ASKS) expect(screen.getByTestId("popular-asks")).toHaveTextContent(ask.label);
+    for (const ask of POPULAR_ASKS) {
+      expect(screen.getByTestId("popular-asks")).toHaveTextContent(ask.label);
+      // A recommendation without a reason is only a suggestion.
+      expect(screen.getByTestId("popular-asks")).toHaveTextContent(ask.why);
+    }
     expect(POPULAR_ASKS.some((a) => /kim jong un/i.test(a.label))).toBe(true);
     expect(askById("kju-is")?.label).toMatch(/kim jong un/i);
     expect(askById("made-up")).toBeUndefined();
