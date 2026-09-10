@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { WITHDRAWN } from "@ketsuban/registrar";
 import { describePolicy, type Policy, type Profile } from "@/lib/profile";
+import { questionTitle } from "@/lib/questions";
 import { fmtUtc } from "./ui";
 
 /** The candidate reference page: identity, answers, links, humanity, and the policy checks. */
@@ -75,8 +76,13 @@ export function ProfileCard({ p, rootParent, policy }: { p: Profile; rootParent:
           <dl className="kv" data-testid="answers">
             {p.answers.map((a) => (
               <div key={a.domain} className="kv-row">
+                {/* The question, then where it is answered. A verifier cannot judge "kju-is". */}
                 <dt>
-                  <code>{a.name}</code>
+                  {questionTitle(a.domain)}
+                  <br />
+                  <small className="muted">
+                    <code>{a.name}</code>
+                  </small>
                 </dt>
                 <dd>
                   {a.status === "active" && a.answer ? (

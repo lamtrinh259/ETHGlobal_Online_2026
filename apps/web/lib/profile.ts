@@ -1,6 +1,7 @@
 import { WITHDRAWN } from "@ketsuban/registrar";
 import type { Verification, Vouch } from "./api";
 import type { WebConfig } from "./config";
+import { questionTitle } from "./questions";
 
 /** The instance whose parent name is the root people namespace (first configured). */
 export function rootInstance(config: Pick<WebConfig, "instances">) {
@@ -88,7 +89,7 @@ export function policyToQuery(policy: Policy, presetId?: string): string {
 export function describePolicy(policy: Policy): string {
   const parts = [
     policy.requiredAnswers.length
-      ? `answers for ${policy.requiredAnswers.join(", ")}`
+      ? `answers for ${policy.requiredAnswers.map(questionTitle).join(", ")}`
       : "no answers required",
     `≥${policy.minLinks} linked account${policy.minLinks === 1 ? "" : "s"}`,
     `≥${policy.minVouches} live reference${policy.minVouches === 1 ? "" : "s"}`,
@@ -160,7 +161,8 @@ export function assessProfile(
       const ok = !!a && a.status === "active" && !!a.answer;
       return {
         id: `answer:${d}`,
-        label: `Answered ${d}`,
+        // The id joins on the domain; the label is the half a person reads.
+        label: `Answered ${questionTitle(d)}`,
         ok,
         detail: ok ? `"${a!.answer}"` : "no live answer",
       };

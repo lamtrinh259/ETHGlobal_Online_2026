@@ -250,6 +250,23 @@ describe("disclosureLink", () => {
   });
 });
 
+describe("what a verifier is shown", () => {
+  it("states each check as the question it checks, never the domain", () => {
+    // The id keeps the domain, because that is what the query string and the code join on; the label is
+    // the half a person reads, and "Answered kju-is" tells a hiring manager nothing.
+    const { checks } = assessProfile(
+      "alice",
+      [
+        { instanceDomain: "ketsuban", name: "alice.ketsuban.eth", v: null },
+        { instanceDomain: "kju-is", name: "alice.kju-is.ketsuban.eth", v: null },
+      ],
+      { requiredAnswers: ["kju-is"], minLinks: 0, minVouches: 0, requireHumanity: false }
+    );
+    const answer = checks.find((c) => c.id === "answer:kju-is");
+    expect(answer?.label).toBe("Answered What do you think of Kim Jong Un?");
+  });
+});
+
 describe("policy presets", () => {
   it("expand to full policies, round-trip through the query string, and describe themselves", () => {
     const hiring = POLICY_PRESETS.find((p) => p.id === "hiring")!;
@@ -273,8 +290,10 @@ describe("policy presets", () => {
     expect(policyFromQuery({ preset: "dao", minLinks: "9" }, ["kju-is"])).toEqual(dao);
     expect(policyFromQuery({ preset: "nope" }, ["kju-is"]).minLinks).toBe(1);
 
+    // A policy is stated in questions, not in the domains they live in: the verifier setting it has
+    // never heard of `kju-is`, and the query string keeps the domain either way.
     expect(describePolicy(dao)).toBe(
-      "answers for kju-is · ≥0 linked accounts · ≥2 live references · humanity attested"
+      "answers for What do you think of Kim Jong Un? · ≥0 linked accounts · ≥2 live references · humanity attested"
     );
     expect(
       describePolicy(

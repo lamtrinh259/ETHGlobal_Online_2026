@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { describePolicy, lookupTarget, POLICY_PRESETS, policyToQuery, presetPolicy } from "@/lib/profile";
+import { questionTitle } from "@/lib/questions";
 
 /** Verifier policy picker → /p/<handle>?answers=&minLinks=&humanity= */
 export function VerifyForm({ subjectDomains }: { subjectDomains: string[] }) {
@@ -82,7 +83,7 @@ export function VerifyForm({ subjectDomains }: { subjectDomains: string[] }) {
                 )(e.target.checked)
               }
             />{" "}
-            require an answer for <code>{d}</code>
+            require an answer to <em>{questionTitle(d)}</em>
           </label>
         ))}
         <label>

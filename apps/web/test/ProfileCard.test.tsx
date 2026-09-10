@@ -74,6 +74,15 @@ describe("ProfileCard", () => {
     );
   });
 
+  it("says what each answer answers, not the domain it happens to live in", () => {
+    // A verifier reading "kju-is" learns nothing: an answer without its question cannot be judged.
+    render(<ProfileCard p={profile} rootParent="ketsuban.eth" />);
+    const answers = screen.getByTestId("answers");
+    expect(answers).toHaveTextContent("What do you think of Kim Jong Un?");
+    // The name it lives at stays readable — that is what makes the answer checkable without this page.
+    expect(answers).toHaveTextContent("alice.kju-is.ketsuban.eth");
+  });
+
   it("renders checks with marks, answers, masked links and the warning", () => {
     render(
       <ProfileCard
@@ -135,7 +144,7 @@ describe("ProfileCard", () => {
       />
     );
     expect(screen.getByTestId("policy-line")).toHaveTextContent(
-      "Policy: answers for kju-is · ≥1 linked account · ≥2 live references · humanity attested"
+      "Policy: answers for What do you think of Kim Jong Un? · ≥1 linked account · ≥2 live references · humanity attested"
     );
     expect(screen.getByTestId("links")).toHaveTextContent("@alice_x");
     expect(screen.getByTestId("disclosed")).toHaveTextContent("disclosed to you by the candidate");
