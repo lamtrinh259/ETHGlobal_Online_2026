@@ -11,7 +11,8 @@ argument, never a source artifact.
 
 Start with [docs/demo.md](docs/demo.md): the live Sepolia deployment, checkable with `curl` and with
 `cast` against the ENSv2 UniversalResolver. [docs/namespace.md](docs/namespace.md) explains what every
-name means and why a platform is mounted at its own DNS name.
+name means and why a platform is mounted at its own DNS name, and
+[docs/troubleshooting.md](docs/troubleshooting.md) is what to read when something is wrong.
 
 Four claims worth checking, each without asking this service:
 
