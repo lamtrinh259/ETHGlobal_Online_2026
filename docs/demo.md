@@ -110,19 +110,25 @@ curl -s $API/v1/reverse/0xEE4811b9462956C9C3535E79c08776D769CA9F3a | jq '{name, 
 ```
 
 ```
-alice.ketsuban.eth               via the root resolver
-alice_x.com.x.www.ketsuban.eth   via the x.com resolver
+alice.ketsuban.eth      the name she holds, via the root resolver
+alice.x.ketsuban.eth    the account she attested, via that platform's own resolver
 ```
 
 ## 4. Who wrote it
 
 ```bash
-curl -s $API/v1/standing/bob | jq
+curl -s $API/v1/standing/peersky | jq   # claimed, and what they have given and received
+curl -s $API/v1/standing/bob | jq       # a voucher who has claimed no name of their own
 curl -s $API/v1/wallet/0xEE4811b9462956C9C3535E79c08776D769CA9F3a | jq '{names: [.names[].ensName], given: [.given[].candidate]}'
 ```
 
 A voucher's standing is their own record: how many references they gave and received. Following it is
 how a verifier judges the person speaking, not just the sentence.
+
+`bob` answers `claimed: false` and zeroes, which is not the same as having done nothing: references
+are counted through the wallet behind a claimed name, and someone who wrote one without claiming a
+name of their own cannot be counted that way. That is what the flag is for — the page says the
+reference is unclaimed rather than pretending its writer has no history.
 
 ## 5. The browser flow
 
