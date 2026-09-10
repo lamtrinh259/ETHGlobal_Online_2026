@@ -358,8 +358,9 @@ export function AttestFlow({
           over an identity token, and who can read it is the thing worth knowing first. */}
       {!settled && config.confidential && (
         <p className="muted" data-testid="confidential-note">
-          Verified and signed inside a <strong>Chainlink CRE enclave</strong>. Your linked accounts are read
-          there and nowhere else — not by this service, not by its operator.
+          Verified and signed inside a <strong>Chainlink CRE enclave</strong>. Your identity token lists every
+          account you have linked; it is read there and nowhere else — not by this service, not by its
+          operator. Only the account above is attested.
         </p>
       )}
       {!settled && (

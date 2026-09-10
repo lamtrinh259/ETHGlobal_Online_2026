@@ -216,6 +216,18 @@ describe("onAttest", () => {
     expect(out.record.payload).not.toBe(zeroHash);
     const viewCode = bytesToHex(eciesDecrypt(USER_KEY, out.viewCode));
     expect(decodeRecord(out.record, viewCode)).toEqual({ handle: "alice", platformId: "1234567890123456789" });
+
+    /*
+     * The other half of the claim, and the one the product makes to a person choosing to keep a handle
+     * private: what lands on chain is not the handle. Proving it is readable with the view code says
+     * nothing about whether it is readable without one, and masking that quietly became a no-op would
+     * pass the assertion above unchanged.
+     */
+    expect(out.record.name).not.toBe(toBytes32("alice"));
+    expect(out.record.id).not.toBe(toBytes32("1234567890123456789"));
+    // Nor anywhere else in what leaves the enclave: the whole payload is searched, not just the fields
+    // this test happens to know the names of.
+    expect(JSON.stringify(out)).not.toContain(toBytes32("alice").slice(2, 20));
   });
 
   test("name domain from config: handle becomes the label, answer the payload", async () => {
