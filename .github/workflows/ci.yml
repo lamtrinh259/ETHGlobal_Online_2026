@@ -49,7 +49,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
+      # forge-std is a submodule, and the deploy container compiles the contracts including their
+      # tests. Without this the container fails in half a second on `forge-std/Test.sol`.
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
