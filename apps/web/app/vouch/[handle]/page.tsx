@@ -4,7 +4,7 @@ import { decodeInvite, type SignedInvite } from "@ketsuban/registrar";
 import { createApi } from "@/lib/api";
 import { loadWebConfig } from "@/lib/config";
 import { HANDLE_RE } from "@/lib/profile";
-import { askById } from "@/app/me/ReferSomeone";
+import { askById } from "@/lib/asks";
 import { VouchFlow } from "./VouchFlow";
 
 export const dynamic = "force-dynamic";

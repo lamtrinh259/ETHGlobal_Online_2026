@@ -87,13 +87,18 @@ test("the header carries the identity, not the forms", async ({ page }) => {
   await expect(page.locator("main")).not.toContainText("signed in as");
 });
 
-test("a vouch page with no invitation says so instead of offering the form", async ({ page }) => {
+test("a vouch page opens for anyone, invitation or not, and a bad token is not a wall", async ({ page }) => {
+  // Referring is non-permissioned: an invitation is evidence the candidate asked, never permission,
+  // so neither its absence nor a malformed one turns the page into a refusal.
   await page.goto("/vouch/alice");
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Vouch for");
   // Behind the sign-in gate there is no form either way; the steps still explain the journey.
   await expect(page.locator(".journey li")).toHaveCount(3);
+  await expect(page.locator("body")).not.toContainText("You need alice's invitation");
+
   await page.goto("/vouch/alice?invite=not-a-real-token");
   await expect(page.locator(".journey li")).toHaveCount(3);
+  await expect(page.locator("body")).not.toContainText("You need alice's invitation");
 });
 
 test("a domain that cannot be written disables the publish button with the reason", async ({ page }) => {

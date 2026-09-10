@@ -158,9 +158,16 @@ export function Dashboard() {
             void dash.refetch();
           }}
         />
+        {/* What the rest of the world reads. It belongs with the accounts it is about, rather than as
+            a section of its own further down. */}
+        <OnChain api={api} wallet={wallet} dash={d} />
       </Step>
 
-      <Step n={3} title="Your name" state={handle ? "done" : liveLinks.length > 0 ? "now" : "todo"}>
+      <Step
+        n={3}
+        title="Your name and profile"
+        state={handle ? "done" : liveLinks.length > 0 ? "now" : "todo"}
+      >
         {awaiting === root?.domain && !handle && (
           <p className="muted" data-testid="awaiting">
             Published. Waiting for the record to reach the index — this page updates itself.{" "}
@@ -199,22 +206,23 @@ export function Dashboard() {
             </button>
           </>
         )}
+        {/* The name and what it says are one subject: a profile is what the name resolves to, and
+            splitting them made two steps out of one decision. */}
+        {handle && rootRow && (
+          <>
+            {/* The first transaction anyone here sends is a profile record, so an empty wallet is
+                worth saying before the wallet refuses rather than after. */}
+            {wallet && BigInt(d.balance) < ENOUGH_WEI && (
+              <div className="warning" data-testid="profile-needs-gas">
+                <FundWallet api={api} wallet={wallet} balance={d.balance} topup={d.gasTopup} />
+              </div>
+            )}
+            <ProfileEditor api={api} name={rootRow.ensName} getSigner={getSigner} />
+          </>
+        )}
       </Step>
 
-      {handle && rootRow && (
-        <Step n={4} title="Your public profile" state="now">
-          {/* The first transaction anyone here sends is a profile record, so an empty wallet is worth
-              saying before the wallet refuses rather than after. */}
-          {wallet && BigInt(d.balance) < ENOUGH_WEI && (
-            <div className="warning" data-testid="profile-needs-gas">
-              <FundWallet api={api} wallet={wallet} balance={d.balance} topup={d.gasTopup} />
-            </div>
-          )}
-          <ProfileEditor api={api} name={rootRow.ensName} getSigner={getSigner} />
-        </Step>
-      )}
-
-      <Step n={5} title="Refer someone" state={d.given.length > 0 ? "done" : "now"}>
+      <Step n={4} title="Refer someone" state={d.given.length > 0 ? "done" : "now"}>
         <ReferSomeone
           api={api}
           onGo={(who, ask) => router.push(`/vouch/${who}${ask ? `?ask=${encodeURIComponent(ask.id)}` : ""}`)}
@@ -253,7 +261,7 @@ export function Dashboard() {
         )}
       </Step>
 
-      <Step n={6} title="References" state={liveVouchers.length > 0 ? "done" : handle ? "now" : "todo"}>
+      <Step n={5} title="References" state={liveVouchers.length > 0 ? "done" : handle ? "now" : "todo"}>
         {handle ? (
           <>
             <p>
@@ -328,8 +336,6 @@ export function Dashboard() {
           </>
         )}
       </Step>
-
-      <OnChain api={api} wallet={wallet} dash={d} />
 
       <div id="sharing">
         {rootRow?.live && <ReadPermission api={api} links={d.links} name={rootRow.ensName} />}

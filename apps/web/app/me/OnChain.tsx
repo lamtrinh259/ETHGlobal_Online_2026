@@ -27,8 +27,8 @@ export function OnChain({ api, wallet, dash }: Props) {
   const masked = dash.links.filter((l) => l.live && !l.ensName);
 
   return (
-    <section className="card" data-testid="onchain">
-      <h2>How you appear on chain</h2>
+    <details data-testid="onchain">
+      <summary className="muted">How these appear on chain</summary>
 
       {names.length === 0 ? (
         <p className="muted">
@@ -92,6 +92,6 @@ export function OnChain({ api, wallet, dash }: Props) {
           Your address resolves to no name yet; claiming one is what gives it an answer.
         </p>
       )}
-    </section>
+    </details>
   );
 }

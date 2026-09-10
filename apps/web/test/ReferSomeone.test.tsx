@@ -24,7 +24,8 @@ const api = {
   }),
 } as unknown as Api;
 
-const { ReferSomeone, POPULAR_ASKS, askById } = await import("@/app/me/ReferSomeone");
+const { ReferSomeone } = await import("@/app/me/ReferSomeone");
+const { POPULAR_ASKS, askById } = await import("@/lib/asks");
 
 const wrapper = () => {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -32,8 +33,10 @@ const wrapper = () => {
     <QueryClientProvider client={qc}>{children}</QueryClientProvider>
   );
 };
+/** Every path starts behind the CTA now, so the tests open it the way a person would. */
 const refer = (onGo = vi.fn()) => {
   render(<ReferSomeone api={api} onGo={onGo} />, { wrapper: wrapper() });
+  fireEvent.click(screen.getByTestId("refer-open"));
   return onGo;
 };
 
@@ -93,7 +96,7 @@ describe("referring someone by name", () => {
     await waitFor(() => expect(screen.getByTestId("match-bobby")).toBeInTheDocument());
     expect(screen.getByTestId("match-bobby")).toHaveTextContent("3");
     fireEvent.click(screen.getByTestId("pick-bobby"));
-    expect(go).toHaveBeenCalledWith("bobby");
+    expect(go).toHaveBeenCalledWith("bobby", undefined);
   });
 
   it("offers a new page only once the search has answered, so nobody splits a person in two", async () => {
@@ -105,11 +108,29 @@ describe("referring someone by name", () => {
 
     // Still possible — two people really can share a name — but after seeing who is already here.
     fireEvent.click(screen.getByTestId("refer-new"));
-    expect(go).toHaveBeenCalledWith("bob");
+    expect(go).toHaveBeenCalledWith("bob", undefined);
+  });
+
+  it("keeps the whole picker behind one CTA, so the step is an invitation rather than a form", () => {
+    render(<ReferSomeone api={api} onGo={vi.fn()} />, { wrapper: wrapper() });
+    // Nothing to fill in until someone says they want to refer a person.
+    expect(screen.queryByTestId("by-account")).toBeNull();
+    expect(screen.queryByTestId("account-handle")).toBeNull();
+
+    fireEvent.click(screen.getByTestId("refer-open"));
+    expect(screen.getByTestId("by-account")).toBeInTheDocument();
+    expect(screen.getByTestId("by-name")).toBeInTheDocument();
+  });
+
+  it("opens straight into the ask that was picked, rather than asking twice", () => {
+    // Choosing "How you worked together" is already half the answer; the dialog should remember it.
+    render(<ReferSomeone api={api} onGo={vi.fn()} />, { wrapper: wrapper() });
+    fireEvent.click(screen.getByTestId(`ask-${POPULAR_ASKS[1].id}`));
+    expect(screen.getByTestId("refer-dialog")).toHaveTextContent(POPULAR_ASKS[1].label);
   });
 
   it("still offers the references people are commonly asked for, including this deployment's", () => {
-    refer();
+    render(<ReferSomeone api={api} onGo={vi.fn()} />, { wrapper: wrapper() });
     for (const ask of POPULAR_ASKS) expect(screen.getByTestId("popular-asks")).toHaveTextContent(ask.label);
     expect(POPULAR_ASKS.some((a) => /kim jong un/i.test(a.label))).toBe(true);
     expect(askById("kju-is")?.label).toMatch(/kim jong un/i);

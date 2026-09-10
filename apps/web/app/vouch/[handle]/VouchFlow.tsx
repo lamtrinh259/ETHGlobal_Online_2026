@@ -13,7 +13,7 @@ import type { SignedInvite } from "@ketsuban/registrar";
 import type { Signer } from "@/lib/chain";
 import { WITHDRAWN } from "@ketsuban/registrar";
 import { VOUCH_PREFIX, voucherProgress, vouchSteps } from "@/lib/journey";
-import type { Ask } from "@/app/me/ReferSomeone";
+import type { Ask } from "@/lib/asks";
 
 type Stage = "signin" | "onboarding" | "statement" | "done";
 
