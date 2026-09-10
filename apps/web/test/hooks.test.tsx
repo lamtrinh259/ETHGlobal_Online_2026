@@ -22,10 +22,19 @@ import {
 } from "@/lib/hooks";
 import * as chain from "@/lib/chain";
 
+const claim = { readyAt: 0, commits: 0, registers: 0 };
 vi.mock("@/lib/chain", async (orig) => ({
   ...(await orig<typeof chain>()),
   writeProfileText: vi.fn(async () => "0xhash1"),
   linkOwnName: vi.fn(async () => "0xhash2"),
+  commitEthName: vi.fn(async () => {
+    claim.commits += 1;
+    return { readyAt: claim.readyAt };
+  }),
+  registerEthName: vi.fn(async () => {
+    claim.registers += 1;
+    return "0xhash3";
+  }),
 }));
 import { loadWebConfig } from "@/lib/config";
 
@@ -264,6 +273,71 @@ describe("hooks", () => {
     link.result.current.mutate({ signer, bridge: WALLET, domain: "ketsuban", label: "alice" });
     await waitFor(() => expect(link.result.current.data).toBe("0xhash2"));
     expect(chain.linkOwnName).toHaveBeenCalledWith(signer, WALLET, "ketsuban", "alice");
+  });
+
+  it("useEthLabel only asks about a label that could be a name", async () => {
+    // A lookup for every keystroke would ask about "a" and "al"; the registrar's own minimum is three.
+    const { useEthLabel } = await import("@/lib/hooks");
+    const client = fakeApi();
+    const { result: hook, rerender } = renderHook(
+      ({ label }: { label: string }) => useEthLabel(client, label),
+      {
+        wrapper: wrapper(),
+        initialProps: { label: "ab" },
+      }
+    );
+    expect(client.ethLabel).not.toHaveBeenCalled();
+    rerender({ label: "alice" });
+    await waitFor(() => expect(hook.current.data?.label).toBe("alice"));
+    expect(client.ethLabel).toHaveBeenCalledWith("alice");
+  });
+
+  it("useClaimEthName waits out the registrar's window, then registers", async () => {
+    // The registrar makes this two signatures a minute apart; the hook shows the wait rather than
+    // appearing to hang, and registers only once it has passed.
+    const { useClaimEthName } = await import("@/lib/hooks");
+    claim.commits = 0;
+    claim.registers = 0;
+    claim.readyAt = Math.floor(Date.now() / 1000) + 2;
+    const done = vi.fn();
+    const { result: hook } = renderHook(() => useClaimEthName(done), { wrapper: wrapper() });
+    const params = {
+      registrar: WALLET,
+      token: WALLET,
+      resolver: WALLET,
+      label: "alice-test",
+      owner: WALLET,
+      duration: 1n,
+    };
+    hook.current.mutate({ signer: {} as never, params });
+
+    await waitFor(() => expect(hook.current.waitingUntil).toBeTruthy(), { timeout: 2000 });
+    expect(claim.registers).toBe(0);
+    await waitFor(() => expect(done).toHaveBeenCalled(), { timeout: 6000 });
+    expect(claim.commits).toBe(1);
+    expect(claim.registers).toBe(1);
+    expect(hook.current.waitingUntil).toBeUndefined();
+  });
+
+  it("useClaimEthName stops showing a wait when the wallet refuses", async () => {
+    const { useClaimEthName } = await import("@/lib/hooks");
+    const chainMod = await import("@/lib/chain");
+    vi.mocked(chainMod.registerEthName).mockRejectedValueOnce(new Error("user rejected"));
+    claim.readyAt = 0;
+    const { result: hook } = renderHook(() => useClaimEthName(vi.fn()), { wrapper: wrapper() });
+    hook.current.mutate({
+      signer: {} as never,
+      params: {
+        registrar: WALLET,
+        token: WALLET,
+        resolver: WALLET,
+        label: "alice-test",
+        owner: WALLET,
+        duration: 1n,
+      },
+    });
+    await waitFor(() => expect(hook.current.error?.message).toBe("user rejected"));
+    expect(hook.current.waitingUntil).toBeUndefined();
   });
 
   it("apiFor builds a client from config", () => {

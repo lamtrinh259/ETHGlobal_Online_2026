@@ -80,7 +80,6 @@ export function useDeliver(api: Api, wallet: Address | undefined, domain: string
   });
 }
 
-/** Contract addresses the wallet writes to directly (cached: they never change for a deployment). */
 /** Who owns a `.eth` label on the ENSv2 registry, so the form can say what will happen before it happens. */
 export function useEthLabel(api: Api, label: string) {
   return useQuery({
