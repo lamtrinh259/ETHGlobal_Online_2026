@@ -1257,3 +1257,82 @@ describe("proof of humanity", () => {
     expect(await other.json()).toMatchObject({ ok: true, level: "orb" });
   });
 });
+
+/**
+ * The letter a reference carries.
+ *
+ * A title lives in the record; the letter is an ENS `description` on the name that record creates, and
+ * the writer signs it with their own wallet. That grant is a different question from the one already
+ * covered: a person writing their own profile writes under a root name, while a letter is written
+ * under the candidate's vouch instance — somebody else's namespace, mounted on demand. Unit tests
+ * cannot tell the two apart, because both are the same call to a mocked signer.
+ */
+describe("a reference's letter", () => {
+  const BOB_KEY = "0x000000000000000000000000000000000000000000000000000000000000b0bb" as const;
+  const resolverAbi = parseAbi([
+    "function setText(bytes32 node, string key, string value)",
+    "function hasTextGrant(bytes name, string key, address account) view returns (bool)",
+  ]);
+  const dns = (n: string) =>
+    `0x${n
+      .split(".")
+      .map((l) => l.length.toString(16).padStart(2, "0") + Buffer.from(l).toString("hex"))
+      .join("")}00` as Hex;
+
+  it("is written by the voucher onto the name their reference created", async () => {
+    const bob = fakeUser(BOB_KEY, "bob");
+    const listed = await (await fetch(`${API}/v1/vouches/alice`)).json();
+    const written = listed.vouches.find((v: { voucher: string }) => v.voucher === "bob");
+    expect(written, "the vouch suite must have run first").toBeDefined();
+    const name = written.ensName as string;
+    expect(name).toBe(`bob.alice.${deployment.instanceParent}`);
+
+    const rpc = createPublicClient({ chain: anvil, transport: http(RPC) });
+    // The grant is on the vouch instance, which was mounted for alice when her name landed.
+    expect(
+      await rpc.readContract({
+        address: deployment.permissionedResolver,
+        abi: resolverAbi,
+        functionName: "hasTextGrant",
+        args: [dns(name), "description", bob.account.address],
+      })
+    ).toBe(true);
+
+    // Bob pays for his own letter and has never been funded: the gas top-up is for a wallet holding a
+    // name, and his record is in alice's vouch domain. Anvil's deployer stands in for having some.
+    const funded = await walletFor(DEPLOYER_KEY).sendTransaction({
+      to: bob.account.address,
+      value: 10n ** 17n,
+    });
+    // Waited for, not just sent: the next call estimates gas against his balance, and an unmined
+    // transfer leaves that at zero.
+    await rpc.waitForTransactionReceipt({ hash: funded });
+
+    const letter = "We worked together for three years on the same team.";
+    const hash = await walletFor(BOB_KEY).writeContract({
+      address: deployment.permissionedResolver,
+      abi: resolverAbi,
+      functionName: "setText",
+      args: [namehash(name), "description", letter],
+    });
+    expect((await rpc.waitForTransactionReceipt({ hash })).status).toBe("success");
+
+    // And the page that shows references reads it back, which is the whole point of writing it there.
+    const after = await (await fetch(`${API}/v1/vouches/alice`)).json();
+    expect(after.vouches.find((v: { voucher: string }) => v.voucher === "bob").letter).toBe(letter);
+  });
+
+  it("cannot be written on somebody else's reference", async () => {
+    // The name is in alice's namespace, but it is bob's reference; alice holding the namespace must
+    // not let her put words in it.
+    const name = `bob.alice.${deployment.instanceParent}`;
+    await expect(
+      walletFor(USER_KEY).writeContract({
+        address: deployment.permissionedResolver,
+        abi: resolverAbi,
+        functionName: "setText",
+        args: [namehash(name), "description", "not mine to write"],
+      })
+    ).rejects.toThrow(/Unauthorized|revert/i);
+  });
+});
