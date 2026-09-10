@@ -15,6 +15,7 @@ import { nameRows, needsAttention } from "@/lib/journey";
 import { vouchRequest } from "@/lib/profile";
 import { Step } from "@/app/Step";
 import { ProfileHeader } from "./ProfileHeader";
+import { Recommended } from "./Recommended";
 import { profileScore } from "@/lib/score";
 import { AttestFlow } from "@/app/AttestFlow";
 import { Modal } from "@/app/Modal";
@@ -188,43 +189,34 @@ export function Dashboard() {
         </section>
       )}
 
+      {subjectRows.length > 0 && (
+        <Step
+          anchor="recommended"
+          title="Recommended"
+          state={answered.length === subjectRows.length ? "done" : "now"}
+        >
+          <Recommended
+            rows={subjectRows.map((r) => ({
+              domain: r.domain,
+              ensName: r.ensName,
+              answer: r.live?.payload ?? "",
+            }))}
+            onAnswer={(domain) =>
+              setPublishing({
+                domain,
+                title: questionTitle(domain),
+                answer: questionFor(domain),
+              })
+            }
+          />
+        </Step>
+      )}
+
       <Step anchor="refer" title="References given" state={d.given.length > 0 ? "done" : "now"}>
         <ReferSomeone
           api={api}
           onGo={(who, ask) => router.push(`/vouch/${who}${ask ? `?ask=${encodeURIComponent(ask.id)}` : ""}`)}
         />
-        {subjectRows.length > 0 && (
-          <details data-testid="answers-advanced">
-            <summary className="muted">Your own answers</summary>
-            <ul className="acct" data-testid="answers">
-              {subjectRows.map((r) => (
-                <li key={r.domain} data-testid={`answer-${r.domain}`}>
-                  {/* The question, not the domain it lives in: nobody outside this repo knows `kju-is`. */}
-                  <span className="acct-id">
-                    <strong>{questionTitle(r.domain)}</strong>
-                    <small className="muted">
-                      {r.live?.payload ? `“${r.live.payload}”` : "not answered"} · {r.ensName}
-                    </small>
-                  </span>
-                  <span className="acct-state">
-                    <button
-                      className="linkish"
-                      onClick={() =>
-                        setPublishing({
-                          domain: r.domain,
-                          title: questionTitle(r.domain),
-                          answer: questionFor(r.domain),
-                        })
-                      }
-                    >
-                      {r.live ? "change" : "answer now"}
-                    </button>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </details>
-        )}
         {d.given.length > 0 && (
           <>
             <ul className="vouches" data-testid="dash-given">

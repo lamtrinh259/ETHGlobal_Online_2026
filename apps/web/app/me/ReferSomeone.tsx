@@ -5,7 +5,7 @@ import type { Api } from "@/lib/api";
 import { PLATFORM_DNS_NAMES } from "@ketsuban/registrar";
 import { Modal } from "@/app/Modal";
 import { PlatformIcon } from "@/app/PlatformIcon";
-import { POPULAR_ASKS, type Ask } from "@/lib/asks";
+import type { Ask } from "@/lib/asks";
 import { useFind, useWho } from "@/lib/hooks";
 
 /** The platforms a person can be looked up by, named as their own DNS domain. */
@@ -48,23 +48,6 @@ export function ReferSomeone({ api, onGo }: { api: Api; onGo: (handle: string, a
           Refer someone
         </button>
       </p>
-
-      <h3>Recommended</h3>
-      <ul className="acct" data-testid="popular-asks">
-        {POPULAR_ASKS.map((ask) => (
-          <li key={ask.id}>
-            <span className="acct-id">
-              <strong>{ask.label}</strong>
-              <small className="muted">{ask.why}</small>
-            </span>
-            <span className="acct-state">
-              <button onClick={() => open(ask)} data-testid={`ask-${ask.id}`}>
-                Answer this
-              </button>
-            </span>
-          </li>
-        ))}
-      </ul>
 
       {picking && (
         <Modal
