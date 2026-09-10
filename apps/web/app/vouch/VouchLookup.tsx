@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useWebConfig } from "@/app/providers";
 import { apiFor, useNameStatus } from "@/lib/hooks";
 import { HANDLE_RE } from "@/lib/profile";
+import { PersonSearch } from "@/app/PersonSearch";
 
 /** Candidate lookup: confirms the handle is claimed before the voucher invests five minutes. */
 export function VouchLookup() {
@@ -37,51 +38,58 @@ export function VouchLookup() {
         if (canGo) router.push(`/vouch/${clean}`);
       }}
     >
-      <label>
-        candidate handle{" "}
-        <input
-          value={handle}
-          onChange={(e) => setHandle(e.target.value)}
-          placeholder="alice"
-          aria-label="handle"
-          autoFocus
-        />
-      </label>
-      {fresh && root && (
-        <p className={blocked ? "error" : "muted"} data-testid="lookup-status">
-          {fresh.live ? (
-            <>
-              <code>
-                {clean}.{root.parentName}
-              </code>{" "}
-              is claimed — your reference lands as{" "}
-              <code>
-                &lt;you&gt;.{clean}.{root.parentName}
-              </code>
-              .
-            </>
-          ) : fresh.taken ? (
-            <>
-              <code>
-                {clean}.{root.parentName}
-              </code>{" "}
-              has expired. Ask them to renew it first; a reference needs a live name to hang on.
-            </>
-          ) : (
-            <>
-              Nobody has claimed{" "}
-              <code>
-                {clean}.{root.parentName}
-              </code>{" "}
-              yet. An organisation can write anyway and the letter waits for them; anyone else should send
-              them <code>{typeof window === "undefined" ? "" : window.location.origin}/claim</code> first.
-            </>
-          )}
-        </p>
-      )}
-      <button type="submit" className="primary" disabled={!canGo}>
-        Continue
-      </button>
+      {/* Search first: a writer usually knows a name or an account, not the exact handle somebody
+          registered. Typing one blind was the only way in, and it fails silently on a near miss. */}
+      <PersonSearch api={api} onPick={(h) => router.push(`/vouch/${h}`)} action="Write their reference" />
+
+      <details className="lookup-exact">
+        <summary>I know their exact handle</summary>
+        <label>
+          candidate handle{" "}
+          <input
+            value={handle}
+            onChange={(e) => setHandle(e.target.value)}
+            placeholder="alice"
+            aria-label="handle"
+            autoFocus
+          />
+        </label>
+        {fresh && root && (
+          <p className={blocked ? "error" : "muted"} data-testid="lookup-status">
+            {fresh.live ? (
+              <>
+                <code>
+                  {clean}.{root.parentName}
+                </code>{" "}
+                is claimed — your reference lands as{" "}
+                <code>
+                  &lt;you&gt;.{clean}.{root.parentName}
+                </code>
+                .
+              </>
+            ) : fresh.taken ? (
+              <>
+                <code>
+                  {clean}.{root.parentName}
+                </code>{" "}
+                has expired. Ask them to renew it first; a reference needs a live name to hang on.
+              </>
+            ) : (
+              <>
+                Nobody has claimed{" "}
+                <code>
+                  {clean}.{root.parentName}
+                </code>{" "}
+                yet. An organisation can write anyway and the letter waits for them; anyone else should send
+                them <code>{typeof window === "undefined" ? "" : window.location.origin}/claim</code> first.
+              </>
+            )}
+          </p>
+        )}
+        <button type="submit" className="primary" disabled={!canGo}>
+          Continue
+        </button>
+      </details>
     </form>
   );
 }

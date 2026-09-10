@@ -1,13 +1,18 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { PersonSearch } from "@/app/PersonSearch";
+import { useWebConfig } from "@/app/providers";
+import { apiFor } from "@/lib/hooks";
 import { describePolicy, lookupTarget, POLICY_PRESETS, policyToQuery, presetPolicy } from "@/lib/profile";
 import { questionTitle } from "@/lib/questions";
 
 /** Verifier policy picker → /p/<handle>?answers=&minLinks=&humanity= */
 export function VerifyForm({ subjectDomains }: { subjectDomains: string[] }) {
   const router = useRouter();
+  const config = useWebConfig();
+  const api = useMemo(() => apiFor(config), [config]);
   const [handle, setHandle] = useState("");
   const [answers, setAnswers] = useState<string[]>(subjectDomains);
   const [minLinks, setMinLinks] = useState(1);
@@ -45,6 +50,14 @@ export function VerifyForm({ subjectDomains }: { subjectDomains: string[] }) {
         router.push(target.href);
       }}
     >
+      {/* A verifier is usually given a name or an account, not the exact handle. Searching first
+          means a near miss shows the person rather than an empty page. */}
+      <PersonSearch
+        api={api}
+        onPick={(h) => router.push(`/p/${h}${policyToQuery(policy, preset)}`)}
+        action="Check this one"
+      />
+
       <label>
         handle or wallet address{" "}
         <input
