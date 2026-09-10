@@ -21,7 +21,6 @@ import {
   zeroAddress,
   zeroHash,
   recoverMessageAddress,
-  stringToBytes,
   type Hex,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
@@ -42,7 +41,7 @@ import {
   signRevocation,
 } from "@ketsuban/registrar";
 import { decodeRecord, fromBytes32, MultipassAbi, toBytes32 } from "@peeramid-labs/multipass-client";
-import { hashToField, rpSignatureMessage } from "../../src/world.js";
+import { hashSignal, rpSignatureMessage } from "../../src/world.js";
 import { APP_ID, PRIVY_SEED, restartApi } from "./global-setup.js";
 
 const API = process.env.E2E_API_URL ?? `http://127.0.0.1:${process.env.E2E_API_PORT ?? "18787"}`;
@@ -1118,7 +1117,10 @@ describe("proof of humanity", () => {
   const proofFor = (wallet: Hex, identity: string, extra: Record<string, unknown> = {}) => ({
     protocol_version: 4,
     action: "humanity",
-    responses: [{ identifier: "orb", signal_hash: hashToField(stringToBytes(wallet.toLowerCase())) }],
+    // Hashed the way IDKit hashes it: a wallet reads as hex, so it is the 20 bytes it spells and not
+    // the 42 characters. Hashing the text produced a different field element and the server refused
+    // every sound proof as unbound.
+    responses: [{ identifier: "orb", signal_hash: hashSignal(wallet.toLowerCase()) }],
     e2e_identity: identity,
     ...extra,
   });
