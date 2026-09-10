@@ -3198,28 +3198,6 @@ describe("the humanity check", () => {
     WORLD_RP_SIGNING_KEY: SIGNING_KEY,
     WORLD_VERIFY_URL: "https://developer.world.org",
   };
-  /**
-   * A production app id with WORLD_ENVIRONMENT=staging builds a code the app cannot answer. It is a
-   * misconfiguration of one optional feature, and the service has to keep serving every route that has
-   * nothing to do with it — an earlier version of this check threw at startup and took the deployment
-   * down over a World ID setting.
-   */
-  it("stays up with a World app and environment that disagree, and says so", async () => {
-    const mixed = { ...worldEnv, WORLD_ENVIRONMENT: "staging" };
-    const { chain } = fakeChain();
-    expect(() => app(chain, mixed)).not.toThrow();
-
-    const a = app(chain, mixed);
-    // Unrelated routes are untouched.
-    expect((await a.request("/healthz")).status).toBe(200);
-    // The check is off rather than half-working, so nothing offers it.
-    expect((await (await a.request("/v1/instances")).json()).humanity).toBe(false);
-    expect((await a.request("/v1/humanity/challenge", { method: "POST", body: "{}" })).status).toBe(501);
-    // And the deployment can find out why the CTA never appeared.
-    const pre = await (await a.request("/v1/preflight")).json();
-    expect(pre.warnings.join(" ")).toContain("app_staging_");
-  });
-
   const NULLIFIER = "0x2bf8406809dcefb1486dadc96c0a897db9bab002053054cf64272db512c6fbd8";
   const wallet = user.account.address;
   /**

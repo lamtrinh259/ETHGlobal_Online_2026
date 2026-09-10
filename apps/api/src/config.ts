@@ -134,7 +134,7 @@ export const configSchema = z.object({
   WORLD_RP_SIGNING_KEY: hex.optional(),
   /** Where proofs are verified; the staging host is what the World simulator answers for */
   WORLD_VERIFY_URL: z.string().url().default("https://developer.world.org"),
-  WORLD_ENVIRONMENT: z.enum(["production", "staging"]).default("production"),
+  WORLD_ENVIRONMENT: z.enum(["production", "staging", "sandbox"]).default("production"),
   /**
    * Which credential to ask a person for. `proof_of_human` is World ID 4.0 with an Orb fallback, so a
    * person without an Orb nearby cannot finish it. `selfie` is Selfie Check, which needs no hardware —

@@ -7,7 +7,6 @@ import {
   signRequest,
   verifyHumanProof,
   worldFrom,
-  worldProblem,
   type WorldConfig,
 } from "../../src/world.js";
 
@@ -440,8 +439,14 @@ describe("hashing a signal the way IDKit does", () => {
  * points at the simulator, and a production app id cannot answer it — so the pair has to agree, and
  * nothing at the World end reports it when they do not.
  */
-describe("staging and production are separate apps", () => {
+/**
+ * Which connect URL a request points at. The docs describe it as a client-side switch on the same app
+ * — "to test during development, use the simulator and set environment to staging" — and say nothing
+ * about a separate app or an id shaped differently, so this file has no opinion about the pairing.
+ */
+describe("the environment a proof request points at", () => {
   const base = {
+    WORLD_APP_ID: "app_ketsuban",
     WORLD_RP_ID: "rp_test",
     WORLD_ACTION: "humanity",
     WORLD_RP_SIGNING_KEY: VECTOR_KEY as Hex,
@@ -450,40 +455,10 @@ describe("staging and production are separate apps", () => {
     WORLD_LEVELS: [],
   };
 
-  it("accepts a production app in production", () => {
-    expect(
-      worldFrom({ ...base, WORLD_APP_ID: "app_prod", WORLD_ENVIRONMENT: "production" })?.environment
-    ).toBe("production");
-  });
-
-  it("accepts a staging app in staging", () => {
-    expect(
-      worldFrom({ ...base, WORLD_APP_ID: "app_staging_abc", WORLD_ENVIRONMENT: "staging" })?.environment
-    ).toBe("staging");
-  });
-
-  /**
-   * Off, not fatal. This is one optional feature of the service, and refusing to start over it takes
-   * every unrelated route down with it — which is what the first version of this check did.
-   */
-  it("turns the humanity check off rather than refusing to start", () => {
-    const mixed = { ...base, WORLD_APP_ID: "app_prod", WORLD_ENVIRONMENT: "staging" as const };
-    expect(() => worldFrom(mixed)).not.toThrow();
-    expect(worldFrom(mixed)).toBeUndefined();
-  });
-
-  it("says which way round it is, so a deployment can be fixed from the message", () => {
-    expect(worldProblem({ WORLD_APP_ID: "app_prod", WORLD_ENVIRONMENT: "staging" })).toContain(
-      "is a production app"
-    );
-    expect(worldProblem({ WORLD_APP_ID: "app_staging_abc", WORLD_ENVIRONMENT: "production" })).toContain(
-      "is a staging app"
-    );
-  });
-
-  it("has nothing to say when the pair agrees, or when there is no app at all", () => {
-    expect(worldProblem({ WORLD_APP_ID: "app_prod", WORLD_ENVIRONMENT: "production" })).toBeUndefined();
-    expect(worldProblem({ WORLD_APP_ID: undefined, WORLD_ENVIRONMENT: "staging" })).toBeUndefined();
+  it("carries whichever environment the deployment was given", () => {
+    for (const env of ["production", "staging", "sandbox"] as const) {
+      expect(worldFrom({ ...base, WORLD_ENVIRONMENT: env })?.environment).toBe(env);
+    }
   });
 
   it("is still simply absent when a part of it is unset", () => {

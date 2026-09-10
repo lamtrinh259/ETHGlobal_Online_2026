@@ -76,7 +76,8 @@ export type Verification = z.infer<typeof verifySchema>;
 export const humanityChallengeSchema = z.object({
   app_id: z.string(),
   action: z.string(),
-  environment: z.enum(["production", "staging"]),
+  // Whichever the attester was configured with; the widget is told rather than deciding.
+  environment: z.enum(["production", "staging", "sandbox"]),
   /** Which credential to ask for; an older API that does not say means the Orb-backed one */
   credential: z.enum(["proof_of_human", "selfie"]).default("proof_of_human"),
   /** What the proof is bound to: the wallet, lower-cased, because a signal is hashed as bytes */
