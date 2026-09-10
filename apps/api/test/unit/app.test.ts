@@ -888,9 +888,12 @@ describe("GET /v1/who — finding a person by an account", () => {
     // A view code is 32 bytes the candidate chose to hand over, so holding it is the permission. With
     // it the masked name can be computed and matched exactly — no scanning, and nothing to guess.
     const viewCode = `0x${"5a".repeat(32)}` as Hex;
+    // The chain holds the pad; the index also decodes it, which is lossy — so a lookup matches on the
+    // raw bytes, and the fixture has to carry them the way a real record does.
     const masked = {
       ...bobOnX,
-      name: maskName("bob", viewCode),
+      name: "\ufffd\ufffd garbled",
+      rawName: maskName("bob", viewCode),
       payload: viewCodeCommitment(viewCode),
     };
     const { chain } = fakeChain({
