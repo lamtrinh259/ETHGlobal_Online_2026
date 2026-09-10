@@ -64,6 +64,15 @@ export const registryAbi = withErrors(
   ])
 );
 
+/**
+ * The `.eth` registry, for the one question the factory cannot answer: which resolver a name is
+ * actually resolved through today. Replacing a resolver changes this and leaves the factory's copy
+ * behind.
+ */
+export const ethRegistryAbi = withErrors(
+  parseAbi(["function getResolver(string label) view returns (address)"])
+);
+
 export const resolverAbi = withErrors(
   parseAbi([
     "function resolve(bytes name, bytes data) view returns (bytes)",
