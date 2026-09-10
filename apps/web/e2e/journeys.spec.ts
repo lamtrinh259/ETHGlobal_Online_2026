@@ -15,10 +15,11 @@ test("verifier form builds a policy URL for the candidate page", async ({ page }
   await page.getByLabel("minimum linked accounts").fill("2");
   await page.getByRole("button", { name: "Check" }).click();
   await expect(page).toHaveURL(/\/p\/alice\?answers=kju-is&minLinks=2&minVouches=3$/);
-  // API unreachable in this run: the page still renders the graded card with failing checks + the error.
-  await expect(page.getByTestId("completeness")).toHaveText("incomplete");
+  // The attester answers, so the card is graded against a real read rather than against nothing.
   await expect(page.getByTestId("checks").locator("li")).toHaveCount(4);
-  await expect(page.locator("main [role=alert]").first()).toBeVisible();
+  await expect(page.getByTestId("policy-line")).toContainText("3");
+  // One live reference against a policy asking for three: the page says so rather than passing it.
+  await expect(page.getByTestId("completeness")).toHaveText("incomplete");
 });
 
 test("the vouch page explains every step in the voucher's own words", async ({ page }) => {

@@ -1259,6 +1259,20 @@ a.score-part-label:hover strong {
 }
 
 /*
+ * A shell command is not prose: wrapping it changes what it says, so it scrolls inside its own box
+ * rather than widening the page it sits on.
+ */
+pre {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+pre > code {
+  overflow-wrap: normal;
+  white-space: pre;
+}
+
+/*
  * Narrow screens. The rows built for a verifier put a name on the right of what it names, which reads
  * well beside it and badly underneath a squeezed version of it — so on a phone the name gets its own
  * line rather than a column two words wide.
@@ -1278,8 +1292,12 @@ a.score-part-label:hover strong {
     margin-left: 0;
     width: 100%;
   }
-  /* An ENS name is long and has no spaces in it; without this it is the widest thing on the page. */
-  code {
+  /* A name or an address is long and has no spaces in it; without this it is the widest thing on the
+     page. Anchors too: a wallet address is usually a link to the wallet it names. */
+  code,
+  .me-head-text a,
+  .acct a,
+  .vouches a {
     overflow-wrap: anywhere;
   }
   .me-head {
