@@ -201,6 +201,53 @@ describe("provisioning a candidate's namespace", () => {
     await expect(chain.ensureVouchInstance("alice")).rejects.toThrow(/root registry/);
     expect(writes.filter((w) => w.functionName === "create")).toEqual([]);
   });
+
+  /** A chain that knows no instances: enough to prove what is refused before anything is written. */
+  function bare() {
+    const chain = new Chain({
+      ...config,
+      REGISTRY: "0x1111111111111111111111111111111111111111",
+      PERMISSIONED_RESOLVER: "0x6666666666666666666666666666666666666666",
+      REGISTRAR_ADDRESS: "0x7777777777777777777777777777777777777777",
+    });
+    const writes: { functionName: string }[] = [];
+    Object.assign(chain, {
+      indexer: { catchUp: async () => undefined },
+      publicClient: {
+        readContract: vi.fn(async ({ functionName }: { functionName: string }) => {
+          if (functionName === "isInstance") return false;
+          if (functionName === "domains") return [];
+          if (functionName === "getDomainState") return { name: zeroHash, isActive: false };
+          if (functionName === "instance") return { registry: zeroAddress, parentName: "" };
+          throw new Error(`unexpected ${functionName}`);
+        }),
+        waitForTransactionReceipt: vi.fn(async () => ({ status: "success", blockNumber: 1n })),
+      },
+      walletClient: {
+        chain: { id: 31337 },
+        account: { address: "0x5555555555555555555555555555555555555555" },
+        writeContract: vi.fn(async (call: { functionName: string }) => {
+          writes.push({ functionName: call.functionName });
+          return "0xfeed";
+        }),
+      },
+    });
+    return { chain, writes };
+  }
+
+  it("refuses an answer with no question to hang it under, rather than creating an orphan", async () => {
+    // `dictator.kju-is.<root>` only means anything beneath the question it answers.
+    const { chain, writes } = bare();
+    await expect(chain.ensureAnswerInstance("kju-is", "dictator")).rejects.toThrow(/kju-is/);
+    expect(writes.filter((w) => w.functionName === "create")).toEqual([]);
+  });
+
+  it("refuses an answer that cannot be a label, before anything is written", async () => {
+    // "!!!" has no label, so there is no name it could ever have taken.
+    const { chain, writes } = bare();
+    await expect(chain.ensureAnswerInstance("kju-is", "!!!")).rejects.toThrow(/answer/i);
+    expect(writes).toEqual([]);
+  });
 });
 
 describe("relaying a signed record", () => {

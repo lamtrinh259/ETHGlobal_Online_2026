@@ -18,6 +18,8 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 import { MultipassAbi, fromBytes32, toBytes32 } from "@peeramid-labs/multipass-client";
 import {
+  answerDomain,
+  answerSlug,
   groupingFor,
   isDnsName,
   PLATFORM_DOMAIN_NAMES,
@@ -256,30 +258,75 @@ export class Chain {
    * Needs the relayer to own Multipass, the factory and the root registry.
    */
   async ensureVouchInstance(handle: string): Promise<{ domain: string; created: boolean }> {
-    const domain = `${this.config.VOUCH_PREFIX}${handle}`;
-    const domainB = toBytes32(domain);
-    // The bridge grants a voucher the text-record roles for their letter, and it consults its own
-    // factory to do it. A namespace built by a newer factory would be invisible there, so a candidate's
-    // instance belongs in the bridge's — both are read, so nothing already created is duplicated.
-    const factory = this.config.FACTORY;
-    const known = await Promise.all(
-      [...new Set([factory, this.config.FACTORY])].map((address) =>
-        this.publicClient.readContract({
-          address,
-          abi: factoryAbi,
-          functionName: "isInstance",
-          args: [domainB],
-        })
-      )
-    );
-    if (known.some(Boolean)) return { domain, created: false };
-    const { REGISTRY, PERMISSIONED_RESOLVER, REGISTRAR_ADDRESS } = this.config;
-    if (!REGISTRY || !PERMISSIONED_RESOLVER || !REGISTRAR_ADDRESS)
+    const { REGISTRY } = this.config;
+    if (!REGISTRY)
       throw new Error("vouch instances need REGISTRY, PERMISSIONED_RESOLVER and REGISTRAR_ADDRESS");
     const rootParent = (await this.instances()).find(
       (i) => i.registry.toLowerCase() === REGISTRY.toLowerCase()
     )?.parentName;
     if (!rootParent) throw new Error("root registry is not a known instance");
+    return this.ensureChildInstance({
+      domain: `${this.config.VOUCH_PREFIX}${handle}`,
+      label: handle,
+      parentRegistry: REGISTRY,
+      parentName: rootParent,
+    });
+  }
+
+  /**
+   * The namespace everyone who gave one answer shares.
+   *
+   * Multipass keys a record by its domain, so "everyone who said `dictator`" is a domain of its own,
+   * mounted beneath the question it answers: `dictator.kju-is.<root>`. Two people answering the same
+   * thing are then two records in one domain rather than two claims on one name.
+   */
+  async ensureAnswerInstance(
+    question: string,
+    answer: string
+  ): Promise<{ domain: string; created: boolean }> {
+    const slug = answerSlug(answer);
+    const domain = answerDomain(question, answer);
+    if (!slug || !domain) throw new Error(`"${answer}" cannot be an answer namespace: it has no label`);
+    const parent = (await this.instances()).find((i) => i.domain === question);
+    if (!parent) throw new Error(`no instance called "${question}" to hang an answer under`);
+    return this.ensureChildInstance({
+      domain,
+      label: slug,
+      parentRegistry: parent.registry,
+      parentName: parent.parentName,
+    });
+  }
+
+  /**
+   * Create one instance beneath another, and point the parent registry at it.
+   *
+   * Shared by every namespace that hangs off a name rather than a DNS path — a candidate's vouch
+   * domain and an answer's — because when those were written twice they drifted, and the difference
+   * only showed up as a revert on someone else's write.
+   */
+  private async ensureChildInstance(opts: {
+    domain: string;
+    label: string;
+    parentRegistry: Address;
+    parentName: string;
+  }): Promise<{ domain: string; created: boolean }> {
+    const { domain, label, parentRegistry, parentName } = opts;
+    const domainB = toBytes32(domain);
+    // The bridge grants text-record roles by consulting its own factory. A namespace built by a newer
+    // factory would be invisible there, so these belong in the bridge's.
+    const factory = this.config.FACTORY;
+    const known = await this.publicClient.readContract({
+      address: factory,
+      abi: factoryAbi,
+      functionName: "isInstance",
+      args: [domainB],
+    });
+    if (known) return { domain, created: false };
+
+    const { PERMISSIONED_RESOLVER, REGISTRAR_ADDRESS } = this.config;
+    if (!PERMISSIONED_RESOLVER || !REGISTRAR_ADDRESS)
+      throw new Error("child instances need REGISTRY, PERMISSIONED_RESOLVER and REGISTRAR_ADDRESS");
+
     const w = { chain: this.walletClient.chain, account: this.walletClient.account! };
     const mpState = await this.publicClient.readContract({
       address: this.config.MULTIPASS,
@@ -315,7 +362,7 @@ export class Chain {
         address: factory,
         abi: factoryAbi,
         functionName: "create",
-        args: [domainB, REGISTRY, handle, `${handle}.${rootParent}`, PERMISSIONED_RESOLVER],
+        args: [domainB, parentRegistry, label, `${label}.${parentName}`, PERMISSIONED_RESOLVER],
       })
     );
     const inst = await this.publicClient.readContract({
@@ -327,10 +374,10 @@ export class Chain {
     await this.wait(
       await this.walletClient.writeContract({
         ...w,
-        address: REGISTRY,
+        address: parentRegistry,
         abi: registryAbi,
         functionName: "setSubregistry",
-        args: [handle, inst.registry],
+        args: [label, inst.registry],
       })
     );
     this.mountsChanged();
