@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { formatEther, type Address } from "viem";
@@ -22,6 +23,7 @@ import { OwnName } from "./OwnName";
 import { OnChain } from "./OnChain";
 import { ReadPermission } from "./ReadPermission";
 import { ProfileEditor } from "./ProfileEditor";
+import { ReferSomeone } from "./ReferSomeone";
 import { ENOUGH_WEI, FundWallet } from "./FundWallet";
 
 /**
@@ -31,6 +33,7 @@ import { ENOUGH_WEI, FundWallet } from "./FundWallet";
  */
 export function Dashboard() {
   const config = useWebConfig();
+  const router = useRouter();
   const api = useMemo(() => apiFor(config), [config]);
   const { ready, authenticated, login } = usePrivy();
   const { wallets } = useWallets();
@@ -211,36 +214,43 @@ export function Dashboard() {
         </Step>
       )}
 
-      {handle && subjectRows.length > 0 && (
-        <Step n={5} title="Your answers" state={answered.length === subjectRows.length ? "done" : "now"}>
-          <p className="muted">Each answer is its own permanent name under yours.</p>
-          <ul className="acct" data-testid="answers">
-            {subjectRows.map((r) => (
-              <li key={r.domain} data-testid={`answer-${r.domain}`}>
-                {/* The question, not the domain it lives in: nobody outside this repo knows `kju-is`. */}
-                <span className="acct-who">{questionTitle(r.domain)}</span>
-                <small className="muted">
-                  {r.live?.payload ? `“${r.live.payload}”` : "not answered"} · {r.ensName}
-                </small>
-                <span className="acct-state">
-                  <button
-                    className="linkish"
-                    onClick={() =>
-                      setPublishing({
-                        domain: r.domain,
-                        title: questionTitle(r.domain),
-                        answer: questionFor(r.domain),
-                      })
-                    }
-                  >
-                    {r.live ? "change" : "answer now"}
-                  </button>
-                </span>
-              </li>
-            ))}
-          </ul>
-        </Step>
-      )}
+      <Step n={5} title="Refer someone" state={d.given.length > 0 ? "done" : "now"}>
+        <ReferSomeone
+          onGo={(who, ask) => router.push(`/vouch/${who}${ask ? `?ask=${encodeURIComponent(ask.id)}` : ""}`)}
+        />
+        {subjectRows.length > 0 && (
+          <details data-testid="answers-advanced">
+            <summary className="muted">Your own answers</summary>
+            <ul className="acct" data-testid="answers">
+              {subjectRows.map((r) => (
+                <li key={r.domain} data-testid={`answer-${r.domain}`}>
+                  {/* The question, not the domain it lives in: nobody outside this repo knows `kju-is`. */}
+                  <span className="acct-id">
+                    <strong>{questionTitle(r.domain)}</strong>
+                    <small className="muted">
+                      {r.live?.payload ? `“${r.live.payload}”` : "not answered"} · {r.ensName}
+                    </small>
+                  </span>
+                  <span className="acct-state">
+                    <button
+                      className="linkish"
+                      onClick={() =>
+                        setPublishing({
+                          domain: r.domain,
+                          title: questionTitle(r.domain),
+                          answer: questionFor(r.domain),
+                        })
+                      }
+                    >
+                      {r.live ? "change" : "answer now"}
+                    </button>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
+      </Step>
 
       <Step n={6} title="References" state={liveVouchers.length > 0 ? "done" : handle ? "now" : "todo"}>
         {handle ? (

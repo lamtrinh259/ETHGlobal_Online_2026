@@ -127,60 +127,61 @@ export async function verifyPublicLeg(
 }
 
 /**
- * A vouch domain belongs to its candidate: only someone they invited may write a statement there.
- * The invitation is signed by the wallet that holds the candidate's name, which the caller reads on
- * chain, so nothing here trusts the browser.
+ * Did the candidate ask for this reference.
+ *
+ * Anyone may write one: standing comes from who signs it, not from whether the subject allowed it, and
+ * a rule that only invited people may speak would make a reference worth less, not more. What the
+ * candidate asked for is still a fact about the reference, so it is reported and never enforced.
+ *
+ * The invitation counts only when the wallet holding the candidate's name signed it, which the caller
+ * reads on chain — anyone can sign an "invitation" from themselves.
  */
-export async function verifyInvite(req: AttestRequest, onchain: OnchainState, env: AttestEnv): Promise<void> {
+export async function solicitedBy(
+  req: AttestRequest,
+  onchain: OnchainState,
+  env: AttestEnv
+): Promise<boolean> {
   const prefixes = env.nameDomainPrefixes ?? DEFAULT_NAME_DOMAIN_PREFIXES;
   const candidate = candidateOf(req.intent.domain, prefixes);
-  if (candidate === undefined) return;
-  if (env.requireInvite === false) return;
-
-  // The candidate invites a voucher once. Afterwards that voucher owns their own statement there and
-  // can update or withdraw it without asking again — otherwise a withdrawal would need permission
-  // from the person being vouched for.
-  if (onchain.exists) return;
-
-  // An onboarded organisation issues letters without being invited: a university writes to a graduate
-  // who has never heard of this product, and the graduate claims the handle later. The organisation is
-  // accountable because the letter carries its own name, and only the operator onboards one.
-  if (onchain.issuerOrg) return;
-
+  if (candidate === undefined) return false;
   const invite = req.invite;
-  if (!invite) throw new Error(`invite: ${req.intent.domain} needs the candidate's invitation`);
-  if (invite.handle !== candidate) throw new Error("invite: for a different candidate");
-  if (invite.exp <= BigInt(env.now)) throw new Error("invite: expired");
+  if (!invite) return false;
+  if (invite.handle !== candidate) return false;
+  if (invite.exp <= BigInt(env.now)) return false;
   if (
     invite.voucher.toLowerCase() !== ZERO_ADDRESS &&
     invite.voucher.toLowerCase() !== req.intent.wallet.toLowerCase()
   ) {
-    throw new Error("invite: issued to a different wallet");
+    return false;
   }
   const candidateWallet = onchain.candidateWallet;
-  if (!candidateWallet || candidateWallet.toLowerCase() === ZERO_ADDRESS) {
-    throw new Error(`invite: ${candidate} holds no live name to invite from`);
-  }
+  if (!candidateWallet || candidateWallet.toLowerCase() === ZERO_ADDRESS) return false;
   const signer = await recoverInviteSigner(
     { handle: invite.handle, voucher: invite.voucher, exp: invite.exp },
     invite.signature,
     inviteDomain(env.chainId, env.multipass)
   );
-  if (signer.toLowerCase() !== candidateWallet.toLowerCase()) {
-    throw new Error("invite: not signed by the candidate");
-  }
+  return signer.toLowerCase() === candidateWallet.toLowerCase();
 }
 
 /**
- * Confidential leg (B.4 `confidentialLeg`): identity token, secrets, preimages.
- * Everything here is local computation; nothing leaves except the signed
- * record and, if opted in, the view code encrypted to the user.
+ * A deployment that wants the closed behaviour keeps it behind `requireInvite`. The default is open:
+ * see `solicitedBy`.
  */
-/**
- * Sign a record as the domain registrar. `attestConfidential` derives its record from a person's
- * identity token; an organisation has no such token — it is a wallet an operator onboarded — so the
- * fields are given directly and only the signing is shared.
- */
+export async function verifyInvite(req: AttestRequest, onchain: OnchainState, env: AttestEnv): Promise<void> {
+  if (env.requireInvite !== true) return;
+  const prefixes = env.nameDomainPrefixes ?? DEFAULT_NAME_DOMAIN_PREFIXES;
+  const candidate = candidateOf(req.intent.domain, prefixes);
+  if (candidate === undefined) return;
+
+  // A voucher who already holds a record there may update or withdraw it without asking again.
+  if (onchain.exists) return;
+  if (onchain.issuerOrg) return;
+  if (!(await solicitedBy(req, onchain, env))) {
+    throw new Error(`invite: ${req.intent.domain} needs the candidate's invitation`);
+  }
+}
+
 export async function signRecord(
   record: RegisterMessage,
   registrarKey: Hex,

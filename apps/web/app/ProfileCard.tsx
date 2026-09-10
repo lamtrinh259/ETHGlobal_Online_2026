@@ -143,11 +143,22 @@ export function ProfileCard({ p, rootParent, policy }: { p: Profile; rootParent:
       ) : (
         <ul className="vouches" data-testid="vouches">
           {p.vouches.map((v) => (
-            <li key={`${v.voucher}-${v.nonce}`} className={v.live ? "live" : "expired"}>
+            <li
+              key={`${v.voucher}-${v.nonce}`}
+              className={v.live ? "live" : "expired"}
+              data-testid={`vouch-${v.voucher}`}
+            >
               <span className="vouch-who">
                 <Link href={`/p/${v.voucher}`}>
                   <code>{v.voucherName ?? v.voucher}</code>
                 </Link>
+                {/* Anyone may refer anyone; a reader is owed the difference between a reference the
+                    subject asked for and one that simply arrived. */}
+                {!v.solicited && (
+                  <span className="badge badge-unsolicited" title="the subject did not ask for this one">
+                    unsolicited
+                  </span>
+                )}
                 {v.standing && (
                   <small className="muted" data-testid="standing">
                     {" "}

@@ -815,6 +815,10 @@ describe("GET /v1/vouches/:handle", () => {
           validUntil: "2027-01-15T08:00:00.000Z",
           nonce: "1",
           live: true,
+          // Nobody invited these in this fixture: anyone may refer anyone, and the card says which
+          // references the candidate actually asked for.
+          solicited: false,
+          invite: null,
           standing: { claimed: true, given: 2, received: 2 },
           letter: "Bob managed the platform team at Acme while Alice led infra.",
         },
@@ -827,6 +831,8 @@ describe("GET /v1/vouches/:handle", () => {
           validUntil: "2023-11-14T22:13:20.000Z",
           nonce: "2",
           live: false,
+          solicited: false,
+          invite: null,
           standing: null,
           letter: null,
         },
@@ -853,7 +859,8 @@ describe("POST /v1/attest — vouch invitations", () => {
   /** Alice holds her name, so her wallet is the one that may invite vouchers. */
   const aliceHolds = { names: { "kju-is/alice": { taken: true, wallet: user.account.address, live: true } } };
 
-  it("refuses a statement with no invitation and accepts one the candidate signed", async () => {
+  it("takes a statement from anyone, and remembers which ones the candidate asked for", async () => {
+    // Non-permissioned: a reference nobody asked for is still a reference, and it says so.
     const { chain } = fakeChain(aliceHolds);
     const a = app(chain);
     const idToken = privy.mint({ sub: user.did, linked: user.linked, now: NOW });
@@ -861,9 +868,9 @@ describe("POST /v1/attest — vouch invitations", () => {
     const bare = toWire(
       await signedAttestRequest(user.account, vouchIntent(NOW), idToken, 31337, baseEnv.MULTIPASS as Hex)
     );
-    const refused = await post(a, "/v1/attest", bare);
-    expect(refused.status).toBe(422);
-    expect((await refused.json()).error).toContain("needs the candidate's invitation");
+    const uninvited = await post(a, "/v1/attest", bare);
+    expect(uninvited.status).toBe(200);
+    expect((await uninvited.json()).record.domainName).toBe(toBytes32("~alice"));
 
     const invited = toWire(
       await signedAttestRequest(
@@ -910,7 +917,39 @@ describe("POST /v1/attest — vouch invitations", () => {
     expect(chain.readOnchain).toHaveBeenCalledWith(user.account.address, "org");
   });
 
-  it("refuses an invitation signed by someone who does not hold the candidate's name", async () => {
+  it("marks a reference the candidate invited, and carries the invitation for a reader to check", async () => {
+    const written = {
+      name: "bob",
+      id: toBytes32("b"),
+      wallet: user.account.address,
+      payload: toBytes32("worked together 2019-22"),
+      validUntil: 1_800_000_000n,
+      nonce: 1n,
+      live: true,
+    };
+    const { chain } = fakeChain({ ...aliceHolds, listed: { "~alice": [written] } });
+    const a = app(chain);
+    const invite = await signedInvite(user.account, "alice", NOW, 31337, baseEnv.MULTIPASS as Hex);
+    const wire = toWire(
+      await signedAttestRequest(
+        user.account,
+        { ...vouchIntent(NOW), handle: "bob" },
+        privy.mint({ sub: user.did, linked: user.linked, now: NOW }),
+        31337,
+        baseEnv.MULTIPASS as Hex,
+        invite
+      )
+    );
+    expect((await post(a, "/v1/attest", wire)).status).toBe(200);
+
+    const listed = await (await a.request("/v1/vouches/alice")).json();
+    const bob = listed.vouches.find((v: { voucher: string }) => v.voucher === "bob");
+    expect(bob.solicited).toBe(true);
+    // The signature travels with it: a verifier recovers the signer themselves rather than trusting us.
+    expect(bob.invite).toMatchObject({ handle: "alice", signature: invite.signature });
+  });
+
+  it("does not count an invitation signed by someone who does not hold the candidate's name", async () => {
     const { chain } = fakeChain(aliceHolds);
     const idToken = privy.mint({ sub: user.did, linked: user.linked, now: NOW });
     const wire = toWire(
@@ -923,15 +962,18 @@ describe("POST /v1/attest — vouch invitations", () => {
         await signedInvite(registrar, "alice", NOW, 31337, baseEnv.MULTIPASS as Hex)
       )
     );
+    // Anyone can sign an "invitation" from themselves; only the wallet holding alice's name counts.
+    // The reference is still written — it simply does not get to claim she asked for it.
     const res = await post(app(chain), "/v1/attest", wire);
-    expect(res.status).toBe(422);
-    expect((await res.json()).error).toBe("invite: not signed by the candidate");
+    expect(res.status).toBe(200);
+    const listed = await (await app(chain).request("/v1/vouches/alice")).json();
+    expect(listed.vouches.every((v: { solicited: boolean }) => !v.solicited)).toBe(true);
   });
 
-  it("a deployment may switch invitations off", async () => {
+  it("a deployment may switch invitations back on", async () => {
     const { chain } = fakeChain(aliceHolds);
     const open = createApp({
-      config: loadConfig({ ...baseEnv, REQUIRE_INVITE: "false" }),
+      config: loadConfig({ ...baseEnv, REQUIRE_INVITE: "true" }),
       chain,
       now: () => NOW,
     });
@@ -944,7 +986,10 @@ describe("POST /v1/attest — vouch invitations", () => {
         baseEnv.MULTIPASS as Hex
       )
     );
-    expect((await post(open, "/v1/attest", wire)).status).toBe(200);
+    // Closed again: the uninvited are refused, as a deployment that asked for that expects.
+    const refused = await post(open, "/v1/attest", wire);
+    expect(refused.status).toBe(422);
+    expect((await refused.json()).error).toContain("needs the candidate's invitation");
   });
 });
 

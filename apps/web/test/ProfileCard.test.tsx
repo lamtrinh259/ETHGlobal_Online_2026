@@ -32,6 +32,8 @@ const profile: Profile = {
       validUntil: "2027-01-01T00:00:00.000Z",
       nonce: "1",
       live: true,
+      solicited: true,
+      invite: null,
       standing: { claimed: true, given: 4, received: 2 },
       letter: "Bob ran the platform team at Acme while Alice led infra.",
     },
@@ -43,6 +45,8 @@ const profile: Profile = {
       validUntil: "2025-01-01T00:00:00.000Z",
       nonce: "1",
       live: false,
+      solicited: true,
+      invite: null,
     },
   ],
   checks: [
@@ -72,6 +76,18 @@ describe("ProfileCard", () => {
       "href",
       "/v/bob.alice.ketsuban.eth"
     );
+  });
+
+  it("marks a reference nobody asked for, without hiding it", () => {
+    // Anyone may refer anyone, so a reader needs to know which references the subject asked for. It is
+    // a note on the reference, not a reason to leave it out.
+    const vouches = [
+      { ...profile.vouches[0], voucher: "bob", solicited: true },
+      { ...profile.vouches[0], voucher: "mallory", solicited: false },
+    ];
+    render(<ProfileCard p={{ ...profile, vouches }} rootParent="ketsuban.eth" />);
+    expect(screen.getByTestId("vouch-mallory")).toHaveTextContent(/unsolicited/i);
+    expect(screen.getByTestId("vouch-bob")).not.toHaveTextContent(/unsolicited/i);
   });
 
   it("says what each answer answers, not the domain it happens to live in", () => {

@@ -7,7 +7,7 @@ import {
   registerNameTypes,
   toBytes32,
 } from "@peeramid-labs/multipass-client";
-import { attest, attestConfidential, idToBytes32, verifyPublicLeg } from "../src/attest.js";
+import { attest, attestConfidential, idToBytes32, solicitedBy, verifyPublicLeg } from "../src/attest.js";
 import { eciesDecrypt } from "../src/ecies.js";
 import {
   DID,
@@ -176,27 +176,46 @@ describe("attest — vouch instance (~candidate) domain", () => {
     ).rejects.toThrow("unknown domain");
   });
 
-  it("needs the candidate's invitation: nobody writes into a stranger's vouch domain", async () => {
+  it("lets anyone write a reference, and reports whether the candidate asked for it", async () => {
+    // Non-permissioned by design: a reference is a claim its writer signs, and it carries the weight of
+    // who they are. Whether the subject asked is a fact about the reference, not permission to make one.
     const intent = makeIntent({ domain: "~alice", handle: "bob", payload: toBytes32("hi") });
     const vouch = (invite?: Awaited<ReturnType<typeof makeInvite>>, onchain = noVouchRecord) =>
       signedRequest(intent, undefined, undefined, invite).then((req) => verifyPublicLeg(req, onchain, env));
+    const asked = (invite?: Awaited<ReturnType<typeof makeInvite>>, onchain = noVouchRecord) =>
+      signedRequest(intent, undefined, undefined, invite).then((req) => solicitedBy(req, onchain, env));
 
-    await expect(vouch()).rejects.toThrow("invite: ~alice needs the candidate's invitation");
-    await expect(vouch(await makeInvite({ handle: "carol" }))).rejects.toThrow("for a different candidate");
-    await expect(vouch(await makeInvite({ exp: BigInt(NOW - 1) }))).rejects.toThrow("invite: expired");
-    await expect(vouch(await makeInvite({ voucher: registrarAccount.address }))).rejects.toThrow(
-      "issued to a different wallet"
+    // Nobody is turned away, invitation or not.
+    await expect(vouch()).resolves.toBeUndefined();
+    await expect(vouch(await makeInvite())).resolves.toBeUndefined();
+
+    // And the invitation is reported only when it really is the candidate's, checked against the
+    // wallet that holds their name — anyone can sign an "invitation" from themselves.
+    expect(await asked()).toBe(false);
+    expect(await asked(await makeInvite())).toBe(true);
+    expect(await asked(await makeInvite({ voucher: userAccount.address }))).toBe(true);
+    expect(await asked(await makeInvite({ handle: "carol" }))).toBe(false);
+    expect(await asked(await makeInvite({ exp: BigInt(NOW - 1) }))).toBe(false);
+    expect(await asked(await makeInvite({ voucher: registrarAccount.address }))).toBe(false);
+    expect(await asked(await makeInvite({}, registrarAccount))).toBe(false);
+    expect(await asked(await makeInvite(), { ...noVouchRecord, candidateWallet: undefined } as never)).toBe(
+      false
     );
-    await expect(vouch(await makeInvite({}, registrarAccount))).rejects.toThrow(
-      "not signed by the candidate"
+  });
+
+  it("still turns away the uninvited where a deployment asked for that", async () => {
+    const intent = makeIntent({ domain: "~alice", handle: "bob", payload: toBytes32("hi") });
+    const closed = { ...env, requireInvite: true };
+    await expect(verifyPublicLeg(await signedRequest(intent), noVouchRecord, closed)).rejects.toThrow(
+      "invite: ~alice needs the candidate's invitation"
     );
     await expect(
-      vouch(await makeInvite(), { ...noVouchRecord, candidateWallet: undefined } as never)
-    ).rejects.toThrow("alice holds no live name to invite from");
-
-    // The open invitation, and one issued to this exact voucher, both pass.
-    await expect(vouch(await makeInvite())).resolves.toBeUndefined();
-    await expect(vouch(await makeInvite({ voucher: userAccount.address }))).resolves.toBeUndefined();
+      verifyPublicLeg(
+        await signedRequest(intent, undefined, undefined, await makeInvite()),
+        noVouchRecord,
+        closed
+      )
+    ).resolves.toBeUndefined();
   });
 
   it("a voucher who already holds a record there may update or withdraw it without a new invitation", async () => {
@@ -220,10 +239,11 @@ describe("attest — vouch instance (~candidate) domain", () => {
     const asOrg = { exists: false, nonce: 0n, id: zeroHash, wallet: userAccount.address, issuerOrg: true };
     await expect(verifyPublicLeg(await signedRequest(intent), asOrg, env)).resolves.toBeUndefined();
 
+    // And so does anyone else: a person writing for a handle nobody has claimed is the same act, and
+    // the reference simply says nobody asked for it.
     const asPerson = { ...asOrg, issuerOrg: false };
-    await expect(verifyPublicLeg(await signedRequest(intent), asPerson, env)).rejects.toThrow(
-      "needs the candidate's invitation"
-    );
+    await expect(verifyPublicLeg(await signedRequest(intent), asPerson, env)).resolves.toBeUndefined();
+    expect(await solicitedBy(await signedRequest(intent), asPerson, env)).toBe(false);
   });
 
   it("refuses a handle a platform namespace already owns", async () => {

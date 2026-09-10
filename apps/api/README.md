@@ -38,7 +38,9 @@ CORS: `CORS_ORIGINS` (comma list, default `*`) — set it to the web app origin 
 | `GET /v1/vouches/:handle` | Every reference written under the candidate: records in the `~<handle>` vouch domain (Registered/Renewed logs from `DEPLOY_BLOCK`, current state per id, liveness), each live one with the voucher's standing and the long-form `letter` they wrote as a `description` text record. |
 
 A statement in a vouch domain (`~alice`) is refused unless the request carries an invitation signed by
-the wallet that holds `alice` in the root name domain (`REQUIRE_INVITE`, on by default). Two wallets
+the wallet that holds `alice` in the root name domain (`REQUIRE_INVITE`, off by default: anyone may
+refer anyone, and a reference the candidate never asked for is reported as `solicited: false` rather
+than refused). Two wallets
 need no invitation: one that already holds a record there, so it can update or withdraw its own
 statement, and a holder of a record in `ORG_DOMAIN` (default `org`) — an onboarded organisation issuing
 a letter to someone who has not claimed their handle yet. The attest

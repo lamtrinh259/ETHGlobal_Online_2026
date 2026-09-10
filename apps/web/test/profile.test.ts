@@ -74,6 +74,8 @@ describe("assessProfile", () => {
           validUntil: "2027-01-01T00:00:00.000Z",
           nonce: "1",
           live: true,
+          solicited: false,
+          invite: null,
         },
         {
           voucher: "bob",
@@ -83,6 +85,8 @@ describe("assessProfile", () => {
           validUntil: "2026-01-01T00:00:00.000Z",
           nonce: "0",
           live: false,
+          solicited: false,
+          invite: null,
         },
         {
           voucher: "carol",
@@ -92,6 +96,8 @@ describe("assessProfile", () => {
           validUntil: "2027-01-01T00:00:00.000Z",
           nonce: "1",
           live: true,
+          solicited: false,
+          invite: null,
         },
       ]
     );
@@ -129,6 +135,8 @@ describe("assessProfile", () => {
       validUntil: "2027-01-01T00:00:00.000Z",
       nonce: "2",
       live: true,
+      solicited: false,
+      invite: null,
     });
     const p = assessProfile(
       "alice",

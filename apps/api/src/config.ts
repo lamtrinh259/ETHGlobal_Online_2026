@@ -84,13 +84,14 @@ export const configSchema = z.object({
    */
   DEPLOY_BLOCK: z.coerce.number().int().nonnegative().default(0),
   /**
-   * Whether a statement in a vouch domain needs the candidate's signed invitation. On by default:
-   * without it anyone could write into a stranger's vouch domain.
+   * Whether a statement in a vouch domain needs the candidate's signed invitation. Off by default:
+   * anyone may refer anyone, and a reference the candidate never asked for is reported as unsolicited
+   * rather than refused. A deployment that wants the closed behaviour sets this to `true`.
    */
   REQUIRE_INVITE: z
     .string()
-    .default("true")
-    .transform((v) => v !== "false"),
+    .default("false")
+    .transform((v) => v === "true"),
   /**
    * Multipass domain whose holders are onboarded organisations. A holder may issue a reference for a
    * handle nobody has claimed yet, which is how a university writes to a graduate who has never heard

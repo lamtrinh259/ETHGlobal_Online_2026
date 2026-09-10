@@ -984,3 +984,10 @@ details.advanced[open] > summary {
 .me-avatar-url input {
   font-size: 12px;
 }
+
+/* A reference nobody asked for is still a reference; the note is a caution, not a dismissal. */
+.badge-unsolicited {
+  margin-left: 6px;
+  color: var(--warning, #a16207);
+  border-color: currentColor;
+}

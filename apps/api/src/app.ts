@@ -8,6 +8,7 @@ import { bytesToHex, keccak256, stringToBytes, zeroAddress, zeroHash, type Addre
 import { privateKeyToAccount } from "viem/accounts";
 import {
   candidateOf,
+  solicitedBy,
   attest,
   checkAudience,
   checkDisclosure,
@@ -517,6 +518,31 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
    * Node registrar fallback (spec B.9.7): same input and byte-identical output as the enclave.
    * Enabled only when REGISTRAR_KEY / VIEWCODE_KEY are configured.
    */
+  /**
+   * References the candidate asked for, by `<candidate>:<voucher>`. Anyone may write a reference, so
+   * this records which ones were invited — with the invitation itself, so the claim is checkable by
+   * whoever reads it rather than trusted because this service says so.
+   */
+  const solicitedStore = new PersistentMap<{ handle: string; voucher: Address; exp: string; signature: Hex }>(
+    "solicited",
+    config.DATA_DIR || undefined,
+    (raw) => raw as { handle: string; voucher: Address; exp: string; signature: Hex },
+    (value) => value
+  );
+
+  async function rememberSolicited(req: AttestRequest): Promise<void> {
+    const candidate = candidateOf(req.intent.domain, [config.VOUCH_PREFIX]);
+    if (!candidate || !req.invite) return;
+    const onchain = await readFor(req);
+    if (!(await solicitedBy(req, onchain, await env()))) return;
+    solicitedStore.set(`${candidate}:${req.intent.handle}`, {
+      handle: req.invite.handle,
+      voucher: req.invite.voucher,
+      exp: req.invite.exp.toString(),
+      signature: req.invite.signature,
+    });
+  }
+
   app.post("/v1/attest", async (c) => {
     if (!config.REGISTRAR_KEY || !config.VIEWCODE_KEY) return c.json({ error: "registrar disabled" }, 501);
     const parsed = wireRequest.safeParse(await c.req.json().catch(() => null));
@@ -543,6 +569,9 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     } catch (e) {
       return c.json({ error: (e as Error).message }, 422);
     }
+    // Whether the candidate asked for this reference: a fact about it, kept so the card can say so.
+    // The invitation is kept with it, so a reader can check the signature rather than take our word.
+    await rememberSolicited(req);
     // Only now, with the account proven: the signature is worthless until the domain exists on chain.
     if (plan.mount) {
       try {
@@ -1159,6 +1188,10 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
         ensName: vouchInstance ? `${r.name}.${vouchInstance.parentName}` : null,
         wallet: r.wallet,
         statement: fromBytes32(r.payload),
+        // Anyone may refer anyone; this says whether the candidate asked. The invitation travels with
+        // it so a verifier can recover the signer themselves.
+        solicited: !!solicitedStore.get(`${handle}:${r.name}`),
+        invite: solicitedStore.get(`${handle}:${r.name}`) ?? null,
         validUntil: new Date(Number(r.validUntil) * 1000).toISOString(),
         nonce: r.nonce.toString(),
         live: r.live,

@@ -130,8 +130,14 @@ how a verifier judges the person speaking, not just the sentence.
    resolve independently.
 5. `/w/<address>` — the same from an address rather than a handle.
 
-Two rules the UI enforces before a wallet signs anything: only someone the candidate invited can write
-a reference for them, and a domain that cannot be written disables the button with the reason.
+Referring is non-permissioned: anyone may write a reference for anyone, and the subject need not have
+claimed a handle yet. A reference the candidate did not ask for is written all the same and reported
+as `solicited: false`, which the card shows as an **unsolicited** badge — a note on the reference, not
+a barrier to it. When the candidate did invite the writer, their signed invitation travels with the
+reference so a verifier recovers the signer themselves rather than trusting this service.
+
+`REQUIRE_INVITE=true` restores the closed behaviour for a deployment that wants it. The UI still
+disables the button, with the reason, for a domain that cannot be written.
 
 ## 6. A letter before the person
 

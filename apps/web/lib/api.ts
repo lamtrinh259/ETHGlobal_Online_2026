@@ -69,6 +69,12 @@ export const vouchesSchema = z.object({
       validUntil: z.string(),
       nonce: z.string(),
       live: z.boolean(),
+      /** Whether the candidate asked for this reference; anyone may write one either way */
+      solicited: z.boolean().default(false),
+      invite: z
+        .object({ handle: z.string(), voucher: z.string(), exp: z.string(), signature: z.string() })
+        .nullable()
+        .default(null),
       standing: z
         .object({ claimed: z.boolean(), given: z.number(), received: z.number() })
         .nullable()
