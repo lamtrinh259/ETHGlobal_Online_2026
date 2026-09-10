@@ -55,8 +55,9 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-      - uses: foundry-rs/foundry-toolchain@v1
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter "./packages/**" run build
+      # No Foundry here on purpose: forge runs inside the deploy container, the ABIs it needs are checked
+      # in, and the toolchain download is the one step of this job that fails on its own.
+      - run: pnpm --filter @ketsuban/registrar build
       # anvil, the contracts deployed from this source, and the api image: the whole loop from outside.
       - run: pnpm --filter @ketsuban/api test:e2e
