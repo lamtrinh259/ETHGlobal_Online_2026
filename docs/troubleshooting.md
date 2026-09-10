@@ -64,3 +64,19 @@ the index. Lower it and restart; the snapshot in `DATA_DIR` resumes from where i
 
 Never stand in for "unwritable" with a path under `/proc`: `mkdir` there never returns on Linux. Use a
 directory beneath a regular file, which fails with `ENOTDIR` immediately everywhere.
+
+## A share I made is gone after a redeploy
+
+Grants live wherever `DATA_DIR` points. With it unset they are held in memory, so restarting the
+service — any redeploy — drops every permission anyone granted, silently. `GET /healthz` says which
+you have:
+
+```json
+{ "config": { "storage": { "dataDir": null, "durable": false } } }
+```
+
+`durable: false` means set `DATA_DIR` to a mounted path and redeploy.
+
+A grant written by an older build is dropped rather than revived: its shape is not one this build can
+read, and reviving it anyway put an unusable row in the list that took every other share down with it.
+Re-share the account and the new grant persists normally.

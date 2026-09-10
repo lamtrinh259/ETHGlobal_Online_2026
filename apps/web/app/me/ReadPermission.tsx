@@ -6,6 +6,7 @@ import type { Address, Hex } from "viem";
 import type { Api, WalletDashboard } from "@/lib/api";
 import { CopyButton } from "@/app/CopyButton";
 import { Switch } from "@/app/Switch";
+import { Modal } from "@/app/Modal";
 import { useWebConfig } from "@/app/providers";
 import {
   buildDisclosure,
@@ -63,6 +64,7 @@ export function ReadPermission({ api, links, name }: Props) {
   const live = useDisclosures(api, name);
   const revoking = useRevoke(api, name);
   const [taking, setTaking] = useState<Hex>();
+  const [adding, setAdding] = useState(false);
   const masked = links.filter((l) => l.live && l.optedIn);
   const siteUrl = typeof window === "undefined" ? "" : window.location.origin;
 
@@ -120,6 +122,8 @@ export function ReadPermission({ api, links, name }: Props) {
       );
       const ack = await api.disclose(toDisclosureWire(disclosure, boxes, signature as Hex));
       setGranted({ id: ack.id, domains: disclosure.domains, expiresAt: ack.expiresAt, audience: only });
+      setAdding(false);
+      setPicked([]);
       void live.refetch();
     } catch (e) {
       setError((e as Error).message);
@@ -162,129 +166,6 @@ export function ReadPermission({ api, links, name }: Props) {
         Each of these proves you control an account without saying which one. Sharing gives one reader the
         code that unmasks it: the enclave opens it for them and answers there, so the handle is still never
         published and this app never sees it either.
-      </p>
-
-      <h3>Which accounts</h3>
-      <ul className="acct" data-testid="pick-list">
-        {masked.map((l) => (
-          <li key={l.domain} data-testid={`pick-${l.domain}`}>
-            <Switch
-              checked={picked.includes(l.domain)}
-              onChange={(on) => setPicked((p) => (on ? [...p, l.domain] : p.filter((d) => d !== l.domain)))}
-              label={l.domain}
-              // Two records for one platform look identical without the name each answers at.
-              hint={l.ensName ?? "private, unnamed"}
-            />
-          </li>
-        ))}
-      </ul>
-
-      <h3>Who may read them</h3>
-      <p className="row" role="group" aria-label="who it is for">
-        <button
-          className={scope === "link" ? "primary" : ""}
-          onClick={() => setScope("link")}
-          data-testid="scope-link"
-        >
-          Anyone with the link
-        </button>
-        <button
-          className={scope === "person" ? "primary" : ""}
-          onClick={() => setScope("person")}
-          data-testid="scope-person"
-        >
-          One person
-        </button>
-        <button
-          className={scope === "branch" ? "primary" : ""}
-          onClick={() => setScope("branch")}
-          data-testid="scope-branch"
-        >
-          Anyone at a company
-        </button>
-      </p>
-
-      {scope === "branch" && (
-        <>
-          <label>
-            Which company
-            <input
-              value={branch}
-              onChange={(e) => setBranch(e.target.value)}
-              placeholder="acme.com"
-              aria-label="branch"
-              data-testid="branch"
-            />
-          </label>
-          <p className="muted" data-testid="branch-resolved">
-            {!branch.trim() ? (
-              "A domain, as people write it. Anyone who has attested an account there can open this."
-            ) : branchName ? (
-              <>
-                Anyone holding a public name under <code>{branchName}</code>. You never have to know who they
-                are: ENS answers for every name in that branch, and the reader proves theirs on chain when
-                they read.
-              </>
-            ) : (
-              <>
-                <code>{branch.trim()}</code> is not a domain name. Try something like <code>acme.com</code>.
-              </>
-            )}
-          </p>
-        </>
-      )}
-
-      {scope === "person" && (
-        <>
-          <label>
-            Who may read it
-            <input
-              value={reader}
-              onChange={(e) => setReader(e.target.value)}
-              placeholder={`bob, bob.${root?.parentName ?? "eth"}, or 0x…`}
-              aria-label="reader"
-              data-testid="reader"
-            />
-          </label>
-          <p className="muted" data-testid="reader-resolved">
-            {isAddress(typed) ? (
-              <>
-                That wallet only: <code>{short(typed)}</code>. Nobody else can open it, link or no link.
-              </>
-            ) : !handle ? (
-              "A name here, or a wallet address. The permission is bound to it, so only they can open it."
-            ) : lookup.isFetching ? (
-              "looking…"
-            ) : audience ? (
-              <>
-                <code>
-                  {handle}.{root?.parentName}
-                </code>{" "}
-                is held by <code>{short(audience)}</code>. Only that wallet can open it.
-              </>
-            ) : (
-              <>
-                Nobody holds{" "}
-                <code>
-                  {handle}.{root?.parentName}
-                </code>{" "}
-                here. Ask them to claim their name, or paste their wallet address.
-              </>
-            )}
-          </p>
-        </>
-      )}
-
-      <p>
-        <button
-          className="primary"
-          onClick={() => void share()}
-          disabled={busy === "share" || !ready || picked.length === 0}
-          data-testid="share"
-        >
-          {busy === "share" ? "signing…" : picked.length > 1 ? `Share ${picked.length} accounts` : "Share"}
-        </button>{" "}
-        {picked.length === 0 && <small className="muted">Pick an account above to share it.</small>}
       </p>
 
       <h3>Who can read these now</h3>
@@ -336,6 +217,149 @@ export function ReadPermission({ api, links, name }: Props) {
             </li>
           ))}
         </ul>
+      )}
+
+      <p>
+        <button className="primary" onClick={() => setAdding(true)} data-testid="add-viewer">
+          Add a viewer
+        </button>
+      </p>
+
+      {adding && (
+        <Modal title="Share a private account" onClose={() => setAdding(false)}>
+          <p className="muted">
+            Pick what to share, then say who may read it. It is one signature and one link, however many
+            accounts you pick.
+          </p>
+          <ul className="acct" data-testid="pick-list">
+            {masked.map((l) => (
+              <li key={l.domain} data-testid={`pick-${l.domain}`}>
+                <Switch
+                  checked={picked.includes(l.domain)}
+                  onChange={(on) =>
+                    setPicked((p) => (on ? [...p, l.domain] : p.filter((d) => d !== l.domain)))
+                  }
+                  label={l.domain}
+                  // Two records for one platform look identical without the name each answers at.
+                  hint={l.ensName ?? "private, unnamed"}
+                />
+              </li>
+            ))}
+          </ul>
+
+          <h3>Who may read them</h3>
+          <p className="row" role="group" aria-label="who it is for">
+            <button
+              className={scope === "link" ? "primary" : ""}
+              onClick={() => setScope("link")}
+              data-testid="scope-link"
+            >
+              Anyone with the link
+            </button>
+            <button
+              className={scope === "person" ? "primary" : ""}
+              onClick={() => setScope("person")}
+              data-testid="scope-person"
+            >
+              One person
+            </button>
+            <button
+              className={scope === "branch" ? "primary" : ""}
+              onClick={() => setScope("branch")}
+              data-testid="scope-branch"
+            >
+              Anyone at a company
+            </button>
+          </p>
+
+          {scope === "branch" && (
+            <>
+              <label>
+                Which company
+                <input
+                  value={branch}
+                  onChange={(e) => setBranch(e.target.value)}
+                  placeholder="acme.com"
+                  aria-label="branch"
+                  data-testid="branch"
+                />
+              </label>
+              <p className="muted" data-testid="branch-resolved">
+                {!branch.trim() ? (
+                  "A domain, as people write it. Anyone who has attested an account there can open this."
+                ) : branchName ? (
+                  <>
+                    Anyone holding a public name under <code>{branchName}</code>. You never have to know who
+                    they are: ENS answers for every name in that branch, and the reader proves theirs on chain
+                    when they read.
+                  </>
+                ) : (
+                  <>
+                    <code>{branch.trim()}</code> is not a domain name. Try something like{" "}
+                    <code>acme.com</code>.
+                  </>
+                )}
+              </p>
+            </>
+          )}
+
+          {scope === "person" && (
+            <>
+              <label>
+                Who may read it
+                <input
+                  value={reader}
+                  onChange={(e) => setReader(e.target.value)}
+                  placeholder={`bob, bob.${root?.parentName ?? "eth"}, or 0x…`}
+                  aria-label="reader"
+                  data-testid="reader"
+                />
+              </label>
+              <p className="muted" data-testid="reader-resolved">
+                {isAddress(typed) ? (
+                  <>
+                    That wallet only: <code>{short(typed)}</code>. Nobody else can open it, link or no link.
+                  </>
+                ) : !handle ? (
+                  "A name here, or a wallet address. The permission is bound to it, so only they can open it."
+                ) : lookup.isFetching ? (
+                  "looking…"
+                ) : audience ? (
+                  <>
+                    <code>
+                      {handle}.{root?.parentName}
+                    </code>{" "}
+                    is held by <code>{short(audience)}</code>. Only that wallet can open it.
+                  </>
+                ) : (
+                  <>
+                    Nobody holds{" "}
+                    <code>
+                      {handle}.{root?.parentName}
+                    </code>{" "}
+                    here. Ask them to claim their name, or paste their wallet address.
+                  </>
+                )}
+              </p>
+            </>
+          )}
+
+          <p>
+            <button
+              className="primary"
+              onClick={() => void share()}
+              disabled={busy === "share" || !ready || picked.length === 0}
+              data-testid="share"
+            >
+              {busy === "share"
+                ? "signing…"
+                : picked.length > 1
+                  ? `Share ${picked.length} accounts`
+                  : "Share"}
+            </button>{" "}
+            {picked.length === 0 && <small className="muted">Pick an account above to share it.</small>}
+          </p>
+        </Modal>
       )}
 
       {error && (

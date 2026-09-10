@@ -1,4 +1,4 @@
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -1363,6 +1363,51 @@ describe("disclosing a masked account", () => {
     expect(outside.status).toBe(403);
     // A reader who names nothing gets nothing, whatever their wallet.
     expect((await a.request(`/v1/disclose/${aliceName}/x?reader=${reader}`)).status).toBe(403);
+  });
+
+  it("says on /healthz whether a share would survive a restart", async () => {
+    // Without DATA_DIR the grants live in memory only, so a redeploy silently drops every permission
+    // the holder made. That is worth saying out loud rather than discovering after the fact.
+    const { chain } = maskedChain();
+    const memory = await (await app(chain).request("/healthz")).json();
+    expect(memory.config.storage).toEqual({ dataDir: null, durable: false });
+
+    const dir = mkdtempSync(join(tmpdir(), "ketsuban-durable-"));
+    const onDisk = createApp({ config: loadConfig({ ...baseEnv, DATA_DIR: dir }), chain, now: () => NOW });
+    expect((await (await onDisk.request("/healthz")).json()).config.storage).toEqual({
+      dataDir: dir,
+      durable: true,
+    });
+  });
+
+  it("drops a stored grant it cannot read, rather than losing the whole list to it", async () => {
+    // A grant written by an older build has no `domains`. Reviving it anyway put an unusable entry in
+    // the list, and every share the holder could see went with it.
+    const dir = mkdtempSync(join(tmpdir(), "ketsuban-stale-"));
+    const { chain, viewCode } = maskedChain();
+    const boot = () =>
+      createApp({ config: loadConfig({ ...baseEnv, DATA_DIR: dir }), chain, now: () => NOW });
+    const { id } = await (await post(boot(), "/v1/disclose", await grantFor(viewCode))).json();
+
+    const file = join(dir, "disclosures.json");
+    const saved = JSON.parse(readFileSync(file, "utf8"));
+    saved[`${aliceName}:legacy`] = {
+      name: aliceName,
+      domain: "x",
+      audience: zeroAddress,
+      exp: String(NOW + 3600),
+      boxHash: `0x${"aa".repeat(32)}`,
+      box: { ephemeralPubkey: "0x00", nonce: "0x00", ciphertext: "0x00" },
+      signature: "0x01",
+    };
+    writeFileSync(file, JSON.stringify(saved));
+
+    const after = boot();
+    const listed = await (await after.request(`/v1/disclosures/${aliceName}`)).json();
+    expect(listed.grants).toHaveLength(1);
+    expect(listed.grants[0].id).toBe(id);
+    // And the account it covers still opens: one unreadable row must not break the read either.
+    expect((await after.request(`/v1/disclose/${aliceName}/x`)).status).toBe(200);
   });
 
   it("lists what a name has shared, so the holder can see who can read it", async () => {

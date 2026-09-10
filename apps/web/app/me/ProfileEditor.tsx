@@ -83,6 +83,25 @@ export function ProfileEditor({ api, name, getSigner }: Props) {
         the record landed. The resolver enforces that: any other key on this name, and this name from any
         other wallet, is refused on chain rather than by this page. Each changed field is one transaction.
       </p>
+      {/* The records as they stand, read back from the resolver: this is what anyone else sees. */}
+      <div className="ens-profile" data-testid="profile-preview">
+        {draft.avatar ? (
+          // eslint-disable-next-line @next/next/no-img-element -- an arbitrary URL, not a bundled asset
+          <img src={draft.avatar} alt="" className="ens-avatar" width={48} height={48} />
+        ) : (
+          <span className="ens-avatar ens-avatar-empty" aria-hidden />
+        )}
+        <div>
+          <strong>{name}</strong>
+          {draft.description ? <p>{draft.description}</p> : <p className="muted">No description yet.</p>}
+          {draft.url && (
+            <a href={draft.url} rel="noreferrer nofollow">
+              {draft.url}
+            </a>
+          )}
+        </div>
+      </div>
+
       {PUBLIC_KEYS.map((k) => (
         <label key={k}>
           {LABELS[k]}
@@ -92,7 +111,12 @@ export function ProfileEditor({ api, name, getSigner }: Props) {
             placeholder={k === "avatar" ? "https://…/me.png" : k === "url" ? "https://…" : ""}
             data-testid={`profile-${k}`}
           />
-          <small className="muted">{HINTS[k]}</small>
+          <small className="muted">
+            {HINTS[k]} ·{" "}
+            <span data-testid={`role-${k}`}>
+              your wallet holds the role for <code>{k}</code> on this name
+            </span>
+          </small>
         </label>
       ))}
 

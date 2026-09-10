@@ -46,6 +46,19 @@ describe("the public profile editor", () => {
     expect(screen.getByTestId("profile-editor")).not.toHaveTextContent(/e-?mail/i);
   });
 
+  it("shows the profile as it stands, so the records are a profile and not three inputs", async () => {
+    editor();
+    await waitFor(() => expect(screen.getByTestId("profile-preview")).toHaveTextContent("a builder"));
+    expect(screen.getByTestId("profile-preview")).toHaveTextContent("alice.ketsuban.eth");
+  });
+
+  it("names each key as one the resolver lets this wallet write", async () => {
+    editor();
+    await waitFor(() => expect(screen.getByTestId("profile-avatar")).toBeInTheDocument());
+    // The role is per key and per name: worth showing on the field it governs, not only in prose.
+    expect(screen.getByTestId("role-description")).toHaveTextContent("description");
+  });
+
   it("saves only what was changed, and offers nothing to save at rest", async () => {
     editor();
     await waitFor(() => expect(screen.getByTestId("profile-description")).toHaveValue("a builder"));

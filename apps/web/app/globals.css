@@ -916,3 +916,12 @@ details.advanced[open] > summary {
   text-decoration: underline;
   cursor: pointer;
 }
+
+/* The avatar slot keeps its size before a picture exists, so the preview does not jump when one lands. */
+.ens-avatar-empty {
+  display: inline-block;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--border);
+}

@@ -317,6 +317,9 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
       vouchPrefix: config.VOUCH_PREFIX,
       deployBlock: String(config.DEPLOY_BLOCK),
       privyAppId: config.PRIVY_APP_ID,
+      // Grants and gas top-ups are the state this service owns. Without a directory they are held in
+      // memory, and a redeploy takes every permission with it.
+      storage: { dataDir: config.DATA_DIR || null, durable: !!config.DATA_DIR },
       secrets: {
         relayerKey: !!config.RELAYER_KEY,
         registrarKey: !!config.REGISTRAR_KEY,
@@ -544,8 +547,14 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     "disclosures",
     config.DATA_DIR || undefined,
     (raw) => {
+      // Anything that is not a grant this build understands — one written by an older format, say — is
+      // refused here and dropped by the store. Reviving it anyway put an unusable row in the list and
+      // took every other share down with it.
       const g = raw as Omit<SignedDisclosure, "exp"> & { exp: string };
-      return { ...g, exp: BigInt(g.exp) };
+      if (!Array.isArray(g?.domains) || !Array.isArray(g?.boxes) || typeof g?.boxesHash !== "string") {
+        throw new Error("disclosure: not a grant this build can read");
+      }
+      return { ...g, audienceName: g.audienceName ?? "", exp: BigInt(g.exp) };
     },
     (grant) => ({ ...grant, exp: grant.exp.toString() })
   );

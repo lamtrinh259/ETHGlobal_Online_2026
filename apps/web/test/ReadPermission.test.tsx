@@ -81,10 +81,14 @@ describe("sharing a private account", () => {
     expect(readerHandle("bob", "ketsuban.eth")).toBe("bob");
   });
 
-  it("shares with anyone by default, and shares nothing until an account is picked", () => {
+  it("keeps the picker behind one CTA, so the page is a list of viewers rather than a form", () => {
     render(<ReadPermission api={api} links={links} name="alice.ketsuban.eth" />, { wrapper: wrapper() });
-    // No address to paste before anything can be shared: the default is a link.
-    expect(screen.queryByTestId("reader")).toBeNull();
+    // Nothing to fill in until the holder asks to add someone.
+    expect(screen.queryByTestId("pick-list")).toBeNull();
+    expect(screen.queryByTestId("share")).toBeNull();
+
+    fireEvent.click(screen.getByTestId("add-viewer"));
+    expect(screen.getByTestId("pick-list")).toBeInTheDocument();
     // Nothing is shared by accident: the button waits for a choice.
     expect(screen.getByTestId("share")).toBeDisabled();
     fireEvent.click(screen.getByTestId("pick-discord.com").querySelector("input") as HTMLInputElement);
@@ -97,6 +101,7 @@ describe("sharing a private account", () => {
       link("x.com", "alice.com.x.private-www.ketsuban.eth"),
     ] as WalletDashboard["links"];
     render(<ReadPermission api={api} links={two} name="alice.ketsuban.eth" />, { wrapper: wrapper() });
+    fireEvent.click(screen.getByTestId("add-viewer"));
     fireEvent.click(screen.getByTestId("pick-discord.com").querySelector("input") as HTMLInputElement);
     expect(screen.getByTestId("share")).toHaveTextContent("Share");
     fireEvent.click(screen.getByTestId("pick-x.com").querySelector("input") as HTMLInputElement);
@@ -105,6 +110,7 @@ describe("sharing a private account", () => {
 
   it("names the person a permission is bound to, and refuses to share until it resolves", async () => {
     render(<ReadPermission api={api} links={links} name="alice.ketsuban.eth" />, { wrapper: wrapper() });
+    fireEvent.click(screen.getByTestId("add-viewer"));
     fireEvent.click(screen.getByTestId("pick-discord.com").querySelector("input") as HTMLInputElement);
     fireEvent.click(screen.getByTestId("scope-person"));
     const share = () => screen.getByTestId("share");
@@ -125,6 +131,7 @@ describe("sharing a private account", () => {
     // "Whoever at acme.com" is the case a wallet cannot express: ENSv2 answers for every name under
     // the branch, so the permission can name the branch instead of the people in it.
     render(<ReadPermission api={api} links={links} name="alice.ketsuban.eth" />, { wrapper: wrapper() });
+    fireEvent.click(screen.getByTestId("add-viewer"));
     fireEvent.click(screen.getByTestId("pick-discord.com").querySelector("input") as HTMLInputElement);
     fireEvent.click(screen.getByTestId("scope-branch"));
     fireEvent.change(screen.getByTestId("branch"), { target: { value: "acme.com" } });
@@ -136,6 +143,7 @@ describe("sharing a private account", () => {
 
   it("takes a wallet address without a lookup", async () => {
     render(<ReadPermission api={api} links={links} name="alice.ketsuban.eth" />, { wrapper: wrapper() });
+    fireEvent.click(screen.getByTestId("add-viewer"));
     fireEvent.click(screen.getByTestId("scope-person"));
     fireEvent.change(screen.getByTestId("reader"), { target: { value: BOB } });
     expect(screen.getByTestId("reader-resolved")).toHaveTextContent("That wallet only");
