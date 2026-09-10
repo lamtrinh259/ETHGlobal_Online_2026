@@ -68,7 +68,7 @@ export type NameClaim = {
   /** What this name says, in a sentence */
   says: string;
   /** The part of the namespace it belongs to, when it belongs to one */
-  kind: "person" | "account" | "private" | "reference" | "unknown";
+  kind: "person" | "account" | "private" | "reference" | "mount" | "unknown";
   /** The domain it lives in, for an account */
   domain?: string;
   /** The label that varies: a person's handle, an account's handle */
@@ -117,7 +117,44 @@ export function explainName(
     }
   }
 
+  /*
+   * A name that is itself a mount is not a person.
+   *
+   * A mount hangs one label under the root — `x.<root>` holds the X accounts, `kju-is.<root>` is a
+   * subject instance — which is the same shape as a person's name. Reading the shape alone calls
+   * those people, and they are names nobody can ever claim: something already answers there.
+   */
+  // A candidate's vouch instance is mounted at the candidate's own name, so it is the one mount whose
+  // parent is a person: `alice.<root>` is Alice, not the place `~alice` hangs.
+  const isVouchMount = (d: string) => !nameDomains.includes(d) && isNameDomain(d, nameDomains);
+  const mounted = mounts.find(
+    (m) =>
+      !isVouchMount(m.domain) &&
+      (m.parentName.toLowerCase() === name || m.maskedParentName?.toLowerCase() === name)
+  );
+  if (mounted) {
+    const holds = isNameDomain(mounted.domain, nameDomains)
+      ? `the names in ${mounted.domain}`
+      : `the accounts attested at ${mounted.domain}`;
+    return {
+      says: `${name} is where this deployment mounts ${holds}. It is not a name a person can hold.`,
+      kind: "mount",
+      domain: mounted.domain,
+    };
+  }
+
   const person = under(root.parentName);
+  /*
+   * The grouping levels are mounted at the root and hold the platform mounts beneath them, so they are
+   * taken in every deployment, whether or not one of their platforms is mounted yet.
+   */
+  if (person && [...PUBLIC_GROUPINGS, ...PRIVATE_GROUPINGS].some((g) => g === person)) {
+    return {
+      says: `${person} groups the mounts beneath it rather than naming anybody. It is not a name a person can hold.`,
+      kind: "mount",
+      label: person,
+    };
+  }
   if (person) return { says: `${person} is a person's name here.`, kind: "person", label: person };
 
   // `<voucher>.<candidate>.<root>`: a reference lives in the candidate's own namespace.

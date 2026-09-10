@@ -102,6 +102,19 @@ describe("what a name claims", () => {
     expect(claimed.says).not.toContain("~alice");
   });
 
+  it("reads a mount as the place it is, not as a person who could never hold it", () => {
+    // `x.ketsuban.eth` is where the `x` mount hangs its accounts, and `kju-is.ketsuban.eth` is a
+    // subject instance. Both are one label under the root, which is also the shape of a person — so a
+    // classifier that stops at the shape calls them people. Nobody can claim either: they are taken.
+    expect(claim("ketsuban.eth")).toMatchObject({ kind: "mount" });
+    expect(claim("alice.ketsuban.eth").kind).toBe("person");
+    for (const level of ["www", "private-www", "@", "private@"]) {
+      const level_claim = claim(`${level}.ketsuban.eth`);
+      expect(level_claim.kind, level).toBe("mount");
+      expect(level_claim.says, level).not.toContain("a person's name");
+    }
+  });
+
   it("says nothing it cannot support", () => {
     // A private name claims presence, not the account; an unknown name claims nothing at all.
     expect(claim("alice.com.discord.private-www.ketsuban.eth").says).toContain("behind a view code");
