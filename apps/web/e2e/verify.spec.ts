@@ -44,17 +44,24 @@ test("verify form presets fill the policy and encode it into the reference page 
   await expect(page).toHaveURL(/\/p\/alice\?answers=kju-is&minLinks=0&minVouches=5&humanity=1$/);
 });
 
-test("a wallet address routes to the wallet page, which degrades when it cannot be read", async ({
-  page,
-}) => {
+test("a wallet address routes to the wallet page, and it reads what the wallet holds", async ({ page }) => {
   await page.goto("/verify");
   await page.getByLabel("handle").fill("0xEE4811b9462956C9C3535E79c08776D769CA9F3a");
   await page.getByRole("button", { name: "Check" }).click();
   await expect(page).toHaveURL(/\/w\/0xEE4811b9462956C9C3535E79c08776D769CA9F3a$/);
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Wallet");
-  // The mock answers 404 for a wallet, which is the same shape as an attester that cannot read one.
-  await expect(page.locator("main [role=alert]")).toBeVisible();
 
+  /*
+   * Every list on this page was untested, because nothing answered for a wallet and the page fell to
+   * its error card — which was the only thing anybody had ever asserted about it.
+   */
+  await expect(page.getByTestId("wallet-names")).toContainText("alice.ketsuban.eth");
+  // A masked account: held, and not saying which one.
+  await expect(page.getByTestId("wallet-accounts")).toContainText("google.com");
+  await expect(page.getByTestId("wallet-given")).toContainText("worked with them for years");
+});
+
+test("a wallet page says so rather than crashing when it cannot be read", async ({ page }) => {
   await page.goto("/w/not-an-address");
   await expect(page.locator("main [role=alert]")).toHaveText("not a wallet address");
 });

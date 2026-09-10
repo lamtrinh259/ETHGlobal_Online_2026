@@ -122,6 +122,61 @@ const routes = [
       };
     },
   ],
+  /*
+   * A wallet, and what it holds. The page was only ever seen degraded, because nothing here answered
+   * for it — so every list it renders was untested while the error card it falls back to was not.
+   */
+  [
+    /^\/v1\/wallet\/([^/?]+)/,
+    (m) => ({
+      address: decodeURIComponent(m[1]),
+      org: null,
+      humanity: { level: "selfie", until: "2027-01-01T00:00:00.000Z" },
+      names: [
+        {
+          domain: "ketsuban",
+          name: "alice",
+          payload: "",
+          validUntil: "2027-01-01T00:00:00.000Z",
+          nonce: "1",
+          live: true,
+          ensName: `alice.${ROOT}`,
+        },
+      ],
+      links: [
+        {
+          domain: "google.com",
+          name: "",
+          payload: "",
+          validUntil: "2027-01-01T00:00:00.000Z",
+          nonce: "2",
+          live: true,
+          optedIn: true,
+          ensName: null,
+          nameless: "private",
+        },
+      ],
+      given: [
+        {
+          domain: "~bob",
+          name: "alice",
+          payload: "worked with them for years",
+          validUntil: "2027-01-01T00:00:00.000Z",
+          nonce: "1",
+          live: true,
+          candidate: "bob",
+          ensName: `alice.bob.${ROOT}`,
+        },
+      ],
+      balance: "1000000000000000000",
+      gasTopup: { enabled: false, amount: "0", available: false },
+      warning: "This is not identity verification.",
+    }),
+  ],
+  [
+    /^\/v1\/reverse\/([^/?]+)/,
+    (m) => ({ address: decodeURIComponent(m[1]), name: `alice.${ROOT}`, names: [`alice.${ROOT}`], primary: `alice.${ROOT}` }),
+  ],
   [/^\/v1\/explain\/([^/?]+)/, (m) => ({ name: decodeURIComponent(m[1]), says: "alice is a person's name here.", kind: "person" })],
   [/^\/v1\/name\/([^/]+)\/([^/?]+)/, (m) => ({ domain: m[1], handle: m[2], taken: true, live: true, wallet: "0xEE4811b9462956C9C3535E79c08776D769CA9F3a" })],
   [
