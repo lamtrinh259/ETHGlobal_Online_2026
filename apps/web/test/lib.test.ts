@@ -378,7 +378,12 @@ describe("api client", () => {
     expect((open.init?.headers as Record<string, string>)["x-delivery-token"]).toBeUndefined();
     expect((gated.init?.headers as Record<string, string>)["x-delivery-token"]).toBe("tok");
 
-    expect(await api.verify("alice.ketsuban.eth", { links: ["x"], viewCode: "0x02" })).toEqual(verification);
+    // An API that predates references still parses: the field arrives empty rather than undefined,
+    // which is what lets the page read it without guarding every access.
+    expect(await api.verify("alice.ketsuban.eth", { links: ["x"], viewCode: "0x02" })).toEqual({
+      ...verification,
+      references: [],
+    });
     const profile = await api.profile("alice", { links: ["x"] });
     expect(profile.names.map((n) => n.instance)).toEqual(["ketsuban", "kju-is"]);
     expect(profile.names[0].verification?.answer).toBe("terrible dictator");

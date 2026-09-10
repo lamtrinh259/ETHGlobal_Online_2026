@@ -16,6 +16,7 @@ const verification = {
   expiresAt: "2027-01-01T00:00:00.000Z",
   humanity: null,
   links: [{ domain: "x", optedIn: true, commitment: "0x01" }],
+  references: [],
   evidence: ["wallet_binding"],
   decision: "additional_context_available",
   warning: "This is not identity verification.",

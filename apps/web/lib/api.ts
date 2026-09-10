@@ -49,6 +49,19 @@ export const verifySchema = z.object({
       email: z.string().nullable(),
     })
     .optional(),
+  /** What this person has said about anyone else: an answer about a subject, a reference about a person */
+  references: z
+    .array(
+      z.object({
+        kind: z.enum(["answer", "reference"]),
+        subject: z.string(),
+        subjectName: z.string().nullable(),
+        statement: z.string(),
+        ensName: z.string().nullable(),
+        validUntil: z.string(),
+      })
+    )
+    .default([]),
   evidence: z.array(z.string()),
   decision: z.string(),
   warning: z.string(),

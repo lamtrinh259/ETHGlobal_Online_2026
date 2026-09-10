@@ -635,10 +635,86 @@ describe("GET /v1/verify/:name", () => {
       expiresAt: null,
       humanity: null,
       links: [],
+      // A name nobody holds has referred nobody, and the wallet it would be read from is absent.
+      references: [],
       profile: { avatar: null, description: null, url: null, email: null },
       evidence: ["wallet_binding"],
       decision: "no_record",
       warning: WARNING,
+    });
+  });
+
+  /**
+   * A page showing only what others said about a person reads as a dossier. What they said about
+   * anybody else is the half they wrote themselves, and it replaced a bare `answer` field that meant
+   * nothing once one person could answer about more than one subject.
+   */
+  describe("the references this person has given", () => {
+    const uniInstance = { ...instance, domain: "uni", parentName: "uni.kju-is.eth", parentLabel: "uni" };
+    const gave = (domain: string, statement: string, live = true) => ({
+      name: "alice",
+      id: zeroHash,
+      wallet: user.account.address,
+      payload: toBytes32(statement),
+      validUntil: 9_000_000_000n,
+      nonce: 1n,
+      live,
+      domain,
+    });
+
+    it("lists an answer about a subject and a reference about a person, with where each is read", async () => {
+      const { chain } = fakeChain({
+        addr: user.account.address,
+        instances: [instance, xInstance, uniInstance],
+        byWallet: [gave("uni", "a terrible dictator"), gave("~bob", "worked with them for years")],
+      });
+      const body = await (await app(chain).request("/v1/verify/alice.kju-is.eth")).json();
+      expect(body.references).toEqual([
+        {
+          kind: "answer",
+          subject: "uni",
+          subjectName: "uni.kju-is.eth",
+          statement: "a terrible dictator",
+          ensName: "alice.uni.kju-is.eth",
+          validUntil: new Date(9_000_000_000_000).toISOString(),
+        },
+        {
+          kind: "reference",
+          subject: "bob",
+          subjectName: "bob.kju-is.eth",
+          statement: "worked with them for years",
+          // A reference is a name in the subject's own namespace, which anyone can read back.
+          ensName: "alice.bob.kju-is.eth",
+          validUntil: new Date(9_000_000_000_000).toISOString(),
+        },
+      ]);
+    });
+
+    it("puts the subject the most people have spoken about first", async () => {
+      const spoken = (n: number) =>
+        Array.from({ length: n }, (_, i) => ({ ...gave("~bob", "x"), name: `v${i}` }));
+      const { chain } = fakeChain({
+        addr: user.account.address,
+        instances: [instance, xInstance, uniInstance],
+        byWallet: [gave("uni", "quiet subject"), gave("~bob", "busy subject")],
+        listed: { uni: [gave("uni", "one")], "~bob": spoken(3) },
+      });
+      const body = await (await app(chain).request("/v1/verify/alice.kju-is.eth")).json();
+      expect(body.references.map((r: { subject: string }) => r.subject)).toEqual(["bob", "uni"]);
+    });
+
+    it("leaves out what has lapsed, and the person's own name", async () => {
+      const { chain } = fakeChain({
+        addr: user.account.address,
+        instances: [instance, xInstance, uniInstance],
+        byWallet: [
+          // Their own record under the root instance is who they are, not something they said.
+          gave("kju-is", "alice"),
+          gave("uni", "expired", false),
+        ],
+      });
+      const body = await (await app(chain).request("/v1/verify/alice.kju-is.eth")).json();
+      expect(body.references).toEqual([]);
     });
   });
 
