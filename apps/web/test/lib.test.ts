@@ -775,3 +775,47 @@ describe("bounding a read the page can do without", () => {
     expect(seen[0]).toBeInstanceOf(AbortSignal);
   });
 });
+
+/**
+ * Which reads a page may be delayed by.
+ *
+ * `/v/<name>` awaits its reads together, so the ENS cross-check — an appendix behind a disclosure —
+ * could hold up the verification the page is about. A flourish that can delay a page as long as its
+ * subject is not a flourish.
+ */
+describe("the flourish timeout", () => {
+  it("is far shorter than the wait a page owes a read it depends on", async () => {
+    const { FLOURISH_MS, flourish } = await import("@/lib/patience");
+    expect(FLOURISH_MS).toBeLessThan(20_000);
+    const signal = flourish();
+    expect(signal).toBeInstanceOf(AbortSignal);
+    expect(signal.aborted).toBe(false);
+  });
+
+  it("carries through every read a page can render without", async () => {
+    /*
+     * The caller's own signal, by identity. `call` supplies a default when given none, so asserting
+     * that *a* signal arrived cannot tell a bounded read from an unbounded one — the first version of
+     * this test passed with the pass-through deleted.
+     */
+    const seen: Record<string, AbortSignal | undefined> = {};
+    const api = createApi("http://api.test", "http://api.test/v1/attest", (async (
+      url: string,
+      init?: RequestInit
+    ) => {
+      seen[new URL(url).pathname.split("/")[2]] = init?.signal ?? undefined;
+      return new Response("{}", { status: 200 });
+    }) as never);
+
+    const mine = AbortSignal.timeout(50);
+    await api.ens("alice.eth", undefined, { signal: mine }).catch(() => undefined);
+    await api.explain("alice.eth", { signal: mine }).catch(() => undefined);
+    await api.reverse("0x00", { signal: mine }).catch(() => undefined);
+    await api.instance("kju-is", { signal: mine }).catch(() => undefined);
+
+    expect(seen.ens).toBe(mine);
+    expect(seen.explain).toBe(mine);
+    expect(seen.reverse).toBe(mine);
+    expect(seen.instance).toBe(mine);
+  });
+});

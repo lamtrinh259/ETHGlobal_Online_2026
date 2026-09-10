@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createApi } from "@/lib/api";
 import { loadWebConfig } from "@/lib/config";
+import { flourish } from "@/lib/patience";
 import { questionTitle } from "@/lib/questions";
 import { SignedIn } from "./SignedIn";
 
@@ -24,9 +25,8 @@ export default async function Home() {
     subjects.map(async (s) => ({
       ...s,
       records: await api
-        // Two seconds, not the usual twenty: this is the first page anybody sees, and a description
-        // is worth having only if it costs nothing. A cold attester loses the flourish, not the door.
-        .instance(s.domain, { signal: AbortSignal.timeout(2_000) })
+        // The first page anybody sees, and a description is worth having only if it costs nothing.
+        .instance(s.domain, { signal: flourish() })
         .then((r) => r.records)
         .catch(() => undefined),
     }))

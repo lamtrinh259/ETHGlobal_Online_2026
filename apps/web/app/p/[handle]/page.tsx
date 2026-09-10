@@ -5,6 +5,7 @@ import { ProfileCard } from "@/app/ProfileCard";
 import { CopyButton } from "@/app/CopyButton";
 import { createApi, type Verification } from "@/lib/api";
 import { loadWebConfig } from "@/lib/config";
+import { flourish } from "@/lib/patience";
 import { assessProfile, HANDLE_RE, policyFromQuery, profileNames, shareSnippet } from "@/lib/profile";
 
 export const dynamic = "force-dynamic";
@@ -62,7 +63,7 @@ export default async function ProfilePage({ params, searchParams }: Params) {
     q,
     subjects.map((s) => s.domain)
   );
-  const ens = await api.ens(names[0]).catch(() => null);
+  const ens = await api.ens(names[0], undefined, { signal: flourish() }).catch(() => null);
   const vouches = read?.vouches ?? [];
   const profile = assessProfile(handle, results, policy, vouches);
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "";

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { createApi } from "@/lib/api";
 import { loadWebConfig } from "@/lib/config";
+import { flourish } from "@/lib/patience";
 import { ADDRESS_RE } from "@/lib/profile";
 import { fmtUtc, short } from "@/app/ui";
 
@@ -40,7 +41,7 @@ export default async function WalletPage({ params }: Params) {
     error = (e as Error).message;
   }
   // What ENS itself answers for this address, which its holder sets and nothing here can.
-  const ens = await api.reverse(address).catch(() => undefined);
+  const ens = await api.reverse(address, { signal: flourish() }).catch(() => undefined);
 
   const names = read?.names ?? [];
   const live = names.filter((n) => n.live);

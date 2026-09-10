@@ -454,9 +454,11 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
       return (await readJson(res)) as { ok: true; txHash: Hex };
     },
 
-    async ens(name: string, keys?: string[]): Promise<EnsResolution> {
+    async ens(name: string, keys?: string[], opts: { signal?: AbortSignal } = {}): Promise<EnsResolution> {
       const q = keys?.length ? `?keys=${encodeURIComponent(keys.join(","))}` : "";
-      return ensSchema.parse(await readJson(await call(`${base}/v1/ens/${encodeURIComponent(name)}${q}`)));
+      return ensSchema.parse(
+        await readJson(await call(`${base}/v1/ens/${encodeURIComponent(name)}${q}`, { signal: opts.signal }))
+      );
     },
 
     /** The deployment's own view of whether it is wired correctly; 503 carries the reasons. */
@@ -473,9 +475,9 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
     },
 
     /** What a name would claim here, whether or not anything resolves at it. */
-    async explain(name: string): Promise<z.infer<typeof explainSchema>> {
+    async explain(name: string, opts: { signal?: AbortSignal } = {}): Promise<z.infer<typeof explainSchema>> {
       return explainSchema.parse(
-        await readJson(await call(`${base}/v1/explain/${encodeURIComponent(name)}`))
+        await readJson(await call(`${base}/v1/explain/${encodeURIComponent(name)}`, { signal: opts.signal }))
       );
     },
 
@@ -606,8 +608,10 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
       );
     },
 
-    async reverse(address: string): Promise<ReverseRead> {
-      return reverseSchema.parse(await readJson(await call(`${base}/v1/reverse/${address}`)));
+    async reverse(address: string, opts: { signal?: AbortSignal } = {}): Promise<ReverseRead> {
+      return reverseSchema.parse(
+        await readJson(await call(`${base}/v1/reverse/${address}`, { signal: opts.signal }))
+      );
     },
 
     async nameStatus(domain: string, handle: string): Promise<NameStatus> {

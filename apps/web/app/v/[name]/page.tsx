@@ -6,6 +6,7 @@ import { Revealed } from "@/app/Revealed";
 import { VerifyCard } from "@/app/VerifyCard";
 import { VouchList } from "@/app/VouchList";
 import { createApi } from "@/lib/api";
+import { flourish } from "@/lib/patience";
 import { loadWebConfig } from "@/lib/config";
 
 export const dynamic = "force-dynamic";
@@ -46,11 +47,12 @@ export default async function VerifyPage({ params, searchParams }: Params) {
         links: links?.split(","),
         viewCode: viewCode as `0x${string}` | undefined,
       }),
-      // The cross-check is a bonus: an unconfigured or unreachable resolver must not break the page.
-      api.ens(decoded).catch(() => null),
+      // The cross-check is a bonus: an unconfigured or unreachable resolver must not break the page,
+      // and these are awaited together, so a slow one would hold up the verification itself.
+      api.ens(decoded, undefined, { signal: flourish() }).catch(() => null),
       // What the name would claim if it resolved: a reader seeing "no record" deserves to know whether
       // nobody holds it or whether it could never have meant anything here.
-      api.explain(decoded).catch(() => null),
+      api.explain(decoded, { signal: flourish() }).catch(() => null),
       instanceOf ? api.instance(instanceOf.domain).catch(() => null) : Promise.resolve(null),
       // What others have said about this person. The page showed only what they said themselves,
       // which is the half a verifier came here least for.
