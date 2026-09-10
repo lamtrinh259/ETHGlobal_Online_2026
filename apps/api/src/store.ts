@@ -11,6 +11,7 @@ import { dirname, join } from "node:path";
 export class PersistentSet {
   private readonly values: Set<string>;
   private readonly path?: string;
+  private failure: string | null = null;
 
   constructor(name: string, dataDir?: string) {
     this.path = dataDir ? join(dataDir, `${name}.json`) : undefined;
@@ -25,6 +26,12 @@ export class PersistentSet {
     if (this.values.has(value)) return;
     this.values.add(value);
     this.persist();
+  }
+
+  /** Whether what this set holds would survive a restart; see PersistentMap.health. */
+  health(): StoreHealth {
+    if (!this.path) return { durable: false, writable: false, lastError: null };
+    return { durable: true, writable: this.failure === null, lastError: this.failure };
   }
 
   get size(): number {
