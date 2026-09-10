@@ -28,7 +28,9 @@ test("landing renders the shell and the three doors without horizontal overflow"
   await expect(page.getByRole("heading", { level: 1 })).toContainText("cannot be");
   await expect(page.locator(".door")).toHaveCount(3);
   // The one thing a visitor can read without an account, and the story the deployment is about.
+  // The door argues for itself from the subject's own records, not from a string in the codebase.
   await expect(page.getByTestId("open-questions")).toContainText("Kim Jong Un");
+  await expect(page.getByTestId("open-questions")).toContainText("Lazarus Group");
   await page.getByTestId("open-questions").getByRole("link").first().click();
   await expect(page).toHaveURL(/\/v\/kju-is\.ketsuban\.eth$/);
 

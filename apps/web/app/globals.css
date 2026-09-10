@@ -1339,3 +1339,8 @@ pre > code {
 .open-questions > li > a {
   font-weight: 600;
 }
+/* What the subject's own name says about them, under the question it is asked with. */
+.open-question-about {
+  flex-basis: 100%;
+  line-height: 1.4;
+}

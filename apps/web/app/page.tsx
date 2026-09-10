@@ -1,12 +1,34 @@
 import Link from "next/link";
+import { createApi } from "@/lib/api";
 import { loadWebConfig } from "@/lib/config";
 import { questionTitle } from "@/lib/questions";
 import { SignedIn } from "./SignedIn";
 
 /** Three doors, one per role (spec §3): candidate, voucher, verifier. */
-export default function Home() {
+// Reads each subject's own records, so the door says who it is about rather than what this file guesses.
+export const dynamic = "force-dynamic";
+
+export default async function Home() {
   const config = loadWebConfig();
   const [root, ...subjects] = config.instances;
+  const api = createApi(config.apiUrl, config.attestUrl);
+  /*
+   * Who each subject is, read from the name itself.
+   *
+   * The question is a table in this codebase; the subject's name and description are records on chain
+   * that anyone can read. A door saying "Kim Jong Un — attributed by the United States and allied
+   * governments" is the page arguing for itself, where "Your answer for kju-is" is this file admitting
+   * it was never told. An attester that cannot answer costs the description, not the door.
+   */
+  const about = await Promise.all(
+    subjects.map(async (s) => ({
+      ...s,
+      records: await api
+        .instance(s.domain)
+        .then((r) => r.records)
+        .catch(() => undefined),
+    }))
+  );
   return (
     <>
       <section className="hero">
@@ -57,9 +79,13 @@ export default function Home() {
             published under it, permanently, signed by whoever said it.
           </p>
           <ul className="open-questions">
-            {subjects.map((s) => (
+            {about.map((s) => (
               <li key={s.domain}>
                 <Link href={`/v/${s.parentName}`}>{questionTitle(s.domain)}</Link>
+                {s.records?.name && <strong>{s.records.name}</strong>}
+                {s.records?.description && (
+                  <small className="muted open-question-about">{s.records.description}</small>
+                )}
                 <small className="muted">
                   <code>{s.parentName}</code>
                 </small>
