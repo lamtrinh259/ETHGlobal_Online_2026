@@ -136,6 +136,10 @@ as `solicited: false`, which the card shows as an **unsolicited** badge — a no
 a barrier to it. When the candidate did invite the writer, their signed invitation travels with the
 reference so a verifier recovers the signer themselves rather than trusting this service.
 
+A verifier who only trusts invited references says so in their own policy — `solicited=1` on the
+reference link, or the checkbox on `/verify`. It is off by default: discounting the uninvited by
+default would put the permission rule back in through the policy instead of the write path.
+
 `REQUIRE_INVITE=true` restores the closed behaviour for a deployment that wants it. The UI still
 disables the button, with the reason, for a domain that cannot be written.
 

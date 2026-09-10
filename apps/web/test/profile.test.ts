@@ -14,6 +14,7 @@ import {
   presetPolicy,
   shareSnippet,
   vouchRequest,
+  type Policy,
 } from "@/lib/profile";
 
 const config = {
@@ -231,6 +232,8 @@ describe("policyFromQuery", () => {
       requiredAnswers: ["kju-is", "uni"],
       minLinks: 1,
       requireHumanity: false,
+      // Anyone may refer anyone, so the default counts every live reference however it arrived.
+      onlySolicited: false,
       minVouches: 3,
     });
     expect(
@@ -239,10 +242,12 @@ describe("policyFromQuery", () => {
       requiredAnswers: [],
       minLinks: 3,
       requireHumanity: true,
+      onlySolicited: false,
       minVouches: 0,
     });
     expect(policyFromQuery({ answers: "uni", minLinks: "x", minVouches: "y" }, ["kju-is"])).toEqual({
       requiredAnswers: ["uni"],
+      onlySolicited: false,
       minLinks: 1,
       requireHumanity: false,
       minVouches: 3,
@@ -283,6 +288,8 @@ describe("policy presets", () => {
       requiredAnswers: ["kju-is", "uni"],
       minLinks: 1,
       requireHumanity: false,
+      // Anyone may refer anyone, so the default counts every live reference however it arrived.
+      onlySolicited: false,
       minVouches: 3,
     });
     const q = policyToQuery(policy, "hiring");
@@ -311,5 +318,59 @@ describe("policy presets", () => {
         )
       )
     ).toBe("no answers required · ≥1 linked account · ≥1 live reference");
+  });
+});
+
+describe("a verifier who cares who asked", () => {
+  const vouch = (voucher: string, solicited: boolean) => ({
+    voucher,
+    voucherName: `${voucher}.ketsuban.eth`,
+    wallet: "0x1",
+    statement: "worked together",
+    validUntil: "2027-01-01T00:00:00.000Z",
+    nonce: "1",
+    live: true,
+    solicited,
+    invite: null,
+  });
+  const assess = (policy: Partial<Policy>, vouches: ReturnType<typeof vouch>[]) =>
+    assessProfile(
+      "alice",
+      [{ instanceDomain: "ketsuban", name: "alice.ketsuban.eth", v: active("alice.ketsuban.eth") }],
+      { requiredAnswers: [], minLinks: 0, requireHumanity: false, minVouches: 2, ...policy },
+      vouches
+    );
+
+  it("counts every live reference by default, however it arrived", () => {
+    // Anyone may refer anyone, so the default policy must not quietly discount the unsolicited.
+    const p = assess({}, [vouch("bob", false), vouch("carol", false)]);
+    expect(p.checks.find((c) => c.id === "vouches")?.ok).toBe(true);
+  });
+
+  it("counts only the ones the candidate asked for when a verifier says so", () => {
+    const strict = { onlySolicited: true };
+    expect(
+      assess(strict, [vouch("bob", false), vouch("carol", false)]).checks.find((c) => c.id === "vouches")?.ok
+    ).toBe(false);
+    expect(
+      assess(strict, [vouch("bob", true), vouch("carol", true)]).checks.find((c) => c.id === "vouches")?.ok
+    ).toBe(true);
+    // Mixed: two live references, one of them unsolicited, is one reference by this policy.
+    const mixed = assess(strict, [vouch("bob", true), vouch("carol", false)]);
+    expect(mixed.checks.find((c) => c.id === "vouches")?.ok).toBe(false);
+    expect(mixed.checks.find((c) => c.id === "vouches")?.detail).toMatch(/solicited/i);
+  });
+
+  it("carries the choice through the query string, so a policy is a link", () => {
+    const policy = {
+      requiredAnswers: [],
+      minLinks: 0,
+      requireHumanity: false,
+      minVouches: 2,
+      onlySolicited: true,
+    };
+    expect(policyToQuery(policy)).toContain("solicited=1");
+    expect(policyFromQuery({ solicited: "1" }, []).onlySolicited).toBe(true);
+    expect(policyFromQuery({}, []).onlySolicited).toBe(false);
   });
 });

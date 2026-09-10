@@ -13,6 +13,7 @@ import type { SignedInvite } from "@ketsuban/registrar";
 import type { Signer } from "@/lib/chain";
 import { WITHDRAWN } from "@ketsuban/registrar";
 import { VOUCH_PREFIX, voucherProgress, vouchSteps } from "@/lib/journey";
+import type { Ask } from "@/app/me/ReferSomeone";
 
 type Stage = "signin" | "onboarding" | "statement" | "done";
 
@@ -26,10 +27,13 @@ export function VouchFlow({
   candidate,
   invite,
   withdraw,
+  ask,
 }: {
   candidate: string;
   invite?: SignedInvite;
   withdraw?: boolean;
+  /** The reference the writer came to give, when they picked one from the popular asks */
+  ask?: Ask;
 }) {
   const config = useWebConfig();
   const root = config.instances[0];

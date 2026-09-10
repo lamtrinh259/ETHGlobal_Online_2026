@@ -4,13 +4,14 @@ import { decodeInvite, type SignedInvite } from "@ketsuban/registrar";
 import { createApi } from "@/lib/api";
 import { loadWebConfig } from "@/lib/config";
 import { HANDLE_RE } from "@/lib/profile";
+import { askById } from "@/app/me/ReferSomeone";
 import { VouchFlow } from "./VouchFlow";
 
 export const dynamic = "force-dynamic";
 
 type Params = {
   params: Promise<{ handle: string }>;
-  searchParams: Promise<{ invite?: string; withdraw?: string }>;
+  searchParams: Promise<{ invite?: string; withdraw?: string; ask?: string }>;
 };
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
@@ -25,7 +26,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
  */
 export default async function VouchPage({ params, searchParams }: Params) {
   const { handle: raw } = await params;
-  const { invite: token, withdraw } = await searchParams;
+  const { invite: token, withdraw, ask } = await searchParams;
   const handle = decodeURIComponent(raw).toLowerCase();
   const config = loadWebConfig();
   const root = config.instances[0];
@@ -76,7 +77,7 @@ export default async function VouchPage({ params, searchParams }: Params) {
           . Five minutes. Nothing you sign here can be deleted — only revoked, visibly.
         </p>
       </section>
-      <VouchFlow candidate={handle} invite={invite} withdraw={withdraw === "1"} />
+      <VouchFlow candidate={handle} invite={invite} withdraw={withdraw === "1"} ask={askById(ask)} />
     </>
   );
 }

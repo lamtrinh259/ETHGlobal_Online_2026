@@ -27,6 +27,11 @@ export const POPULAR_ASKS: Ask[] = [
   },
 ];
 
+/** What an `?ask=` in a reference link means. An id nobody offers gives the plain form, not an error. */
+export function askById(id: string | undefined): Ask | undefined {
+  return id ? POPULAR_ASKS.find((a) => a.id === id) : undefined;
+}
+
 /**
  * Refer anyone, by handle. No invitation: a reference is a claim its writer signs, and it carries the
  * weight of who they are. One nobody asked for is written all the same and marked unsolicited, which

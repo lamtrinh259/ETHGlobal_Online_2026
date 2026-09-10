@@ -24,6 +24,11 @@ export type Policy = {
   requireHumanity: boolean;
   /** Minimum live vouches from distinct vouchers (spec §3.1 default floor: 3) */
   minVouches: number;
+  /**
+   * Count only references the candidate asked for. Off by default: anyone may refer anyone, and
+   * discounting the uninvited by default would put the old permission rule back in through the policy.
+   */
+  onlySolicited?: boolean;
 };
 
 export const DEFAULT_POLICY: Policy = {
@@ -70,7 +75,8 @@ export const POLICY_PRESETS: PolicyPreset[] = [
 
 export function presetPolicy(preset: PolicyPreset, subjectDomains: string[]): Policy {
   const { allSubjects, ...rest } = preset.policy;
-  return { requiredAnswers: allSubjects ? subjectDomains : [], ...rest };
+  // Explicit, so every policy has the same shape whether it came from a preset or a query string.
+  return { requiredAnswers: allSubjects ? subjectDomains : [], onlySolicited: false, ...rest };
 }
 
 /** Query string for a policy: the reference page reads it back with `policyFromQuery`. */
@@ -81,6 +87,7 @@ export function policyToQuery(policy: Policy, presetId?: string): string {
     minVouches: String(policy.minVouches),
   });
   if (policy.requireHumanity) q.set("humanity", "1");
+  if (policy.onlySolicited) q.set("solicited", "1");
   if (presetId) q.set("preset", presetId);
   return q.toString();
 }
@@ -94,6 +101,7 @@ export function describePolicy(policy: Policy): string {
     `≥${policy.minLinks} linked account${policy.minLinks === 1 ? "" : "s"}`,
     `≥${policy.minVouches} live reference${policy.minVouches === 1 ? "" : "s"}`,
   ];
+  if (policy.onlySolicited) parts.push("only references they asked for");
   if (policy.requireHumanity) parts.push("humanity attested");
   return parts.join(" · ");
 }
@@ -169,14 +177,19 @@ export function assessProfile(
     }),
   ];
   // A withdrawn statement is still a record; it is not a reference any more, so it does not count.
-  const liveVouchers = new Set(
-    vouches.filter((v) => v.live && v.statement !== WITHDRAWN).map((v) => v.voucher)
-  );
+  const counted = vouches
+    .filter((v) => v.live && v.statement !== WITHDRAWN)
+    .filter((v) => !policy.onlySolicited || v.solicited);
+  const liveVouchers = new Set(counted.map((v) => v.voucher));
   checks.push({
     id: "vouches",
-    label: `Vouches (≥${policy.minVouches})`,
+    label: `Vouches (≥${policy.minVouches}${policy.onlySolicited ? ", solicited only" : ""})`,
     ok: liveVouchers.size >= policy.minVouches,
-    detail: liveVouchers.size ? `${liveVouchers.size} live: ${[...liveVouchers].join(", ")}` : "none yet",
+    detail: liveVouchers.size
+      ? `${liveVouchers.size} live${policy.onlySolicited ? " solicited" : ""}: ${[...liveVouchers].join(", ")}`
+      : policy.onlySolicited
+        ? "none the candidate asked for"
+        : "none yet",
   });
   if (policy.requireHumanity) {
     checks.push({
@@ -218,6 +231,7 @@ export function policyFromQuery(q: Record<string, string | undefined>, subjectDo
     requiredAnswers: q.answers === undefined ? subjectDomains : q.answers.split(",").filter(Boolean),
     minLinks: q.minLinks !== undefined && /^\d+$/.test(q.minLinks) ? Number(q.minLinks) : 1,
     requireHumanity: q.humanity === "1",
+    onlySolicited: q.solicited === "1",
     minVouches:
       q.minVouches !== undefined && /^\d+$/.test(q.minVouches)
         ? Number(q.minVouches)

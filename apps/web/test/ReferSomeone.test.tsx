@@ -52,3 +52,15 @@ describe("referring someone", () => {
     expect(go).toHaveBeenCalledWith("bob", POPULAR_ASKS[0]);
   });
 });
+
+describe("carrying a popular ask through to the reference", () => {
+  it("turns an ask id back into the prompt the writer answers", async () => {
+    const { askById } = await import("@/app/me/ReferSomeone");
+    // The link carries the id; the vouch page has to recover what it means without guessing.
+    expect(askById("kju-is")?.label).toMatch(/kim jong un/i);
+    expect(askById("worked-together")?.placeholder).toBe("CTO at Acme 2019-22");
+    // An id nobody offers is not an error: the writer gets the plain form.
+    expect(askById("made-up")).toBeUndefined();
+    expect(askById(undefined)).toBeUndefined();
+  });
+});
