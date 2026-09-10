@@ -48,6 +48,18 @@ export function InstanceAnswers({
       {!about.description && <p className="muted">Nobody has said who this is about yet.</p>}
 
       <h3>Answers</h3>
+      {/* The page exists to be answered, and had no way to. A reader who has just decided what they
+          think is the one person most likely to say it, and they were shown the door out. */}
+      <p className="row" data-testid="answer-cta">
+        <Link className="button primary" href="/me#refer">
+          Answer this yourself
+        </Link>
+        <small className="muted">
+          Your answer becomes a name of your own under <code>{data.parentName}</code>, signed by you and
+          permanent.
+        </small>
+      </p>
+
       {data.answers.length === 0 ? (
         <p className="muted">Nobody has answered yet.</p>
       ) : (

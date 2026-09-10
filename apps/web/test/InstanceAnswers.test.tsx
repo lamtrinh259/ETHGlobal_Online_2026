@@ -116,3 +116,51 @@ describe("naming a page about a subject", () => {
     expect(screen.getByTestId("head-avatar")).toBeInTheDocument();
   });
 });
+
+/**
+ * The page exists to be answered.
+ *
+ * A reader who has just read the question, seen who the subject is and what others said is the one
+ * person most likely to want to answer — and the page listed every answer, linked to everyone who gave
+ * one, and offered them the door out.
+ */
+describe("answering it yourself", () => {
+  it("offers the way in, and says what an answer becomes", () => {
+    render(
+      <InstanceAnswers
+        data={{
+          domain: "kju-is",
+          parentName: "kju-is.ketsuban.eth",
+          description: null,
+          answers: [],
+        }}
+      />
+    );
+    const cta = screen.getByTestId("answer-cta");
+    expect(cta.querySelector("a")).toHaveAttribute("href", "/me#refer");
+    expect(cta).toHaveTextContent("kju-is.ketsuban.eth");
+    expect(cta).toHaveTextContent("permanent");
+  });
+
+  it("offers it whether or not anybody has answered", () => {
+    render(
+      <InstanceAnswers
+        data={{
+          domain: "kju-is",
+          parentName: "kju-is.ketsuban.eth",
+          description: null,
+          answers: [
+            {
+              handle: "alice",
+              ensName: "alice.kju-is.ketsuban.eth",
+              answer: "a terrible dictator",
+              validUntil: "2027-01-01T00:00:00.000Z",
+            },
+          ],
+        }}
+      />
+    );
+    expect(screen.getByTestId("answer-cta")).toBeInTheDocument();
+    expect(screen.getByTestId("answer-alice")).toHaveTextContent("a terrible dictator");
+  });
+});
