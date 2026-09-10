@@ -44,6 +44,7 @@ import {
   viewCodeCommitment,
 } from "@peeramid-labs/multipass-client";
 import { createApp, locate, WARNING } from "../../src/app.js";
+import { COMMIT_VARS } from "../../src/commit.js";
 import { hashSignal, rpSignatureMessage, type Fetch } from "../../src/world.js";
 import type { ChainReader, Instance, ListedRecord, Preflight } from "../../src/chain.js";
 import { explainConfigError, loadConfig } from "../../src/config.js";
@@ -365,9 +366,11 @@ describe("GET /healthz", () => {
    */
   it("says which commit it is, or says plainly that nothing told it", async () => {
     const { chain } = fakeChain();
-    const before = process.env.SOURCE_COMMIT;
+    // Every name, not just the one this test cares about: CI names the commit in GITHUB_SHA, so
+    // clearing only SOURCE_COMMIT leaves the reader correctly finding a different one.
+    const before = Object.fromEntries(COMMIT_VARS.map((k) => [k, process.env[k]]));
     try {
-      delete process.env.SOURCE_COMMIT;
+      for (const k of COMMIT_VARS) delete process.env[k];
       const none = await (await app(chain).request("/healthz")).json();
       expect(none.commit).toBe("");
       expect(none.commitFrom).toBe("none");
@@ -377,8 +380,10 @@ describe("GET /healthz", () => {
       expect(named.commit).toBe("e791cbe");
       expect(named.commitFrom).toBe("SOURCE_COMMIT");
     } finally {
-      if (before === undefined) delete process.env.SOURCE_COMMIT;
-      else process.env.SOURCE_COMMIT = before;
+      for (const [k, v] of Object.entries(before)) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
     }
   });
 
