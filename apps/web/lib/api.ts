@@ -240,13 +240,37 @@ export const whoSchema = z.object({
 export type Who = z.infer<typeof whoSchema>;
 
 /** What one instance name holds: who it is about, and what people answered under it. */
-export type InstanceRead = {
-  domain: string;
-  parentName: string;
-  description: string | null;
-  records?: { name?: string; description: string; url: string; avatar: string };
-  answers: { handle: string; ensName: string; answer: string; validUntil: string }[];
-};
+/**
+ * What one instance name says it is for, and what people published under it.
+ *
+ * Parsed rather than cast, like every other read here. The records are what the name itself holds —
+ * an older attester answers without them, which is why they default rather than being required, and a
+ * page that reads them must not depend on the shape being whatever it happened to be.
+ */
+export const instanceReadSchema = z.object({
+  domain: z.string(),
+  parentName: z.string(),
+  description: z.string().nullable().default(null),
+  records: z
+    .object({
+      name: z.string().optional(),
+      description: z.string().default(""),
+      url: z.string().default(""),
+      avatar: z.string().default(""),
+    })
+    .optional(),
+  answers: z
+    .array(
+      z.object({
+        handle: z.string(),
+        ensName: z.string(),
+        answer: z.string(),
+        validUntil: z.string(),
+      })
+    )
+    .default([]),
+});
+export type InstanceRead = z.infer<typeof instanceReadSchema>;
 
 export const grantsSchema = z.object({
   name: z.string(),
@@ -527,9 +551,9 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
 
     /** What people published under one instance name: the answers, and what the name says it is for. */
     async instance(domain: string): Promise<InstanceRead> {
-      return (await readJson(
-        await call(`${base}/v1/instance/${encodeURIComponent(domain)}`)
-      )) as InstanceRead;
+      return instanceReadSchema.parse(
+        await readJson(await call(`${base}/v1/instance/${encodeURIComponent(domain)}`))
+      );
     },
 
     /** People whose handle looks like this, most-referenced first: which `bob` did you mean. */

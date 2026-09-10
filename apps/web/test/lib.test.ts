@@ -670,3 +670,63 @@ describe("whether attestation is confidential", () => {
     expect(isConfidential("https://api.example", "not-a-url")).toBe(false);
   });
 });
+
+/**
+ * The instance read is what a subject page is built from — who the page is about, and what people
+ * published under it. It was the one read here that was cast rather than parsed, so whatever the
+ * attester happened to answer became the page's idea of the truth.
+ */
+describe("reading an instance", () => {
+  const fetchOf = (body: unknown) =>
+    (async () => new Response(JSON.stringify(body), { status: 200 })) as never;
+
+  it("parses the records the name itself holds", async () => {
+    const api = createApi(
+      "http://api.test",
+      "http://api.test/v1/attest",
+      fetchOf({
+        domain: "kju-is",
+        parentName: "kju-is.ketsuban.eth",
+        description: "Kim Jong Un, Supreme Leader of North Korea.",
+        records: {
+          name: "Kim Jong Un",
+          description: "…",
+          url: "https://t.example",
+          avatar: "https://i/x.jpg",
+        },
+        answers: [
+          {
+            handle: "alice",
+            ensName: "alice.kju-is.ketsuban.eth",
+            answer: "a terrible dictator",
+            validUntil: "2027-01-01T00:00:00.000Z",
+          },
+        ],
+        warning: "not identity verification",
+      })
+    );
+    const read = await api.instance("kju-is");
+    expect(read.records?.name).toBe("Kim Jong Un");
+    expect(read.records?.avatar).toBe("https://i/x.jpg");
+    expect(read.answers[0].answer).toBe("a terrible dictator");
+  });
+
+  it("still reads an attester that answers without them", async () => {
+    // Records are newer than the endpoint; an older deployment answers without them, and the page
+    // has to render rather than fail on a field it did not get.
+    const api = createApi(
+      "http://api.test",
+      "http://api.test/v1/attest",
+      fetchOf({
+        domain: "kju-is",
+        parentName: "kju-is.ketsuban.eth",
+        description: null,
+        answers: [],
+      })
+    );
+    const read = await api.instance("kju-is");
+    expect(read.records).toBeUndefined();
+    expect(read.answers).toEqual([]);
+    expect(read.description).toBeNull();
+  });
+});
