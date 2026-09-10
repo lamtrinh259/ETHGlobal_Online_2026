@@ -61,10 +61,14 @@ foo.demo.com.x.www.ketsuban.eth     ->  0x0
 alice.anything.ketsuban.eth         ->  0x0
 ```
 
+`cast` has no DNS encoder — there is no `--to-dns-name` — so the wire-format name is written out:
+each label as a length byte and its bytes, terminated by a zero. `alice.ketsuban.eth` is
+`05 "alice" 08 "ketsuban" 03 "eth" 00`.
+
 ```bash
 cast call 0x4A1817d13E9cF196f471725176355C1234b63C70 \
   "resolve(bytes,bytes)(bytes,address)" \
-  $(cast --to-dns-name alice.ketsuban.eth) \
+  0x05616c696365086b6574737562616e0365746800 \
   $(cast calldata "text(bytes32,string)" $(cast namehash alice.ketsuban.eth) "ketsuban:answer") \
   --rpc-url $SEPOLIA_RPC
 ```
@@ -88,8 +92,8 @@ alice.anything.ketsuban.eth         ->  0x0
 ```bash
 cast call 0x4A1817d13E9cF196f471725176355C1234b63C70 \
   "resolve(bytes,bytes)(bytes,address)" \
-  $(cast --to-dns-name alice_x.com.x.www.ketsuban.eth) \
-  $(cast calldata "addr(bytes32)" $(cast namehash alice_x.com.x.www.ketsuban.eth)) --rpc-url $SEPOLIA_RPC
+  0x0a69616d70656572736b7903636f6d017803777777086b6574737562616e0365746800 \
+  $(cast calldata "addr(bytes32)" $(cast namehash iampeersky.com.x.www.ketsuban.eth)) --rpc-url $SEPOLIA_RPC
 ```
 
 A masked account has no readable label of its own, so the private branch names the person instead:
