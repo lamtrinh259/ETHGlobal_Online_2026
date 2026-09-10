@@ -3486,3 +3486,52 @@ describe("the humanity check", () => {
     expect(JSON.stringify(body)).not.toContain("cafe");
   });
 });
+
+/**
+ * Booting is not the place to be strict.
+ *
+ * Every optional feature here is optional for a real deployment: no registrar key on a relay that only
+ * reads, no universal resolver where one is not deployed yet, no World app at all. A service that
+ * refuses to start when one of them is missing or contradictory takes every unrelated route down with
+ * it — which is exactly what a World app id and environment that disagreed once did.
+ *
+ * Config that is genuinely unusable — no RPC, no Multipass — still fails, and fails at `loadConfig`
+ * with an explanation. This is about the rest.
+ */
+describe("a deployment missing an optional part still serves", () => {
+  const without = (keys: string[]) => {
+    const env: Record<string, string> = { ...baseEnv };
+    for (const k of keys) delete env[k];
+    return env;
+  };
+
+  const cases: [string, Record<string, string>][] = [
+    ["no registrar key, so nothing can be signed here", without(["REGISTRAR_KEY"])],
+    ["no view-code key, so nothing can be masked", without(["VIEWCODE_KEY"])],
+    ["no delivery token, so the CRE leg is closed", without(["DELIVERY_TOKEN"])],
+    ["no universal resolver, so the independent read is unavailable", without(["UNIVERSAL_RESOLVER"])],
+    ["no World app, so humanity cannot be asked for", without(["WORLD_APP_ID", "WORLD_RP_ID"])],
+    [
+      "a World app and environment that contradict each other",
+      {
+        ...baseEnv,
+        WORLD_APP_ID: "app_prod",
+        WORLD_RP_ID: "rp_x",
+        WORLD_RP_SIGNING_KEY: "0x01",
+        WORLD_ENVIRONMENT: "staging",
+      },
+    ],
+    ["no data directory, so nothing kept here survives", { ...baseEnv, DATA_DIR: "" }],
+  ];
+
+  for (const [what, env] of cases) {
+    it(`starts with ${what}`, async () => {
+      const { chain } = fakeChain();
+      expect(() => app(chain, env)).not.toThrow();
+      const res = await app(chain, env).request("/healthz");
+      expect(res.status).toBe(200);
+      // The routes that have nothing to do with the missing part answer as they always did.
+      expect((await app(chain, env).request("/v1/instances")).status).toBe(200);
+    });
+  }
+});
