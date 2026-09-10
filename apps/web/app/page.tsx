@@ -54,13 +54,25 @@ export default function Home() {
             phrase.
           </li>
           <li>
-            {/* What this deployment does, rather than what the design allows: it signs on its own node.
-                Saying "an enclave" on a page a verifier reads would be claiming a guarantee that is not
-                switched on here. */}
-            <strong>Sign one message.</strong> The attester checks your Privy identity token and signs the
-            record as registrar. Your account handles are masked or hashed before anything reaches the chain.
-            The same step is built to run inside a Chainlink CRE enclave, so the attester never sees them
-            either; this deployment signs on its own node.
+            {/* Claimed only where it holds. The enclave is a real guarantee to somebody deciding whether
+                to sign, so the page reads it off the address the browser will actually post to. */}
+            <strong>Sign one message.</strong>{" "}
+            {config.confidential ? (
+              <>
+                Your identity token is verified and the record signed inside a{" "}
+                <strong>Chainlink CRE enclave</strong>, on hardware nobody here controls. That token lists
+                every account you have linked; the enclave reads all of them and attests the one you chose.
+                This service never sees it, and neither does its operator. What reaches the chain is that one
+                account — masked, if you asked for that.
+              </>
+            ) : (
+              <>
+                The attester checks your Privy identity token and signs the record as registrar. Your account
+                handles are masked or hashed before anything reaches the chain. The same step is built to run
+                inside a Chainlink CRE enclave, so the attester never sees them either; this deployment signs
+                on its own node.
+              </>
+            )}
           </li>
           <li>
             <strong>It becomes a name.</strong> The record lands in Multipass and resolves under ENSv2 for
