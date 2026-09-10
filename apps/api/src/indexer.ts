@@ -22,7 +22,16 @@ export type IndexedRecord = {
   block: bigint;
 };
 
-export type IndexStatus = { indexedBlock: number; head: number; records: number; synced: boolean };
+export type IndexStatus = {
+  indexedBlock: number;
+  head: number;
+  records: number;
+  synced: boolean;
+  /** Why the last read failed, or null when it did not */
+  lastError: string | null;
+  /** Seconds since a read last succeeded; null before the first one */
+  staleForSeconds: number | null;
+};
 
 export interface RecordIndex {
   recordsByDomain(domain: string): IndexedRecord[];
@@ -54,6 +63,9 @@ export class Indexer implements RecordIndex {
   private records = new Map<string, IndexedRecord>();
   private indexedBlock: bigint;
   private headBlock = 0n;
+  /** When a tick last completed, and why the last one did not; see `status`. */
+  private lastOkAt = 0;
+  private lastError: string | null = null;
   private queue: Promise<number> = Promise.resolve(0);
   private readonly snapshotPath?: string;
   /** Blocks per committed step; a long backfill is many of these rather than one silent sweep. */
@@ -92,6 +104,27 @@ export class Indexer implements RecordIndex {
   }
 
   private async runTick(include?: bigint): Promise<number> {
+    try {
+      const n = await this.tickOnce(include);
+      this.lastOkAt = Date.now();
+      this.lastError = null;
+      return n;
+    } catch (e) {
+      /*
+       * Remember why, because the numbers alone stop being evidence.
+       *
+       * `headBlock` only moves inside a tick. Once the index has caught up, a source that starts
+       * failing leaves indexedBlock equal to headBlock and both frozen — so `synced` stays true and
+       * the service reports itself healthy while the chain moves on without it. What is actually wrong
+       * is that nothing has succeeded since a certain moment, which is a different fact from how far
+       * the index got.
+       */
+      this.lastError = (e as Error).message;
+      throw e;
+    }
+  }
+
+  private async tickOnce(include?: bigint): Promise<number> {
     const head = await this.source.head();
     this.headBlock = head > this.headBlock ? head : this.headBlock;
     const to = include && include > head ? include : head;
@@ -148,7 +181,12 @@ export class Indexer implements RecordIndex {
       indexedBlock: Number(this.indexedBlock),
       head: Number(this.headBlock),
       records: this.records.size,
-      synced: this.headBlock > 0n && this.indexedBlock >= this.headBlock,
+      // Caught up *and* still reading. A frozen index that had caught up before it froze satisfies the
+      // first half forever, which is how a stale service goes on calling itself healthy.
+      synced: this.headBlock > 0n && this.indexedBlock >= this.headBlock && this.lastError === null,
+      lastError: this.lastError,
+      // How long since anything succeeded, which is the fact a probe actually needs.
+      staleForSeconds: this.lastOkAt === 0 ? null : Math.round((Date.now() - this.lastOkAt) / 1000),
     };
   }
 

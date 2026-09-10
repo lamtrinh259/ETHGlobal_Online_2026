@@ -119,7 +119,9 @@ describe("Indexer", () => {
     expect(
       indexer.recordsByWallet(BOB.toUpperCase().replace("0X", "0x") as `0x${string}`).map((r) => r.name)
     ).toEqual(["bob"]);
-    expect(indexer.status()).toEqual({ indexedBlock: 500, head: 500, records: 2, synced: true });
+    expect(indexer.status()).toMatchObject({ indexedBlock: 500, head: 500, records: 2, synced: true });
+    // Caught up and still reading: nothing has failed, so there is nothing to report about staleness.
+    expect(indexer.status().lastError).toBeNull();
 
     expect(await indexer.tick()).toBe(0);
   });
@@ -269,5 +271,63 @@ describe("Indexer", () => {
     // keeps the process alive after the file is done.
     await loop.stop();
     spy.mockRestore();
+  });
+});
+
+/**
+ * A health probe that cannot go wrong is not a health probe.
+ *
+ * `head` only moves inside a tick. Once the index has caught up, a source that starts failing leaves
+ * `indexedBlock` equal to `head` and both frozen — so the old `synced` stayed true forever while the
+ * chain moved on without it, and every list the product serves went quietly stale behind a service
+ * still calling itself healthy.
+ */
+describe("an index that has stopped reading", () => {
+  it("stops calling itself synced, and says what went wrong", async () => {
+    let failing = false;
+    const indexer = new Indexer(
+      {
+        head: async () => {
+          if (failing) throw new Error("rpc: connection reset");
+          return 100n;
+        },
+        logs: async () => [],
+      } as never,
+      0n
+    );
+
+    await indexer.tick();
+    expect(indexer.status()).toMatchObject({ synced: true, lastError: null });
+
+    failing = true;
+    await expect(indexer.tick()).rejects.toThrow("connection reset");
+    const stalled = indexer.status();
+    // The numbers are unchanged and would still say "caught up" on their own.
+    expect(stalled.indexedBlock).toBe(100);
+    expect(stalled.head).toBe(100);
+    expect(stalled.synced).toBe(false);
+    expect(stalled.lastError).toMatch(/connection reset/);
+    expect(stalled.staleForSeconds).toBeGreaterThanOrEqual(0);
+  });
+
+  it("goes back to synced once a read succeeds again", async () => {
+    let failing = true;
+    const indexer = new Indexer(
+      {
+        head: async () => {
+          if (failing) throw new Error("rpc down");
+          return 42n;
+        },
+        logs: async () => [],
+      } as never,
+      0n
+    );
+
+    await expect(indexer.tick()).rejects.toThrow("rpc down");
+    expect(indexer.status().lastError).toMatch(/rpc down/);
+
+    failing = false;
+    await indexer.tick();
+    expect(indexer.status()).toMatchObject({ synced: true, lastError: null });
   });
 });
