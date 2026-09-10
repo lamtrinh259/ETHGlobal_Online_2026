@@ -117,3 +117,48 @@ describe("custom properties", () => {
     expect([...used].filter((v) => !defined.has(v))).toEqual(["--b"]);
   });
 });
+
+/**
+ * Text has to be readable on the surface behind it, in both themes.
+ *
+ * One colour usually cannot do both: the unsolicited badge was a fixed amber that reached 4.9:1 on
+ * white and 3.8:1 on the dark panel — below the 4.5:1 that WCAG AA asks of body text, on the theme
+ * this deployment shows by default. A value that is right in the theme somebody happens to be
+ * developing in is how that survives review.
+ */
+describe("text on the surface behind it", () => {
+  const channel = (c: number) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+  const luminance = (hex: string) => {
+    const h = hex.replace("#", "");
+    const full = h.length === 3 ? [...h].map((c) => c + c).join("") : h;
+    const [r, g, b] = [0, 2, 4].map((i) => channel(parseInt(full.slice(i, i + 2), 16) / 255));
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const contrast = (a: string, b: string) => {
+    const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+    return (hi + 0.05) / (lo + 0.05);
+  };
+
+  /** The value a token holds in a given block, read from the stylesheet rather than restated here. */
+  const tokenIn = (block: RegExp, name: string) => {
+    const found = block.exec(css);
+    if (!found) throw new Error(`no such palette block`);
+    const m = new RegExp(`${name}:\\s*(#[0-9a-fA-F]{3,8})`).exec(found[0]);
+    if (!m) throw new Error(`${name} is not set in that palette`);
+    return m[1];
+  };
+
+  const DARK = /^:root \{[^}]*\}/m;
+  const LIGHT = /^:root\[data-theme="light"\] \{[^}]*\}/m;
+
+  it("reads the warning colour on the panel of either theme", () => {
+    expect(contrast(tokenIn(DARK, "--warning"), tokenIn(DARK, "--panel"))).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(tokenIn(LIGHT, "--warning"), tokenIn(LIGHT, "--panel"))).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("measures contrast the way the standard defines it", () => {
+    // Black on white is the maximum, and a colour against itself is the minimum.
+    expect(contrast("#000000", "#ffffff")).toBeCloseTo(21, 1);
+    expect(contrast("#123456", "#123456")).toBeCloseTo(1, 5);
+  });
+});

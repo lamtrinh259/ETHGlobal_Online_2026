@@ -10,6 +10,12 @@
   --flame-glow: #bfe9ff;
   --consensus: #009e97; /* teal — verified / active */
   --contested: #ff9500; /* orange — warning / revoked */
+  /*
+   * Amber that can be read on the surface behind it. One value cannot: #ff9500 is 8.4:1 on the dark
+   * panel and 2.2:1 on the light one, and #a16207 is the reverse. So it is a token, and each theme
+   * carries the one that passes against its own background.
+   */
+  --warning: #ff9500;
   --event-gold: #ffcc00;
   --knot: #d9484f; /* Ketsuban — the red string */
   --discarded: #c8c8c8;
@@ -35,6 +41,7 @@
 :root[data-theme="light"] {
   --bg: #f5f7fc;
   --panel: #ffffff;
+  --warning: #a16207;
   --panel-2: #eef2f9;
   --border: #dbe3f0;
   --text-primary: #0b1424;
@@ -48,6 +55,7 @@
   :root:not([data-theme="dark"]) {
     --bg: #f5f7fc;
     --panel: #ffffff;
+    --warning: #a16207;
     --panel-2: #eef2f9;
     --border: #dbe3f0;
     --text-primary: #0b1424;
@@ -996,7 +1004,7 @@ details.advanced[open] > summary {
 /* A reference nobody asked for is still a reference; the note is a caution, not a dismissal. */
 .badge-unsolicited {
   margin-left: 6px;
-  color: #a16207;
+  color: var(--warning);
   border-color: currentColor;
 }
 
