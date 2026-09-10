@@ -256,9 +256,10 @@ export class Chain {
   async ensureVouchInstance(handle: string): Promise<{ domain: string; created: boolean }> {
     const domain = `${this.config.VOUCH_PREFIX}${handle}`;
     const domainB = toBytes32(domain);
-    // A candidate's namespace is created by the newest factory this deployment has, so it gets a
-    // resolver that answers for its own children; the older one is still read for what it already made.
-    const factory = this.config.NAMESPACE_FACTORY ?? this.config.FACTORY;
+    // The bridge grants a voucher the text-record roles for their letter, and it consults its own
+    // factory to do it. A namespace built by a newer factory would be invisible there, so a candidate's
+    // instance belongs in the bridge's — both are read, so nothing already created is duplicated.
+    const factory = this.config.FACTORY;
     const known = await Promise.all(
       [...new Set([factory, this.config.FACTORY])].map((address) =>
         this.publicClient.readContract({

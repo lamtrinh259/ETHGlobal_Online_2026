@@ -164,6 +164,45 @@ describe("reading the mounts", () => {
   });
 });
 
+describe("provisioning a candidate's namespace", () => {
+  it("creates it in the bridge's factory, even when a newer one exists", async () => {
+    // The bridge grants the voucher the roles for their letter by asking its own factory. An instance it
+    // cannot see gets no grant, and the letter reverts when the voucher tries to write it.
+    const chain = new Chain({
+      ...config,
+      NAMESPACE_FACTORY: "0x9999999999999999999999999999999999999999",
+      REGISTRY: "0x1111111111111111111111111111111111111111",
+      PERMISSIONED_RESOLVER: "0x6666666666666666666666666666666666666666",
+      REGISTRAR_ADDRESS: "0x7777777777777777777777777777777777777777",
+    });
+    const writes: { address: string; functionName: string }[] = [];
+    Object.assign(chain, {
+      indexer: { catchUp: async () => undefined },
+      publicClient: {
+        readContract: vi.fn(async ({ functionName }: { functionName: string }) => {
+          if (functionName === "isInstance") return false;
+          if (functionName === "domains") return [];
+          if (functionName === "getDomainState") return { name: zeroHash, isActive: false };
+          if (functionName === "instance") return { registry: zeroAddress, parentName: "" };
+          throw new Error(`unexpected ${functionName}`);
+        }),
+        waitForTransactionReceipt: vi.fn(async () => ({ status: "success", blockNumber: 1n })),
+      },
+      walletClient: {
+        chain: { id: 31337 },
+        account: { address: "0x5555555555555555555555555555555555555555" },
+        writeContract: vi.fn(async (call: { address: string; functionName: string }) => {
+          writes.push({ address: call.address, functionName: call.functionName });
+          return "0xfeed";
+        }),
+      },
+    });
+    // No root instance to hang it under: it refuses rather than creating an orphan.
+    await expect(chain.ensureVouchInstance("alice")).rejects.toThrow(/root registry/);
+    expect(writes.filter((w) => w.functionName === "create")).toEqual([]);
+  });
+});
+
 describe("relaying a signed record", () => {
   /** Multipass answers whether the id already has a record, and what the domain charges. */
   function relaying(chain: Chain, exists: boolean, fees = { fee: 7n, renewalFee: 3n }) {
