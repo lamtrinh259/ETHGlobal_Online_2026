@@ -31,6 +31,14 @@ test("landing renders the shell and the three doors without horizontal overflow"
   await expect(page.getByTestId("open-questions")).toContainText("Kim Jong Un");
   await page.getByTestId("open-questions").getByRole("link").first().click();
   await expect(page).toHaveURL(/\/v\/kju-is\.ketsuban\.eth$/);
+
+  // The page the demo turns on: who the subject is, what people have said, and the way in to say
+  // something yourself. Asserting the URL alone let this render as an ordinary person's card.
+  await expect(page.getByTestId("instance-answers")).toContainText("Lazarus Group");
+  await expect(page.getByTestId("profile-head")).toContainText("Kim Jong Un");
+  await expect(page.getByTestId("answer-alice")).toContainText("a terrible dictator");
+  await expect(page.getByTestId("answer-cta").getByRole("link")).toHaveAttribute("href", "/me#refer");
+  await noOverflow(page);
   await noOverflow(page);
   await page.goto("/me");
   await expect(page.getByTestId("signin")).toBeVisible({ timeout: 20000 });

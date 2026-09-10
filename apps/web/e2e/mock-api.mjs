@@ -76,6 +76,32 @@ const routes = [
   // as well as against an answer.
   [/^\/v1\/verify\/(?!nobody)([^/?]+)/, (m) => verification(decodeURIComponent(m[1]))],
   [/^\/v1\/vouches\/([^/?]+)/, (m) => vouches(decodeURIComponent(m[1]))],
+  // The subject page: a name people answer under, which the deployment is built around. Without this
+  // the route falls through to a person's card and the page the demo turns on is never rendered.
+  [
+    /^\/v1\/instance\/([^/?]+)/,
+    (m) => ({
+      domain: decodeURIComponent(m[1]),
+      parentName: `${decodeURIComponent(m[1])}.${ROOT}`,
+      description: "Kim Jong Un, Supreme Leader of North Korea.",
+      records: {
+        name: "Kim Jong Un",
+        description:
+          "Kim Jong Un, Supreme Leader of North Korea. The United States and allied governments attribute the Lazarus Group to the DPRK.",
+        url: "https://home.treasury.gov/news/press-releases/sm774",
+        avatar: "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d0/x.jpg/330px-x.jpg",
+      },
+      answers: [
+        {
+          handle: "alice",
+          ensName: `alice.${decodeURIComponent(m[1])}.${ROOT}`,
+          answer: "a terrible dictator",
+          validUntil: "2027-01-01T00:00:00.000Z",
+        },
+      ],
+      warning: "This is not identity verification.",
+    }),
+  ],
   [/^\/v1\/explain\/([^/?]+)/, (m) => ({ name: decodeURIComponent(m[1]), says: "alice is a person's name here.", kind: "person" })],
   [/^\/v1\/name\/([^/]+)\/([^/?]+)/, (m) => ({ domain: m[1], handle: m[2], taken: true, live: true, wallet: "0xEE4811b9462956C9C3535E79c08776D769CA9F3a" })],
   [
