@@ -917,14 +917,6 @@ details.advanced[open] > summary {
   cursor: pointer;
 }
 
-/* The avatar slot keeps its size before a picture exists, so the preview does not jump when one lands. */
-.ens-avatar-empty {
-  display: inline-block;
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background: var(--border);
-}
 
 /* The profile as a page: a picture you change in place, then the name and the line under it. */
 .me-head {
@@ -1164,75 +1156,6 @@ a.score-part-label:hover strong {
 .v-ref-name:hover,
 .v-link-name:hover {
   text-decoration: underline;
-}
-
-/* ── sybil resistance: a number nobody should read without its parts ── */
-.sybil-score {
-  font-size: 32px;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-}
-.sybil-score > small {
-  font-size: 14px;
-  color: var(--text-secondary);
-  font-weight: 400;
-}
-.sybil-strong {
-  color: var(--consensus, #2f855a);
-}
-.sybil-moderate {
-  color: var(--flame, #b7791f);
-}
-.sybil-weak {
-  color: var(--discarded, #9b2c2c);
-}
-.badge.sybil-strong,
-.badge.sybil-moderate,
-.badge.sybil-weak {
-  background: transparent;
-  border: 1px solid currentColor;
-}
-.sybil-parts {
-  list-style: none;
-  margin: var(--sp-md) 0 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-md);
-}
-.sybil-parts > li {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-/* A part worth nothing is still worth reading: it says what would raise the score. */
-.sybil-parts > li.empty .sybil-part-head > strong {
-  color: var(--text-secondary);
-}
-.sybil-part-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: var(--sp-sm);
-}
-.sybil-bar {
-  display: block;
-  height: 4px;
-  border-radius: 999px;
-  background: var(--border);
-  overflow: hidden;
-}
-.sybil-bar > span {
-  display: block;
-  height: 100%;
-  background: currentColor;
-  opacity: 0.6;
-}
-.sybil-detail {
-  font-variant-numeric: tabular-nums;
-}
-.sybil-why {
-  font-size: 12px;
 }
 
 /* A question mark that carries its own answer, for a rule that is permanent and surprising. */

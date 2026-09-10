@@ -33,3 +33,34 @@ describe("the stylesheet", () => {
     expect(duplicateSelectors(".a {\n  color: red;\n}\n.b {\n}\n.a {\n  color: blue;\n}\n")).toEqual([".a"]);
   });
 });
+
+/**
+ * A rule for a class nothing renders is shipped to every visitor and read by nobody. They are left
+ * behind by a component that was removed, or by a rename that only touched the markup — the sybil
+ * block outlived its component by a day, and the avatar placeholder outlived the profile card it
+ * belonged to.
+ *
+ * Names built at runtime (`dash-${state}`) cannot be found this way, so they are listed rather than
+ * guessed at: a check that quietly ignores what it cannot see would be worse than none.
+ */
+describe("rules nothing uses", () => {
+  /** Composed at runtime from a value, so no file contains the whole class name. */
+  const dynamic = new Set(["dash-done", "dash-now", "dash-pending", "dash-todo"]);
+
+  it("ships none", async () => {
+    const { readdirSync, readFileSync: read } = await import("node:fs");
+    const walk = (dir: string): string[] =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+        e.isDirectory() ? walk(join(dir, e.name)) : e.name.endsWith(".tsx") ? [join(dir, e.name)] : []
+      );
+    const markup = walk(join(process.cwd(), "app"))
+      .map((f) => read(f, "utf8"))
+      .join("\n");
+
+    const declared = [...css.matchAll(/^\.([a-zA-Z][a-zA-Z0-9_-]*)/gm)].map((m) => m[1]);
+    const unused = [...new Set(declared)].filter(
+      (c) => !dynamic.has(c) && !new RegExp(`\\b${c}\\b`).test(markup)
+    );
+    expect(unused).toEqual([]);
+  });
+});
