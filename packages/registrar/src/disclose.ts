@@ -107,3 +107,70 @@ export function checkAudience(grant: SignedDisclosure, reader?: Address): void {
     throw new Error("disclosure: addressed to a different reader");
   }
 }
+
+/**
+ * Taking a grant back. A separate statement rather than a disclosure with a past expiry: the holder is
+ * saying "stop answering for this account", and that has to be provable by the same wallet without
+ * producing another ciphertext to store.
+ */
+export const REVOKE_TYPES = {
+  Revoke: [
+    { name: "name", type: "string" },
+    { name: "domain", type: "string" },
+    { name: "at", type: "uint256" },
+  ],
+} as const;
+
+export type Revocation = {
+  name: string;
+  domain: string;
+  /** Unix seconds the holder signed at */
+  at: bigint;
+};
+
+/** How far from now a revocation may be dated and still count. */
+export const REVOKE_WINDOW = 300;
+
+export async function recoverRevokeSigner(
+  revocation: Revocation,
+  signature: Hex,
+  domain: TypedDataDomain
+): Promise<Address> {
+  return recoverTypedDataAddress({
+    domain,
+    types: REVOKE_TYPES,
+    primaryType: "Revoke",
+    message: revocation,
+    signature,
+  });
+}
+
+/** Client / test helper */
+export async function signRevocation(
+  account: PrivateKeyAccount,
+  revocation: Revocation,
+  domain: TypedDataDomain
+): Promise<Hex> {
+  return account.signTypedData({
+    domain,
+    types: REVOKE_TYPES,
+    primaryType: "Revoke",
+    message: revocation,
+  });
+}
+
+/**
+ * Is this revocation usable: signed by the wallet that holds the record, and recent. Freshness is the
+ * point — without it, a revocation captured today could silently undo a grant made next month.
+ */
+export function checkRevocation(
+  revocation: Revocation,
+  opts: { holder: Address; now: number; signer: Address }
+): void {
+  if (opts.signer.toLowerCase() !== opts.holder.toLowerCase()) {
+    throw new Error("revocation: not signed by the wallet that holds the record");
+  }
+  const age = opts.now - Number(revocation.at);
+  if (age >= REVOKE_WINDOW) throw new Error("revocation: too old");
+  if (age <= -REVOKE_WINDOW) throw new Error("revocation: dated in the future");
+}

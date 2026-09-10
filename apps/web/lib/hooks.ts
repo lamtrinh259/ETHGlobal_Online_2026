@@ -112,6 +112,24 @@ export function useClaimEthName(onDone: () => void) {
   return { ...mutation, waitingUntil };
 }
 
+/** Permissions live on a name right now — the answer to "who can read my private accounts". */
+export function useDisclosures(api: Api, name: string | undefined) {
+  return useQuery({
+    queryKey: ["disclosures", name],
+    queryFn: () => api.disclosures(name as string),
+    enabled: !!name,
+  });
+}
+
+/** Take a permission back; the list refreshes so the page shows what is true after it. */
+export function useRevoke(api: Api, name: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (wire: object) => api.revoke(wire),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["disclosures", name] }),
+  });
+}
+
 export function useContracts(api: Api) {
   return useQuery({ queryKey: ["contracts"], queryFn: () => api.contracts(), staleTime: Infinity });
 }

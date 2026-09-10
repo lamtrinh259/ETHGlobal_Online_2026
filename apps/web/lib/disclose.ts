@@ -1,5 +1,12 @@
 import { keccak256, concatHex, type Address, type Hex } from "viem";
-import { DISCLOSE_TYPES, discloseDomain, eciesEncrypt, hashBox, ZERO_ADDRESS } from "@ketsuban/registrar";
+import {
+  DISCLOSE_TYPES,
+  discloseDomain,
+  eciesEncrypt,
+  hashBox,
+  REVOKE_TYPES,
+  ZERO_ADDRESS,
+} from "@ketsuban/registrar";
 
 export const DISCLOSURE_DAYS = 30;
 
@@ -42,6 +49,24 @@ export function disclosureTypedData(
     types: { Disclose: DISCLOSE_TYPES.Disclose.map((f) => ({ ...f })) },
     primaryType: "Disclose" as const,
     message: { ...disclosure, exp: disclosure.exp.toString() },
+  };
+}
+
+/**
+ * Typed data for taking a permission back. Dated, because the attester refuses a stale one: without
+ * that, a revocation signed today could be replayed to undo a share made next month.
+ */
+export function revocationTypedData(
+  revocation: { name: string; domain: string; at: number },
+  chainId: number,
+  multipass: Address
+) {
+  const d = discloseDomain(chainId, multipass);
+  return {
+    domain: { name: d.name as string, version: d.version as string, chainId, verifyingContract: multipass },
+    types: { Revoke: REVOKE_TYPES.Revoke.map((f) => ({ ...f })) },
+    primaryType: "Revoke" as const,
+    message: { ...revocation, at: revocation.at.toString() },
   };
 }
 

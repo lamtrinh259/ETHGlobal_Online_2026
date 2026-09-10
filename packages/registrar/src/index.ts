@@ -13,12 +13,18 @@ export { signRecord } from "./attest.js";
 export {
   checkAudience,
   checkDisclosure,
+  checkRevocation,
   DISCLOSE_TYPES,
   discloseDomain,
   hashBox,
   recoverDiscloseSigner,
+  recoverRevokeSigner,
+  REVOKE_TYPES,
+  REVOKE_WINDOW,
   signDisclosure,
+  signRevocation,
   type Disclosure,
+  type Revocation,
   type SignedDisclosure,
 } from "./disclose.js";
 export {

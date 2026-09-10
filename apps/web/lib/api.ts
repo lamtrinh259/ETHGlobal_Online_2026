@@ -154,6 +154,16 @@ export const disclosedSchema = z.object({
 });
 export type Disclosed = z.infer<typeof disclosedSchema>;
 
+/** What a name is sharing right now: enough to say who can read what, never the grant itself. */
+export const grantsSchema = z.object({
+  name: z.string(),
+  grants: z.array(
+    z.object({ domain: z.string(), audience: address, expiresAt: z.string() })
+  ),
+});
+export type Grants = z.infer<typeof grantsSchema>;
+export type Grant = Grants["grants"][number];
+
 export const reverseSchema = z.object({
   address: z.string(),
   name: z.string().nullable(),
@@ -345,6 +355,23 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
         body: JSON.stringify(wire),
       });
       return (await readJson(res)) as { ok: true; expiresAt: string };
+    },
+
+    /** Live permissions on a name, so its holder can see who can read which account. */
+    async disclosures(name: string): Promise<Grants> {
+      return grantsSchema.parse(
+        await readJson(await call(`${base}/v1/disclosures/${encodeURIComponent(name)}`))
+      );
+    },
+
+    /** Take one back; the wire carries the holder's signature over a dated revocation. */
+    async revoke(wire: object): Promise<{ ok: true; domain: string }> {
+      const res = await call(`${base}/v1/revoke`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(wire),
+      });
+      return (await readJson(res)) as { ok: true; domain: string };
     },
 
     /** Read a masked account the candidate allowed; `reader` must match a grant addressed to one wallet. */

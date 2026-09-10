@@ -159,6 +159,20 @@ curl -s "$API/v1/disclose/alice.ketsuban.eth/x" | jq
 The link the candidate hands over is `/v/alice.ketsuban.eth?reveal=x`. Without a live permission the
 same page says so instead of showing anything.
 
+Sharing is not one-way. The profile lists every live permission — which account, which reader, until
+when — and takes any of them back with one signature:
+
+```bash
+curl -s "$API/v1/disclosures/alice.ketsuban.eth" | jq   # who can read what, right now
+curl -s -XPOST $API/v1/revoke -H 'content-type: application/json' \
+  -d '{"name":"alice.ketsuban.eth","domain":"x","at":"1800000000","signature":"0x…"}' | jq
+```
+
+The revocation is signed by the wallet that holds the record and carries the time it was signed. The
+attester refuses one older than five minutes, so a captured revocation cannot be replayed later to undo
+a share made since. Once revoked, the reader gets the same answer as someone who was never given
+anything: the account is masked again.
+
 ## 8. What a withdrawal looks like
 
 A voucher can withdraw. The record stays, the old statement stays in the history, and the live

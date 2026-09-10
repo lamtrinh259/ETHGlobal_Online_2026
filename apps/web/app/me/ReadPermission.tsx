@@ -6,8 +6,14 @@ import type { Address, Hex } from "viem";
 import type { Api, WalletDashboard } from "@/lib/api";
 import { CopyButton } from "@/app/CopyButton";
 import { useWebConfig } from "@/app/providers";
-import { buildDisclosure, disclosureTypedData, revealLink, toDisclosureWire } from "@/lib/disclose";
-import { useNameStatus } from "@/lib/hooks";
+import {
+  buildDisclosure,
+  disclosureTypedData,
+  revealLink,
+  revocationTypedData,
+  toDisclosureWire,
+} from "@/lib/disclose";
+import { useDisclosures, useNameStatus, useRevoke } from "@/lib/hooks";
 import { loadViewCodes } from "@/lib/keys";
 import { short } from "@/app/ui";
 
@@ -19,6 +25,9 @@ export function readerHandle(input: string, rootParent: string): string {
   const suffix = `.${rootParent.toLowerCase()}`;
   return clean.endsWith(suffix) ? clean.slice(0, -suffix.length) : clean;
 }
+
+/** The audience a grant carries when it is for whoever holds the link. */
+const ANYONE = "0x0000000000000000000000000000000000000000";
 
 export function isAddress(input: string): boolean {
   return /^0x[0-9a-fA-F]{40}$/.test(input.trim());
@@ -42,6 +51,9 @@ export function ReadPermission({ api, links, name }: Props) {
   const [busy, setBusy] = useState<string>();
   const [error, setError] = useState<string>();
   const [granted, setGranted] = useState<{ domain: string; expiresAt: string; audience?: Address }>();
+  const live = useDisclosures(api, name);
+  const revoking = useRevoke(api, name);
+  const [taking, setTaking] = useState<string>();
   const masked = links.filter((l) => l.live && l.optedIn);
   const siteUrl = typeof window === "undefined" ? "" : window.location.origin;
 
@@ -80,10 +92,37 @@ export function ReadPermission({ api, links, name }: Props) {
       );
       const ack = await api.disclose(toDisclosureWire(disclosure, box, signature as Hex));
       setGranted({ domain, expiresAt: ack.expiresAt, audience: only });
+      void live.refetch();
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setBusy(undefined);
+    }
+  }
+
+  /**
+   * Taking one back. Signed by the same wallet, and dated: the attester refuses a stale signature, so a
+   * revocation captured today cannot be replayed to undo a share made later.
+   */
+  async function take(domain: string) {
+    setError(undefined);
+    setTaking(domain);
+    try {
+      const wallet = (wallets.find((w) => w.walletClientType === "privy") ?? wallets[0])?.address as
+        | Address
+        | undefined;
+      if (!wallet) throw new Error("no wallet yet — Privy is still creating it");
+      const revocation = { name, domain, at: Math.floor(Date.now() / 1000) };
+      const { signature } = await signTypedData(
+        revocationTypedData(revocation, config.chainId, config.multipass as Address) as never,
+        { address: wallet }
+      );
+      await revoking.mutateAsync({ ...revocation, at: revocation.at.toString(), signature });
+      if (granted?.domain === domain) setGranted(undefined);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setTaking(undefined);
     }
   }
 
@@ -170,6 +209,43 @@ export function ReadPermission({ api, links, name }: Props) {
           </li>
         ))}
       </ul>
+      <h3>Who can read these now</h3>
+      {!live.data ? (
+        <p className="muted">reading…</p>
+      ) : live.data.grants.length === 0 ? (
+        <p className="muted" data-testid="granted-none">
+          Nobody. Each account above stays masked until you share it, and every share can be taken back
+          here afterwards.
+        </p>
+      ) : (
+        <ul className="acct" data-testid="granted-list">
+          {live.data.grants.map((g) => (
+            <li key={g.domain} data-testid={`grant-${g.domain}`}>
+              <span className="acct-who">{g.domain}</span>
+              <small className="muted">
+                {g.audience === ANYONE ? (
+                  <>anyone with the link</>
+                ) : (
+                  <>
+                    one wallet, <code>{short(g.audience)}</code>
+                  </>
+                )}{" "}
+                · until {new Date(g.expiresAt).toUTCString()}
+              </small>
+              <span className="acct-state">
+                <button
+                  onClick={() => take(g.domain)}
+                  disabled={taking === g.domain}
+                  data-testid={`revoke-${g.domain}`}
+                >
+                  {taking === g.domain ? "signing…" : "Stop sharing"}
+                </button>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+
       {error && (
         <p className="error" role="alert">
           {error}

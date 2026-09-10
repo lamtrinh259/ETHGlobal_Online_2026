@@ -7,8 +7,12 @@ import {
   checkDisclosure,
   discloseDomain,
   hashBox,
+  checkRevocation,
   recoverDiscloseSigner,
+  recoverRevokeSigner,
+  REVOKE_WINDOW,
   signDisclosure,
+  signRevocation,
   type Disclosure,
 } from "../src/disclose.js";
 import { intentDomain } from "../src/intent.js";
@@ -76,5 +80,43 @@ describe("disclosure grants", () => {
     expect(() => checkAudience(toBob, bob.address)).not.toThrow();
     expect(() => checkAudience(toBob, alice.address)).toThrow("addressed to a different reader");
     expect(() => checkAudience(toBob)).toThrow("addressed to a different reader");
+  });
+});
+
+describe("revoking a grant", () => {
+  const revocation = { name: base.name, domain: base.domain, at: BigInt(NOW) };
+  const domain = discloseDomain(11155111, MULTIPASS);
+
+  it("only the wallet that holds the record can take a grant back", async () => {
+    const signature = await signRevocation(alice, revocation, domain);
+    const signer = await recoverRevokeSigner(revocation, signature, domain);
+    expect(signer).toBe(alice.address);
+    expect(() => checkRevocation(revocation, { holder: alice.address, now: NOW, signer })).not.toThrow();
+    // Bob signing a revocation for Alice's record is the attack this check exists for.
+    expect(() =>
+      checkRevocation(revocation, { holder: alice.address, now: NOW, signer: bob.address })
+    ).toThrow(/holds the record/);
+  });
+
+  it("is fresh or it is nothing, so an old one cannot kill a grant made since", () => {
+    const signer = alice.address;
+    const holder = alice.address;
+    // Re-sharing after a revocation must not be undone by replaying the revocation that preceded it.
+    expect(() => checkRevocation(revocation, { holder, now: NOW + REVOKE_WINDOW + 1, signer })).toThrow(
+      /too old/
+    );
+    expect(() => checkRevocation(revocation, { holder, now: NOW + REVOKE_WINDOW - 1, signer })).not.toThrow();
+    // Nor may one be dated into the future to keep it usable indefinitely.
+    expect(() => checkRevocation(revocation, { holder, now: NOW - REVOKE_WINDOW - 1, signer })).toThrow(
+      /future/
+    );
+  });
+
+  it("cannot be replayed as a grant: the two are different statements", async () => {
+    const signature = await signRevocation(alice, revocation, domain);
+    // Same domain, same fields where they overlap — a disclosure signature must not verify here.
+    const asGrant = await signDisclosure(alice, base, domain);
+    expect(await recoverRevokeSigner(revocation, asGrant, domain)).not.toBe(alice.address);
+    expect(await recoverDiscloseSigner(base, signature, domain)).not.toBe(alice.address);
   });
 });

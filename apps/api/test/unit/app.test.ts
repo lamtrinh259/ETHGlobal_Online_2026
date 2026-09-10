@@ -28,6 +28,7 @@ import {
   eciesEncrypt,
   hashBox,
   signDisclosure,
+  signRevocation,
   type RegisterMessage,
 } from "@ketsuban/registrar";
 import {
@@ -1257,6 +1258,88 @@ describe("disclosing a masked account", () => {
       signature,
     };
   }
+
+  async function revokeFor(over: Partial<{ at: bigint; signer: typeof user.account }> = {}) {
+    const revocation = { name: aliceName, domain: "x", at: over.at ?? BigInt(NOW) };
+    const signature = await signRevocation(
+      over.signer ?? user.account,
+      revocation,
+      discloseDomain(31337, baseEnv.MULTIPASS as Hex)
+    );
+    return { ...revocation, at: revocation.at.toString(), signature };
+  }
+
+  it("lists what a name has shared, so the holder can see who can read it", async () => {
+    const { chain, viewCode } = maskedChain();
+    const a = app(chain);
+
+    // Nothing shared yet is an answer, not an error: the dashboard renders an empty list.
+    const none = await (await a.request(`/v1/disclosures/${aliceName}`)).json();
+    expect(none).toEqual({ name: aliceName, grants: [] });
+
+    await post(a, "/v1/disclose", await grantFor(viewCode, { audience: registrar.address }));
+    const listed = await (await a.request(`/v1/disclosures/${aliceName}`)).json();
+    expect(listed.grants).toHaveLength(1);
+    expect(listed.grants[0]).toEqual({
+      domain: "x",
+      audience: registrar.address,
+      expiresAt: new Date((NOW + 3600) * 1000).toISOString(),
+    });
+    // The listing must never carry the ciphertext or the signature: it is a summary, not the grant.
+    expect(JSON.stringify(listed)).not.toContain("ciphertext");
+    expect(JSON.stringify(listed)).not.toContain("signature");
+  });
+
+  it("drops a grant that has expired from the listing rather than showing dead permissions", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "ketsuban-revoke-"));
+    const { chain, viewCode } = maskedChain();
+    const at = (t: number) => createApp({ config: loadConfig({ ...baseEnv, DATA_DIR: dir }), chain, now: () => t });
+
+    await post(at(NOW), "/v1/disclose", await grantFor(viewCode, { exp: BigInt(NOW + 10) }));
+    expect((await (await at(NOW).request(`/v1/disclosures/${aliceName}`)).json()).grants).toHaveLength(1);
+
+    // Same stored grant, a clock past its expiry: the permission is gone as far as anyone can tell.
+    const later = at(NOW + 11);
+    expect((await (await later.request(`/v1/disclosures/${aliceName}`)).json()).grants).toEqual([]);
+    expect((await later.request(`/v1/disclose/${aliceName}/x`)).status).toBe(403);
+  });
+
+  it("takes a permission back when the holder signs for it, and refuses anyone else", async () => {
+    const { chain, viewCode } = maskedChain();
+    const a = app(chain);
+    await post(a, "/v1/disclose", await grantFor(viewCode));
+    expect((await a.request(`/v1/disclose/${aliceName}/x`)).status).toBe(200);
+
+    // A stranger cannot close someone else's account, and the grant keeps working after they try.
+    const stranger = await post(a, "/v1/revoke", await revokeFor({ signer: registrar }));
+    expect(stranger.status).toBe(422);
+    expect((await stranger.json()).error).toMatch(/holds the record/);
+    expect((await a.request(`/v1/disclose/${aliceName}/x`)).status).toBe(200);
+
+    const ok = await post(a, "/v1/revoke", await revokeFor());
+    expect(ok.status).toBe(200);
+    expect(await ok.json()).toEqual({ ok: true, name: aliceName, domain: "x" });
+    // The reader gets the same answer as someone who was never given anything.
+    expect((await a.request(`/v1/disclose/${aliceName}/x`)).status).toBe(404);
+    expect((await (await a.request(`/v1/disclosures/${aliceName}`)).json()).grants).toEqual([]);
+  });
+
+  it("refuses a stale revocation, so an old signature cannot undo a later share", async () => {
+    const { chain, viewCode } = maskedChain();
+    const a = app(chain);
+    await post(a, "/v1/disclose", await grantFor(viewCode));
+
+    const stale = await post(a, "/v1/revoke", await revokeFor({ at: BigInt(NOW - 3600) }));
+    expect(stale.status).toBe(422);
+    expect((await stale.json()).error).toMatch(/too old/);
+    expect((await a.request(`/v1/disclose/${aliceName}/x`)).status).toBe(200);
+  });
+
+  it("says so plainly when there is nothing to revoke", async () => {
+    const { chain } = maskedChain();
+    const gone = await post(app(chain), "/v1/revoke", await revokeFor());
+    expect(gone.status).toBe(404);
+  });
 
   it("publishes the key a candidate encrypts to", async () => {
     const { chain } = fakeChain();

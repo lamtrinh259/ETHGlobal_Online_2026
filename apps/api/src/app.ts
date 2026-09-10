@@ -8,9 +8,11 @@ import {
   attest,
   checkAudience,
   checkDisclosure,
+  checkRevocation,
   discloseDomain,
   eciesDecrypt,
   recoverDiscloseSigner,
+  recoverRevokeSigner,
   RESERVED_HANDLES,
   signRecord,
   type SignedDisclosure,
@@ -65,6 +67,13 @@ export const wireDisclosure = z.object({
   exp: decimal,
   boxHash: hex,
   box: z.object({ ephemeralPubkey: hex, nonce: hex, ciphertext: hex }),
+  signature: hex,
+});
+
+export const wireRevocation = z.object({
+  name: z.string(),
+  domain: z.string(),
+  at: decimal,
   signature: hex,
 });
 
@@ -578,6 +587,56 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
       domain: grant.domain,
       expiresAt: new Date(Number(grant.exp) * 1000).toISOString(),
     });
+  });
+
+  /**
+   * What this name is currently sharing. A summary only — domain, reader and expiry — because the
+   * question it answers is the holder's own: who can read my private accounts, and until when.
+   * Expired grants are left out rather than shown dead, so the list is exactly what is live.
+   */
+  app.get("/v1/disclosures/:name", async (c) => {
+    const name = c.req.param("name").toLowerCase();
+    const grants = grantStore
+      .entries()
+      .filter(([, g]) => g.name === name && g.exp > BigInt(now()))
+      .map(([, g]) => ({
+        domain: g.domain,
+        audience: g.audience,
+        expiresAt: new Date(Number(g.exp) * 1000).toISOString(),
+      }))
+      .sort((a, b) => a.domain.localeCompare(b.domain));
+    return c.json({ name, grants });
+  });
+
+  /**
+   * Take one back. Signed by the same wallet that granted it and dated, so a captured revocation
+   * cannot be replayed later to undo a share made since.
+   */
+  app.post("/v1/revoke", async (c) => {
+    const body = wireRevocation.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: "bad request", issues: body.error.issues }, 400);
+    const revocation = {
+      name: body.data.name.toLowerCase(),
+      domain: body.data.domain,
+      at: BigInt(body.data.at),
+    };
+    const key = `${revocation.name}:${revocation.domain}`;
+    if (!grantStore.get(key)) return c.json({ error: "no disclosure for that account" }, 404);
+    const located = locate(revocation.name, await chain.instances());
+    if (!located) return c.json({ error: "unknown instance for name" }, 404);
+    const holder = await chain.resolveAddr(located.instance.resolver, revocation.name);
+    try {
+      const signer = await recoverRevokeSigner(
+        revocation,
+        body.data.signature as Hex,
+        discloseDomain(config.CHAIN_ID, config.MULTIPASS)
+      );
+      checkRevocation(revocation, { holder, now: now(), signer });
+    } catch (e) {
+      return c.json({ error: (e as Error).message }, 422);
+    }
+    grantStore.delete(key);
+    return c.json({ ok: true, name: revocation.name, domain: revocation.domain });
   });
 
   /**
