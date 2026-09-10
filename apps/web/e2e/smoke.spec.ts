@@ -27,6 +27,10 @@ test("landing renders the shell and the three doors without horizontal overflow"
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toContainText("cannot be");
   await expect(page.locator(".door")).toHaveCount(3);
+  // The one thing a visitor can read without an account, and the story the deployment is about.
+  await expect(page.getByTestId("open-questions")).toContainText("Kim Jong Un");
+  await page.getByTestId("open-questions").getByRole("link").first().click();
+  await expect(page).toHaveURL(/\/v\/kju-is\.ketsuban\.eth$/);
   await noOverflow(page);
   await page.goto("/me");
   await expect(page.getByTestId("signin")).toBeVisible({ timeout: 20000 });

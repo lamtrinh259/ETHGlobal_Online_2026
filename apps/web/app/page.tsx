@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { loadWebConfig } from "@/lib/config";
+import { questionTitle } from "@/lib/questions";
 import { SignedIn } from "./SignedIn";
 
 /** Three doors, one per role (spec §3): candidate, voucher, verifier. */
 export default function Home() {
   const config = loadWebConfig();
-  const root = config.instances[0];
+  const [root, ...subjects] = config.instances;
   return (
     <>
       <section className="hero">
@@ -45,6 +46,28 @@ export default function Home() {
           </span>
         </Link>
       </div>
+
+      {/* The one thing a visitor can read and answer without an account. Every other door asks them to
+          be somebody first; this asks them what they think, which is the whole product in one page. */}
+      {subjects.length > 0 && (
+        <section className="card" data-testid="open-questions">
+          <h2>Questions anyone can answer</h2>
+          <p className="muted">
+            A name can exist for somebody who has claimed nothing. What people have said about them is
+            published under it, permanently, signed by whoever said it.
+          </p>
+          <ul className="open-questions">
+            {subjects.map((s) => (
+              <li key={s.domain}>
+                <Link href={`/v/${s.parentName}`}>{questionTitle(s.domain)}</Link>
+                <small className="muted">
+                  <code>{s.parentName}</code>
+                </small>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section className="card">
         <h2>How it works</h2>
