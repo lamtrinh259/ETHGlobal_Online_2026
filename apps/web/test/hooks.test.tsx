@@ -59,7 +59,7 @@ function fakeApi(): Api {
     nonce: vi.fn(async () => ({ exists: nonce > 1n, next: nonce, ready: true, reason: null })),
     attest: vi.fn(async () => result),
     disclosures: vi.fn(async (name: string) => ({ name, grants: [] })),
-    revoke: vi.fn(async () => ({ ok: true as const, domain: "x" })),
+    revoke: vi.fn(async () => ({ ok: true as const, id: `0x${"11".repeat(32)}`, domains: ["x"] })),
     explain: vi.fn(async (name: string) => ({ name, says: "", kind: "unknown" as const })),
     ethLabel: vi.fn(async (label: string) => ({
       label,
@@ -98,7 +98,12 @@ function fakeApi(): Api {
     gas: vi.fn(async () => ({ hash: "0xhash3" as Hex, amount: "1" })),
     contracts: vi.fn(async () => ({ instances: [], bridge: WALLET, permissionedResolver: WALLET })),
     enclaveKey: vi.fn(async () => ({ address: WALLET, publicKey: `0x04${"11".repeat(64)}` as Hex })),
-    disclose: vi.fn(async () => ({ ok: true as const, expiresAt: "2027-01-01T00:00:00.000Z" })),
+    disclose: vi.fn(async () => ({
+      ok: true as const,
+      id: `0x${"11".repeat(32)}` as `0x${string}`,
+      domains: ["x"],
+      expiresAt: "2027-01-01T00:00:00.000Z",
+    })),
     disclosed: vi.fn(async (name: string, domain: string) => ({
       name,
       domain,

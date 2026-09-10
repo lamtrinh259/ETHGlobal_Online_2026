@@ -409,6 +409,7 @@ describe("onDisclose", () => {
       name: over.name ?? "alice.kju-is.eth",
       domains,
       audience: (over.audience ?? `0x${"00".repeat(20)}`) as Hex,
+      audienceName: "",
       exp: over.exp ?? BigInt(NOW + 3600),
       boxesHash: hashBoxes(boxes),
     };

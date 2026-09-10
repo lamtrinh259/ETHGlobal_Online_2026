@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useWallets } from "@privy-io/react-auth";
 import { ApiError } from "@/lib/api";
-import { apiFor } from "@/lib/hooks";
+import { apiFor, useWalletDashboard } from "@/lib/hooks";
 import { useWebConfig } from "./providers";
 import { short } from "./ui";
 
@@ -26,15 +26,19 @@ export function Revealed({
   const config = useWebConfig();
   const api = useMemo(() => apiFor(config), [config]);
   const { wallets } = useWallets();
-  const reader = wallets[0]?.address;
+  const reader = wallets[0]?.address as `0x${string}` | undefined;
+  // A grant can be addressed to a branch rather than a wallet. The reader offers a name they hold; the
+  // attester resolves it and refuses anything that does not answer with this very wallet.
+  const mine = useWalletDashboard(api, reader);
+  const readerName = mine.data?.names.find((n) => n.live && n.ensName)?.ensName;
   const mismatched = !!audience && (!reader || reader.toLowerCase() !== audience.toLowerCase());
   const opened = useQuery({
-    queryKey: ["disclosed", name, domain, reader],
+    queryKey: ["disclosed", name, domain, reader, readerName],
     // A grant that was taken back or ran out answers 403, one that never existed 404. The reader is
     // exactly the person who needs to know which, so the refusal is kept rather than flattened.
     queryFn: () =>
       api
-        .disclosed(name, domain, reader)
+        .disclosed(name, domain, reader, readerName)
         .then((d) => ({ ok: true as const, d }))
         .catch((e: unknown) => ({
           ok: false as const,

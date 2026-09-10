@@ -347,12 +347,15 @@ const discloseSchema = z.object({
     name: z.string(),
     domains: z.array(z.string()).min(1).max(16),
     audience: hex,
+    audienceName: z.string().max(255).default(""),
     exp: z.string().regex(/^\d+$/),
     boxesHash: hex,
     boxes: z.array(z.object({ ephemeralPubkey: hex, nonce: hex, ciphertext: hex })).min(1).max(16),
     signature: hex,
   }),
   reader: hex.optional(),
+  /** A name the caller has already proved the reader holds, for a grant addressed to a person or branch */
+  readerName: z.string().max(255).optional(),
 });
 
 /**
@@ -368,6 +371,7 @@ export const onDisclose = async (runtime: TeeRuntime<Config>, payload: HTTPPaylo
     name: input.grant.name,
     domains: input.grant.domains,
     audience: input.grant.audience as Address,
+    audienceName: input.grant.audienceName,
     exp: BigInt(input.grant.exp),
     boxesHash: input.grant.boxesHash as Hex,
     boxes: input.grant.boxes.map((b) => ({
@@ -388,6 +392,7 @@ export const onDisclose = async (runtime: TeeRuntime<Config>, payload: HTTPPaylo
       name: grant.name,
       domains: grant.domains,
       audience: grant.audience,
+      audienceName: grant.audienceName,
       exp: grant.exp,
       boxesHash: grant.boxesHash,
     },
@@ -399,7 +404,11 @@ export const onDisclose = async (runtime: TeeRuntime<Config>, payload: HTTPPaylo
     now: Math.floor(runtime.now().getTime() / 1000),
     signer,
   });
-  checkAudience(grant, input.reader as Address | undefined);
+  // The caller resolved this name on chain before handing it over; a claim is never evidence.
+  checkAudience(grant, {
+    reader: input.reader as Address | undefined,
+    readerName: input.readerName,
+  });
 
   const registrarKey = runtime.getSecret({ id: config.secretIds.registrarKey }).result().value as Hex;
   // The box at this account's own position: the grant names its accounts in one order and carries

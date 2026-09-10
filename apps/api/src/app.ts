@@ -10,6 +10,7 @@ import {
   checkDisclosure,
   checkRevocation,
   discloseDomain,
+  grantId,
   eciesDecrypt,
   recoverDiscloseSigner,
   recoverRevokeSigner,
@@ -64,6 +65,7 @@ export const wireDisclosure = z.object({
   name: z.string(),
   domains: z.array(z.string()).min(1).max(16),
   audience: hex,
+  audienceName: z.string().max(255).default(""),
   exp: decimal,
   boxesHash: hex,
   boxes: z
@@ -75,7 +77,7 @@ export const wireDisclosure = z.object({
 
 export const wireRevocation = z.object({
   name: z.string(),
-  domain: z.string(),
+  grantId: hex,
   at: decimal,
   signature: hex,
 });
@@ -554,6 +556,7 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
       name: body.data.name.toLowerCase(),
       domains: body.data.domains,
       audience: body.data.audience as Address,
+      audienceName: body.data.audienceName.toLowerCase(),
       exp: BigInt(body.data.exp),
       boxesHash: body.data.boxesHash as Hex,
       boxes: body.data.boxes.map((b) => ({
@@ -572,6 +575,7 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
           name: grant.name,
           domains: grant.domains,
           audience: grant.audience,
+          audienceName: grant.audienceName,
           exp: grant.exp,
           boxesHash: grant.boxesHash,
         },
@@ -582,11 +586,13 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     } catch (e) {
       return c.json({ error: (e as Error).message }, 422);
     }
-    // One signed statement, stored once per account it names: a read asks about one account, and the
-    // grant it finds still carries the whole selection so the signature can be checked again.
-    for (const domain of grant.domains) grantStore.set(`${grant.name}:${domain}`, grant);
+    // One signature, one grant, one thing to take back. Storing it per account would make a share of
+    // two accounts look like two permissions, and would let a second share of one account quietly
+    // replace the first rather than standing beside it.
+    grantStore.set(`${grant.name}:${grantId(grant)}`, grant);
     return c.json({
       ok: true,
+      id: grantId(grant),
       name: grant.name,
       domains: grant.domains,
       expiresAt: new Date(Number(grant.exp) * 1000).toISOString(),
@@ -603,12 +609,14 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     const grants = grantStore
       .entries()
       .filter(([, g]) => g.name === name && g.exp > BigInt(now()))
-      .map(([key, g]) => ({
-        domain: key.slice(name.length + 1),
+      .map(([, g]) => ({
+        id: grantId(g),
+        domains: g.domains,
         audience: g.audience,
+        audienceName: g.audienceName,
         expiresAt: new Date(Number(g.exp) * 1000).toISOString(),
       }))
-      .sort((a, b) => a.domain.localeCompare(b.domain));
+      .sort((a, b) => a.expiresAt.localeCompare(b.expiresAt) || a.id.localeCompare(b.id));
     return c.json({ name, grants });
   });
 
@@ -621,11 +629,12 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     if (!body.success) return c.json({ error: "bad request", issues: body.error.issues }, 400);
     const revocation = {
       name: body.data.name.toLowerCase(),
-      domain: body.data.domain,
+      grantId: body.data.grantId as Hex,
       at: BigInt(body.data.at),
     };
-    const key = `${revocation.name}:${revocation.domain}`;
-    if (!grantStore.get(key)) return c.json({ error: "no disclosure for that account" }, 404);
+    const key = `${revocation.name}:${revocation.grantId}`;
+    const existing = grantStore.get(key);
+    if (!existing) return c.json({ error: "no such grant" }, 404);
     const located = locate(revocation.name, await chain.instances());
     if (!located) return c.json({ error: "unknown instance for name" }, 404);
     const holder = await chain.resolveAddr(located.instance.resolver, revocation.name);
@@ -640,8 +649,24 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
       return c.json({ error: (e as Error).message }, 422);
     }
     grantStore.delete(key);
-    return c.json({ ok: true, name: revocation.name, domain: revocation.domain });
+    return c.json({ ok: true, name: revocation.name, id: revocation.grantId, domains: existing.domains });
   });
+
+  /**
+   * The name a reader may be judged by. A grant can be addressed to a person or to a branch rather than
+   * to a key, so the reader says which name they hold — and this resolves it, refusing anything that
+   * does not answer with their own wallet. A claim is never evidence; the resolver is.
+   */
+  async function heldBy(
+    claimed: string | undefined,
+    reader: Address | undefined
+  ): Promise<string | undefined> {
+    if (!claimed || !reader) return undefined;
+    const at = locate(claimed.toLowerCase(), await chain.instances());
+    if (!at) return undefined;
+    const owner = await chain.resolveAddr(at.instance.resolver, claimed.toLowerCase());
+    return owner.toLowerCase() === reader.toLowerCase() ? claimed.toLowerCase() : undefined;
+  }
 
   /**
    * Read a masked account the candidate allowed. The handle is never written anywhere: the enclave
@@ -651,29 +676,43 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     if (!config.REGISTRAR_KEY) return c.json({ error: "registrar disabled" }, 501);
     const name = c.req.param("name").toLowerCase();
     const domain = c.req.param("domain");
-    const grant = grantStore.get(`${name}:${domain}`);
-    if (!grant) return c.json({ error: "no disclosure for that account" }, 404);
+    // One account can be shared with several people, each by its own grant. The reader is asking about
+    // the account, so every grant that names it is a candidate and the first one that opens for them wins.
+    const candidates = grantStore
+      .entries()
+      .filter(([, g]) => g.name === name && g.domains.includes(domain))
+      .map(([, g]) => g);
+    if (candidates.length === 0) return c.json({ error: "no disclosure for that account" }, 404);
     const reader = c.req.query("reader") as Address | undefined;
+    const readerName = await heldBy(c.req.query("as"), reader);
     const located = locate(name, await chain.instances());
     if (!located) return c.json({ error: "unknown instance for name" }, 404);
     const holder = await chain.resolveAddr(located.instance.resolver, name);
-    try {
-      const signer = await recoverDiscloseSigner(
-        {
-          name: grant.name,
-          domains: grant.domains,
-          audience: grant.audience,
-          exp: grant.exp,
-          boxesHash: grant.boxesHash,
-        },
-        grant.signature,
-        discloseDomain(config.CHAIN_ID, config.MULTIPASS)
-      );
-      checkDisclosure(grant, { holder, now: now(), signer });
-      checkAudience(grant, reader);
-    } catch (e) {
-      return c.json({ error: (e as Error).message }, 403);
+    let grant: SignedDisclosure | undefined;
+    let refusal = "disclosure: addressed to a different reader";
+    for (const candidate of candidates) {
+      try {
+        const signer = await recoverDiscloseSigner(
+          {
+            name: candidate.name,
+            domains: candidate.domains,
+            audience: candidate.audience,
+            audienceName: candidate.audienceName,
+            exp: candidate.exp,
+            boxesHash: candidate.boxesHash,
+          },
+          candidate.signature,
+          discloseDomain(config.CHAIN_ID, config.MULTIPASS)
+        );
+        checkDisclosure(candidate, { holder, now: now(), signer });
+        checkAudience(candidate, { reader, readerName });
+        grant = candidate;
+        break;
+      } catch (e) {
+        refusal = (e as Error).message;
+      }
     }
+    if (!grant) return c.json({ error: refusal }, 403);
     const packed = await chain.resolveData(located.instance.resolver, name, `ketsuban:link:${domain}`);
     if (packed === "0x" || packed.length !== 194) return c.json({ error: "no record for that account" }, 404);
     try {

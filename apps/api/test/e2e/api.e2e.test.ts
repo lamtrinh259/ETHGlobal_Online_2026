@@ -280,6 +280,7 @@ describe("api e2e", () => {
       name,
       domains: ["x"],
       audience: reader.address,
+      audienceName: "",
       exp: BigInt(now + 3600),
       boxesHash: hashBoxes([box]),
     };
@@ -300,6 +301,7 @@ describe("api e2e", () => {
       })
     ).json();
     expect(grant.ok).toBe(true);
+    const grantId = grant.id;
 
     const opened = await (await fetch(`${API}/v1/disclose/${name}/x?reader=${reader.address}`)).json();
     expect(opened.disclosed).toEqual({ handle: "alice", platformId: "1234567890123456789" });
@@ -308,8 +310,10 @@ describe("api e2e", () => {
 
     const listed = await (await fetch(`${API}/v1/disclosures/${name}`)).json();
     expect(listed.grants).toContainEqual({
-      domain: "x",
+      id: grantId,
+      domains: ["x"],
       audience: reader.address,
+      audienceName: "",
       expiresAt: new Date((now + 3600) * 1000).toISOString(),
     });
 
@@ -319,11 +323,11 @@ describe("api e2e", () => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         name,
-        domain: "x",
+        grantId,
         at: now.toString(),
         signature: await signRevocation(
           reader,
-          { name, domain: "x", at: BigInt(now) },
+          { name, grantId, at: BigInt(now) },
           discloseDomain(31337, deployment.multipass)
         ),
       }),
@@ -337,11 +341,11 @@ describe("api e2e", () => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         name,
-        domain: "x",
+        grantId,
         at: at.toString(),
         signature: await signRevocation(
           user.account,
-          { name, domain: "x", at: BigInt(at) },
+          { name, grantId, at: BigInt(at) },
           discloseDomain(31337, deployment.multipass)
         ),
       }),

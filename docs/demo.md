@@ -163,13 +163,22 @@ One grant covers everything picked. Sharing three accounts is one decision and o
 signature over the whole selection: the statement names its accounts in one order and carries their
 view codes as boxes in the same order, each encrypted separately to the enclave.
 
-Sharing is not one-way. The profile lists every live permission — which account, which reader, until
-when — and takes any of them back with one signature:
+A permission can also name a branch instead of a person: `*.com.acme.www.ketsuban.eth` opens for whoever
+holds a public name under `acme.com`. That is a group the holder cannot enumerate, and ENSv2 answers for
+every name in the branch without any of them being registered one by one. The reader names a name they
+hold and the attester resolves it on chain — a claim is never evidence:
+
+```bash
+curl -s "$API/v1/disclose/alice.ketsuban.eth/x?reader=0x…&as=bob.com.acme.www.ketsuban.eth" | jq
+```
+
+Sharing is not one-way. The profile lists one row per share — one signature made it, one takes it back,
+however many accounts it opened — and revoking names the grant:
 
 ```bash
 curl -s "$API/v1/disclosures/alice.ketsuban.eth" | jq   # who can read what, right now
 curl -s -XPOST $API/v1/revoke -H 'content-type: application/json' \
-  -d '{"name":"alice.ketsuban.eth","domain":"x","at":"1800000000","signature":"0x…"}' | jq
+  -d '{"name":"alice.ketsuban.eth","grantId":"0x…","at":"1800000000","signature":"0x…"}' | jq
 ```
 
 The revocation is signed by the wallet that holds the record and carries the time it was signed. The

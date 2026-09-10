@@ -22,6 +22,8 @@ export function buildDisclosure(input: {
   accounts: { domain: string; viewCode: Hex }[];
   enclavePubkey: Hex;
   audience?: Address;
+  /** Who may read it, said as a name: `bob.<root>` for one person, `*.<branch>` for a whole branch */
+  audienceName?: string;
   now: number;
   days?: number;
 }) {
@@ -36,6 +38,7 @@ export function buildDisclosure(input: {
     name: input.name,
     domains,
     audience: input.audience ?? (ZERO_ADDRESS as Address),
+    audienceName: input.audienceName ?? "",
     exp: BigInt(input.now + (input.days ?? DISCLOSURE_DAYS) * 86_400),
     boxesHash: hashBoxes(boxes),
   };
@@ -62,7 +65,7 @@ export function disclosureTypedData(
  * that, a revocation signed today could be replayed to undo a share made next month.
  */
 export function revocationTypedData(
-  revocation: { name: string; domain: string; at: number },
+  revocation: { name: string; grantId: Hex; at: number },
   chainId: number,
   multipass: Address
 ) {

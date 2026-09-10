@@ -107,6 +107,8 @@ type State = {
   records: Record<string, { exists: boolean; nonce: bigint; id: Hex; wallet: Address }>;
   texts: Record<string, string>;
   addr: Address;
+  /** What a particular name resolves to, when the test needs two names to answer differently */
+  addrByName: Record<string, Address>;
   data: Record<string, Hex>;
   listed: Record<string, ListedRecord[]>;
   instancesCreated: string[];
@@ -128,6 +130,7 @@ function fakeChain(state: Partial<State> = {}) {
     records: {},
     texts: {},
     addr: zeroAddress,
+    addrByName: {},
     data: {},
     listed: {},
     instancesCreated: [],
@@ -182,7 +185,7 @@ function fakeChain(state: Partial<State> = {}) {
     resolveText: vi.fn(
       async (_r: Address, name: string, key: string) => s.texts[`${name}/${key}`] ?? s.texts[key] ?? ""
     ),
-    resolveAddr: vi.fn(async () => s.addr),
+    resolveAddr: vi.fn(async (_resolver: Address, name: string) => s.addrByName[name] ?? s.addr),
     reverseName: vi.fn(async (_r: Address, wallet: Address) => s.reverse[wallet.toLowerCase()] ?? ""),
     resolveUniversal: vi.fn(async (name: string, keys: string[]) => {
       if (s.universal instanceof Error) throw s.universal;
@@ -1222,7 +1225,7 @@ describe("disclosing a masked account", () => {
   const aliceName = "alice.kju-is.eth";
 
   /** A masked x record for alice, exactly as the attester writes one. */
-  function maskedChain() {
+  function maskedChain(addrByName: Record<string, Address> = {}) {
     const viewCode = `0x${"5a".repeat(32)}` as Hex;
     const record = {
       name: maskName("alice_x", viewCode),
@@ -1232,6 +1235,7 @@ describe("disclosing a masked account", () => {
     const packed = `0x${record.name.slice(2)}${record.id.slice(2)}${record.payload.slice(2)}` as Hex;
     const { chain } = fakeChain({
       addr: user.account.address,
+      addrByName,
       data: { [`ketsuban:link:x`]: packed },
     });
     return { chain, viewCode };
@@ -1239,16 +1243,19 @@ describe("disclosing a masked account", () => {
 
   async function grantFor(
     viewCode: Hex,
-    over: Partial<{ audience: Address; exp: bigint; domains: string[] }> = {}
+    over: Partial<{ audience: Address; exp: bigint; domains: string[]; audienceName: string }> = {}
   ) {
     const domains = over.domains ?? ["x"];
-    const boxes = domains.map((_, i) =>
-      eciesEncrypt(ENCLAVE.publicKey, hexToBytes(viewCode), new Uint8Array(32).fill(3 + i))
+    // A fresh seed per box, as the browser does: two grants of the same account are two permissions,
+    // and a fixed seed would give them one id and make the second replace the first.
+    const boxes = domains.map(() =>
+      eciesEncrypt(ENCLAVE.publicKey, hexToBytes(viewCode), crypto.getRandomValues(new Uint8Array(32)))
     );
     const disclosure = {
       name: aliceName,
       domains,
       audience: (over.audience ?? zeroAddress) as Address,
+      audienceName: over.audienceName ?? "",
       exp: over.exp ?? BigInt(NOW + 3600),
       boxesHash: hashBoxes(boxes),
     };
@@ -1265,8 +1272,12 @@ describe("disclosing a masked account", () => {
     };
   }
 
-  async function revokeFor(over: Partial<{ at: bigint; signer: typeof user.account }> = {}) {
-    const revocation = { name: aliceName, domain: "x", at: over.at ?? BigInt(NOW) };
+  async function revokeFor(over: Partial<{ at: bigint; signer: typeof user.account; grantId: Hex }> = {}) {
+    const revocation = {
+      name: aliceName,
+      grantId: over.grantId ?? (`0x${"00".repeat(32)}` as Hex),
+      at: over.at ?? BigInt(NOW),
+    };
     const signature = await signRevocation(
       over.signer ?? user.account,
       revocation,
@@ -1284,22 +1295,74 @@ describe("disclosing a masked account", () => {
     expect(stored.status).toBe(200);
     expect((await stored.json()).domains).toEqual(["discord.com", "x"]);
 
+    // One signature is one permission: it lists as one row naming both accounts, not as two.
     const listed = await (await a.request(`/v1/disclosures/${aliceName}`)).json();
-    expect(listed.grants.map((g: { domain: string }) => g.domain)).toEqual(["discord.com", "x"]);
+    expect(listed.grants).toHaveLength(1);
+    expect(listed.grants[0].domains).toEqual(["discord.com", "x"]);
     // Each account is reachable on its own: the reader asks about one, not about the selection.
     expect((await a.request(`/v1/disclose/${aliceName}/x`)).status).toBe(200);
   });
 
-  it("takes back only the account it was asked to, leaving the rest of one grant standing", async () => {
+  it("shares one account with two people without either share replacing the other", async () => {
+    // Two grants can name the same account. Keyed by account, the second would have overwritten the
+    // first, and the first reader would have lost access without anyone revoking anything.
     const { chain, viewCode } = maskedChain();
     const a = app(chain);
-    await post(a, "/v1/disclose", await grantFor(viewCode, { domains: ["discord.com", "x"] }));
+    const bob = registrar.address;
+    const carol = user.account.address;
+    await post(a, "/v1/disclose", await grantFor(viewCode, { audience: bob }));
+    await post(a, "/v1/disclose", await grantFor(viewCode, { audience: carol }));
 
-    expect((await post(a, "/v1/revoke", await revokeFor())).status).toBe(200);
+    const listed = await (await a.request(`/v1/disclosures/${aliceName}`)).json();
+    expect(listed.grants).toHaveLength(2);
+    expect((await a.request(`/v1/disclose/${aliceName}/x?reader=${bob}`)).status).toBe(200);
+    expect((await a.request(`/v1/disclose/${aliceName}/x?reader=${carol}`)).status).toBe(200);
+
+    // Taking one back leaves the other standing: they were always separate permissions.
+    const first = listed.grants.find((g: { audience: string }) => g.audience === bob);
+    expect((await post(a, "/v1/revoke", await revokeFor({ grantId: first.id }))).status).toBe(200);
+    expect((await a.request(`/v1/disclose/${aliceName}/x?reader=${bob}`)).status).toBe(403);
+    expect((await a.request(`/v1/disclose/${aliceName}/x?reader=${carol}`)).status).toBe(200);
+  });
+
+  it("takes back the whole grant, because that is what was handed over", async () => {
+    // One link opened both accounts, so stopping that share stops both. Revoking half of a link the
+    // reader already holds would be a permission nobody granted.
+    const { chain, viewCode } = maskedChain();
+    const a = app(chain);
+    const wire = await grantFor(viewCode, { domains: ["discord.com", "x"] });
+    const { id } = await (await post(a, "/v1/disclose", wire)).json();
+
+    expect((await post(a, "/v1/revoke", await revokeFor({ grantId: id }))).status).toBe(200);
     expect((await a.request(`/v1/disclose/${aliceName}/x`)).status).toBe(404);
-    // The other account of the same grant is a separate permission and must survive.
-    const left = await (await a.request(`/v1/disclosures/${aliceName}`)).json();
-    expect(left.grants.map((g: { domain: string }) => g.domain)).toEqual(["discord.com"]);
+    expect((await a.request(`/v1/disclose/${aliceName}/discord.com`)).status).toBe(404);
+    expect((await (await a.request(`/v1/disclosures/${aliceName}`)).json()).grants).toEqual([]);
+  });
+
+  it("opens for whoever holds a name in the branch, and never on the reader's say-so", async () => {
+    // "Whoever at acme.com" is a group the holder cannot enumerate. The reader names a name they hold;
+    // this service resolves it on chain and refuses if it does not answer with their wallet.
+    const reader = registrar.address;
+    // Everyone in the `x` branch, which is a group alice cannot enumerate and never has to.
+    const inBranch = "bob.x.kju-is.eth";
+    const outsideBranch = "bob.kju-is.eth";
+    const { chain, viewCode } = maskedChain({ [inBranch]: reader, [outsideBranch]: reader });
+    const a = app(chain);
+    await post(a, "/v1/disclose", await grantFor(viewCode, { audienceName: "*.x.kju-is.eth" }));
+    const opened = await a.request(`/v1/disclose/${aliceName}/x?reader=${reader}&as=${inBranch}`);
+    expect(opened.status).toBe(200);
+    expect((await opened.json()).disclosed.handle).toBe("alice_x");
+
+    // Claiming a name is not holding it: the wallet the name resolves to has to be the caller's.
+    const impostor = await a.request(
+      `/v1/disclose/${aliceName}/x?reader=${user.account.address}&as=${inBranch}`
+    );
+    expect(impostor.status).toBe(403);
+    // And a name outside the branch is refused even when the caller really does hold it.
+    const outside = await a.request(`/v1/disclose/${aliceName}/x?reader=${reader}&as=${outsideBranch}`);
+    expect(outside.status).toBe(403);
+    // A reader who names nothing gets nothing, whatever their wallet.
+    expect((await a.request(`/v1/disclose/${aliceName}/x?reader=${reader}`)).status).toBe(403);
   });
 
   it("lists what a name has shared, so the holder can see who can read it", async () => {
@@ -1313,9 +1376,10 @@ describe("disclosing a masked account", () => {
     await post(a, "/v1/disclose", await grantFor(viewCode, { audience: registrar.address }));
     const listed = await (await a.request(`/v1/disclosures/${aliceName}`)).json();
     expect(listed.grants).toHaveLength(1);
-    expect(listed.grants[0]).toEqual({
-      domain: "x",
+    expect(listed.grants[0]).toMatchObject({
+      domains: ["x"],
       audience: registrar.address,
+      audienceName: "",
       expiresAt: new Date((NOW + 3600) * 1000).toISOString(),
     });
     // The listing must never carry the ciphertext or the signature: it is a summary, not the grant.
@@ -1341,18 +1405,18 @@ describe("disclosing a masked account", () => {
   it("takes a permission back when the holder signs for it, and refuses anyone else", async () => {
     const { chain, viewCode } = maskedChain();
     const a = app(chain);
-    await post(a, "/v1/disclose", await grantFor(viewCode));
+    const { id } = await (await post(a, "/v1/disclose", await grantFor(viewCode))).json();
     expect((await a.request(`/v1/disclose/${aliceName}/x`)).status).toBe(200);
 
     // A stranger cannot close someone else's account, and the grant keeps working after they try.
-    const stranger = await post(a, "/v1/revoke", await revokeFor({ signer: registrar }));
+    const stranger = await post(a, "/v1/revoke", await revokeFor({ grantId: id, signer: registrar }));
     expect(stranger.status).toBe(422);
     expect((await stranger.json()).error).toMatch(/holds the record/);
     expect((await a.request(`/v1/disclose/${aliceName}/x`)).status).toBe(200);
 
-    const ok = await post(a, "/v1/revoke", await revokeFor());
+    const ok = await post(a, "/v1/revoke", await revokeFor({ grantId: id }));
     expect(ok.status).toBe(200);
-    expect(await ok.json()).toEqual({ ok: true, name: aliceName, domain: "x" });
+    expect(await ok.json()).toEqual({ ok: true, name: aliceName, id, domains: ["x"] });
     // The reader gets the same answer as someone who was never given anything.
     expect((await a.request(`/v1/disclose/${aliceName}/x`)).status).toBe(404);
     expect((await (await a.request(`/v1/disclosures/${aliceName}`)).json()).grants).toEqual([]);
@@ -1361,9 +1425,9 @@ describe("disclosing a masked account", () => {
   it("refuses a stale revocation, so an old signature cannot undo a later share", async () => {
     const { chain, viewCode } = maskedChain();
     const a = app(chain);
-    await post(a, "/v1/disclose", await grantFor(viewCode));
+    const { id } = await (await post(a, "/v1/disclose", await grantFor(viewCode))).json();
 
-    const stale = await post(a, "/v1/revoke", await revokeFor({ at: BigInt(NOW - 3600) }));
+    const stale = await post(a, "/v1/revoke", await revokeFor({ grantId: id, at: BigInt(NOW - 3600) }));
     expect(stale.status).toBe(422);
     expect((await stale.json()).error).toMatch(/too old/);
     expect((await a.request(`/v1/disclose/${aliceName}/x`)).status).toBe(200);

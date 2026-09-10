@@ -15,6 +15,7 @@ import {
   toDisclosureWire,
 } from "@/lib/disclose";
 import { useDisclosures, useNameStatus, useRevoke } from "@/lib/hooks";
+import { isDnsName, mountPath, PUBLIC_GROUPINGS } from "@ketsuban/registrar";
 import { loadViewCodes } from "@/lib/keys";
 import { short } from "@/app/ui";
 
@@ -48,14 +49,20 @@ export function ReadPermission({ api, links, name }: Props) {
   const { signTypedData } = useSignTypedData();
   const root = config.instances[0];
   const [picked, setPicked] = useState<string[]>([]);
-  const [scope, setScope] = useState<"link" | "person">("link");
+  const [scope, setScope] = useState<"link" | "person" | "branch">("link");
   const [reader, setReader] = useState("");
+  const [branch, setBranch] = useState("");
   const [busy, setBusy] = useState<string>();
   const [error, setError] = useState<string>();
-  const [granted, setGranted] = useState<{ domains: string[]; expiresAt: string; audience?: Address }>();
+  const [granted, setGranted] = useState<{
+    id: Hex;
+    domains: string[];
+    expiresAt: string;
+    audience?: Address;
+  }>();
   const live = useDisclosures(api, name);
   const revoking = useRevoke(api, name);
-  const [taking, setTaking] = useState<string>();
+  const [taking, setTaking] = useState<Hex>();
   const masked = links.filter((l) => l.live && l.optedIn);
   const siteUrl = typeof window === "undefined" ? "" : window.location.origin;
 
@@ -65,7 +72,17 @@ export function ReadPermission({ api, links, name }: Props) {
   const audience: Address | undefined = isAddress(typed)
     ? (typed as Address)
     : ((lookup.data?.live && lookup.data.wallet ? (lookup.data.wallet as Address) : undefined) ?? undefined);
-  const ready = scope === "link" || !!audience;
+  /**
+   * The branch a DNS name mounts at, public side. `acme.com` under `www` is `com.acme.www.<root>`, and
+   * every name in it resolves through ENSv2 without any of them being registered one by one — which is
+   * what lets a permission name a group the holder cannot enumerate.
+   */
+  const branchName = useMemo(() => {
+    const dns = branch.trim().toLowerCase();
+    if (!isDnsName(dns) || !root) return undefined;
+    return [...mountPath(dns, PUBLIC_GROUPINGS[0]).reverse(), root.parentName].join(".");
+  }, [branch, root]);
+  const ready = scope === "link" || (scope === "person" ? !!audience : scope === "branch" && !!branchName);
 
   /**
    * Share everything picked, under one signature. Three accounts is one decision and one link, so
@@ -86,6 +103,7 @@ export function ReadPermission({ api, links, name }: Props) {
         Address | undefined;
       if (!wallet) throw new Error("no wallet yet — Privy is still creating it");
       const only = scope === "person" ? audience : undefined;
+      const branchOf = scope === "branch" && branchName ? `*.${branchName}` : undefined;
 
       const { publicKey } = await api.enclaveKey();
       const { disclosure, boxes } = buildDisclosure({
@@ -93,6 +111,7 @@ export function ReadPermission({ api, links, name }: Props) {
         accounts,
         enclavePubkey: publicKey,
         audience: only,
+        audienceName: branchOf,
         now: Math.floor(Date.now() / 1000),
       });
       const { signature } = await signTypedData(
@@ -100,7 +119,7 @@ export function ReadPermission({ api, links, name }: Props) {
         { address: wallet }
       );
       const ack = await api.disclose(toDisclosureWire(disclosure, boxes, signature as Hex));
-      setGranted({ domains: disclosure.domains, expiresAt: ack.expiresAt, audience: only });
+      setGranted({ id: ack.id, domains: disclosure.domains, expiresAt: ack.expiresAt, audience: only });
       void live.refetch();
     } catch (e) {
       setError((e as Error).message);
@@ -113,23 +132,20 @@ export function ReadPermission({ api, links, name }: Props) {
    * Taking one back. Signed by the same wallet, and dated: the attester refuses a stale signature, so a
    * revocation captured today cannot be replayed to undo a share made later.
    */
-  async function take(domain: string) {
+  async function take(id: Hex) {
     setError(undefined);
-    setTaking(domain);
+    setTaking(id);
     try {
       const wallet = (wallets.find((w) => w.walletClientType === "privy") ?? wallets[0])?.address as
         Address | undefined;
       if (!wallet) throw new Error("no wallet yet — Privy is still creating it");
-      const revocation = { name, domain, at: Math.floor(Date.now() / 1000) };
+      const revocation = { name, grantId: id, at: Math.floor(Date.now() / 1000) };
       const { signature } = await signTypedData(
         revocationTypedData(revocation, config.chainId, config.multipass as Address) as never,
         { address: wallet }
       );
       await revoking.mutateAsync({ ...revocation, at: revocation.at.toString(), signature });
-      if (granted?.domains.includes(domain)) {
-        const left = granted.domains.filter((d) => d !== domain);
-        setGranted(left.length ? { ...granted, domains: left } : undefined);
-      }
+      if (granted?.id === id) setGranted(undefined);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -179,7 +195,44 @@ export function ReadPermission({ api, links, name }: Props) {
         >
           One person
         </button>
+        <button
+          className={scope === "branch" ? "primary" : ""}
+          onClick={() => setScope("branch")}
+          data-testid="scope-branch"
+        >
+          Anyone at a company
+        </button>
       </p>
+
+      {scope === "branch" && (
+        <>
+          <label>
+            Which company
+            <input
+              value={branch}
+              onChange={(e) => setBranch(e.target.value)}
+              placeholder="acme.com"
+              aria-label="branch"
+              data-testid="branch"
+            />
+          </label>
+          <p className="muted" data-testid="branch-resolved">
+            {!branch.trim() ? (
+              "A domain, as people write it. Anyone who has attested an account there can open this."
+            ) : branchName ? (
+              <>
+                Anyone holding a public name under <code>{branchName}</code>. You never have to know who they
+                are: ENS answers for every name in that branch, and the reader proves theirs on chain when
+                they read.
+              </>
+            ) : (
+              <>
+                <code>{branch.trim()}</code> is not a domain name. Try something like <code>acme.com</code>.
+              </>
+            )}
+          </p>
+        </>
+      )}
 
       {scope === "person" && (
         <>
@@ -245,25 +298,39 @@ export function ReadPermission({ api, links, name }: Props) {
       ) : (
         <ul className="acct" data-testid="granted-list">
           {live.data.grants.map((g) => (
-            <li key={g.domain} data-testid={`grant-${g.domain}`}>
-              <span className="acct-who">{g.domain}</span>
-              <small className="muted">
-                {g.audience === ANYONE ? (
-                  <>anyone with the link</>
-                ) : (
-                  <>
-                    one wallet, <code>{short(g.audience)}</code>
-                  </>
-                )}{" "}
-                · until {new Date(g.expiresAt).toUTCString()}
-              </small>
+            <li key={g.id} data-testid={`grant-${g.id}`}>
+              <span className="acct-id">
+                <strong>{g.domains.length > 1 ? `${g.domains.length} accounts` : g.domains[0]}</strong>
+                <small className="muted">
+                  {g.audienceName ? (
+                    g.audienceName.startsWith("*.") ? (
+                      <>
+                        anyone in <code>{g.audienceName.slice(2)}</code>
+                      </>
+                    ) : (
+                      <code>{g.audienceName}</code>
+                    )
+                  ) : g.audience === ANYONE ? (
+                    <>anyone with the link</>
+                  ) : (
+                    <>
+                      one wallet, <code>{short(g.audience)}</code>
+                    </>
+                  )}{" "}
+                  · until {new Date(g.expiresAt).toUTCString()}
+                </small>
+                {/* One link opened all of them; the list is detail, not the headline. */}
+                {g.domains.length > 1 && (
+                  <details>
+                    <summary className="muted">which accounts</summary>
+                    <small className="muted">{g.domains.join(", ")}</small>
+                  </details>
+                )}
+                {g.domains.length === 1 && <small className="muted sr-detail">{g.domains[0]}</small>}
+              </span>
               <span className="acct-state">
-                <button
-                  onClick={() => take(g.domain)}
-                  disabled={taking === g.domain}
-                  data-testid={`revoke-${g.domain}`}
-                >
-                  {taking === g.domain ? "signing…" : "Stop sharing"}
+                <button onClick={() => take(g.id)} disabled={taking === g.id} data-testid={`revoke-${g.id}`}>
+                  {taking === g.id ? "signing…" : "Stop sharing"}
                 </button>
               </span>
             </li>

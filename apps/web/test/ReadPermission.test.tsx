@@ -34,10 +34,18 @@ const link = (domain: string, ensName: string | null) => ({
   ensName,
 });
 
-let grants: { domain: string; audience: string; expiresAt: string }[] = [];
-const revoke = vi.fn(async (wire: { domain: string }) => {
-  grants = grants.filter((g) => g.domain !== wire.domain);
-  return { ok: true as const, domain: wire.domain };
+type Grant = {
+  id: string;
+  domains: string[];
+  audience: string;
+  audienceName: string;
+  expiresAt: string;
+};
+let grants: Grant[] = [];
+const revoke = vi.fn(async (wire: { grantId: string }) => {
+  const gone = grants.find((g) => g.id === wire.grantId);
+  grants = grants.filter((g) => g.id !== wire.grantId);
+  return { ok: true as const, id: wire.grantId, domains: gone?.domains ?? [] };
 });
 
 const api = {
@@ -113,6 +121,19 @@ describe("sharing a private account", () => {
     expect(share()).toBeEnabled();
   });
 
+  it("shares with a whole branch, which is a group the holder cannot list", async () => {
+    // "Whoever at acme.com" is the case a wallet cannot express: ENSv2 answers for every name under
+    // the branch, so the permission can name the branch instead of the people in it.
+    render(<ReadPermission api={api} links={links} name="alice.ketsuban.eth" />, { wrapper: wrapper() });
+    fireEvent.click(screen.getByTestId("pick-discord.com").querySelector("input") as HTMLInputElement);
+    fireEvent.click(screen.getByTestId("scope-branch"));
+    fireEvent.change(screen.getByTestId("branch"), { target: { value: "acme.com" } });
+
+    // The branch is shown as the ENS name it really is, so nobody has to guess the mount order.
+    expect(screen.getByTestId("branch-resolved")).toHaveTextContent("com.acme.www.ketsuban.eth");
+    expect(screen.getByTestId("share")).toBeEnabled();
+  });
+
   it("takes a wallet address without a lookup", async () => {
     render(<ReadPermission api={api} links={links} name="alice.ketsuban.eth" />, { wrapper: wrapper() });
     fireEvent.click(screen.getByTestId("scope-person"));
@@ -125,8 +146,20 @@ describe("permissions already given", () => {
   beforeEach(() => {
     revoke.mockClear();
     grants = [
-      { domain: "discord.com", audience: BOB, expiresAt: "2027-03-01T00:00:00.000Z" },
-      { domain: "x.com", audience: ZERO, expiresAt: "2027-02-01T00:00:00.000Z" },
+      {
+        id: `0x${"11".repeat(32)}`,
+        domains: ["discord.com", "google"],
+        audience: BOB,
+        audienceName: "",
+        expiresAt: "2027-03-01T00:00:00.000Z",
+      },
+      {
+        id: `0x${"22".repeat(32)}`,
+        domains: ["x.com"],
+        audience: ZERO,
+        audienceName: "",
+        expiresAt: "2027-02-01T00:00:00.000Z",
+      },
     ];
   });
 
@@ -140,16 +173,19 @@ describe("permissions already given", () => {
     expect(list).toHaveTextContent(/anyone with the link/i);
   });
 
-  it("takes one back and stops listing it, leaving the others alone", async () => {
+  it("takes one share back with one signature, leaving the other standing", async () => {
     render(<ReadPermission api={api} links={links} name="alice.ketsuban.eth" />, { wrapper: wrapper() });
     await screen.findByTestId("granted-list");
-    fireEvent.click(screen.getByTestId("revoke-discord.com"));
+    fireEvent.click(screen.getByTestId(`revoke-0x${"11".repeat(32)}`));
 
     await waitFor(() => expect(revoke).toHaveBeenCalledTimes(1));
-    // The signature covers this account only: revoking one share must not touch another.
-    expect(revoke.mock.calls[0][0]).toMatchObject({ name: "alice.ketsuban.eth", domain: "discord.com" });
-    await waitFor(() => expect(screen.queryByTestId("revoke-discord.com")).toBeNull());
-    expect(screen.getByTestId("revoke-x.com")).toBeInTheDocument();
+    // One signature names the grant, not an account inside it.
+    expect(revoke.mock.calls[0][0]).toMatchObject({
+      name: "alice.ketsuban.eth",
+      grantId: `0x${"11".repeat(32)}`,
+    });
+    await waitFor(() => expect(screen.queryByTestId(`revoke-0x${"11".repeat(32)}`)).toBeNull());
+    expect(screen.getByTestId(`revoke-0x${"22".repeat(32)}`)).toBeInTheDocument();
   });
 
   it("says nothing is shared rather than showing an empty box", async () => {

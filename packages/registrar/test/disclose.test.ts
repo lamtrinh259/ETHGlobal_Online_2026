@@ -32,6 +32,7 @@ const base: Disclosure = {
   name: "alice.ketsuban.eth",
   domains: ["x"],
   audience: zeroAddress,
+  audienceName: "",
   exp: BigInt(NOW + 3600),
   boxesHash: hashBoxes([box]),
 };
@@ -77,16 +78,16 @@ describe("disclosure grants", () => {
     // An open grant opens for anyone; one addressed to a wallet opens only for that wallet, and not
     // for a caller who names nobody.
     expect(() => checkAudience(grant)).not.toThrow();
-    expect(() => checkAudience(grant, bob.address)).not.toThrow();
+    expect(() => checkAudience(grant, { reader: bob.address })).not.toThrow();
     const toBob = { ...grant, audience: bob.address };
-    expect(() => checkAudience(toBob, bob.address)).not.toThrow();
-    expect(() => checkAudience(toBob, alice.address)).toThrow("addressed to a different reader");
+    expect(() => checkAudience(toBob, { reader: bob.address })).not.toThrow();
+    expect(() => checkAudience(toBob, { reader: alice.address })).toThrow("addressed to a different reader");
     expect(() => checkAudience(toBob)).toThrow("addressed to a different reader");
   });
 });
 
 describe("revoking a grant", () => {
-  const revocation = { name: base.name, domain: "x", at: BigInt(NOW) };
+  const revocation = { name: base.name, grantId: base.boxesHash, at: BigInt(NOW) };
   const domain = discloseDomain(11155111, MULTIPASS);
 
   it("only the wallet that holds the record can take a grant back", async () => {
@@ -129,6 +130,7 @@ describe("one grant, several accounts", () => {
     // Sharing three accounts must not cost three signatures: the reader is given one link either way.
     domains: ["discord.com", "x"],
     audience: zeroAddress,
+    audienceName: "",
     exp: BigInt(NOW + 3600),
     boxesHash: hashBoxes([box, box2]),
   };
@@ -155,5 +157,54 @@ describe("one grant, several accounts", () => {
     // produce the same statement rather than two that differ only by click order.
     expect(domainsKey(["x", "discord.com"])).toEqual(["discord.com", "x"]);
     expect(domainsKey(["x", "x"])).toEqual(["x"]);
+  });
+});
+
+describe("addressing a grant to a name instead of a wallet", () => {
+  const under = (audienceName: string): SignedDisclosure => ({
+    name: "alice.ketsuban.eth",
+    domains: ["x"],
+    audience: zeroAddress,
+    audienceName,
+    exp: BigInt(NOW + 3600),
+    boxesHash: hashBoxes([box]),
+    boxes: [box],
+    signature: "0xdeadbeef",
+  });
+
+  it("opens for anyone holding a name in the branch, and for nobody outside it", () => {
+    // The point of the wildcard: "whoever at acme.com" is a group the holder cannot enumerate, and
+    // ENSv2 resolves every name under the branch without any of them being registered one by one.
+    const grant = under("*.com.acme.www.ketsuban.eth");
+    expect(() =>
+      checkAudience(grant, { reader: bob.address, readerName: "bob.com.acme.www.ketsuban.eth" })
+    ).not.toThrow();
+    // A name that merely ends in the same words but sits in another branch is a different company.
+    expect(() =>
+      checkAudience(grant, { reader: bob.address, readerName: "bob.com.evil-acme.www.ketsuban.eth" })
+    ).toThrow(/different reader/);
+    // The branch itself is not a name under it: `*.` requires at least one label.
+    expect(() =>
+      checkAudience(grant, { reader: bob.address, readerName: "com.acme.www.ketsuban.eth" })
+    ).toThrow(/different reader/);
+    // And a reader who names nothing gets nothing, however good their wallet.
+    expect(() => checkAudience(grant, { reader: bob.address })).toThrow(/different reader/);
+  });
+
+  it("addresses one person by name, so a wallet change does not lock them out", () => {
+    const grant = under("bob.ketsuban.eth");
+    expect(() => checkAudience(grant, { reader: bob.address, readerName: "bob.ketsuban.eth" })).not.toThrow();
+    expect(() => checkAudience(grant, { reader: bob.address, readerName: "carol.ketsuban.eth" })).toThrow(
+      /different reader/
+    );
+    // Case is not identity: ENS names are compared lowercased.
+    expect(() => checkAudience(grant, { reader: bob.address, readerName: "BOB.ketsuban.eth" })).not.toThrow();
+  });
+
+  it("still addresses a wallet when no name is named, and still opens for anyone when neither is", () => {
+    const toWallet: SignedDisclosure = { ...under(""), audience: bob.address };
+    expect(() => checkAudience(toWallet, { reader: bob.address })).not.toThrow();
+    expect(() => checkAudience(toWallet, { reader: alice.address })).toThrow(/different reader/);
+    expect(() => checkAudience(under(""), {})).not.toThrow();
   });
 });

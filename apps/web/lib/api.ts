@@ -157,7 +157,15 @@ export type Disclosed = z.infer<typeof disclosedSchema>;
 /** What a name is sharing right now: enough to say who can read what, never the grant itself. */
 export const grantsSchema = z.object({
   name: z.string(),
-  grants: z.array(z.object({ domain: z.string(), audience: address, expiresAt: z.string() })),
+  grants: z.array(
+    z.object({
+      id: hex,
+      domains: z.array(z.string()),
+      audience: address,
+      audienceName: z.string(),
+      expiresAt: z.string(),
+    })
+  ),
 });
 export type Grants = z.infer<typeof grantsSchema>;
 export type Grant = Grants["grants"][number];
@@ -346,13 +354,13 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
     },
 
     /** Hand the attester a candidate-signed permission to read one masked account. */
-    async disclose(wire: object): Promise<{ ok: true; expiresAt: string }> {
+    async disclose(wire: object): Promise<{ ok: true; id: Hex; domains: string[]; expiresAt: string }> {
       const res = await call(`${base}/v1/disclose`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(wire),
       });
-      return (await readJson(res)) as { ok: true; expiresAt: string };
+      return (await readJson(res)) as { ok: true; id: Hex; domains: string[]; expiresAt: string };
     },
 
     /** Live permissions on a name, so its holder can see who can read which account. */
@@ -363,18 +371,21 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
     },
 
     /** Take one back; the wire carries the holder's signature over a dated revocation. */
-    async revoke(wire: object): Promise<{ ok: true; domain: string }> {
+    async revoke(wire: object): Promise<{ ok: true; id: string; domains: string[] }> {
       const res = await call(`${base}/v1/revoke`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(wire),
       });
-      return (await readJson(res)) as { ok: true; domain: string };
+      return (await readJson(res)) as { ok: true; id: string; domains: string[] };
     },
 
     /** Read a masked account the candidate allowed; `reader` must match a grant addressed to one wallet. */
-    async disclosed(name: string, domain: string, reader?: string): Promise<Disclosed> {
-      const q = reader ? `?reader=${reader}` : "";
+    async disclosed(name: string, domain: string, reader?: string, as?: string): Promise<Disclosed> {
+      const parts = [reader ? `reader=${reader}` : "", as ? `as=${encodeURIComponent(as)}` : ""].filter(
+        Boolean
+      );
+      const q = parts.length ? `?${parts.join("&")}` : "";
       return disclosedSchema.parse(
         await readJson(
           await call(`${base}/v1/disclose/${encodeURIComponent(name)}/${encodeURIComponent(domain)}${q}`)
