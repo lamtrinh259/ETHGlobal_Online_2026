@@ -142,18 +142,41 @@ describe("text on the surface behind it", () => {
   /** The value a token holds in a given block, read from the stylesheet rather than restated here. */
   const tokenIn = (block: RegExp, name: string) => {
     const found = block.exec(css);
-    if (!found) throw new Error(`no such palette block`);
+    if (!found) throw new Error("no such palette block");
     const m = new RegExp(`${name}:\\s*(#[0-9a-fA-F]{3,8})`).exec(found[0]);
-    if (!m) throw new Error(`${name} is not set in that palette`);
-    return m[1];
+    // A theme that does not override a token inherits the default one, which is the case that hid
+    // this: green and orange were tuned for the dark palette and reused unchanged on the light one.
+    if (m) return m[1];
+    const base = /^:root \{[^}]*\}/m.exec(css);
+    const inherited = base && new RegExp(`${name}:\\s*(#[0-9a-fA-F]{3,8})`).exec(base[0]);
+    if (!inherited) throw new Error(`${name} is set in no palette`);
+    return inherited[1];
   };
 
   const DARK = /^:root \{[^}]*\}/m;
   const LIGHT = /^:root\[data-theme="light"\] \{[^}]*\}/m;
 
-  it("reads the warning colour on the panel of either theme", () => {
-    expect(contrast(tokenIn(DARK, "--warning"), tokenIn(DARK, "--panel"))).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(tokenIn(LIGHT, "--warning"), tokenIn(LIGHT, "--panel"))).toBeGreaterThanOrEqual(4.5);
+  /**
+   * Only the tokens this stylesheet sets as a `color`, and only against the surfaces they sit on. A
+   * ratio measured for a token used as a background says nothing, and holding those to a text standard
+   * would make the check noise somebody learns to override.
+   */
+  const asText = ["--warning", "--consensus", "--contested"];
+
+  it("reads its text colours on the surfaces behind them, in both themes", () => {
+    const failures: string[] = [];
+    for (const [name, block] of [
+      ["dark", DARK],
+      ["light", LIGHT],
+    ] as const) {
+      for (const token of asText) {
+        for (const surface of ["--panel", "--panel-2"]) {
+          const ratio = contrast(tokenIn(block, token), tokenIn(block, surface));
+          if (ratio < 4.5) failures.push(`${name} ${token} on ${surface}: ${ratio.toFixed(2)}:1`);
+        }
+      }
+    }
+    expect(failures).toEqual([]);
   });
 
   it("measures contrast the way the standard defines it", () => {

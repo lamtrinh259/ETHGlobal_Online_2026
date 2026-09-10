@@ -41,7 +41,14 @@
 :root[data-theme="light"] {
   --bg: #f5f7fc;
   --panel: #ffffff;
-  --warning: #a16207;
+  --warning: #8f5606;
+  /*
+   * Green and orange are read as text, not only painted behind it. The dark palette's
+   * versions reach 3.3:1 and 2.2:1 on white — below what WCAG AA asks of body text — so this
+   * theme carries darker ones. The badges that use them as a background gain contrast too.
+   */
+  --consensus: #1b6b45;
+  --contested: #9a3412;
   --panel-2: #eef2f9;
   --border: #dbe3f0;
   --text-primary: #0b1424;
@@ -55,7 +62,14 @@
   :root:not([data-theme="dark"]) {
     --bg: #f5f7fc;
     --panel: #ffffff;
-    --warning: #a16207;
+    --warning: #8f5606;
+    /*
+     * Green and orange are read as text, not only painted behind it. The dark palette's
+     * versions reach 3.3:1 and 2.2:1 on white — below what WCAG AA asks of body text — so this
+     * theme carries darker ones. The badges that use them as a background gain contrast too.
+     */
+    --consensus: #1b6b45;
+    --contested: #9a3412;
     --panel-2: #eef2f9;
     --border: #dbe3f0;
     --text-primary: #0b1424;
