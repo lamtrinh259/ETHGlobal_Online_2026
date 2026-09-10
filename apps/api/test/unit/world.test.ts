@@ -433,3 +433,47 @@ describe("hashing a signal the way IDKit does", () => {
     expect(hashSignal("0xzz")).toBe(hashToField(stringToBytes("0xzz")));
   });
 });
+
+/**
+ * A staging app is a different app, not a mode of the production one. The QR a staging request builds
+ * points at the simulator, and a production app id cannot answer it — so the pair has to agree, and
+ * nothing at the World end reports it when they do not.
+ */
+describe("staging and production are separate apps", () => {
+  const base = {
+    WORLD_RP_ID: "rp_test",
+    WORLD_ACTION: "humanity",
+    WORLD_RP_SIGNING_KEY: VECTOR_KEY as Hex,
+    WORLD_VERIFY_URL: "https://developer.world.org",
+    WORLD_CREDENTIAL: "selfie" as const,
+    WORLD_LEVELS: [],
+  };
+
+  it("accepts a production app in production", () => {
+    expect(
+      worldFrom({ ...base, WORLD_APP_ID: "app_prod", WORLD_ENVIRONMENT: "production" })?.environment
+    ).toBe("production");
+  });
+
+  it("accepts a staging app in staging", () => {
+    expect(
+      worldFrom({ ...base, WORLD_APP_ID: "app_staging_abc", WORLD_ENVIRONMENT: "staging" })?.environment
+    ).toBe("staging");
+  });
+
+  it("refuses a production app pointed at staging, which is the pairing that looks like a broken widget", () => {
+    expect(() => worldFrom({ ...base, WORLD_APP_ID: "app_prod", WORLD_ENVIRONMENT: "staging" })).toThrow(
+      /begins app_staging_/
+    );
+  });
+
+  it("refuses a staging app left in production", () => {
+    expect(() =>
+      worldFrom({ ...base, WORLD_APP_ID: "app_staging_abc", WORLD_ENVIRONMENT: "production" })
+    ).toThrow(/is a staging app/);
+  });
+
+  it("is still simply absent when a part of it is unset, rather than an error", () => {
+    expect(worldFrom({ ...base, WORLD_APP_ID: undefined, WORLD_ENVIRONMENT: "staging" })).toBeUndefined();
+  });
+});

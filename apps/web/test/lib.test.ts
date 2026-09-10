@@ -623,3 +623,28 @@ describe("every read the client offers", () => {
     expect(calls.some((u) => u.includes(`viewCode=0x${"5a".repeat(32)}`))).toBe(true);
   });
 });
+
+/**
+ * A write that timed out is not a write that did not happen. The attester may finish after the browser
+ * gives up, and "signal timed out" reads as "nothing happened" — so the next attempt signs an intent
+ * carrying a nonce the chain has already seen, and is refused for a reason nobody can connect to the
+ * timeout that caused it.
+ */
+describe("a request that times out", () => {
+  const timeout = () => {
+    const e = new Error("signal timed out");
+    e.name = "TimeoutError";
+    return Promise.reject(e);
+  };
+
+  it("says a write may have landed anyway, and what to do about it", async () => {
+    const api = createApi("http://api.test", "http://api.test/v1/attest", timeout as never);
+    await expect(api.attest({})).rejects.toThrow(/may still have written the record/);
+    await expect(api.attest({})).rejects.toThrow(/reload this page/);
+  });
+
+  it("leaves a read alone, because nothing was committed by one", async () => {
+    const api = createApi("http://api.test", "http://api.test/v1/attest", timeout as never);
+    await expect(api.nonce("0x00", "ketsuban")).rejects.toThrow("signal timed out");
+  });
+});

@@ -40,6 +40,20 @@ export function worldFrom(c: {
   WORLD_LEVELS: string[];
 }): WorldConfig | undefined {
   if (!c.WORLD_APP_ID || !c.WORLD_RP_ID || !c.WORLD_RP_SIGNING_KEY) return undefined;
+  /*
+   * A staging app is a different app, not a mode of the production one: the QR a staging request
+   * produces points at the simulator, and a production app id will not answer for it whatever the
+   * environment says. The two are set separately and there is nothing at the World end that reports
+   * the mismatch, so the QR simply points at the wrong place — which reads as the widget being broken.
+   */
+  const staging = c.WORLD_APP_ID.startsWith("app_staging_");
+  if (staging !== (c.WORLD_ENVIRONMENT === "staging")) {
+    throw new Error(
+      `world: WORLD_APP_ID ${c.WORLD_APP_ID} is ${staging ? "a staging" : "a production"} app but ` +
+        `WORLD_ENVIRONMENT is "${c.WORLD_ENVIRONMENT}". A staging app id begins app_staging_, and the ` +
+        `environment has to match it, or the widget offers a code the app cannot answer.`
+    );
+  }
   return {
     appId: c.WORLD_APP_ID,
     rpId: c.WORLD_RP_ID,

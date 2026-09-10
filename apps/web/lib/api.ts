@@ -364,11 +364,28 @@ async function readJson(res: Response): Promise<unknown> {
  */
 export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fetch) {
   const base = apiUrl.replace(/\/$/, "");
-  const call = (url: string, init?: RequestInit) =>
-    fetchFn(url, {
-      ...init,
-      signal: init?.signal ?? timeoutSignal(init?.method && init.method !== "GET" ? 45_000 : 20_000),
-    });
+  const call = async (url: string, init?: RequestInit) => {
+    const write = !!init?.method && init.method !== "GET";
+    try {
+      return await fetchFn(url, {
+        ...init,
+        signal: init?.signal ?? timeoutSignal(write ? 45_000 : 20_000),
+      });
+    } catch (e) {
+      /*
+       * A timed-out write is not a failed one. The attester may have finished after this gave up, and
+       * "signal timed out" reads as "nothing happened" — so the next attempt reuses a nonce the chain
+       * has already seen and is refused. Say what actually happened instead.
+       */
+      const name = (e as Error)?.name;
+      if (write && (name === "TimeoutError" || name === "AbortError")) {
+        throw new Error(
+          "the attester did not answer in time. It may still have written the record — reload this page before trying again, so the next attempt reads the nonce the chain now holds."
+        );
+      }
+      throw e;
+    }
+  };
 
   return {
     async nonce(

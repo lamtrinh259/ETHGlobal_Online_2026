@@ -155,10 +155,16 @@ export function AttestFlow({
       if (!wallet) throw new Error("no wallet yet — Privy is still creating it");
       if (!identityToken)
         throw new Error("no identity token — enable identity tokens in the Privy dashboard");
-      const refreshed = nonce.data ? undefined : await nonce.refetch();
-      const state = nonce.data ?? refreshed?.data;
+      /*
+       * Read it again, always. A cached nonce is the one value that cannot be reused: the chain
+       * refuses a record whose nonce has not increased, and a stale one spends the person's signature
+       * on a request that was doomed before they gave it. Publishing twice in a session is enough to
+       * go stale — the second intent carried the nonce the first had already used.
+       */
+      const refreshed = await nonce.refetch();
+      const state = refreshed.data ?? nonce.data;
       if (!state) {
-        const why = refreshed?.error?.message ?? nonce.error?.message ?? "no response";
+        const why = refreshed.error?.message ?? nonce.error?.message ?? "no response";
         throw new Error(`could not read the on-chain nonce from ${config.apiUrl}: ${why}`);
       }
       const { next } = state;

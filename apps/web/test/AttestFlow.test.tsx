@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 /**
@@ -34,20 +34,47 @@ const state = {
   attestData: undefined as object | undefined,
   /** What this deployment already holds; anything else is built while the first account is attested */
   mounted: ["ketsuban", "kju-is", "x.com"] as string[],
+  cachedNonce: { exists: false, next: 1n, ready: true, reason: null } as
+    { exists: boolean; next: bigint; ready: boolean; reason: string | null } | undefined,
+  freshNonce: { exists: false, next: 1n, ready: true, reason: null } as
+    { exists: boolean; next: bigint; ready: boolean; reason: string | null } | undefined,
+  wire: undefined as { intent?: { nonce?: string } } | undefined,
 };
 
 vi.mock("@/lib/hooks", () => ({
   apiFor: () => ({}),
   useContracts: () => ({ data: { instances: state.mounted.map((domain) => ({ domain })) } }),
-  useNonce: () => ({ data: { exists: false, next: 1n, ready: true, reason: null } }),
+  useNonce: () => ({
+    // What the page read when it loaded, which may no longer be what the chain holds.
+    data: state.cachedNonce,
+    refetch: vi.fn(async () => ({ data: state.freshNonce, error: undefined })),
+  }),
   useNameStatus: () => ({ data: undefined }),
-  useAttest: () => ({ data: state.attestData, error: undefined, isPending: false, reset: vi.fn() }),
+  useAttest: () => ({
+    data: state.attestData,
+    error: undefined,
+    isPending: false,
+    reset: vi.fn(),
+    mutateAsync: vi.fn(async (wire: { intent?: { nonce?: string } }) => {
+      state.wire = wire;
+      return { record: {}, signature: "0x01", viewCode: null };
+    }),
+  }),
   useDeliver: () => ({
     data: state.txHash ? { txHash: state.txHash } : undefined,
     error: state.deliverError,
     isPending: false,
     reset: vi.fn(),
+    mutateAsync: vi.fn(async () => ({ txHash: "0xdead" })),
   }),
+}));
+
+// The view key lives in the browser's storage, which this file has none of; the flow only needs it to
+// exist, and what it holds is covered where it is created.
+vi.mock("@/lib/keys", () => ({
+  loadOrCreateViewKey: () => ({ publicKey: `0x02${"11".repeat(32)}`, privateKey: `0x${"22".repeat(32)}` }),
+  openViewCode: () => `0x${"33".repeat(32)}`,
+  saveViewCode: vi.fn(),
 }));
 
 vi.mock("@/app/providers", () => ({
@@ -80,6 +107,9 @@ beforeEach(() => {
   state.deliverError = undefined;
   state.txHash = undefined;
   state.attestData = undefined;
+  state.cachedNonce = { exists: false, next: 1n, ready: true, reason: null };
+  state.freshNonce = { exists: false, next: 1n, ready: true, reason: null };
+  state.wire = undefined;
 });
 
 describe("AttestFlow fields", () => {
@@ -154,5 +184,47 @@ describe("how much of a statement fits", () => {
     const box = await screen.findByLabelText("answer");
     fireEvent.change(box, { target: { value: "x".repeat(32) } });
     expect(screen.getByTestId("answer-bytes")).toHaveTextContent(/too long/);
+  });
+});
+
+/**
+ * The nonce is the one value that cannot be reused: the chain refuses a record whose nonce has not
+ * increased. A page that read it once and then published twice — or whose first write timed out in the
+ * browser and landed anyway — signs the second intent with a number the chain has already seen, and
+ * spends a person's signature on a request that was doomed before they gave it.
+ */
+describe("the nonce an intent carries", () => {
+  const publish = async () => {
+    render(<AttestFlow fixedDomain="~alice" fixedHandle="peersky" />);
+    fireEvent.click(screen.getByTestId("publish"));
+    await waitFor(() => {
+      const alert = screen.queryByRole("alert");
+      if (alert) throw new Error(`publish refused: ${alert.textContent}`);
+      expect(state.wire).toBeDefined();
+    });
+  };
+
+  it("is the one the chain holds now, not the one the page loaded with", async () => {
+    // The record was written since this page read its nonce, which is exactly the case that failed.
+    state.cachedNonce = { exists: false, next: 1n, ready: true, reason: null };
+    state.freshNonce = { exists: true, next: 2n, ready: true, reason: null };
+    await publish();
+    expect(state.wire?.intent?.nonce).toBe("2");
+  });
+
+  it("still publishes when nothing has changed", async () => {
+    await publish();
+    expect(state.wire?.intent?.nonce).toBe("1");
+  });
+
+  it("says so rather than signing when the nonce cannot be read at all", async () => {
+    state.cachedNonce = undefined;
+    state.freshNonce = undefined;
+    render(<AttestFlow fixedDomain="~alice" fixedHandle="peersky" />);
+    fireEvent.click(screen.getByTestId("publish"));
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent("could not read the on-chain nonce")
+    );
+    expect(state.wire).toBeUndefined();
   });
 });
