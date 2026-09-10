@@ -616,7 +616,7 @@ textarea {
   width: 100%;
   font: inherit;
   color: var(--text-primary);
-  background: var(--surface-2, transparent);
+  background: transparent;
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 8px 10px;
@@ -832,7 +832,7 @@ details.advanced[open] > summary {
   overflow: auto;
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: var(--radius-md, 10px);
+  border-radius: 10px;
   box-shadow: 0 20px 60px -20px rgb(0 0 0 / 0.6);
 }
 .modal-head {
@@ -996,7 +996,7 @@ details.advanced[open] > summary {
 /* A reference nobody asked for is still a reference; the note is a caution, not a dismissal. */
 .badge-unsolicited {
   margin-left: 6px;
-  color: var(--warning, #a16207);
+  color: #a16207;
   border-color: currentColor;
 }
 
@@ -1024,7 +1024,12 @@ details.advanced[open] > summary {
   position: absolute;
   inset: 8px;
   border-radius: 50%;
-  background: var(--card, #fff);
+  /*
+   * The hole in the ring sits on a card, so it is the card's own surface. It named a token that does
+   * not exist and fell back to white — correct in the light theme and a white disc on a dark card in
+   * the default one, which is the theme most people see.
+   */
+  background: var(--panel);
 }
 .score-ring strong,
 .score-ring small {

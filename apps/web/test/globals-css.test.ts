@@ -91,3 +91,29 @@ describe("lists that are lists only structurally", () => {
     expect(unreset).toEqual([]);
   });
 });
+
+/**
+ * A custom property that was never defined resolves to its fallback, silently. That is fine when the
+ * fallback is what was wanted and wrong when the name implied a theme token: the hole in the score
+ * ring named one that does not exist and fell back to white, which is right in the light theme and a
+ * white disc on a dark card in the default one.
+ */
+describe("custom properties", () => {
+  /** Set inline by a component, so the stylesheet cannot define it. */
+  const inline = new Set(["--pct"]);
+
+  it("are defined wherever they are read", () => {
+    const defined = new Set([...css.matchAll(/^\s*(--[a-zA-Z0-9-]+):/gm)].map((m) => m[1]));
+    const used = new Set([...css.matchAll(/var\((--[a-zA-Z0-9-]+)/g)].map((m) => m[1]));
+    const missing = [...used].filter((v) => !defined.has(v) && !inline.has(v));
+    expect(missing).toEqual([]);
+  });
+
+  it("notices one that is only ever read", () => {
+    // The check has to be able to fail, or it is decoration.
+    const sample = ":root {\n  --a: red;\n}\n.x {\n  color: var(--b, blue);\n}\n";
+    const defined = new Set([...sample.matchAll(/^\s*(--[a-zA-Z0-9-]+):/gm)].map((m) => m[1]));
+    const used = new Set([...sample.matchAll(/var\((--[a-zA-Z0-9-]+)/g)].map((m) => m[1]));
+    expect([...used].filter((v) => !defined.has(v))).toEqual(["--b"]);
+  });
+});
