@@ -11,7 +11,8 @@
     "test:e2e": "playwright test",
     "typecheck": "node scripts/build-info.mjs && tsc --noEmit",
     "lint": "prettier --check 'app/**/*.{ts,tsx}' 'lib/**/*.ts' 'test/**/*.{ts,tsx}' 'e2e/**/*.ts'",
-    "lint:fix": "prettier --write 'app/**/*.{ts,tsx}' 'lib/**/*.ts' 'test/**/*.{ts,tsx}' 'e2e/**/*.ts'"
+    "lint:fix": "prettier --write 'app/**/*.{ts,tsx}' 'lib/**/*.ts' 'test/**/*.{ts,tsx}' 'e2e/**/*.ts'",
+    "check:live": "vitest run -c vitest.live.mts"
   },
   "dependencies": {
     "@ketsuban/contracts": "workspace:*",

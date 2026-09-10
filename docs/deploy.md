@@ -52,6 +52,21 @@ and Sourcify.
 
 ENSv2 Sepolia addresses: [docs.ens.domains/learn/deployments](https://docs.ens.domains/learn/deployments/).
 
+## Before a deploy: does the attester answer what the app parses?
+
+```bash
+pnpm --filter @ketsuban/web check:live                                   # the deployed attester
+CHECK_API=http://127.0.0.1:8787 pnpm --filter @ketsuban/web check:live   # one you are running
+```
+
+Reads six endpoints and parses each with the schema the web parses it with. It matters because every
+page is written to degrade: a response that has drifted is caught, and the page renders a fallback
+that reads as an ordinary empty state rather than as a fault. This is how that is found on purpose
+instead of from a screenshot of a page quietly showing nothing.
+
+Kept out of the test run — it needs a reachable deployment, and a suite that fails when a server is
+down is a suite people learn to ignore.
+
 ## 2. CRE workflow (`packages/cre`)
 
 ```bash

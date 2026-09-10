@@ -9,6 +9,8 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./test/setup.ts"],
+    // `live/` is not here on purpose: those hit a running deployment, and a suite that fails when a
+    // server is down is a suite people learn to ignore. Run them with `pnpm check:live`.
     include: ["test/**/*.test.{ts,tsx}"],
     // One file at a time on a runner; these files share module mocks, so they cannot share a process.
     fileParallelism: !process.env.CI,
