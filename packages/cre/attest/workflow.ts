@@ -374,6 +374,22 @@ const discloseSchema = z.object({
  */
 export const onDisclose = async (runtime: TeeRuntime<Config>, payload: HTTPPayload): Promise<string> => {
   const config = runtime.config;
+  /*
+   * Who may ask at all.
+   *
+   * This handler decides whether to unmask an account from `reader` and `readerName` in the request,
+   * and nothing here can check either: the schema says as much — a name the *caller* has already
+   * proved the reader holds. That is a workable model only while the caller is trusted, and an HTTP
+   * trigger with no authorized keys is not: it answers whoever has the URL. The two settings have to
+   * agree, and an unauthenticated caller asserting who they are is the one combination that turns a
+   * permission into a formality.
+   */
+  if (config.authorizedKeys.length === 0) {
+    throw new Error(
+      "disclosure: this workflow has no authorizedKeys, so its trigger answers anyone, and this handler " +
+        "takes the reader's identity from the request. Authorize the caller before exposing it."
+    );
+  }
   const input = discloseSchema.parse(JSON.parse(bytesToString(payload.input)));
   const grant = {
     name: input.grant.name,

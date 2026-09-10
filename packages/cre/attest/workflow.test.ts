@@ -58,7 +58,9 @@ const config: Config = {
   // The domains the deployment mounts, which is what makes `x.com` writable in the enclave.
   platformDomains: ["x", "x.com", "peeramid.xyz"],
   secretIds: { registrarKey: "REGISTRAR_KEY", viewcodeKey: "VIEWCODE_KEY" },
-  authorizedKeys: [],
+  // The disclose handler takes the reader's identity from the request, so it refuses to answer a
+  // workflow whose trigger is open to anyone. A deployment names its caller here.
+  authorizedKeys: ["0x1111111111111111111111111111111111111111"],
   deliveryUrl: "",
   provisionUrl: "",
   reportGasLimit: "1200000",
@@ -546,6 +548,33 @@ describe("initWorkflow", () => {
  * The same bytes are asserted in packages/contracts/test/ReportEncoding.t.sol. Change the encoding and
  * one of the two fails, which is why this pins bytes and not a shape.
  */
+/**
+ * Who may ask the enclave to unmask an account.
+ *
+ * The handler decides from `reader` and `readerName` in the request, and cannot check either — the
+ * schema says so itself: a name the *caller* has already proved. That model works only while the
+ * caller is trusted, and an HTTP trigger with no authorized keys answers whoever has the URL. The two
+ * settings have to agree, or a signed permission becomes a formality.
+ */
+describe("an open trigger cannot unmask an account", () => {
+  test("refuses when the workflow authorizes nobody", async () => {
+    const open = { ...config, authorizedKeys: [] } as Config;
+    const { runtime } = fakeTeeRuntime({ cfg: open });
+    await expect(onDisclose(runtime, { input: stringToBytes("{}") } as never)).rejects.toThrow(
+      "Authorize the caller before exposing it"
+    );
+  });
+
+  test("refuses before it reads the request, so a malformed one cannot tell them apart", async () => {
+    // The guard is about who is asking, not what they asked for: it must not depend on the payload.
+    const open = { ...config, authorizedKeys: [] } as Config;
+    const { runtime } = fakeTeeRuntime({ cfg: open });
+    await expect(onDisclose(runtime, { input: stringToBytes("not json") } as never)).rejects.toThrow(
+      "Authorize the caller"
+    );
+  });
+});
+
 describe("what the enclave hands the reporter", () => {
   const VECTOR =
     ("0x000000000000000000000000ee4811b9462956c9c3535e79c08776d769ca9f3a" +

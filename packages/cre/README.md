@@ -123,6 +123,13 @@ already carries this deployment's Multipass, Privy app and name domains; `report
 `AttestationReporter`, and `deliveryUrl` is deliberately empty, because the DON write is the path that
 removes our relayer key from attestation altogether.
 
+**3b. Authorize the caller.** `authorizedKeys` in `config.production.json` is empty, and the disclose
+handler refuses to run while it is: that handler decides whether to unmask an account from the
+`reader` and `readerName` in the request and cannot check either — the schema says as much, *a name
+the caller has already proved*. That is a workable model only while the caller is trusted, and a
+trigger with no authorized keys answers whoever has the URL. Name the key the API signs its calls
+with before the workflow is exposed.
+
 **4. Point the browser at the trigger.** `NEXT_PUBLIC_ATTEST_URL=<the trigger URL>`, as a **build
 arg** — it is inlined at `next build`, so a runtime variable never reaches the bundle.
 
