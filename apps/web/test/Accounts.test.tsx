@@ -1,17 +1,18 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { WalletDashboard } from "@/lib/api";
 
 vi.mock("@privy-io/react-auth", () => ({
   usePrivy: () => ({ user: { google: { email: "tim@peeramid.xyz" }, twitter: { username: "peersky" } } }),
   useLinkAccount: () => ({
-    linkTwitter: vi.fn(),
-    linkTelegram: vi.fn(),
-    linkGithub: vi.fn(),
-    linkDiscord: vi.fn(),
-    linkGoogle: vi.fn(),
+    linkTwitter: () => linked.push("x"),
+    linkTelegram: () => linked.push("telegram"),
+    linkGithub: () => linked.push("github"),
+    linkDiscord: () => linked.push("discord"),
+    linkGoogle: () => linked.push("google"),
   }),
 }));
+const linked: string[] = [];
 const instance = (domain: string, parentName: string) => ({ domain, parentName, parentLabel: domain });
 let instances = [
   instance("ketsuban", "ketsuban.eth"),
@@ -52,7 +53,8 @@ describe("Accounts", () => {
     );
     // A platform reads as the DNS name it is, so the account is `alice_x` on `x.com`.
     expect(screen.getByTestId("account-x")).toHaveTextContent("alice_x.com.x.www.ketsuban.eth");
-    expect(screen.getByTestId("account-google")).toHaveTextContent("attested · private");
+    // Private, and with no name of its own yet: the badge carries the state either way.
+    expect(screen.getByTestId("badge-google.com")).toHaveTextContent("private");
   });
 
   it("stops offering to attest an account that was just published, and says why", () => {
@@ -62,6 +64,26 @@ describe("Accounts", () => {
     expect(screen.queryByTestId("attest-google")).toBeNull();
     // An account nothing is pending for still offers the action.
     expect(screen.getByTestId("attest-x")).toBeVisible();
+  });
+
+  it("shows a private account's state as a badge and its platform as a mark", () => {
+    // The row used to run "private" straight into the next link with no separator. State is a badge,
+    // identity is an icon, and neither is a run of text that collides with the other.
+    render(
+      <Accounts
+        links={[link("google.com", { optedIn: true, ensName: "alice.com.google.private-www.ketsuban.eth" })]}
+        handle="alice"
+        onPublished={() => {}}
+      />
+    );
+    const row = screen.getByTestId("account-google");
+    expect(row.querySelector('[data-testid="icon-google.com"]')).not.toBeNull();
+    expect(screen.getByTestId("badge-google.com")).toHaveTextContent("private");
+  });
+
+  it("calls a public account public, in the same place the private badge sits", () => {
+    render(<Accounts links={[link("x.com")]} handle="alice" onPublished={() => {}} />);
+    expect(screen.getByTestId("badge-x.com")).toHaveTextContent("public");
   });
 
   it("points a private account at the controls that say who can read it", () => {
@@ -109,7 +131,7 @@ describe("Accounts", () => {
         onPublished={vi.fn()}
       />
     );
-    expect(screen.getByTestId("account-google")).toHaveTextContent("attested");
+    expect(screen.getByTestId("badge-google")).toHaveTextContent("private");
     expect(screen.queryByTestId("attest-google")).toBeNull();
   });
 
@@ -127,7 +149,7 @@ describe("Accounts", () => {
         onPublished={vi.fn()}
       />
     );
-    expect(screen.getByTestId("account-google")).toHaveTextContent("attested · private");
+    expect(screen.getByTestId("badge-google")).toHaveTextContent("private");
     expect(screen.getByTestId("rename-google")).toHaveTextContent("give it a name");
   });
 
@@ -146,5 +168,29 @@ describe("Accounts", () => {
     expect(screen.getByTestId("attest-google")).toBeVisible();
     expect(screen.getByTestId("attest-x")).toBeVisible();
     expect(screen.queryByTestId("unmounted-google")).toBeNull();
+  });
+});
+
+describe("connecting another account", () => {
+  it("opens a chooser rather than a row of bare buttons, and lists what is not connected yet", () => {
+    // Five connectors inline wrapped into the row above and read as part of the last account.
+    render(<Accounts links={[link("x.com")]} handle="alice" onPublished={() => {}} />);
+    expect(screen.queryByTestId("connect-github")).toBeNull();
+
+    fireEvent.click(screen.getByTestId("add-account"));
+    const chooser = screen.getByTestId("connect-list");
+    expect(chooser).toHaveTextContent("GitHub");
+    expect(chooser).toHaveTextContent("Telegram");
+    expect(chooser).toHaveTextContent("Discord");
+    // X and Google are already linked in this fixture: offering them again is offering a no-op.
+    expect(screen.queryByTestId("connect-x")).toBeNull();
+    expect(screen.queryByTestId("connect-google")).toBeNull();
+  });
+
+  it("asks Privy for the platform that was picked", () => {
+    render(<Accounts links={[]} handle="alice" onPublished={() => {}} />);
+    fireEvent.click(screen.getByTestId("add-account"));
+    fireEvent.click(screen.getByTestId("connect-github"));
+    expect(linked).toContain("github");
   });
 });

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useLinkAccount, usePrivy } from "@privy-io/react-auth";
 import { AttestFlow } from "@/app/AttestFlow";
+import { PlatformIcon } from "@/app/PlatformIcon";
 import { Modal } from "@/app/Modal";
 import type { WalletDashboard } from "@/lib/api";
 import { connectedAccounts, domainsFor } from "@/lib/identity";
@@ -31,6 +32,7 @@ export function Accounts({ links, handle, awaiting, onPublished }: Props) {
   const { user } = usePrivy();
   const { linkTwitter, linkTelegram, linkGithub, linkDiscord, linkGoogle } = useLinkAccount();
   const [attesting, setAttesting] = useState<string>();
+  const [adding, setAdding] = useState(false);
   const domains = (contracts.data?.instances ?? []).map((i) => i.domain);
   // Where each account would be attested in this deployment: `x.com` where the namespace is deployed,
   // the flat platform where it is not, and nothing at all when neither exists.
@@ -68,21 +70,27 @@ export function Accounts({ links, handle, awaiting, onPublished }: Props) {
             const onChain = a.onChain;
             return (
               <li key={a.domain} data-testid={`account-${a.domain}`}>
-                <span className="acct-who">{a.label}</span>
-                <small className="muted">{a.domain}</small>
+                <PlatformIcon domain={onChain?.domain ?? a.target ?? a.domain} />
+                <span className="acct-id">
+                  <strong>{a.label}</strong>
+                  {/* Two records for one platform look identical without the name each answers at. */}
+                  <small className="muted">{onChain?.ensName ?? a.domain}</small>
+                </span>
+                {onChain && (
+                  <span
+                    className={`badge ${onChain.optedIn ? "badge-private" : "badge-public"}`}
+                    data-testid={`badge-${onChain.domain}`}
+                  >
+                    {onChain.optedIn ? "private" : "public"}
+                  </span>
+                )}
                 {onChain ? (
                   <span className="acct-state acct-on">
-                    {onChain.ensName ? (
-                      <>
-                        <code>{onChain.ensName}</code> · {onChain.optedIn ? "private" : "public"}
-                      </>
-                    ) : onChain.nameless === "not-a-label" ? (
-                      "attested · public, but this handle cannot be an ENS label"
+                    {onChain.nameless === "not-a-label" ? (
+                      <small className="muted">this handle cannot be an ENS label</small>
                     ) : onChain.optedIn && !handle ? (
-                      "attested · private · claim your name below and this gets one too"
-                    ) : (
-                      "attested · private"
-                    )}
+                      <small className="muted">claim your name below and this gets one too</small>
+                    ) : null}
                     {/* Sharing is decided further down the page; a private row is where someone
                         wonders who can open it, so the way in belongs here. */}
                     {onChain.optedIn && handle && (
@@ -109,12 +117,11 @@ export function Accounts({ links, handle, awaiting, onPublished }: Props) {
                     published · waiting for the index
                   </span>
                 ) : (
-                  <>
-                    <span className="acct-state">not attested</span>
+                  <span className="acct-state">
                     <button onClick={() => setAttesting(a.target)} data-testid={`attest-${a.domain}`}>
                       Attest
                     </button>
-                  </>
+                  </span>
                 )}
               </li>
             );
@@ -123,14 +130,43 @@ export function Accounts({ links, handle, awaiting, onPublished }: Props) {
       )}
 
       {connectors.length > 0 && (
-        <p className="row">
-          <small className="muted">{connected.length > 0 ? "Add another:" : "Connect one:"}</small>
-          {connectors.map((c) => (
-            <button key={c.domain} onClick={() => c.run()}>
-              {c.label}
-            </button>
-          ))}
+        <p>
+          <button onClick={() => setAdding(true)} data-testid="add-account">
+            {connected.length > 0 ? "Add another account" : "Connect an account"}
+          </button>
         </p>
+      )}
+
+      {/* A chooser rather than a row of buttons: five connectors inline wrapped into the account above
+          and read as part of it. */}
+      {adding && (
+        <Modal title="Connect an account" onClose={() => setAdding(false)}>
+          <p className="muted">
+            Connecting is between you and the platform. Attesting comes after, and records only that you
+            control the account — the handle itself stays masked unless you share it.
+          </p>
+          <ul className="acct" data-testid="connect-list">
+            {connectors.map((c) => (
+              <li key={c.domain}>
+                <PlatformIcon domain={c.domain} />
+                <span className="acct-id">
+                  <strong>{c.label}</strong>
+                </span>
+                <span className="acct-state">
+                  <button
+                    onClick={() => {
+                      setAdding(false);
+                      c.run();
+                    }}
+                    data-testid={`connect-${c.domain}`}
+                  >
+                    Connect
+                  </button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Modal>
       )}
 
       {attesting && (

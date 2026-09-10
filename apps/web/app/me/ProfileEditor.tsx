@@ -8,11 +8,23 @@ import { useContracts, useProfileWrite, useVerification } from "@/lib/hooks";
 
 type Props = { api: Api; name: string; getSigner: () => Promise<Signer> };
 
-const LABELS: Record<ProfileKey, string> = {
-  avatar: "Avatar URL",
+/**
+ * What this page offers to publish. The bridge grants a role for `email` too, but an email typed here
+ * would be a public text record — the opposite of the attested account, which proves the address
+ * without naming it. The accounts section is where an address belongs.
+ */
+const PUBLIC_KEYS = ["avatar", "description", "url"] as const satisfies readonly ProfileKey[];
+
+const LABELS: Record<(typeof PUBLIC_KEYS)[number], string> = {
+  avatar: "Public avatar",
   description: "Description",
   url: "Website",
-  email: "Email",
+};
+
+const HINTS: Record<(typeof PUBLIC_KEYS)[number], string> = {
+  avatar: "A picture anyone reading your name will see",
+  description: "A line about you, shown wherever this name is read",
+  url: "Somewhere of your own",
 };
 
 /** ENS profile records on `<handle>.<root>` — written by the wallet itself (the bridge granted ROLE_SET_TEXT). */
@@ -39,7 +51,7 @@ export function ProfileEditor({ api, name, getSigner }: Props) {
   }, [current]);
 
   const changes = Object.fromEntries(
-    PROFILE_KEYS.filter((k) => draft[k] !== (current?.[k] ?? "")).map((k) => [k, draft[k]])
+    PUBLIC_KEYS.filter((k) => draft[k] !== (current?.[k] ?? "")).map((k) => [k, draft[k]])
   ) as Partial<Record<ProfileKey, string>>;
   const dirty = Object.keys(changes).length;
   const resolver = contracts.data?.permissionedResolver as Address | null | undefined;
@@ -51,29 +63,27 @@ export function ProfileEditor({ api, name, getSigner }: Props) {
 
   if (contracts.data && resolver === null) {
     return (
-      <section className="card" data-testid="profile-editor">
-        <h2>ENS profile</h2>
+      <div data-testid="profile-editor">
         <p className="error" role="alert">
           This deployment has no permissioned resolver configured, so these records cannot be written. Set{" "}
           <code>PERMISSIONED_RESOLVER</code> on the attester and reload.
         </p>
-      </section>
+      </div>
     );
   }
 
   return (
-    <section className="card" data-testid="profile-editor">
-      <h2>ENS profile</h2>
+    <div data-testid="profile-editor">
       <p className="muted">
-        Standard text records on <code>{name}</code>: any ENS client shows them. Each changed field is one
-        transaction from your wallet.
+        This part is public and meant to be read. It is published as text records on <code>{name}</code>, so
+        any ENS client shows it — not only this app. Your accounts stay masked; nothing here reveals them.
       </p>
       <p className="muted" data-testid="profile-roles">
-        These four keys are yours because the bridge granted your wallet a role for each of them, on this
-        name, when the record landed. The resolver enforces it: any other key on this name, and this name from
-        any other wallet, is refused on chain rather than by this page.
+        Each of these keys is yours because the bridge granted your wallet a role for it, on this name, when
+        the record landed. The resolver enforces that: any other key on this name, and this name from any
+        other wallet, is refused on chain rather than by this page. Each changed field is one transaction.
       </p>
-      {PROFILE_KEYS.map((k) => (
+      {PUBLIC_KEYS.map((k) => (
         <label key={k}>
           {LABELS[k]}
           <input
@@ -82,6 +92,7 @@ export function ProfileEditor({ api, name, getSigner }: Props) {
             placeholder={k === "avatar" ? "https://…/me.png" : k === "url" ? "https://…" : ""}
             data-testid={`profile-${k}`}
           />
+          <small className="muted">{HINTS[k]}</small>
         </label>
       ))}
 
@@ -103,6 +114,6 @@ export function ProfileEditor({ api, name, getSigner }: Props) {
             ? `Save ${dirty} record${dirty > 1 ? "s" : ""}`
             : "Nothing to save"}
       </button>
-    </section>
+    </div>
   );
 }

@@ -709,10 +709,69 @@ textarea:focus {
 .acct .acct-who {
   font-weight: 600;
 }
+/* The identity column takes the slack and wraps inside itself; without `min-width: 0` a long ENS name
+   refuses to shrink and pushes the state and the actions out of the row. */
+.acct .acct-id {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1 1 12ch;
+}
+.acct .acct-id strong {
+  font-weight: 600;
+}
+.acct .acct-id small {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+}
 .acct .acct-state {
   margin-left: auto;
   font-size: 12px;
   color: var(--text-secondary);
+  /* Each control is its own item, so a link never runs straight into the text before it. */
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-sm);
+}
+
+/* One word of state, set apart from the identity beside it rather than run into it. */
+.badge {
+  flex: none;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+.badge-private {
+  color: var(--consensus, #2f855a);
+  border-color: currentColor;
+}
+.badge-public {
+  color: var(--text-secondary);
+}
+
+.p-icon {
+  flex: none;
+  width: 20px;
+  height: 20px;
+}
+/* Any domain can be attested, so most will never have a brand mark. */
+.p-mono {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: var(--border);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
 }
 .acct .acct-on {
   color: var(--consensus);

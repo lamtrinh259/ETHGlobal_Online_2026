@@ -199,7 +199,7 @@ export function Dashboard() {
       </Step>
 
       {handle && rootRow && (
-        <Step n={4} title="Your profile" state="now">
+        <Step n={4} title="Your public profile" state="now">
           <ProfileEditor api={api} name={rootRow.ensName} getSigner={getSigner} />
         </Step>
       )}
