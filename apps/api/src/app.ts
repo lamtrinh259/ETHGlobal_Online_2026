@@ -1,3 +1,6 @@
+import { createHash } from "node:crypto";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { Hono, type Context } from "hono";
 import { cors } from "hono/cors";
 import { z } from "zod";
@@ -333,6 +336,73 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
         .map(([k]) => k),
     };
   }
+
+  /**
+   * A picture for a profile. ENS text records hold a URL, not bytes, so the picture has to live
+   * somewhere this service can serve it from — which means `DATA_DIR`, or the record would dangle
+   * after the next restart.
+   *
+   * What is stored is decided by the bytes, never by the name or the declared type: an HTML page
+   * announcing itself as a PNG, served back from this origin, would run as a page on it. The file is
+   * named by the hash of its own content, so nothing a caller sends becomes part of a path.
+   */
+  const AVATAR_MAX = 2_000_000;
+  const PICTURES: { ext: string; type: string; magic: number[] }[] = [
+    { ext: "png", type: "image/png", magic: [0x89, 0x50, 0x4e, 0x47] },
+    { ext: "jpg", type: "image/jpeg", magic: [0xff, 0xd8, 0xff] },
+    { ext: "gif", type: "image/gif", magic: [0x47, 0x49, 0x46, 0x38] },
+  ];
+  const pictureOf = (bytes: Uint8Array) => {
+    const known = PICTURES.find((p) => p.magic.every((b, i) => bytes[i] === b));
+    if (known) return known;
+    // WEBP is `RIFF....WEBP`, so its mark is split in two.
+    const riff = [0x52, 0x49, 0x46, 0x46].every((b, i) => bytes[i] === b);
+    const webp = [0x57, 0x45, 0x42, 0x50].every((b, i) => bytes[8 + i] === b);
+    return riff && webp ? { ext: "webp", type: "image/webp", magic: [] } : undefined;
+  };
+  const avatarDir = () => join(config.DATA_DIR, "avatars");
+
+  app.post("/v1/avatar", async (c) => {
+    if (!config.DATA_DIR) {
+      return c.json(
+        { error: "no DATA_DIR: there is nowhere to keep a picture that outlives a restart" },
+        501
+      );
+    }
+    const body = await c.req.parseBody().catch(() => null);
+    const file = body?.["file"];
+    if (!(file instanceof File)) return c.json({ error: "send a picture as `file`" }, 400);
+    if (file.size > AVATAR_MAX) {
+      return c.json({ error: `a picture must be under ${AVATAR_MAX / 1_000_000}MB` }, 413);
+    }
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const picture = pictureOf(bytes);
+    if (!picture) return c.json({ error: "that is not a picture this service can serve" }, 415);
+
+    const id = `${createHash("sha256").update(bytes).digest("hex")}.${picture.ext}`;
+    mkdirSync(avatarDir(), { recursive: true });
+    writeFileSync(join(avatarDir(), id), bytes);
+    return c.json({ id, url: new URL(`/v1/avatar/${id}`, c.req.url).toString() });
+  });
+
+  app.get("/v1/avatar/:id", (c) => {
+    const id = c.req.param("id");
+    // The only names that exist are ones this service made: a hash and a known extension.
+    const known = /^[0-9a-f]{64}\.(png|jpg|gif|webp)$/.exec(id);
+    if (!known || !config.DATA_DIR) return c.json({ error: "no such picture" }, 404);
+    const picture = PICTURES.find((p) => p.ext === known[1]) ?? { type: "image/webp" };
+    try {
+      const bytes = readFileSync(join(avatarDir(), id));
+      return c.body(bytes as unknown as ArrayBuffer, 200, {
+        "content-type": picture.type,
+        "x-content-type-options": "nosniff",
+        "content-security-policy": "default-src 'none'; sandbox",
+        "cache-control": "public, max-age=31536000, immutable",
+      });
+    } catch {
+      return c.json({ error: "no such picture" }, 404);
+    }
+  });
 
   app.get("/healthz", (c) =>
     c.json({

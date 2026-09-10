@@ -925,3 +925,62 @@ details.advanced[open] > summary {
   border-radius: 50%;
   background: var(--border);
 }
+
+/* The profile as a page: a picture you change in place, then the name and the line under it. */
+.me-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-md);
+  margin: var(--sp-sm) 0 var(--sp-md);
+}
+.me-head-text {
+  min-width: 0;
+}
+.me-head-text h3 {
+  margin: 0 0 2px;
+  overflow-wrap: anywhere;
+}
+.me-head-text p {
+  margin: 0 0 2px;
+}
+.me-avatar {
+  position: relative;
+  flex: none;
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  overflow: hidden;
+  cursor: pointer;
+  display: block;
+}
+.me-avatar img,
+.me-avatar-empty {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  border-radius: 50%;
+  display: block;
+  background: var(--border);
+}
+/* The file input covers the picture, so the picture itself is the control. */
+.me-avatar input[type="file"] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.me-avatar-edit {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 4px 0;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.55);
+}
+.me-avatar-url input {
+  font-size: 12px;
+}

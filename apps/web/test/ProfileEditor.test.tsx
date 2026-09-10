@@ -1,11 +1,16 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Api } from "@/lib/api";
 
 const RESOLVER = "0x4E2d9783cEFF2ed72CD77C14206b29fe246b24F7";
 
+const uploaded: File[] = [];
 const api = {
+  uploadAvatar: vi.fn(async (file: File) => {
+    uploaded.push(file);
+    return { id: "abc.png", url: "https://api.test/v1/avatar/abc.png" };
+  }),
   contracts: vi.fn(async () => ({ permissionedResolver: RESOLVER, instances: [] })),
   verify: vi.fn(async () => ({
     name: "alice.ketsuban.eth",
@@ -63,5 +68,34 @@ describe("the public profile editor", () => {
     editor();
     await waitFor(() => expect(screen.getByTestId("profile-description")).toHaveValue("a builder"));
     expect(screen.getByTestId("profile-save")).toBeDisabled();
+  });
+});
+
+describe("the picture on a profile", () => {
+  it("takes a file and puts the URL it was kept at into the record", async () => {
+    editor();
+    await waitFor(() => expect(screen.getByTestId("profile-avatar")).toBeInTheDocument());
+    const file = new File([new Uint8Array([1, 2, 3])], "me.png", { type: "image/png" });
+    fireEvent.change(screen.getByTestId("avatar-file"), { target: { files: [file] } });
+
+    await waitFor(() => expect(uploaded).toHaveLength(1));
+    // A text record holds a URL, so the picture is kept first and the record points at it.
+    await waitFor(() =>
+      expect(screen.getByTestId("profile-avatar")).toHaveValue("https://api.test/v1/avatar/abc.png")
+    );
+    // And the save button now has something to write.
+    expect(screen.getByTestId("profile-save")).toBeEnabled();
+  });
+
+  it("says what went wrong instead of leaving a picture that never arrived", async () => {
+    (api.uploadAvatar as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new Error("that is not a picture this service can serve")
+    );
+    editor();
+    await waitFor(() => expect(screen.getByTestId("profile-avatar")).toBeInTheDocument());
+    fireEvent.change(screen.getByTestId("avatar-file"), {
+      target: { files: [new File(["x"], "me.txt", { type: "text/plain" })] },
+    });
+    await waitFor(() => expect(screen.getByTestId("avatar-error")).toHaveTextContent(/not a picture/i));
   });
 });

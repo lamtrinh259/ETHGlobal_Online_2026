@@ -65,6 +65,15 @@ the index. Lower it and restart; the snapshot in `DATA_DIR` resumes from where i
 Never stand in for "unwritable" with a path under `/proc`: `mkdir` there never returns on Linux. Use a
 directory beneath a regular file, which fails with `ENOTDIR` immediately everywhere.
 
+## The picture on my profile is gone, or will not upload
+
+Pictures are kept under `DATA_DIR` and served back at `/v1/avatar/<hash>.<ext>`, because an ENS text
+record holds a URL rather than bytes. Without `DATA_DIR` the upload is refused outright: a picture that
+does not outlive a restart would leave the record pointing at nothing.
+
+What is stored is decided by the file's own bytes, not by its name or its declared type, so a document
+renamed to `.png` is refused with 415. The cap is 2MB.
+
 ## A share I made is gone after a redeploy
 
 Grants live wherever `DATA_DIR` points. With it unset they are held in memory, so restarting the

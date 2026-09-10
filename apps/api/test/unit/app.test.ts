@@ -2412,3 +2412,77 @@ describe("an empty setting means what it says", () => {
     expect(filled.MULTIPASS).toBe("0x418F82fd0014a4CA402F145978bfaF0555a9cA06");
   });
 });
+
+describe("the avatar a profile points at", () => {
+  const png = () => {
+    // A one-pixel PNG: the magic number is what the service trusts, never the name or the header.
+    const bytes = Buffer.from(
+      "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000a49444154789c6360000002000100ffff03000006000557bfabd40000000049454e44ae426082",
+      "hex"
+    );
+    return new File([bytes], "me.png", { type: "image/png" });
+  };
+  const upload = (app: ReturnType<typeof createApp>, file: File) => {
+    const body = new FormData();
+    body.set("file", file);
+    return app.request("/v1/avatar", { method: "POST", body });
+  };
+
+  it("keeps a picture and serves it back at the URL a text record can hold", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "ketsuban-avatar-"));
+    const { chain } = fakeChain();
+    const a = createApp({ config: loadConfig({ ...baseEnv, DATA_DIR: dir }), chain, now: () => NOW });
+
+    const stored = await upload(a, png());
+    expect(stored.status).toBe(200);
+    const { url } = await stored.json();
+    // An absolute URL, because the record is read by ENS clients that never saw this app.
+    expect(url).toMatch(/^https?:\/\/.+\/v1\/avatar\/[0-9a-f]{64}\.png$/);
+
+    const served = await a.request(new URL(url).pathname);
+    expect(served.status).toBe(200);
+    expect(served.headers.get("content-type")).toBe("image/png");
+    // A picture is not a document: it must never be sniffed into one.
+    expect(served.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(Buffer.from(await served.arrayBuffer()).length).toBeGreaterThan(60);
+  });
+
+  it("names a picture by its own bytes, so the same one is stored once", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "ketsuban-avatar-dedupe-"));
+    const { chain } = fakeChain();
+    const a = createApp({ config: loadConfig({ ...baseEnv, DATA_DIR: dir }), chain, now: () => NOW });
+    const one = await (await upload(a, png())).json();
+    const two = await (await upload(a, png())).json();
+    expect(one.url).toBe(two.url);
+  });
+
+  it("refuses anything that is not a picture, whatever it calls itself", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "ketsuban-avatar-bad-"));
+    const { chain } = fakeChain();
+    const a = createApp({ config: loadConfig({ ...baseEnv, DATA_DIR: dir }), chain, now: () => NOW });
+
+    // An HTML page announcing itself as a PNG is the upload that matters: served back under a name a
+    // browser trusts, it would run as a page on this origin.
+    const html = new File([Buffer.from("<script>alert(1)</script>")], "me.png", { type: "image/png" });
+    const refused = await upload(a, html);
+    expect(refused.status).toBe(415);
+    expect((await refused.json()).error).toMatch(/picture/i);
+  });
+
+  it("refuses a picture too large to be an avatar", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "ketsuban-avatar-big-"));
+    const { chain } = fakeChain();
+    const a = createApp({ config: loadConfig({ ...baseEnv, DATA_DIR: dir }), chain, now: () => NOW });
+    const huge = new File([Buffer.alloc(2_000_001, 1)], "me.png", { type: "image/png" });
+    expect((await upload(a, huge)).status).toBe(413);
+  });
+
+  it("says so plainly when there is nowhere to keep it", async () => {
+    // Without DATA_DIR the picture would vanish on the next restart and the record would dangle.
+    const { chain } = fakeChain();
+    const a = createApp({ config: loadConfig({ ...baseEnv, DATA_DIR: "" }), chain, now: () => NOW });
+    const refused = await upload(a, png());
+    expect(refused.status).toBe(501);
+    expect((await refused.json()).error).toMatch(/DATA_DIR/);
+  });
+});

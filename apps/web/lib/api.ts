@@ -348,6 +348,14 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
       return ethLabelSchema.parse(await readJson(await call(`${base}/v1/eth-label/${label}`)));
     },
 
+    /** Keep a picture and get the URL an `avatar` record can hold; the bytes decide what is stored. */
+    async uploadAvatar(file: File): Promise<{ id: string; url: string }> {
+      const body = new FormData();
+      body.set("file", file);
+      const res = await call(`${base}/v1/avatar`, { method: "POST", body });
+      return (await readJson(res)) as { id: string; url: string };
+    },
+
     /** The key a view code is encrypted to, so only the enclave can open a disclosure. */
     async enclaveKey(): Promise<{ address: Address; publicKey: Hex }> {
       return enclaveKeySchema.parse(await readJson(await call(`${base}/v1/enclave-key`)));
