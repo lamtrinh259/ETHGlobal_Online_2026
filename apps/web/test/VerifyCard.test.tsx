@@ -91,3 +91,30 @@ describe("VerifyCard", () => {
     expect(screen.getByRole("note")).toHaveTextContent(base.warning);
   });
 });
+
+describe("a person's page reads as a profile", () => {
+  it("leads with the picture and the profile records, not with a table of fields", () => {
+    // The page opened on `wallet / answer / expires` — true, and not what a reader came for.
+    const v = {
+      ...base,
+      profile: {
+        avatar: "https://i.example/p.png",
+        description: "infra lead",
+        url: "https://p.example",
+        email: null,
+      },
+    };
+    render(<VerifyCard v={v} />);
+    expect(screen.getByTestId("head-avatar")).toHaveAttribute("src", "https://i.example/p.png");
+    expect(screen.getByTestId("profile-head")).toHaveTextContent("infra lead");
+    // The verification itself is still there, below the identity.
+    expect(screen.getByTestId("status")).toHaveTextContent("active");
+    expect(screen.getByTestId("answer")).toBeInTheDocument();
+  });
+
+  it("keeps its shape for a name with no profile at all", () => {
+    render(<VerifyCard v={base} />);
+    expect(screen.getByTestId("head-avatar")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent(base.name);
+  });
+});

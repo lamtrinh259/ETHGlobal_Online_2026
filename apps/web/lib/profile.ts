@@ -246,9 +246,21 @@ export function disclosureLink(siteUrl: string, handle: string, domain: string, 
 }
 
 /** The message a candidate pastes to someone they ask for a reference. */
-export function vouchRequest(handle: string, siteUrl: string, rootParent: string): string {
+export function vouchRequest(
+  handle: string,
+  siteUrl: string,
+  rootParent: string,
+  /** The invitation being sent, when there is one: its link, and what it asks the writer to connect */
+  invite?: { code: string; requires: readonly string[] }
+): string {
   const base = siteUrl.replace(/\/$/, "");
-  return `Could you vouch for me? It takes five minutes and lands as your own permanent name: ${base}/vouch/${handle} (my page: ${handle}.${rootParent})`;
+  const link = invite ? `${base}/vouch/${handle}?invite=${invite.code}` : `${base}/vouch/${handle}`;
+  // A message that omits the requirement sends someone to a page where their reference quietly comes
+  // out unsolicited; the requirement is enforced either way, so it belongs in the ask.
+  const asks = invite?.requires.length
+    ? ` Please connect ${invite.requires.join(" and ")} first, so it counts as one I asked for.`
+    : "";
+  return `Could you vouch for me? It takes five minutes and lands as your own permanent name: ${link} (my page: ${handle}.${rootParent})${asks}`;
 }
 
 export const ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/;

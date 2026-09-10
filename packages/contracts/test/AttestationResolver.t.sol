@@ -180,3 +180,37 @@ contract AttestationResolverTest is BaseTest {
         return string(out);
     }
 }
+
+/// @notice A page can exist for a name nobody holds: an unclaimed public figure, a question, a
+///         namespace. Such a name is only worth reading if it says what it is, and the stock
+///         resolver's admin is not ours to write with — so the instance carries the text itself.
+contract AttestationResolverAboutTest is BaseTest {
+    function test_answersForALabelNobodyHolds() public {
+        // `kju-is.acme-alumni.eth` holds no record, so the page read "no record" and said nothing else.
+        vm.prank(operator);
+        shim.setAbout("kju-is", "description", "Kim Jong Un, Supreme Leader of North Korea.");
+        assertEq(resolveText("kju-is.acme-alumni.eth", "description"), "Kim Jong Un, Supreme Leader of North Korea.");
+    }
+
+    /// @notice A record's own answer wins: whoever claimed the label speaks for it, not the operator
+    ///         who described it before they arrived.
+    function test_doesNotOverrideAKeyTheRecordAnswers() public {
+        registerName(alice, "alice", "terrible dictator");
+        vm.prank(operator);
+        shim.setAbout("alice", "ketsuban:answer", "operator text");
+        assertEq(resolveText("alice.acme-alumni.eth", "ketsuban:answer"), "terrible dictator");
+    }
+
+    function test_onlyTheOwnerWrites() public {
+        vm.prank(address(0xBEEF));
+        vm.expectRevert();
+        shim.setAbout("kju-is", "description", "not yours to say");
+    }
+
+    /// @notice Its own children only, like every other answer this resolver gives.
+    function test_saysNothingBeneathAnotherMount() public {
+        vm.prank(operator);
+        shim.setAbout("kju-is", "description", "about the question");
+        assertEq(resolveText("x.kju-is.acme-alumni.eth", "description"), "");
+    }
+}

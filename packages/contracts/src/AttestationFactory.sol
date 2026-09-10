@@ -91,7 +91,7 @@ contract AttestationFactory is Ownable {
         AttestationRegistry.Visibility visibility
     ) public onlyOwner returns (AttestationRegistry registry, AttestationResolver resolver) {
         if (address(_instances[domain].registry) != address(0)) revert InstanceExists(domain);
-        resolver = new AttestationResolver(MP, inner, domain, parentName);
+        resolver = new AttestationResolver(MP, inner, domain, parentName, msg.sender);
         registry = new AttestationRegistry(MP, domain, address(resolver), parent, parentLabel, owner(), visibility);
         _instances[domain] = Instance(registry, resolver, parent, parentLabel, parentName);
         _domains.push(domain);
@@ -113,7 +113,7 @@ contract AttestationFactory is Ownable {
         if (address(_instances[domain].registry) == address(0)) revert UnknownInstance(domain);
         if (address(_mirrors[domain].registry) != address(0)) revert MirrorExists(domain);
         // Reads the name domain, because the label it answers is the person's name, not the account's.
-        resolver = new AttestationResolver(MP, inner, nameDomain, parentName);
+        resolver = new AttestationResolver(MP, inner, nameDomain, parentName, msg.sender);
         registry = new MaskedMirrorRegistry(MP, nameDomain, domain, address(resolver), parent, parentLabel, owner());
         _mirrors[domain] = Mirror(registry, resolver, parent, parentLabel, parentName);
         emit MirrorCreated(domain, address(registry), address(resolver), address(parent), parentLabel, parentName);

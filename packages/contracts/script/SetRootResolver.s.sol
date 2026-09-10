@@ -51,7 +51,7 @@ contract SetRootResolver is Script {
     /// @notice The same work, from values a caller already holds: a test has no business exporting them.
     function runWith(Params memory p) public returns (AttestationResolver resolver) {
         vm.startBroadcast(p.pk);
-        resolver = new AttestationResolver(p.mp, p.inner, p.domain, p.parentName);
+        resolver = new AttestationResolver(p.mp, p.inner, p.domain, p.parentName, vm.addr(p.pk));
         // ENSv2 addresses a name by token id: the labelhash with the version bits cleared.
         p.ethRegistry.setResolver(uint256(keccak256(bytes(p.label))) & ~uint256(type(uint32).max), address(resolver));
         vm.stopBroadcast();

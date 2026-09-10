@@ -152,3 +152,22 @@ forge script script/SetInstanceText.s.sol --rpc-url $RPC --broadcast
 
 The script grants itself the text role for that key before writing. A root operator can set the key
 without one today; the grant is what keeps the write working when that role moves.
+
+## A page for someone who has claimed nothing
+
+Anyone can be referred before they hold a name, so a page can exist for a person who has never heard
+of this deployment. Such a page is only worth reading if it says who it is about, and that belongs on
+the name rather than in the app — `/v/<instance>.<root>` reads `description`, `url` and `avatar`
+straight off the instance name, so any ENS client shows the same thing.
+
+`kju-is` is the worked example, written by whoever deployed the page:
+
+```bash
+PERMISSIONED_RESOLVER=0x… ROOT=ketsuban.eth PRIVATE_KEY=$OPERATOR_KEY RPC=… \
+  packages/contracts/script/kju-is.sh
+```
+
+The description states attribution as attribution — the Lazarus Group is attributed to the DPRK by the
+United States and allied governments — rather than asserting it as this deployment's own finding. What
+the page then shows is the answers people published under it, each at its own name, and each one a
+thing a candidate can say freely and a DPRK-linked operator cannot.

@@ -28,7 +28,14 @@ import {
   type RegisterMessage,
 } from "@ketsuban/registrar";
 import groupingRegistry from "@ketsuban/contracts/GroupingRegistry" with { type: "json" };
-import { bridgeAbi, factoryAbi, registryAbi, resolverAbi, universalResolverAbi } from "./abi.js";
+import {
+  bridgeAbi,
+  ethRegistryAbi,
+  factoryAbi,
+  registryAbi,
+  resolverAbi,
+  universalResolverAbi,
+} from "./abi.js";
 import { RpcSource } from "./logs.js";
 import { Indexer, type IndexStatus, type IndexedRecord } from "./indexer.js";
 import { explainRevert } from "./errors.js";
@@ -129,6 +136,26 @@ export class Chain {
     return value;
   }
 
+  /**
+   * What the `.eth` registry says answers for a label, if anything. A zero answer is not a correction:
+   * not every instance is registered there, and the factory's address is right for those.
+   */
+  private async resolverFromRegistry(label: string): Promise<Address | undefined> {
+    if (!this.config.ETH_REGISTRY || !label) return undefined;
+    try {
+      const found = await this.publicClient.readContract({
+        address: this.config.ETH_REGISTRY,
+        abi: ethRegistryAbi,
+        functionName: "getResolver",
+        args: [label],
+      });
+      return found && found !== zeroAddress ? found : undefined;
+    } catch {
+      // A registry that cannot answer leaves the factory's record standing, which is what it was.
+      return undefined;
+    }
+  }
+
   /** Forget the cached mounts: something was just provisioned and the next read must see it. */
   private mountsChanged(): void {
     this.mounts = undefined;
@@ -153,10 +180,14 @@ export class Chain {
             .readContract({ address: factory, abi: factoryAbi, functionName: "mirror", args: [d] })
             .catch(() => undefined),
         ]);
+        // Replacing a resolver changes the registry's pointer; the factory keeps the address it
+        // recorded when the instance was made. ENS resolves through the registry's, so a record
+        // written on the live resolver is invisible to anything reading the factory's copy.
+        const live = await this.resolverFromRegistry(i.parentLabel);
         return {
           domain: fromBytes32(d),
           registry: i.registry,
-          resolver: i.resolver,
+          resolver: live ?? i.resolver,
           parentName: i.parentName,
           parentLabel: i.parentLabel,
           ...(masked && masked.registry !== zeroAddress

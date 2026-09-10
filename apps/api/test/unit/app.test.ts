@@ -919,6 +919,35 @@ describe("an invitation behind a short code", () => {
     expect(back.invite.requires).toEqual(["mit.edu", "linkedin.com"]);
   });
 
+  it("lists the invitations a candidate has made, so a link survives closing the page", async () => {
+    // The link lived in component state, so a reload lost it and the candidate had to sign another.
+    const dir = mkdtempSync(join(tmpdir(), "ketsuban-invites-list-"));
+    const { chain } = fakeChain({
+      names: { "kju-is/alice": { taken: true, wallet: user.account.address, live: true } },
+    });
+    const a = createApp({ config: loadConfig({ ...baseEnv, DATA_DIR: dir }), chain, now: () => NOW });
+    const made = await (await post(a, await wire({ requires: ["mit.edu"] }))).json();
+
+    const listed = await (await a.request(`/v1/invites/alice`)).json();
+    expect(listed.invites).toHaveLength(1);
+    expect(listed.invites[0]).toMatchObject({ code: made.code, requires: ["mit.edu"] });
+    // The signature is not needed to show a link, and is nobody else's business.
+    expect(JSON.stringify(listed)).not.toContain("signature");
+  });
+
+  it("leaves out an invitation that has expired, because its link no longer works", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "ketsuban-invites-old-"));
+    const { chain } = fakeChain({
+      names: { "kju-is/alice": { taken: true, wallet: user.account.address, live: true } },
+    });
+    const at = (t: number) =>
+      createApp({ config: loadConfig({ ...baseEnv, DATA_DIR: dir }), chain, now: () => t });
+    await post(at(NOW), "/v1/invite", await wire());
+
+    const later = at(NOW + 8 * 24 * 3600);
+    expect((await (await later.request("/v1/invites/alice")).json()).invites).toEqual([]);
+  });
+
   it("refuses an invitation nobody signed, so a code always stands for something real", async () => {
     const { chain } = fakeChain();
     const a = app(chain);
@@ -1118,6 +1147,45 @@ describe("GET /v1/instance/:domain — what people said under one name", () => {
     });
     // The purpose is published on the name itself, so it travels with the answers.
     expect(body.description).toMatch(/North Korean/);
+  });
+
+  it("reads the page's own text the way ENS does, not through the instance's resolver", async () => {
+    // `kju-is.<root>` is answered by the parent's resolver — the instance has none of its own in the
+    // registry — so reading through the instance's resolver finds nothing however the record was set.
+    const { chain } = fakeChain({
+      // Keyed by the name, as the universal read answers it.
+      texts: {
+        "kju-is.eth/name": "Kim Jong Un",
+        "kju-is.eth/description": "Kim Jong Un, Supreme Leader of North Korea.",
+        "kju-is.eth/url": "https://t.example",
+      },
+      listed: { "kju-is": [] },
+    });
+    const body = await (await app(chain).request("/v1/instance/kju-is")).json();
+    expect(body.records.description).toMatch(/Supreme Leader/);
+    expect(body.records.url).toBe("https://t.example");
+    // A page titled `kju-is.ketsuban.eth` says what the name is, not who it is about.
+    expect(body.records.name).toBe("Kim Jong Un");
+  });
+
+  it("shows who the page is about, from the records the name itself holds", async () => {
+    // A page created for someone who has claimed nothing is only worth reading if it says who they
+    // are. That belongs on the name, where any ENS client reads it, not in this app.
+    const { chain } = fakeChain({
+      listed: { "kju-is": [] },
+      texts: {
+        "kju-is.eth/description": "Supreme Leader of North Korea.",
+        "kju-is.eth/url": "https://en.wikipedia.org/wiki/Kim_Jong_Un",
+        "kju-is.eth/avatar": "https://example.test/kju.png",
+      },
+    });
+    const body = await (await app(chain).request("/v1/instance/kju-is")).json();
+    expect(body.records).toEqual({
+      name: "",
+      description: "Supreme Leader of North Korea.",
+      url: "https://en.wikipedia.org/wiki/Kim_Jong_Un",
+      avatar: "https://example.test/kju.png",
+    });
   });
 
   it("says an instance nobody mounted is not here, rather than answering with an empty list", async () => {

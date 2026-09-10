@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { zeroAddress, zeroHash, type Address } from "viem";
+import { toBytes32 } from "@peeramid-labs/multipass-client";
 import { Chain } from "../../src/chain.js";
 import { loadConfig } from "../../src/config.js";
 
@@ -247,6 +248,64 @@ describe("provisioning a candidate's namespace", () => {
     const { chain, writes } = bare();
     await expect(chain.ensureAnswerInstance("kju-is", "!!!")).rejects.toThrow(/answer/i);
     expect(writes).toEqual([]);
+  });
+});
+
+describe("which resolver an instance is read through", () => {
+  it("follows what ENS resolves through, not the factory's copy of it", async () => {
+    // Replacing a resolver changes the registry's pointer; the factory keeps the address it recorded
+    // when the instance was made. Reading the factory's copy sends every text lookup to a contract
+    // ENS no longer resolves through, so a record written on the live one is invisible.
+    const chain = new Chain({ ...config, ETH_REGISTRY: "0xBDC85dD5b15D7ecb354cd7cb6f2c50b4f2c4F0E2" });
+    const stale = "0x178ff1589Be8Af3B19426Aa1d2Bd07cd178E215e";
+    const live = "0xa2602ce1A469d7FF1090aE4b876BA4ec566D3873";
+    Object.assign(chain, {
+      indexer: { catchUp: async () => undefined },
+      publicClient: {
+        readContract: vi.fn(async ({ functionName }: { functionName: string }) => {
+          if (functionName === "domains") return [toBytes32("kju-is")];
+          if (functionName === "instance")
+            return {
+              registry: "0x254D9c7601BD8fa6b6FA7f5A42c860d184E053A7",
+              resolver: stale,
+              parent: zeroAddress,
+              parentLabel: "kju-is",
+              parentName: "kju-is.eth",
+            };
+          if (functionName === "mirror") return { registry: zeroAddress };
+          if (functionName === "getResolver") return live;
+          throw new Error(`unexpected ${functionName}`);
+        }),
+      },
+    });
+    const [instance] = await chain.instances();
+    expect(instance.resolver).toBe(live);
+  });
+
+  it("keeps the factory's resolver where the registry names none", async () => {
+    // Not every instance is registered in the eth registry; a zero answer is not a correction.
+    const chain = new Chain({ ...config, ETH_REGISTRY: "0xBDC85dD5b15D7ecb354cd7cb6f2c50b4f2c4F0E2" });
+    const known = "0x178ff1589Be8Af3B19426Aa1d2Bd07cd178E215e";
+    Object.assign(chain, {
+      indexer: { catchUp: async () => undefined },
+      publicClient: {
+        readContract: vi.fn(async ({ functionName }: { functionName: string }) => {
+          if (functionName === "domains") return [toBytes32("kju-is")];
+          if (functionName === "instance")
+            return {
+              registry: "0x254D9c7601BD8fa6b6FA7f5A42c860d184E053A7",
+              resolver: known,
+              parent: zeroAddress,
+              parentLabel: "kju-is",
+              parentName: "kju-is.eth",
+            };
+          if (functionName === "mirror") return { registry: zeroAddress };
+          if (functionName === "getResolver") return zeroAddress;
+          throw new Error(`unexpected ${functionName}`);
+        }),
+      },
+    });
+    expect((await chain.instances())[0].resolver).toBe(known);
   });
 });
 

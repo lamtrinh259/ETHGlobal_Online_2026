@@ -186,3 +186,18 @@ carry the stable per-action nullifier.
 
 Until this is confirmed with World, treat a humanity record as *a verified human proved this at a point
 in time* — which it is — and not as one-account-per-person. The copy says only the former.
+## The footer shows a build time but no commit
+
+`next build` bakes the commit from whichever environment variable the platform sets, and a Docker
+build sees no git to fall back on. The build reads `SOURCE_COMMIT`, `GIT_SHA`, `GIT_COMMIT_SHA`,
+`COMMIT_SHA` and `GITHUB_SHA`, in that order, and records which one answered:
+
+```bash
+curl -s https://<site>/api/health | jq '{sha, shaFrom}'
+# {"sha": "", "shaFrom": "none"}   -> the platform passed none of them
+# {"sha": "b854b2b", "shaFrom": "SOURCE_COMMIT"}
+```
+
+`shaFrom: "none"` means the variable has to be set as a **build argument**, not a runtime one: the
+value is inlined at build time. `apps/web/Dockerfile` already declares `ARG SOURCE_COMMIT` before the
+build step, so setting it in the app's build environment is enough.

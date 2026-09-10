@@ -150,6 +150,15 @@ export function useWho(api: Api, domain: string, handle: string, viewCode?: stri
   });
 }
 
+/** Invitations still worth handing out, so a link is not lost when the page closes. */
+export function useInvites(api: Api, handle: string | undefined) {
+  return useQuery({
+    queryKey: ["invites", handle],
+    queryFn: () => api.invites(handle as string),
+    enabled: !!handle,
+  });
+}
+
 export function useContracts(api: Api) {
   return useQuery({ queryKey: ["contracts"], queryFn: () => api.contracts(), staleTime: Infinity });
 }

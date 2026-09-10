@@ -38,14 +38,27 @@ contract AttestationResolver is IExtendedResolver, IERC165 {
     bytes32 public constant HUMANITY = "humanity";
     string internal _parentName;
 
+    /// @notice Text an operator wrote about a label, for names that hold no record: an unclaimed
+    ///         public figure, a question, a namespace. A record's own answer always wins — whoever
+    ///         claimed the label speaks for it, not whoever described it beforehand.
+    mapping(bytes32 label => mapping(bytes32 key => string)) internal _about;
+    address public immutable OWNER;
+
+    event AboutSet(bytes32 indexed label, string key, string value);
+
+    error NotOwner(address caller);
+
     bytes32 internal constant KEY_ANSWER = keccak256("ketsuban:answer");
     bytes32 internal constant KEY_EXPIRY = keccak256("ketsuban:expiry");
     bytes32 internal constant KEY_HUMANITY = keccak256("ketsuban:humanity");
     bytes32 internal constant KEY_HUMANITY_UNTIL = keccak256("ketsuban:humanity:until");
     bytes internal constant LINK_PREFIX = "ketsuban:link:";
 
-    constructor(IMultipass mp, IPermissionedResolver inner, bytes32 domain, string memory parentName) {
+    /// @param owner Who may describe a label here. Passed in rather than taken from `msg.sender`,
+    ///        because a factory builds this and the factory is not the one with something to say.
+    constructor(IMultipass mp, IPermissionedResolver inner, bytes32 domain, string memory parentName, address owner) {
         MP = mp;
+        OWNER = owner;
         INNER = inner;
         DOMAIN = domain;
         _parentName = parentName;
@@ -54,6 +67,22 @@ contract AttestationResolver is IExtendedResolver, IERC165 {
 
     function parentName() external view returns (string memory) {
         return _parentName;
+    }
+
+    /// @notice Describe a label this instance answers for. Only the deployer: a page that anyone could
+    ///         write would say whatever the last writer wanted.
+    function setAbout(string calldata label, string calldata key, string calldata value) external {
+        if (msg.sender != OWNER) revert NotOwner(msg.sender);
+        (bool fits, bytes32 id) = LibLabel.toBytes32(bytes(label));
+        if (!fits) revert NotOwner(msg.sender);
+        _about[id][keccak256(bytes(key))] = value;
+        emit AboutSet(id, key, value);
+    }
+
+    /// @notice What was written about a label, if anything.
+    function about(string calldata label, string calldata key) external view returns (string memory) {
+        (, bytes32 id) = LibLabel.toBytes32(bytes(label));
+        return _about[id][keccak256(bytes(key))];
     }
 
     /// @inheritdoc IExtendedResolver
@@ -76,6 +105,12 @@ contract AttestationResolver is IExtendedResolver, IERC165 {
             if (k == KEY_EXPIRY) return _expiry(label);
             if (k == KEY_HUMANITY) return _humanity(label);
             if (k == KEY_HUMANITY_UNTIL) return _humanityUntil(label);
+            // Last, and only when there is something to say: a key this does not answer still has to
+            // reach the stock resolver, where a name's own profile records live.
+            if (label != bytes32(0)) {
+                string memory said = _about[label][k];
+                if (bytes(said).length != 0) return abi.encode(said);
+            }
         } else if (sel == IDataResolver.data.selector) {
             (, string memory key) = abi.decode(data[4:], (bytes32, string));
             (bool isLink, bytes32 domain) = _linkDomain(bytes(key));

@@ -650,6 +650,27 @@ export function createApp({
     return c.json({ code });
   });
 
+  /**
+   * The invitations a candidate has made and can still hand out.
+   *
+   * The link used to live in the page's own state, so closing the tab lost it and the candidate had to
+   * sign another. An expired one is left out: its link no longer works, and showing it would be an
+   * offer nobody can take.
+   */
+  app.get("/v1/invites/:handle", (c) => {
+    const handle = c.req.param("handle").toLowerCase();
+    const invites = inviteStore
+      .entries()
+      .filter(([, i]) => i.handle === handle && Number(i.exp) > now())
+      .map(([code, i]) => ({
+        code,
+        requires: i.requires,
+        expiresAt: new Date(Number(i.exp) * 1000).toISOString(),
+      }))
+      .sort((a, b) => a.expiresAt.localeCompare(b.expiresAt));
+    return c.json({ handle, invites });
+  });
+
   app.get("/v1/invite/:code", (c) => {
     const code = c.req.param("code").toLowerCase();
     const invite = /^[0-9a-f]{8}$/.test(code) ? inviteStore.get(code) : undefined;
@@ -718,14 +739,22 @@ export function createApp({
     const instance = (await chain.instances()).find((i) => i.domain === domain);
     if (!instance) return c.json({ error: `no instance called "${domain}" here` }, 404);
 
-    const [records, description] = await Promise.all([
+    // Who the page is about, read from the name itself: a page for someone who has claimed nothing is
+    // only worth reading if it says who they are, and that belongs on chain rather than in this app.
+    // `name` is the standard display-name text record: a page titled `kju-is.<root>` says what the
+    // name is, not who it is about.
+    const keys = ["name", "description", "url", "avatar"] as const;
+    const [records, ...texts] = await Promise.all([
       chain.listRecords(domain),
-      chain.resolveText(instance.resolver, instance.parentName, "description").catch(() => ""),
+      ...keys.map((key) => chain.resolveText(instance.resolver, instance.parentName, key).catch(() => "")),
     ]);
+    const about = Object.fromEntries(keys.map((key, i) => [key, texts[i] as string]));
+    const description = about.description;
     return c.json({
       domain,
       parentName: instance.parentName,
       description: description || null,
+      records: about,
       answers: records
         .filter((r) => r.live)
         .map((r) => ({

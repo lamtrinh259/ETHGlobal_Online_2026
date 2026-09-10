@@ -61,6 +61,7 @@ function fakeApi(): Api {
     uploadAvatar: vi.fn(async () => ({ id: "a.png", url: "https://api.test/v1/avatar/a.png" })),
     find: vi.fn(async (q: string) => ({ q, matches: [] })),
     storeInvite: vi.fn(async () => ({ code: "abcd1234" })),
+    invites: vi.fn(async (handle: string) => ({ handle, invites: [] })),
     instance: vi.fn(async (domain: string) => ({
       domain,
       parentName: `${domain}.ketsuban.eth`,
