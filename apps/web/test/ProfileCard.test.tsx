@@ -134,7 +134,8 @@ describe("ProfileCard", () => {
         rootParent="ketsuban.eth"
       />
     );
-    expect(screen.getByTestId("ens-profile")).toHaveTextContent("prof of maths");
+    // The same head every page about someone uses, rather than a rendering of its own.
+    expect(screen.getByTestId("profile-head")).toHaveTextContent("prof of maths");
     expect(screen.getByRole("link", { name: "https://alice.example" })).toHaveAttribute(
       "href",
       "https://alice.example"

@@ -538,19 +538,6 @@ h3 {
   font-size: 12px;
 }
 
-/* ── ENS profile records ── */
-.ens-profile {
-  display: flex;
-  gap: var(--sp-md);
-  align-items: flex-start;
-  margin: var(--sp-sm) 0;
-}
-.ens-avatar {
-  border-radius: 50%;
-  border: 1px solid var(--border);
-  object-fit: cover;
-}
-
 /* ── journey (labelled steps with a reason each) ── */
 .journey {
   list-style: none;
