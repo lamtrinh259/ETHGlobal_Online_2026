@@ -190,3 +190,20 @@ describe("vouchSteps", () => {
     ]);
   });
 });
+
+describe("what the humanity step promises", () => {
+  it("does not promise a guarantee the proof may not carry", async () => {
+    // World's own docs disagree on whether a v4 nullifier is stable per person or one-time-use
+    // (`idkit/integrate` says stable, `4-0-migration` says one-time). Uniqueness across accounts rests
+    // on the first being true. Until that is settled, the step must not claim it: a promise the
+    // system cannot keep is worse than a smaller one it can.
+    const { vouchSteps } = await import("@/lib/journey");
+    const step = vouchSteps("alice", { authenticated: true, published: false }).find(
+      (s) => s.id === "humanity"
+    )!;
+    expect(step.detail).not.toMatch(/stops one person|cannot run|ten accounts|ten voucher/i);
+    // What it can say is what the proof actually shows: a verified human, and no identity revealed.
+    expect(step.detail).toMatch(/World ID/i);
+    expect(step.detail).toMatch(/never see|without revealing/i);
+  });
+});

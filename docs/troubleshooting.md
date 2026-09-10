@@ -166,3 +166,23 @@ cast call 0x4A1817d13E9cF196f471725176355C1234b63C70 \
 
 An empty `0x…20` `0x…00` answer is an empty string, not an error: that record simply has no value on
 that name. Answers live on the subject name (`<you>.kju-is.<root>`), not on the root name.
+
+## Does a World ID proof stop one person holding two accounts?
+
+Not provably, yet — and the product must not claim it until it does.
+
+The attester stores each nullifier and refuses a second wallet that presents the same one, which stops
+a proof being replayed. Whether that stops *a person* opening two accounts depends on a question World's
+own documentation answers twice, differently:
+
+- `world-id/idkit/integrate`: "The same person verifying the same action always produces the same
+  nullifier."
+- `world-id/4-0-migration`: "In 4.0, nullifiers are one-time-use, and `session_id` is the stable link."
+
+If the second governs a v4 uniqueness proof, two fresh proofs from one person yield two nullifiers and
+the dedupe never fires. Two things bound that risk today: session proofs are refused outright (they
+carry no per-action nullifier), and the widget asks for legacy proofs (`allow_legacy_proofs`), which do
+carry the stable per-action nullifier.
+
+Until this is confirmed with World, treat a humanity record as *a verified human proved this at a point
+in time* — which it is — and not as one-account-per-person. The copy says only the former.

@@ -298,3 +298,6 @@ coverage/
 *.swp
 *.swo
 *~
+
+# Worktrees used to work on one branch while an agent holds another.
+.worktrees/

@@ -165,7 +165,7 @@ export function vouchSteps(
       id: "humanity",
       label: "Prove you are one real person",
       detail:
-        "A World ID proof, done once on your profile. It stops one person running ten voucher accounts. We never see who you are.",
+        "A World ID proof, done once on your profile. It shows a verified human wrote this, without revealing who. We never see who you are.",
       state: "pending",
     },
     {
