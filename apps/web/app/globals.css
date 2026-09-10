@@ -421,6 +421,22 @@ dl.kv dd {
 }
 
 /* ── doors (landing) ── */
+/*
+ * A list of cards, which is a list only structurally.
+ *
+ * There is no global list reset here, so a `ul` with no rule of its own keeps its bullets and its
+ * indent — and `/names` was shipping card-shaped items down a bulleted list, on a page linked from
+ * the nav and from the front page. A class name that styles nothing is not always harmless.
+ */
+.cards {
+  list-style: none;
+  margin: var(--sp-md) 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--sp-md);
+}
+
 .doors {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));

@@ -64,3 +64,30 @@ describe("rules nothing uses", () => {
     expect(unused).toEqual([]);
   });
 });
+
+/**
+ * There is no global list reset in this stylesheet, so a `ul` whose class styles nothing keeps its
+ * bullets and its indent. `/names` shipped card-shaped items down a bulleted list that way, on a page
+ * linked from the nav and from the front page — the defect a class name that styles nothing can cause
+ * when the element it is on has defaults of its own.
+ */
+describe("lists that are lists only structurally", () => {
+  it("every ul with a class has a rule that resets it", async () => {
+    const { readdirSync, readFileSync: read } = await import("node:fs");
+    const walk = (dir: string): string[] =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+        e.isDirectory() ? walk(join(dir, e.name)) : e.name.endsWith(".tsx") ? [join(dir, e.name)] : []
+      );
+    const markup = walk(join(process.cwd(), "app"))
+      .map((f) => read(f, "utf8"))
+      .join("\n");
+
+    const classed = [...markup.matchAll(/<ul className="([^"]+)"/g)].map((m) => m[1].split(" ")[0]);
+    const unreset = [...new Set(classed)].filter((c) => {
+      // The rule may be grouped with others, so look at the whole block a selector opens.
+      const block = new RegExp(`(^|,\\s*)\\.${c}\\s*(,[^{]*)?\\{[^}]*\\}`, "m").exec(css);
+      return !block || !/list-style:\s*none/.test(block[0]);
+    });
+    expect(unreset).toEqual([]);
+  });
+});
