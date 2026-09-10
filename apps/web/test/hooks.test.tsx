@@ -74,6 +74,13 @@ function fakeApi(): Api {
       ref: `sha256:${"a".repeat(64)}`,
       bytes: text.length,
     })),
+    sybil: vi.fn(async (handle: string) => ({
+      handle,
+      score: 0,
+      band: "weak" as const,
+      parts: [],
+      warning: "not who holds it",
+    })),
     who: vi.fn(async (domain: string, handle: string) => ({ found: false, domain, handle })),
     humanityChallenge: vi.fn(async (wallet: string) => ({
       app_id: "app_test",

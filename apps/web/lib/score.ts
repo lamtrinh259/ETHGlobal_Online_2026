@@ -2,9 +2,11 @@
  * How far a profile has got, as one number.
  *
  * The parts are weighted by what a verifier actually asks for rather than by effort: a name and
- * references are most of the score, because they are what anyone else can check. Humanity is not in
- * here at all — it cannot be earned on this deployment yet, and a score that cannot reach 100 reads
- * as a broken product rather than as an unfinished profile.
+ * references are most of the score, because they are what anyone else can check.
+ *
+ * Humanity is deliberately not in here. This measures how far a profile has got, which is the holder's
+ * own business; how hard the account would be to fake is a different question, asked of it by somebody
+ * else, and answered by the sybil score instead.
  */
 export type ScoreInput = {
   hasName: boolean;

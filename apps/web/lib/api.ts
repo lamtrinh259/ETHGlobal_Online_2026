@@ -100,6 +100,24 @@ export const humanitySchema = z.object({
   renewal: z.boolean(),
 });
 
+export const sybilSchema = z.object({
+  handle: z.string(),
+  score: z.number(),
+  band: z.enum(["strong", "moderate", "weak"]),
+  parts: z.array(
+    z.object({
+      id: z.string(),
+      label: z.string(),
+      weight: z.number(),
+      earned: z.number(),
+      why: z.string(),
+      detail: z.string(),
+    })
+  ),
+  warning: z.string(),
+});
+export type Sybil = z.infer<typeof sybilSchema>;
+
 export const vouchesSchema = z.object({
   handle: z.string(),
   domain: z.string(),
@@ -595,6 +613,9 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
       );
     },
 
+    async sybil(handle: string): Promise<Sybil> {
+      return sybilSchema.parse(await readJson(await call(`${base}/v1/sybil/${encodeURIComponent(handle)}`)));
+    },
     async vouches(handle: string): Promise<Vouches> {
       return vouchesSchema.parse(
         await readJson(await call(`${base}/v1/vouches/${encodeURIComponent(handle)}`))

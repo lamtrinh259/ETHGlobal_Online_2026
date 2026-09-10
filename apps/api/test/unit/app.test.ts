@@ -2302,6 +2302,74 @@ describe("GET /v1/ens/:name", () => {
   });
 });
 
+describe("GET /v1/sybil/:handle", () => {
+  const ref = (name: string, wallet: `0x${string}`) => ({
+    name,
+    id: toBytes32(name),
+    wallet,
+    payload: zeroHash,
+    validUntil: 9_000_000_000n,
+    nonce: 1n,
+    live: true,
+  });
+  const BOB = "0x000000000000000000000000000000000000b0b0" as const;
+
+  it("refuses a handle that could never name anybody", async () => {
+    const { chain } = fakeChain();
+    expect((await app(chain).request("/v1/sybil/NOT A HANDLE")).status).toBe(400);
+  });
+
+  it("scores a name with nothing behind it at zero, and says why each part is worth what it is", async () => {
+    const { chain } = fakeChain();
+    const body = await (await app(chain).request("/v1/sybil/alice")).json();
+    expect(body).toMatchObject({ handle: "alice", score: 0, band: "weak" });
+    expect(body.parts.map((p: { id: string }) => p.id)).toEqual([
+      "humanity",
+      "vouched-by-humans",
+      "independence",
+      "accounts",
+    ]);
+    // The number is meaningless without the question it answers.
+    expect(body.warning).toContain("not who holds it");
+  });
+
+  /**
+   * The reason referrer humanity is read from the chain rather than counted: a reference from an
+   * account that proved nothing costs nothing to produce.
+   */
+  it("counts a referrer who proved humanity and one who did not, separately", async () => {
+    const { chain } = fakeChain({
+      listed: { "~alice": [ref("bob", BOB), ref("carol", user.account.address)] },
+      records: {
+        [`${BOB.toLowerCase()}:humanity`]: {
+          exists: true,
+          nonce: 1n,
+          id: zeroHash,
+          wallet: BOB,
+          live: true,
+        },
+      },
+    });
+    const body = await (await app(chain).request("/v1/sybil/alice")).json();
+    const part = body.parts.find((p: { id: string }) => p.id === "vouched-by-humans");
+    expect(part.detail).toBe("1 of 2 referrers proved");
+    expect(part.earned).toBe(10);
+  });
+
+  it("sees a pair that referred each other, which costs one person two signatures", async () => {
+    const { chain } = fakeChain({
+      listed: { "~alice": [ref("bob", BOB)] },
+      names: { "kju-is/alice": { taken: true, wallet: user.account.address, live: true } },
+      // Alice wrote into bob's vouch domain, so the reference she holds from him is mutual.
+      byWallet: [{ ...ref("alice", user.account.address), domain: "~bob" }],
+    });
+    const body = await (await app(chain).request("/v1/sybil/alice")).json();
+    const part = body.parts.find((p: { id: string }) => p.id === "independence");
+    expect(part.detail).toBe("1 of 1 are mutual");
+    expect(part.earned).toBe(0);
+  });
+});
+
 describe("GET /v1/standing/:handle", () => {
   it("counts distinct live references given and received; unclaimed handles can still receive", async () => {
     const { chain } = fakeChain({
