@@ -61,7 +61,8 @@ export function ProfileHeader({
               {profile.url}
             </a>
           )}
-          <p className="row">
+          {/* The score ring links each missing part to where it is earned; humanity is earned here. */}
+          <p className="row" id="humanity">
             <span className={`badge ${humanity ? "badge-private" : "badge-public"}`} data-testid="humanity">
               {humanity ? `human · verified` : "human · unverified"}
             </span>

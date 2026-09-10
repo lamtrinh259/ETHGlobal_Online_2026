@@ -77,3 +77,26 @@ describe("the profile header", () => {
     expect(screen.queryByTestId("profile-editor")).toBeNull();
   });
 });
+
+/**
+ * The score ring is a to-do list: each part it marks missing links to where that part is earned. A
+ * link to an anchor nothing renders looks like a dead control, and the person is left with a number
+ * telling them what is wrong and no way to act on it.
+ */
+describe("the anchor the score links to", () => {
+  it("exists where humanity is earned", () => {
+    const { container } = render(
+      <ProfileHeader
+        name="alice.ketsuban.eth"
+        handle="alice"
+        humanity={null}
+        score={scored.score}
+        parts={scored.parts}
+        onClaim={() => {}}
+      />
+    );
+    expect(container.querySelector("#humanity")).not.toBeNull();
+    // And the part that points at it is the one the ring shows as missing.
+    expect(scored.parts.find((p) => p.id === "humanity")?.done).toBe(false);
+  });
+});
