@@ -87,6 +87,20 @@ beforeAll(async () => {
   deployment = JSON.parse(
     readFileSync(new URL("../../../../packages/contracts/deployments/local.json", import.meta.url), "utf8")
   );
+
+  /*
+   * This suite writes to a chain, so it can only be run against an empty one: names it registers are
+   * already taken on a second run, and nonces it expects have moved on. Against a stack left up by
+   * `E2E_KEEP=1`, that surfaces as a dozen unrelated assertion failures with no hint of the cause —
+   * which costs more time than the run it was meant to save.
+   */
+  const health = await (await fetch(`${API}/healthz`)).json();
+  if (health.index?.records > 0) {
+    throw new Error(
+      `this stack already holds ${health.index.records} records, and these tests need an empty chain. ` +
+        `Tear it down first:\n\n  docker compose -f apps/api/docker-compose.e2e.yml down -v\n`
+    );
+  }
 });
 
 describe("api e2e", () => {
