@@ -5,6 +5,7 @@ import { createApi } from "@/lib/api";
 import { loadWebConfig } from "@/lib/config";
 import { HANDLE_RE } from "@/lib/profile";
 import { askById } from "@/lib/asks";
+import { ProfileHead } from "@/app/ProfileHead";
 import { VouchFlow } from "./VouchFlow";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +17,7 @@ type Params = {
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { handle } = await params;
-  return { title: `Vouch for ${decodeURIComponent(handle)}` };
+  return { title: `Refer ${decodeURIComponent(handle)}` };
 }
 
 /**
@@ -65,9 +66,13 @@ export default async function VouchPage({ params, searchParams }: Params) {
     invite = undefined;
   }
   const api = createApi(config.apiUrl, config.attestUrl);
-  const [status, vouches] = await Promise.all([
+  const candidateName = root ? `${handle}.${root.parentName}` : handle;
+  const [status, vouches, candidate] = await Promise.all([
     root ? api.nameStatus(root.domain, handle).catch(() => undefined) : undefined,
     api.vouches(handle).catch(() => undefined),
+    // Who you are about to put your name behind. A handle is not a person, and this page asked for a
+    // permanent signature while showing nothing but the handle.
+    root ? api.verify(candidateName).catch(() => null) : null,
   ]);
   const live = vouches
     ? new Set(vouches.vouches.filter((v) => v.live).map((v) => v.voucher)).size
@@ -76,8 +81,16 @@ export default async function VouchPage({ params, searchParams }: Params) {
     <>
       <section className="hero">
         <h1>
-          Vouch for <span className="knot">{handle}</span>
+          Refer <span className="knot">{handle}</span>
         </h1>
+        <ProfileHead
+          ensName={candidateName}
+          records={{
+            description: candidate?.profile?.description ?? undefined,
+            url: candidate?.profile?.url ?? undefined,
+            avatar: candidate?.profile?.avatar ?? undefined,
+          }}
+        />
         {status && (
           <p className={status.live ? "muted" : "error"} data-testid="candidate-status">
             {status.live
@@ -89,10 +102,8 @@ export default async function VouchPage({ params, searchParams }: Params) {
         )}
         <p>
           You are about to put your own permanent name behind{" "}
-          <Link href={`/p/${handle}`}>
-            {handle}.{root?.parentName}
-          </Link>
-          . Five minutes. Nothing you sign here can be deleted — only revoked, visibly.
+          <Link href={`/p/${handle}`}>{candidateName}</Link>. Five minutes. Nothing you sign here can be
+          deleted — only revoked, visibly.
         </p>
       </section>
       <VouchFlow candidate={handle} invite={invite} withdraw={withdraw === "1"} ask={askById(ask)} />

@@ -176,6 +176,7 @@ function fakeApi(): Api {
       expiresAt: null,
       humanity: null,
       links: [],
+      references: [],
       evidence: ["wallet_binding"],
       decision: "no_record",
       warning: "w",

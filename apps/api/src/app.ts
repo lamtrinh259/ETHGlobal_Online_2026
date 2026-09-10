@@ -1659,6 +1659,54 @@ export function createApp({
    * agent gets exactly what any wallet would; `viewCode` (query) unmasks opted-in links.
    */
   /**
+   * The references a wallet has given: an answer it wrote about a subject, or a reference it wrote
+   * about a person. Both are the same act from the reader's side — this person spoke about that one —
+   * so they are listed together rather than split by which mount happens to hold them.
+   *
+   * Ordered by how many people have spoken about the subject at all, because the subject everybody
+   * answers is the one a reader arrives already recognising.
+   */
+  async function referencesBy(wallet: Address): Promise<Record<string, unknown>[]> {
+    const subjects = config.NAME_DOMAINS.slice(1);
+    const written = (await chain.listRecordsByWallet(wallet)).filter(
+      (r) => r.live && (isVouchDomain(r.domain) || subjects.includes(r.domain))
+    );
+    if (written.length === 0) return [];
+    const mounts = new Map((await chain.instances()).map((i) => [i.domain, i]));
+    const rootParent = mounts.get(config.NAME_DOMAINS[0] ?? "")?.parentName ?? null;
+    const spoken = new Map<string, number>(
+      await Promise.all(
+        [...new Set(written.map((r) => r.domain))].map(
+          async (d) => [d, (await chain.listRecords(d)).filter((r) => r.live).length] as const
+        )
+      )
+    );
+    return written
+      .sort((a, b) => (spoken.get(b.domain) ?? 0) - (spoken.get(a.domain) ?? 0))
+      .map((r) => {
+        const vouch = isVouchDomain(r.domain);
+        const subject = vouch ? r.domain.slice(config.VOUCH_PREFIX.length) : r.domain;
+        // A reference is a name in the subject's own namespace; an answer is a name under the subject
+        // instance itself. Either way it resolves for anyone, which is the point of naming it here.
+        const parent = vouch
+          ? rootParent
+            ? `${subject}.${rootParent}`
+            : null
+          : (mounts.get(r.domain)?.parentName ?? null);
+        return {
+          // A reader does not need to know which mount holds it, but a verifier reading the JSON does.
+          kind: vouch ? "reference" : "answer",
+          subject,
+          // Where the subject itself can be read, so the claim is followable rather than asserted here.
+          subjectName: rootParent ? `${subject}.${rootParent}` : null,
+          statement: fromBytes32(r.payload),
+          ensName: parent ? `${r.name}.${parent}` : null,
+          validUntil: new Date(Number(r.validUntil) * 1000).toISOString(),
+        };
+      });
+  }
+
+  /**
    * One name, read through the instance resolver. Shared by `/v1/verify/:name` and the composed
    * profile: an agent should get the same bytes either way.
    */
@@ -1748,6 +1796,9 @@ export function createApp({
           }
         : null,
       links: links.filter(Boolean),
+      // What this person has said about anybody else. A page that shows only what others said about
+      // them reads as a dossier; this is the half they wrote themselves.
+      references: active ? await referencesBy(wallet) : [],
       profile: {
         avatar: avatar || null,
         description: description || null,

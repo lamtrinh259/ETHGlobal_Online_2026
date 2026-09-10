@@ -33,6 +33,7 @@ const active = (name: string, over: Partial<Verification> = {}): Verification =>
   expiresAt: "2026-10-08T09:14:22.000Z",
   humanity: null,
   links: [],
+  references: [],
   evidence: ["wallet_binding"],
   decision: "additional_context_available",
   warning: "w",
