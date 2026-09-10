@@ -200,6 +200,7 @@ export function Dashboard() {
               domain: r.domain,
               ensName: r.ensName,
               answer: r.live?.payload ?? "",
+              validUntil: r.live?.validUntil ?? null,
             }))}
             onAnswer={(domain) =>
               setPublishing({

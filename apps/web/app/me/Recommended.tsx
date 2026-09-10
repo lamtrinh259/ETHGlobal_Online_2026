@@ -1,9 +1,20 @@
 "use client";
 
+import Link from "next/link";
 import { askById } from "@/lib/asks";
+import { fmtUtc } from "@/app/ui";
 import { questionTitle } from "@/lib/questions";
 
-export type AnswerRow = { domain: string; ensName: string; answer: string };
+export type AnswerRow = {
+  domain: string;
+  ensName: string;
+  answer: string;
+  /** When the record lapses; an answer with no date reads as permanent and is not */
+  validUntil: string | null;
+};
+
+/** The question's own name: `alice.kju-is.ketsuban.eth` is answered under `kju-is.ketsuban.eth`. */
+const instanceName = (ensName: string) => ensName.split(".").slice(1).join(".");
 
 /**
  * Questions this deployment asks its own candidates.
@@ -22,6 +33,13 @@ export function Recommended({ rows, onAnswer }: { rows: AnswerRow[]; onAnswer: (
             <strong>{questionTitle(r.domain)}</strong>
             <small className="muted">
               {r.answer ? `“${r.answer}”` : (askById(r.domain)?.why ?? "not answered")}
+              {r.answer && r.validUntil ? ` · until ${fmtUtc(r.validUntil)}` : ""}
+            </small>
+            {/* The instance name publishes what answering the question is for, readable without us. */}
+            <small className="muted">
+              <Link href={`/v/${instanceName(r.ensName)}`} data-testid={`about-${r.domain}`}>
+                {instanceName(r.ensName)}
+              </Link>
             </small>
           </span>
           <span className="acct-state">

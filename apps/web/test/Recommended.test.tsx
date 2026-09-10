@@ -3,8 +3,13 @@ import { describe, expect, it, vi } from "vitest";
 import { Recommended } from "@/app/me/Recommended";
 
 const rows = [
-  { domain: "kju-is", ensName: "alice.kju-is.ketsuban.eth", answer: "" },
-  { domain: "other", ensName: "alice.other.ketsuban.eth", answer: "yes" },
+  { domain: "kju-is", ensName: "alice.kju-is.ketsuban.eth", answer: "", validUntil: null },
+  {
+    domain: "other",
+    ensName: "alice.other.ketsuban.eth",
+    answer: "yes",
+    validUntil: "2027-03-01T00:00:00.000Z",
+  },
 ];
 
 describe("questions recommended to answer", () => {
@@ -32,6 +37,22 @@ describe("questions recommended to answer", () => {
     render(<Recommended rows={rows} onAnswer={vi.fn()} />);
     expect(screen.getByTestId("answer-other")).toHaveTextContent("yes");
     expect(screen.getByTestId("answer-now-other")).toHaveTextContent(/change/i);
+  });
+
+  it("says how long an answer stands, because it does not stand forever", () => {
+    // A record expires; an answer with no date reads as permanent and is not.
+    render(<Recommended rows={rows} onAnswer={vi.fn()} />);
+    expect(screen.getByTestId("answer-other")).toHaveTextContent("2027-03-01");
+    // An unanswered question has no date to give, and must not invent one.
+    expect(screen.getByTestId("answer-kju-is")).not.toHaveTextContent("2027");
+  });
+
+  it("links to the question's own name, where its purpose is published", () => {
+    // The instance name carries a description saying what answering it is for, readable by any ENS
+    // client. That is the thing to link to, not this page.
+    render(<Recommended rows={rows} onAnswer={vi.fn()} />);
+    const link = screen.getByTestId("about-kju-is");
+    expect(link).toHaveAttribute("href", "/v/kju-is.ketsuban.eth");
   });
 
   it("shows nothing at all when this deployment asks no questions", () => {
