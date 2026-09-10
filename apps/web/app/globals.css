@@ -330,7 +330,20 @@ button {
   cursor: pointer;
   min-height: 40px;
 }
-button.primary {
+/* A link that performs an action looks like the action, not like prose. */
+a.button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--panel-2);
+  color: var(--text-primary);
+  text-decoration: none;
+}
+button.primary,
+a.button.primary {
   background: var(--flame);
   color: var(--bg);
   border-color: var(--flame);
@@ -1157,4 +1170,14 @@ a.score-part-label:hover strong {
 }
 .v-link-handle {
   font-weight: 600;
+}
+/* A name that leads somewhere still reads as a receipt, not as a call to action. */
+.v-ref-name,
+.v-link-name {
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+.v-ref-name:hover,
+.v-link-name:hover {
+  text-decoration: underline;
 }

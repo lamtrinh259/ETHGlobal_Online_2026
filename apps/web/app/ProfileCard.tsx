@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { WITHDRAWN } from "@ketsuban/registrar";
 import { describePolicy, type Policy, type Profile } from "@/lib/profile";
 import { questionTitle } from "@/lib/questions";
+import { VouchList } from "./VouchList";
 import { fmtUtc } from "./ui";
 
 /** The candidate reference page: identity, answers, links, humanity, and the policy checks. */
@@ -135,79 +135,7 @@ export function ProfileCard({ p, rootParent, policy }: { p: Profile; rootParent:
         </ul>
       )}
 
-      <h3>Vouches</h3>
-      {p.vouches.length === 0 ? (
-        <p>
-          <em>none yet</em> — <a href={`/vouch/${p.handle}`}>be the first</a>
-        </p>
-      ) : (
-        <ul className="vouches" data-testid="vouches">
-          {p.vouches.map((v) => (
-            <li
-              key={`${v.voucher}-${v.nonce}`}
-              className={v.live ? "live" : "expired"}
-              data-testid={`vouch-${v.voucher}`}
-            >
-              <span className="vouch-who">
-                <Link href={`/p/${v.voucher}`}>
-                  <code>{v.voucherName ?? v.voucher}</code>
-                </Link>
-                {/* Anyone may refer anyone; a reader is owed the difference between a reference the
-                    subject asked for and one that simply arrived. */}
-                {!v.solicited && (
-                  <span className="badge badge-unsolicited" title="the subject did not ask for this one">
-                    unsolicited
-                  </span>
-                )}
-                {v.standing && (
-                  <small className="muted" data-testid="standing">
-                    {" "}
-                    · {v.standing.claimed ? "" : "unclaimed · "}gave {v.standing.given} · received{" "}
-                    {v.standing.received}
-                  </small>
-                )}
-              </span>
-              {v.statement === WITHDRAWN ? (
-                <span className="vouch-what vouch-withdrawn" data-testid="withdrawn">
-                  withdrawn by the voucher
-                </span>
-              ) : (
-                <span className="vouch-what">“{v.statement}”</span>
-              )}
-              {v.letter && (
-                <span className="vouch-letter" data-testid="vouch-letter">
-                  {v.letter}
-                </span>
-              )}
-              {/* A letter too long for a record is kept off chain and named on chain by its hash. The
-                  hash is the reason to believe the text; without it there is nothing to check. */}
-              {v.letterHash && v.letter && (
-                <small className="muted" data-testid={`letter-hash-${v.voucher}`}>
-                  letter checks against <code>sha256:{v.letterHash.slice(0, 12)}…</code> on the record
-                </small>
-              )}
-              {v.letterHash && !v.letter && (
-                <small className="warning" data-testid={`letter-gone-${v.voucher}`}>
-                  a letter was written and cannot be shown: the record names{" "}
-                  <code>sha256:{v.letterHash.slice(0, 12)}…</code>, but nobody holds a copy any more
-                </small>
-              )}
-              <span className="vouch-meta muted">
-                {v.live ? "live" : "expired"} · until {fmtUtc(v.validUntil)}
-                {/* The reference is a name of its own: read it anywhere, not only here. */}
-                {v.ensName && (
-                  <>
-                    {" · "}
-                    <Link href={`/v/${v.ensName}`}>
-                      <code>{v.ensName}</code>
-                    </Link>
-                  </>
-                )}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
+      <VouchList vouches={p.vouches} handle={p.handle} />
 
       <h3>Humanity</h3>
       <p data-testid="humanity">{p.humanity ? `attested (${p.humanity.level})` : "not attested"}</p>

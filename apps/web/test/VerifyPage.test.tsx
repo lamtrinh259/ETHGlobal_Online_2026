@@ -23,6 +23,7 @@ const verification = {
 };
 
 const state = {
+  vouches: [] as unknown[],
   disclosed: null as unknown,
   reader: undefined as string | undefined,
   /** What the attester answers with when nothing opens: 404 never shared, 403 not (or no longer) yours */
@@ -43,6 +44,12 @@ vi.mock("@/lib/api", async (orig) => ({
   ...(await orig<typeof import("@/lib/api")>()),
   createApi: () => ({
     verify: vi.fn(async () => verification),
+    vouches: vi.fn(async (handle: string) => ({
+      handle,
+      domain: `~${handle}`,
+      vouches: state.vouches,
+      warning: "This is not identity verification.",
+    })),
     ens: vi.fn(async () => {
       throw new Error("off");
     }),
@@ -158,6 +165,7 @@ describe("/v/<name> with an opened account", () => {
       verify: vi.fn(async () => inactive),
       ens: vi.fn(async () => null),
       explain: vi.fn(async () => ({ name: "x", says: "alice is a person's name here.", kind: "person" })),
+      vouches: vi.fn(async () => ({ handle: "alice", domain: "~alice", vouches: [], warning: "" })),
     } as never);
     const page = await renderPage({});
     expect(page.container.querySelector("[data-testid=would-claim]")?.textContent).toContain(
@@ -170,5 +178,52 @@ describe("/v/<name> with an opened account", () => {
     state.reader = undefined;
     const { container } = await renderPage({});
     expect(container.querySelector("[data-testid=revealed]")).toBeNull();
+  });
+});
+
+/**
+ * A verifier arriving at a person's name came to read what others said about them. The page showed
+ * only what the person said themselves, and offered no way to reach the rest.
+ */
+describe("/v/<name> for a person", () => {
+  const vouch = {
+    voucher: "bob",
+    voucherName: "bob.ketsuban.eth",
+    ensName: "bob.alice.ketsuban.eth",
+    wallet: "0xEE4811b9462956C9C3535E79c08776D769CA9F3a",
+    statement: "worked with them for years",
+    validUntil: "2027-01-01T00:00:00.000Z",
+    nonce: "1",
+    live: true,
+    solicited: false,
+    invite: null,
+  };
+
+  it("shows the references written about them, and how to add one", async () => {
+    state.vouches = [vouch];
+    const { default: Page } = await import("@/app/v/[name]/page");
+    render(
+      await Page({
+        params: Promise.resolve({ name: "alice.ketsuban.eth" }),
+        searchParams: Promise.resolve({}),
+      })
+    );
+    const received = screen.getByLabelText("references received");
+    expect(received).toHaveTextContent("worked with them for years");
+    // Anyone may refer anyone; a reader is owed the difference.
+    expect(received).toHaveTextContent("unsolicited");
+    expect(screen.getByRole("link", { name: "Refer this person" })).toHaveAttribute("href", "/vouch/alice");
+  });
+
+  it("invites the first reference when nobody has written one", async () => {
+    state.vouches = [];
+    const { default: Page } = await import("@/app/v/[name]/page");
+    render(
+      await Page({
+        params: Promise.resolve({ name: "alice.ketsuban.eth" }),
+        searchParams: Promise.resolve({}),
+      })
+    );
+    expect(screen.getByLabelText("references received")).toHaveTextContent("none yet");
   });
 });

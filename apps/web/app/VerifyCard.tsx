@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Verification } from "@/lib/api";
 import { questionTitle } from "@/lib/questions";
 import { PlatformIcon } from "./PlatformIcon";
@@ -55,14 +56,28 @@ export function VerifyCard({ v }: { v: Verification }) {
               <ul className="v-refs" data-testid="references">
                 {v.references.map((ref) => (
                   <li key={ref.ensName ?? `${ref.kind}:${ref.subject}`}>
+                    {/* The graph is only worth showing if a reader can walk it: the subject, and the
+                        name this reference itself answers at, both lead somewhere. */}
                     <span className="v-ref-subject">
-                      {ref.kind === "answer" ? questionTitle(ref.subject) : ref.subject}
+                      {ref.subjectName ? (
+                        <Link href={`/v/${ref.subjectName}`}>
+                          {ref.kind === "answer" ? questionTitle(ref.subject) : ref.subject}
+                        </Link>
+                      ) : ref.kind === "answer" ? (
+                        questionTitle(ref.subject)
+                      ) : (
+                        ref.subject
+                      )}
                     </span>
                     <strong className="v-ref-statement">{ref.statement || <em>no words</em>}</strong>
                     {ref.ensName && (
-                      <code className="v-ref-name" title="read it back in any ENS client">
-                        {ref.ensName}
-                      </code>
+                      <Link
+                        className="v-ref-name"
+                        href={`/v/${ref.ensName}`}
+                        title="read it back in any ENS client"
+                      >
+                        <code>{ref.ensName}</code>
+                      </Link>
                     )}
                   </li>
                 ))}
@@ -95,7 +110,15 @@ export function VerifyCard({ v }: { v: Verification }) {
                       <span className="badge badge-public">verified</span>
                     )}
                     {/* Read it back yourself: the name resolves for anyone, this page is not the source. */}
-                    {l.ensName && <code className="v-link-name">{l.ensName}</code>}
+                    {l.ensName && (
+                      <Link
+                        className="v-link-name"
+                        href={`/v/${l.ensName}`}
+                        title="read it back in any ENS client"
+                      >
+                        <code>{l.ensName}</code>
+                      </Link>
+                    )}
                   </li>
                 ))}
               </ul>

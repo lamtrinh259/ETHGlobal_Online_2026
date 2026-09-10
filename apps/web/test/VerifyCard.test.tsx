@@ -61,7 +61,11 @@ describe("VerifyCard", () => {
       />
     );
     const links = screen.getByTestId("links");
-    expect(links).toHaveTextContent("alice_x.com.x.www.ketsuban.eth");
+    // The name is a link to the page that reads it, not a dead string.
+    expect(screen.getByRole("link", { name: "alice_x.com.x.www.ketsuban.eth" })).toHaveAttribute(
+      "href",
+      "/v/alice_x.com.x.www.ketsuban.eth"
+    );
     // Even the private one has a name: it says the person is there, not which account.
     expect(links).toHaveTextContent("alice.com.google.private-www.ketsuban.eth");
     expect(links).toHaveTextContent("masked");
@@ -195,6 +199,26 @@ describe("references given", () => {
     const rows = screen.getByTestId("references").querySelectorAll("li");
     expect(rows[0]).toHaveTextContent("Kim Jong Un");
     expect(rows[1]).toHaveTextContent("bob");
+  });
+
+  it("leads to the subject and to the reference itself, so the graph can be walked", () => {
+    render(
+      <VerifyCard
+        v={gave({
+          kind: "reference",
+          subject: "bob",
+          subjectName: "bob.ketsuban.eth",
+          statement: "solid",
+          ensName: "alice.bob.ketsuban.eth",
+          validUntil: "2026-10-08T09:14:22.000Z",
+        })}
+      />
+    );
+    expect(screen.getByRole("link", { name: "bob" })).toHaveAttribute("href", "/v/bob.ketsuban.eth");
+    expect(screen.getByRole("link", { name: "alice.bob.ketsuban.eth" })).toHaveAttribute(
+      "href",
+      "/v/alice.bob.ketsuban.eth"
+    );
   });
 
   it("says nothing at all when this person has referred nobody", () => {
