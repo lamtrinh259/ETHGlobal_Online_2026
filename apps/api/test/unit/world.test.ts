@@ -465,3 +465,34 @@ describe("the environment a proof request points at", () => {
     expect(worldFrom({ ...base, WORLD_APP_ID: undefined, WORLD_ENVIRONMENT: "staging" })).toBeUndefined();
   });
 });
+
+/**
+ * The environment is a property of the proof, not a preference: World App produces one for the
+ * environment its app belongs to, and the portal refuses to check it as another. The portal's wording
+ * leaves it to the reader to work out whose side the mismatch is on, and what to change.
+ */
+describe("a proof made for another environment", () => {
+  it("names the setting to change, and which value it currently holds", async () => {
+    const refused = portal(400, {
+      success: false,
+      code: "environment_mismatch",
+      detail: "This proof was generated for the production environment, but this request uses staging.",
+    });
+    const proof = proofFor("0xreader", {
+      responses: [{ identifier: "selfie", signal_hash: hashSignal("0xreader") }],
+    });
+    await expect(
+      verifyHumanProof({ ...world, environment: "sandbox" }, proof, "0xreader", refused)
+    ).rejects.toThrow(/WORLD_ENVIRONMENT is "sandbox" here/);
+  });
+
+  it("leaves every other refusal in the portal's own words", async () => {
+    const refused = portal(400, { success: false, code: "invalid_proof", detail: "expired root" });
+    const proof = proofFor("0xreader", {
+      responses: [{ identifier: "selfie", signal_hash: hashSignal("0xreader") }],
+    });
+    await expect(verifyHumanProof(world, proof, "0xreader", refused)).rejects.toThrow(
+      "world: invalid_proof: expired root"
+    );
+  });
+});

@@ -209,7 +209,17 @@ export async function verifyHumanProof(
   const answer = (await res.json().catch(() => null)) as VerifyAnswer | null;
   if (!res.ok || answer?.success !== true) {
     const code = answer?.code ?? `HTTP ${res.status}`;
-    throw new Error(`world: ${code}${answer?.detail ? `: ${answer.detail}` : ""}`);
+    /*
+     * The environment is a property of the proof, not a preference. World App produces a proof for the
+     * environment the app belongs to, and asking the portal to check it as another one is refused — so
+     * this is a deployment setting to change, and saying which one saves reading the portal's wording
+     * twice to work out whose side the mismatch is on.
+     */
+    const fix =
+      code === "environment_mismatch"
+        ? ` — WORLD_ENVIRONMENT is "${world.environment}" here; set it to the environment the app itself is in`
+        : "";
+    throw new Error(`world: ${code}${answer?.detail ? `: ${answer.detail}` : ""}${fix}`);
   }
   // The portal echoes the action it verified. Reading it back rather than trusting the copy checked
   // above is what keeps that check from being cosmetic.
