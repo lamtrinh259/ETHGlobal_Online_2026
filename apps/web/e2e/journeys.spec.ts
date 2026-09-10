@@ -46,7 +46,10 @@ test("the profile and the vouch journey show their steps and the sign-in gate", 
 test("vouch lookup routes to the candidate when the API cannot answer, and blocks unclaimed handles when it can", async ({
   page,
 }) => {
+  // Searching is the way in now; the exact handle is a disclosure for somebody who already knows it,
+  // and a person opens it before typing into it.
   await page.goto("/vouch");
+  await page.getByText("I know their exact handle").click();
   await page.getByLabel("handle").fill("alice");
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page).toHaveURL(/\/vouch\/alice$/);
@@ -56,6 +59,7 @@ test("vouch lookup routes to the candidate when the API cannot answer, and block
     route.fulfill({ json: { domain: "ketsuban", handle: "nobody", taken: false, wallet: null, live: false } })
   );
   await page.goto("/vouch");
+  await page.getByText("I know their exact handle").click();
   await page.getByLabel("handle").fill("nobody");
   await expect(page.getByTestId("lookup-status")).toContainText("An organisation can write anyway");
   await expect(page.getByRole("button", { name: "Continue" })).toBeEnabled();
@@ -65,6 +69,7 @@ test("vouch lookup routes to the candidate when the API cannot answer, and block
     route.fulfill({ json: { domain: "ketsuban", handle: "lapsed", taken: true, wallet: null, live: false } })
   );
   await page.goto("/vouch");
+  await page.getByText("I know their exact handle").click();
   await page.getByLabel("handle").fill("lapsed");
   await expect(page.getByTestId("lookup-status")).toContainText("has expired");
   await expect(page.getByRole("button", { name: "Continue" })).toBeDisabled();
