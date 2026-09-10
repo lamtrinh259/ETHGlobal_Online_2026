@@ -331,3 +331,50 @@ describe("an index that has stopped reading", () => {
     expect(indexer.status()).toMatchObject({ synced: true, lastError: null });
   });
 });
+
+/**
+ * A snapshot is read whole or not at all.
+ *
+ * One record that will not parse throws part-way through the loop. Keeping the block first and filling
+ * the map as it went left the index believing it had read up to that block while holding only the
+ * records before the bad one — so the rest never came back, and they were missing from every list with
+ * nothing having visibly failed. Starting over from the deploy block is slow; being quietly incomplete
+ * is worse.
+ */
+describe("restoring a damaged snapshot", () => {
+  it("keeps none of it rather than the part before the damage", async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), "ketsuban-index-bad-"));
+    const alice: Rec = { domain: "kju-is", name: "alice", wallet: ALICE, nonce: 1n, payload: "hi" };
+    const bob: Rec = { domain: "kju-is", name: "bob", wallet: ALICE, nonce: 1n, payload: "hi" };
+    const src = fakeSource(400n, [registeredLog(alice, 100n), registeredLog(bob, 110n)]);
+    await new Indexer(src.source, MULTIPASS, 50n, { dataDir }).tick();
+
+    // Damage exactly one record's number, as a truncated or hand-edited file would.
+    const path = join(dataDir, "records.json");
+    const snapshot = JSON.parse(readFileSync(path, "utf8")) as {
+      indexedBlock: string;
+      records: Record<string, { validUntil: string }>;
+    };
+    const keys = Object.keys(snapshot.records);
+    expect(keys.length).toBe(2);
+    snapshot.records[keys[1]].validUntil = "not a number";
+    writeFileSync(path, JSON.stringify(snapshot));
+
+    const after = new Indexer(fakeSource(400n, []).source, MULTIPASS, 50n, { dataDir });
+    // Nothing kept, and the block not advanced: the history is read again rather than half-believed.
+    expect(after.recordsByDomain("kju-is")).toEqual([]);
+    expect(after.status().indexedBlock).toBe(49);
+  });
+
+  it("still resumes from a snapshot that is entirely sound", async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), "ketsuban-index-ok-"));
+    const alice: Rec = { domain: "kju-is", name: "alice", wallet: ALICE, nonce: 1n, payload: "hi" };
+    await new Indexer(fakeSource(400n, [registeredLog(alice, 100n)]).source, MULTIPASS, 50n, {
+      dataDir,
+    }).tick();
+
+    const after = new Indexer(fakeSource(400n, []).source, MULTIPASS, 50n, { dataDir });
+    expect(after.recordsByDomain("kju-is").map((r) => r.name)).toEqual(["alice"]);
+    expect(after.status().indexedBlock).toBe(400);
+  });
+});

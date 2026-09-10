@@ -237,15 +237,27 @@ export class Indexer implements RecordIndex {
       const snapshot = JSON.parse(readFileSync(this.snapshotPath, "utf8")) as Snapshot;
       const block = BigInt(snapshot.indexedBlock);
       if (block < this.indexedBlock) return; // snapshot predates this deployment's start block
-      this.indexedBlock = block;
+
+      /*
+       * Read it all before keeping any of it.
+       *
+       * A record that will not parse throws part-way through the loop. Assigning the block first and
+       * filling the map as it goes leaves the index believing it has read up to that block while
+       * holding only the records before the bad one — so the rest never come back, and they are
+       * missing from every list without anything having gone visibly wrong. Failing whole means the
+       * history is read again from the deploy block, which is slow and correct.
+       */
+      const restored = new Map<string, IndexedRecord>();
       for (const [k, r] of Object.entries(snapshot.records)) {
-        this.records.set(k, {
+        restored.set(k, {
           ...r,
           validUntil: BigInt(r.validUntil),
           nonce: BigInt(r.nonce),
           block: BigInt(r.block),
         });
       }
+      this.indexedBlock = block;
+      this.records = restored;
     } catch {
       // no snapshot yet, or an unreadable one: the history is read again from the deploy block
     }
