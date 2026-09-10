@@ -103,6 +103,18 @@ Nothing is mounted for a request the attester refuses, and a mount that fails re
 signature for a domain that does not exist. `NAMESPACE_FACTORY` must be set, or the relay has no factory
 new enough to build a mirror and the domain is refused as before.
 
+## The other direction
+
+ENS has its own reverse namespace, and the Universal Resolver answers it with
+`reverse(address, coinType)` — the name a wallet's holder set as their primary, checked against forward
+resolution. Nothing here writes that: it belongs to the holder, and setting it needs the reverse registrar
+of the ENSv2 deployment, which this repo does not yet name.
+
+Meanwhile every instance resolver answers `name()` for `<hex>.addr.reverse` from the Multipass record, so
+`GET /v1/reverse/<address>` returns both: the names the records give, and `primary` — what ENS itself says,
+or `null` when the holder has set nothing. The profile says which is which, because a wallet showing a name
+beside an address is reading the second one.
+
 ## Reading a name back
 
 `GET /v1/explain/:name` answers what a name would claim here, from the mounts rather than from its shape:

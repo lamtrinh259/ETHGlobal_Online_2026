@@ -77,4 +77,7 @@ export const resolverAbi = withErrors(
 /// ENSv2 UniversalResolver: walks the registry to the resolver that owns a name and calls it.
 export const universalResolverAbi = parseAbi([
   "function resolve(bytes name, bytes data) view returns (bytes result, address resolver)",
+  // ENS's own reverse lookup: the name a wallet has set as its primary, checked against forward
+  // resolution by the resolver itself. Empty when the wallet has set none.
+  "function reverse(bytes lookupAddress, uint256 coinType) view returns (string name, address resolver, address reverseResolver)",
 ]);

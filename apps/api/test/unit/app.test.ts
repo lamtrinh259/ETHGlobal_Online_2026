@@ -118,6 +118,8 @@ type State = {
   preflight: Preflight;
   ready: Record<string, { initialised: boolean; active: boolean; registrarOk: boolean }>;
   reverse: Record<string, string>;
+  /** What ENS itself answers for the address, which only its holder can set */
+  primary: string | null;
 };
 
 function fakeChain(state: Partial<State> = {}) {
@@ -131,6 +133,7 @@ function fakeChain(state: Partial<State> = {}) {
     byWallet: [],
     names: {},
     reverse: {},
+    primary: null,
     ready: {},
     instances: [instance, xInstance],
     preflight: {
@@ -198,6 +201,7 @@ function fakeChain(state: Partial<State> = {}) {
         s.names[`${domain}/${handle}`] ?? { taken: false, wallet: null, live: false }
     ),
     listRecordsByWallet: vi.fn(async () => s.byWallet),
+    primaryName: vi.fn(async () => s.primary),
     recordFor: vi.fn(async (wallet: Address, domain: string) =>
       s.byWallet.find((r) => r.domain === domain && r.wallet.toLowerCase() === wallet.toLowerCase())
     ),
@@ -1679,6 +1683,25 @@ describe("GET /v1/eth-label/:label", () => {
     const { chain } = fakeChain();
     const res = await app(chain).request("/v1/eth-label/alice");
     expect(res.status).toBe(501);
+  });
+});
+
+describe("GET /v1/reverse: what ENS itself says", () => {
+  it("reports the holder's own primary name, and that nobody here writes it", async () => {
+    // A wallet's primary name is set by its holder in ENS's reverse namespace. This deployment answers
+    // reverse lookups from the record regardless, so the two are worth telling apart.
+    const { chain } = fakeChain({
+      reverse: { [user.account.address.toLowerCase()]: "alice.kju-is.eth" },
+      primary: "alice.eth",
+    });
+    const body = await (await app(chain).request(`/v1/reverse/${user.account.address}`)).json();
+    expect(body.primary).toBe("alice.eth");
+    expect(body.name).toBe("alice.kju-is.eth");
+
+    const unset = fakeChain({ reverse: { [user.account.address.toLowerCase()]: "alice.kju-is.eth" } });
+    const without = await (await app(unset.chain).request(`/v1/reverse/${user.account.address}`)).json();
+    expect(without.primary).toBeNull();
+    expect(without.name).toBe("alice.kju-is.eth");
   });
 });
 

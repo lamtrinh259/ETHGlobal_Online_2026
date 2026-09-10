@@ -69,6 +69,17 @@ export function OnChain({ api, wallet, dash }: Props) {
             Multipass record through the instance resolver, so it needs no reverse registry and no account
             here.
           </p>
+          {reverse.data.primary ? (
+            <p className="muted" data-testid="primary-name">
+              Wallets that ask ENS directly show <code>{reverse.data.primary}</code>, because that is what
+              you set as your primary name. Nothing here can change it.
+            </p>
+          ) : (
+            <p className="muted" data-testid="primary-name">
+              You have set no primary name in ENS, so a wallet showing one would have nothing to show. The
+              answer above comes from your record instead.
+            </p>
+          )}
           {reverse.data.names.length > 1 && (
             <p className="muted" data-testid="reverse-names">
               The same read finds {reverse.data.names.length} names for this address — the ones above —

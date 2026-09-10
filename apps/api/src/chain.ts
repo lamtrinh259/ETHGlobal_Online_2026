@@ -483,6 +483,23 @@ export class Chain {
     );
   }
 
+  /**
+   * The name a wallet has set as its primary in ENS's own reverse namespace, if any. This is the answer a
+   * wallet or explorer shows beside an address, and it is not ours to write: the holder sets it. Empty
+   * means nobody set one, which is why this deployment also answers reverse lookups from the record.
+   */
+  async primaryName(address: Address): Promise<string | null> {
+    if (!this.config.UNIVERSAL_RESOLVER) return null;
+    const [name] = await this.publicClient.readContract({
+      address: this.config.UNIVERSAL_RESOLVER,
+      abi: universalResolverAbi,
+      functionName: "reverse",
+      // 60 is the coin type for Ethereum, as ENSIP-9 numbers them.
+      args: [address, 60n],
+    });
+    return name || null;
+  }
+
   /** Whether `handle` is taken in `domain`, and by which wallet */
   async nameStatus(
     domain: string,
@@ -851,6 +868,7 @@ export type ChainReader = Pick<
   | "preflight"
   | "domainReady"
   | "ethLabelOwner"
+  | "primaryName"
   | "ensureNamespace"
 >;
 

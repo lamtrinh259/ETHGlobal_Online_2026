@@ -779,10 +779,14 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
           : undefined;
       })
       .filter((n): n is NonNullable<typeof n> => !!n && !!n.resolver);
+    // What ENS itself says when asked about this address. Nobody here writes it: the holder sets their
+    // own primary name, and this service answers reverse lookups from the record either way.
+    const primary = await chain.primaryName(address as Address).catch(() => null);
     return c.json({
       address,
       name: found[0]?.name ?? null,
       names: [...found, ...accounts],
+      primary,
       note: "answered from the Multipass record, not from a reverse registry",
       warning: WARNING,
     });

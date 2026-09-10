@@ -57,11 +57,19 @@ const api = (name: string | null) =>
             },
           ]
         : [],
+      primary: null,
       note: "answered from the Multipass record, not from a reverse registry",
     })),
   }) as unknown as Api;
 
 describe("OnChain", () => {
+  it("says what ENS itself answers, which only the holder can set", async () => {
+    render(<OnChain api={api("alice.ketsuban.eth")} wallet={WALLET} dash={dash} />, { wrapper: wrapper() });
+    await waitFor(() =>
+      expect(screen.getByTestId("primary-name")).toHaveTextContent("set no primary name in ENS")
+    );
+  });
+
   it("names a private account for what it claims, and lists every name the address answers to", async () => {
     render(<OnChain api={api("alice.ketsuban.eth")} wallet={WALLET} dash={dash} />, { wrapper: wrapper() });
     const names = screen.getByTestId("onchain-names");

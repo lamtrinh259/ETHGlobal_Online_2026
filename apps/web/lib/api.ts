@@ -166,6 +166,8 @@ export const reverseSchema = z.object({
       kind: z.enum(["name", "account", "private"]).optional(),
     })
   ),
+  /** What ENS itself answers for the address: set by its holder, never by this service */
+  primary: z.string().nullable().optional(),
   note: z.string(),
 });
 export type ReverseRead = z.infer<typeof reverseSchema>;
