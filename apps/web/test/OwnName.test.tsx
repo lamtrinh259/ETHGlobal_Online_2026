@@ -7,6 +7,12 @@ const state = {
 };
 const claim = vi.fn();
 
+vi.mock("@privy-io/react-auth", () => ({
+  useAddFunds: () => ({ addFunds: vi.fn(async () => ({ method: "crypto", status: "completed" })) }),
+}));
+vi.mock("@/app/providers", () => ({
+  useWebConfig: () => ({ chainId: 11155111, apiUrl: "http://api.test", attestUrl: "http://api.test" }),
+}));
 vi.mock("@/lib/hooks", () => ({
   useContracts: () => ({
     data: state.canRegisterNames
@@ -14,6 +20,7 @@ vi.mock("@/lib/hooks", () => ({
       : { bridge: "0x01", ethRegistrar: null, paymentToken: null, permissionedResolver: null },
   }),
   useEthLabel: () => ({ data: { label: "alice", registry: "0x02", owner: state.owner }, refetch: vi.fn() }),
+  useGasTopup: () => ({ mutate: vi.fn(), isPending: false, isSuccess: false, error: null }),
   useClaimEthName: () => ({ mutate: claim, isPending: false, error: null, waitingUntil: undefined }),
   useLinkOwnName: () => ({
     mutate: vi.fn(),
@@ -69,10 +76,17 @@ describe("bringing your own .eth", () => {
   it("asks for gas before offering to claim, since the person sends that transaction", () => {
     state.owner = null;
     state.canRegisterNames = true;
-    const onGetGas = vi.fn();
-    render(<OwnName {...props} balance="0" onGetGas={onGetGas} />);
+    render(
+      <OwnName
+        {...props}
+        balance="0"
+        topup={{ enabled: true, available: true, amount: "2000000000000000" }}
+      />
+    );
     expect(screen.getByTestId("own-name-gas")).toHaveTextContent("needs a little ETH for gas");
-    expect(screen.getByTestId("own-name-get-gas")).toBeVisible();
+    // The same ways of funding a wallet as anywhere else: the relay's ether, Privy, or the address.
+    expect(screen.getByTestId("get-gas")).toBeVisible();
+    expect(screen.getByTestId("fund-privy")).toBeVisible();
     expect(screen.queryByTestId("own-name-claim")).toBeNull();
   });
 

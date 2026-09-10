@@ -8,7 +8,7 @@ import { WITHDRAWN } from "@ketsuban/registrar";
 import { useWebConfig } from "@/app/providers";
 import { CopyButton } from "@/app/CopyButton";
 import { fmtUtc, short } from "@/app/ui";
-import { apiFor, useGasTopup, useVouches, useWalletDashboard } from "@/lib/hooks";
+import { apiFor, useVouches, useWalletDashboard } from "@/lib/hooks";
 import type { Signer } from "@/lib/chain";
 import { nameRows, needsAttention } from "@/lib/journey";
 import { vouchRequest } from "@/lib/profile";
@@ -22,6 +22,7 @@ import { OwnName } from "./OwnName";
 import { OnChain } from "./OnChain";
 import { ReadPermission } from "./ReadPermission";
 import { ProfileEditor } from "./ProfileEditor";
+import { ENOUGH_WEI, FundWallet } from "./FundWallet";
 
 /**
  * The candidate's and voucher's own page, as a sequence rather than a pile: who you are, what you
@@ -49,7 +50,6 @@ export function Dashboard() {
   // After publishing, the record has to reach the index before this page can show it.
   const [awaiting, setAwaiting] = useState<string>();
   const dash = useWalletDashboard(api, wallet, !!awaiting);
-  const gas = useGasTopup(wallet);
   // The wait ends as soon as the record shows up, whichever domain it was for.
   useEffect(() => {
     if (!awaiting || !dash.data) return;
@@ -200,6 +200,13 @@ export function Dashboard() {
 
       {handle && rootRow && (
         <Step n={4} title="Your public profile" state="now">
+          {/* The first transaction anyone here sends is a profile record, so an empty wallet is worth
+              saying before the wallet refuses rather than after. */}
+          {wallet && BigInt(d.balance) < ENOUGH_WEI && (
+            <div className="warning" data-testid="profile-needs-gas">
+              <FundWallet api={api} wallet={wallet} balance={d.balance} topup={d.gasTopup} />
+            </div>
+          )}
           <ProfileEditor api={api} name={rootRow.ensName} getSigner={getSigner} />
         </Step>
       )}
@@ -339,30 +346,10 @@ export function Dashboard() {
         <section className="card" data-testid="dash-gas">
           <h3>Gas</h3>
           <p className="muted">
-            Wallet <code>{wallet && short(wallet)}</code> holds{" "}
-            <code>{formatEther(BigInt(d.balance))} ETH</code>. Writing ENS records or an alias is a
-            transaction you send yourself; everything else is relayed for you.
+            Records are relayed for you. Writing an ENS record or claiming a name is a transaction you send
+            yourself, which is the only thing here that needs ether.
           </p>
-          {d.gasTopup.available && (
-            <button
-              className="primary"
-              onClick={() => gas.mutate(api)}
-              disabled={gas.isPending}
-              data-testid="gas-topup"
-            >
-              {gas.isPending ? "sending…" : `Get ${formatEther(BigInt(d.gasTopup.amount))} test ETH`}
-            </button>
-          )}
-          {gas.error && (
-            <p className="error" role="alert">
-              {gas.error.message}
-            </p>
-          )}
-          {gas.isSuccess && (
-            <p className="muted">
-              sent · tx <code>{gas.data.hash}</code>
-            </p>
-          )}
+          {wallet && <FundWallet api={api} wallet={wallet} balance={d.balance} topup={d.gasTopup} />}
         </section>
 
         {handle && rootRow && (
@@ -375,7 +362,7 @@ export function Dashboard() {
               handle={handle}
               getSigner={getSigner}
               balance={d.balance}
-              onGetGas={d.gasTopup.available ? () => gas.mutate(api) : undefined}
+              topup={d.gasTopup}
             />
           </>
         )}

@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import type { Address } from "viem";
-import type { Api } from "@/lib/api";
+import type { Api, WalletDashboard } from "@/lib/api";
 import type { Signer } from "@/lib/chain";
 import { useClaimEthName, useContracts, useEthLabel, useLinkOwnName } from "@/lib/hooks";
+import { FundWallet } from "./FundWallet";
 
 type Props = {
   api: Api;
@@ -16,13 +17,14 @@ type Props = {
   /** This wallet's balance in wei: registering a name is a transaction it sends itself */
   balance?: string;
   /** Offered when the deployment still has test ETH for this wallet */
-  onGetGas?: () => void;
+  /** What the relay will still give this wallet, so the claim can be funded where it is needed */
+  topup?: WalletDashboard["gasTopup"];
 };
 
 const LABEL_RE = /^[a-z0-9-]{3,63}$/;
 
 /** Bring your own `.eth`: `<parentLabel>.<label>.eth` becomes an alias of `<handle>.<root>`. */
-export function OwnName({ api, wallet, domain, parentLabel, handle, getSigner, balance, onGetGas }: Props) {
+export function OwnName({ api, wallet, domain, parentLabel, handle, getSigner, balance, topup }: Props) {
   const contracts = useContracts(api);
   const link = useLinkOwnName(wallet);
   const [label, setLabel] = useState(handle);
@@ -97,16 +99,12 @@ export function OwnName({ api, wallet, domain, parentLabel, handle, getSigner, b
         </p>
       )}
       {broke && !held && (
-        <p className="row" data-testid="own-name-gas">
+        <div data-testid="own-name-gas">
           <small className="muted">
             This one is yours to send, so the wallet needs a little ETH for gas.
           </small>
-          {onGetGas && (
-            <button onClick={onGetGas} data-testid="own-name-get-gas">
-              Get test ETH
-            </button>
-          )}
-        </p>
+          {wallet && topup && <FundWallet api={api} wallet={wallet} balance={balance} topup={topup} />}
+        </div>
       )}
       {canClaim && (
         <p className="row">
