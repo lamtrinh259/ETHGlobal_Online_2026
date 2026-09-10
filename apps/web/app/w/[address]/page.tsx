@@ -63,8 +63,8 @@ export default async function WalletPage({ params }: Params) {
               </>
             ) : (
               <>
-                ENS answers nothing for this address: its holder has set no primary name. The names below
-                come from the records themselves.
+                ENS answers nothing for this address: its holder has set no primary name. The names below come
+                from the records themselves.
               </>
             )}
           </p>
