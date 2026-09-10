@@ -21,7 +21,12 @@ const verification = {
   warning: "This is not identity verification.",
 };
 
-const state = { disclosed: null as unknown, reader: undefined as string | undefined };
+const state = {
+  disclosed: null as unknown,
+  reader: undefined as string | undefined,
+  /** What the attester answers with when nothing opens: 404 never shared, 403 not (or no longer) yours */
+  refusal: 404,
+};
 
 // The reveal panel runs in the browser, because a permission addressed to one wallet only opens for it.
 vi.mock("@privy-io/react-auth", () => ({
@@ -30,6 +35,8 @@ vi.mock("@privy-io/react-auth", () => ({
 vi.mock("@/app/providers", () => ({
   useWebConfig: () => ({ apiUrl: "http://api.test", attestUrl: "http://api.test/v1/attest" }),
 }));
+
+const { ApiError } = await import("@/lib/api");
 
 vi.mock("@/lib/api", async (orig) => ({
   ...(await orig<typeof import("@/lib/api")>()),
@@ -46,7 +53,7 @@ vi.mock("@/lib/api", async (orig) => ({
     disclosed: vi.fn(async (_name: string, _domain: string, reader?: string) => {
       // A grant addressed to one wallet opens for that wallet and no other.
       if (!state.disclosed || (state.reader && reader !== state.reader))
-        throw new Error("no disclosure for that account");
+        throw new ApiError(state.refusal, "no disclosure for that account");
       return state.disclosed;
     }),
   }),
@@ -87,9 +94,24 @@ describe("/v/<name> with an opened account", () => {
     expect(panel).toHaveTextContent("never published");
   });
 
+  it("tells a reader the sharing stopped, rather than that it never happened", async () => {
+    // A permission that was taken back or ran out is a different fact from one that never existed, and
+    // the reader is the person who needs to know which: one is worth asking about again, the other is not.
+    state.disclosed = null;
+    state.reader = undefined;
+    state.refusal = 403;
+    await renderPage({ reveal: "x" });
+    await waitFor(() =>
+      expect(screen.getByTestId("revealed")).toHaveTextContent(/no longer sharing|stopped sharing/i)
+    );
+    expect(screen.getByTestId("revealed")).not.toHaveTextContent("No live permission");
+    state.refusal = 404;
+  });
+
   it("says there is no live permission rather than failing the page", async () => {
     state.disclosed = null;
     state.reader = undefined;
+    state.refusal = 404;
     await renderPage({ reveal: "x" });
     await waitFor(() => expect(screen.getByTestId("revealed")).toHaveTextContent("No live permission"));
     // The card itself still renders: a missing permission is not an error.

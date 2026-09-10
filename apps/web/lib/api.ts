@@ -157,9 +157,7 @@ export type Disclosed = z.infer<typeof disclosedSchema>;
 /** What a name is sharing right now: enough to say who can read what, never the grant itself. */
 export const grantsSchema = z.object({
   name: z.string(),
-  grants: z.array(
-    z.object({ domain: z.string(), audience: address, expiresAt: z.string() })
-  ),
+  grants: z.array(z.object({ domain: z.string(), audience: address, expiresAt: z.string() })),
 });
 export type Grants = z.infer<typeof grantsSchema>;
 export type Grant = Grants["grants"][number];

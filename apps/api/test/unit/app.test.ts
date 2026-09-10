@@ -1293,7 +1293,8 @@ describe("disclosing a masked account", () => {
   it("drops a grant that has expired from the listing rather than showing dead permissions", async () => {
     const dir = mkdtempSync(join(tmpdir(), "ketsuban-revoke-"));
     const { chain, viewCode } = maskedChain();
-    const at = (t: number) => createApp({ config: loadConfig({ ...baseEnv, DATA_DIR: dir }), chain, now: () => t });
+    const at = (t: number) =>
+      createApp({ config: loadConfig({ ...baseEnv, DATA_DIR: dir }), chain, now: () => t });
 
     await post(at(NOW), "/v1/disclose", await grantFor(viewCode, { exp: BigInt(NOW + 10) }));
     expect((await (await at(NOW).request(`/v1/disclosures/${aliceName}`)).json()).grants).toHaveLength(1);

@@ -64,6 +64,26 @@ describe("Accounts", () => {
     expect(screen.getByTestId("attest-x")).toBeVisible();
   });
 
+  it("points a private account at the controls that say who can read it", () => {
+    // Sharing lives further down the page; without a way in from the row, a private account looks like
+    // a dead end rather than something the person decides who may open.
+    render(
+      <Accounts
+        links={[link("google.com", { optedIn: true, ensName: "alice.com.google.private-www.ketsuban.eth" })]}
+        handle="alice"
+        onPublished={() => {}}
+      />
+    );
+    const who = screen.getByTestId("who-reads-google.com");
+    expect(who).toHaveAttribute("href", "#sharing");
+    expect(who).toHaveTextContent(/who can read it/i);
+  });
+
+  it("offers no reader controls for a public account, which has nothing to open", () => {
+    render(<Accounts links={[link("x.com")]} handle="alice" onPublished={() => {}} />);
+    expect(screen.queryByTestId("who-reads-x.com")).toBeNull();
+  });
+
   it("names a private account after the person, and still calls it private", () => {
     // The name says the holder of alice.ketsuban.eth is on Google. Which account it is stays masked.
     render(

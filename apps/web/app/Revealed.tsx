@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useWallets } from "@privy-io/react-auth";
+import { ApiError } from "@/lib/api";
 import { apiFor } from "@/lib/hooks";
 import { useWebConfig } from "./providers";
 import { short } from "./ui";
@@ -29,20 +30,36 @@ export function Revealed({
   const mismatched = !!audience && (!reader || reader.toLowerCase() !== audience.toLowerCase());
   const opened = useQuery({
     queryKey: ["disclosed", name, domain, reader],
-    queryFn: () => api.disclosed(name, domain, reader).catch(() => null),
+    // A grant that was taken back or ran out answers 403, one that never existed 404. The reader is
+    // exactly the person who needs to know which, so the refusal is kept rather than flattened.
+    queryFn: () =>
+      api
+        .disclosed(name, domain, reader)
+        .then((d) => ({ ok: true as const, d }))
+        .catch((e: unknown) => ({
+          ok: false as const,
+          stopped: e instanceof ApiError && e.status === 403,
+        })),
     retry: false,
   });
+  const answer = opened.data?.ok ? opened.data.d : undefined;
+  const stopped = opened.data && !opened.data.ok && opened.data.stopped;
 
   return (
     <section className="card" data-testid="revealed">
       <h3>Opened by the candidate</h3>
       {opened.isPending ? (
         <p className="muted">opening…</p>
-      ) : opened.data ? (
+      ) : answer ? (
         <p>
-          Their <code>{opened.data.domain}</code> account is <strong>@{opened.data.disclosed.handle}</strong>{" "}
-          <small className="muted">(platform id {opened.data.disclosed.platformId})</small>. You were given
+          Their <code>{answer.domain}</code> account is <strong>@{answer.disclosed.handle}</strong>{" "}
+          <small className="muted">(platform id {answer.disclosed.platformId})</small>. You were given
           permission to read this; it was never published.
+        </p>
+      ) : stopped && !mismatched ? (
+        <p className="muted" data-testid="revealed-stopped">
+          They are no longer sharing <code>{domain}</code>: the permission was taken back or ran out. The
+          account is masked again, and asking again is a question for them, not for this page.
         </p>
       ) : mismatched ? (
         <p className="muted">

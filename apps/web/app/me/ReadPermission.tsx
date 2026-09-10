@@ -109,8 +109,7 @@ export function ReadPermission({ api, links, name }: Props) {
     setTaking(domain);
     try {
       const wallet = (wallets.find((w) => w.walletClientType === "privy") ?? wallets[0])?.address as
-        | Address
-        | undefined;
+        Address | undefined;
       if (!wallet) throw new Error("no wallet yet — Privy is still creating it");
       const revocation = { name, domain, at: Math.floor(Date.now() / 1000) };
       const { signature } = await signTypedData(
@@ -214,8 +213,8 @@ export function ReadPermission({ api, links, name }: Props) {
         <p className="muted">reading…</p>
       ) : live.data.grants.length === 0 ? (
         <p className="muted" data-testid="granted-none">
-          Nobody. Each account above stays masked until you share it, and every share can be taken back
-          here afterwards.
+          Nobody. Each account above stays masked until you share it, and every share can be taken back here
+          afterwards.
         </p>
       ) : (
         <ul className="acct" data-testid="granted-list">

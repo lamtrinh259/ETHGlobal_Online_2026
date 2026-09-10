@@ -83,6 +83,13 @@ export function Accounts({ links, handle, awaiting, onPublished }: Props) {
                     ) : (
                       "attested · private"
                     )}
+                    {/* Sharing is decided further down the page; a private row is where someone
+                        wonders who can open it, so the way in belongs here. */}
+                    {onChain.optedIn && handle && (
+                      <a href="#sharing" className="linkish" data-testid={`who-reads-${onChain.domain}`}>
+                        who can read it
+                      </a>
+                    )}
                     {a.rename && (
                       <button
                         className="linkish"
