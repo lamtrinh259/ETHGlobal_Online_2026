@@ -42,10 +42,12 @@ export function HumanityCheck({
       <button className="linkish" onClick={start} disabled={!wallet} data-testid="humanity-cta">
         Prove you are one person
       </button>
+      {/* The widget's own failure text says only "contact the website owner". This is the reason, and
+          it has to survive the overlay closing over it rather than sit in the page as grey trim. */}
       {error && (
-        <small className="muted" data-testid="humanity-error">
+        <p className="error" role="alert" data-testid="humanity-error">
           {error}
-        </small>
+        </p>
       )}
       {challenge && (
         <IDKitRequestWidget

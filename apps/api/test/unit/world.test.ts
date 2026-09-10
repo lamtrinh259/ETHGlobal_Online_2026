@@ -355,3 +355,50 @@ describe("which credential this deployment accepts", () => {
     expect(got.level).toBe("selfie");
   });
 });
+
+/**
+ * `hash_to_field` shifts right by 8, so every signal hash begins with a zero byte. Whether that byte
+ * survives being written as hex is a formatting choice nobody promised to keep, and comparing the two
+ * as text rejects a sound proof — the same mistake the nullifier handling already avoids.
+ */
+describe("the signal a proof is bound to", () => {
+  const verified = portal(200, {
+    success: true,
+    action: "humanity",
+    nullifier: "0x2bf8406809dcefb1486dadc96c0a897db9bab002053054cf64272db512c6fbd8",
+    results: [
+      {
+        identifier: "orb",
+        success: true,
+        nullifier: "0x2bf8406809dcefb1486dadc96c0a897db9bab002053054cf64272db512c6fbd8",
+      },
+    ],
+  });
+  const padded = hashToField(stringToBytes("0xreader"));
+
+  it("accepts the hash written without its leading zero byte", async () => {
+    // `0x00ab…` and `0xab…` are one hash; only one of them is what viem would have printed.
+    const short = `0x${padded.slice(4)}`;
+    expect(BigInt(short)).toBe(BigInt(padded));
+    const proof = proofFor("0xreader", {
+      responses: [{ identifier: "orb", signal_hash: short }],
+    });
+    await expect(verifyHumanProof(world, proof, "0xreader", verified)).resolves.toMatchObject({
+      level: "orb",
+    });
+  });
+
+  it("still refuses a hash of something else", async () => {
+    const proof = proofFor("0xreader", {
+      responses: [{ identifier: "orb", signal_hash: hashToField(stringToBytes("0xsomebody-else")) }],
+    });
+    await expect(verifyHumanProof(world, proof, "0xreader", verified)).rejects.toThrow(
+      "not bound to 0xreader"
+    );
+  });
+
+  it("says what the proof carried, so a rejection can be diagnosed from the page", async () => {
+    const proof = proofFor("0xreader", { responses: [{ identifier: "orb", signal_hash: "0xdead" }] });
+    await expect(verifyHumanProof(world, proof, "0xreader", verified)).rejects.toThrow("0xdead");
+  });
+});

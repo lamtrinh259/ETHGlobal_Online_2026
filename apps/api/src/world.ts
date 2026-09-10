@@ -128,6 +128,12 @@ export type Fetch = (url: string, init: RequestInit) => Promise<Response>;
 /** A Multipass name or payload is a left-aligned bytes32, so 31 bytes is the whole budget. */
 const STORABLE_BYTES = 31;
 
+/** Two hex strings holding the same field element, whatever width each was written at. */
+function sameField(a: string, b: string): boolean {
+  if (!/^0x[0-9a-fA-F]{1,64}$/.test(a) || !/^0x[0-9a-fA-F]{1,64}$/.test(b)) return false;
+  return BigInt(a) === BigInt(b);
+}
+
 /**
  * Canonical form of a nullifier: a 256-bit integer, padded to bytes32.
  *
@@ -162,8 +168,13 @@ export async function verifyHumanProof(
   const responses: IdkitResponse[] = Array.isArray(result.responses) ? result.responses : [];
   const expected = hashToField(stringToBytes(signal));
   for (const r of responses) {
-    if (typeof r.signal_hash !== "string" || r.signal_hash.toLowerCase() !== expected) {
-      throw new Error(`world: proof signal is not bound to ${signal}`);
+    // Compared as a number, not as text. `hash_to_field` always leaves a leading zero byte, and a hex
+    // string carrying that value may or may not keep it — `0x00ab…` and `0xab…` are one hash. The same
+    // reasoning is applied to the nullifier below; comparing either as text rejects sound proofs.
+    if (typeof r.signal_hash !== "string" || !sameField(r.signal_hash, expected)) {
+      throw new Error(
+        `world: proof signal is not bound to ${signal} (proof carries ${String(r.signal_hash)}, expected ${expected})`
+      );
     }
   }
 
