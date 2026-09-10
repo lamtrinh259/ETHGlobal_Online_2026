@@ -189,9 +189,9 @@ export function Dashboard() {
         </section>
       )}
 
+      {/* Kept once everything is answered: an answer lapses, and a section that vanishes when you are
+          done gives you nowhere to renew it from. */}
       {subjectRows.length > 0 && (
-        {/* Kept once everything is answered: an answer lapses, and a section that vanishes when you
-            are done gives you nowhere to renew it from. */}
         <Step
           anchor="recommended"
           title="Suggested"

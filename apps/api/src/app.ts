@@ -674,6 +674,39 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
   });
 
   /**
+   * What people said under one instance name.
+   *
+   * `kju-is.<root>` is not an unclaimed person: it is where answers about one are published, and a
+   * page reporting "no record" there hides every answer anyone wrote. The purpose is read from the
+   * name's own description record, so it travels with the answers rather than living in this app.
+   */
+  app.get("/v1/instance/:domain", async (c) => {
+    const domain = c.req.param("domain").toLowerCase();
+    const instance = (await chain.instances()).find((i) => i.domain === domain);
+    if (!instance) return c.json({ error: `no instance called "${domain}" here` }, 404);
+
+    const [records, description] = await Promise.all([
+      chain.listRecords(domain),
+      chain.resolveText(instance.resolver, instance.parentName, "description").catch(() => ""),
+    ]);
+    return c.json({
+      domain,
+      parentName: instance.parentName,
+      description: description || null,
+      answers: records
+        .filter((r) => r.live)
+        .map((r) => ({
+          handle: r.name,
+          ensName: `${r.name}.${instance.parentName}`,
+          answer: fromBytes32(r.payload),
+          wallet: r.wallet,
+          validUntil: new Date(Number(r.validUntil) * 1000).toISOString(),
+        })),
+      warning: WARNING,
+    });
+  });
+
+  /**
    * Who holds a platform account here. The first step of referring someone: you know them as `@bob` on
    * x.com, and this says whether that account already belongs to a page rather than making you guess a
    * handle for a person who already has one.

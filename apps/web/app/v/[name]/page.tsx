@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { EnsProof } from "@/app/EnsProof";
+import { InstanceAnswers } from "@/app/InstanceAnswers";
 import { Revealed } from "@/app/Revealed";
 import { VerifyCard } from "@/app/VerifyCard";
 import { createApi } from "@/lib/api";
@@ -28,7 +29,9 @@ export default async function VerifyPage({ params, searchParams }: Params) {
   const api = createApi(config.apiUrl, config.attestUrl);
   const decoded = decodeURIComponent(name);
   try {
-    const [v, ens, claim] = await Promise.all([
+    // A name that is an instance's own is where answers are published, not an unclaimed person.
+    const instanceOf = config.instances.find((i) => i.parentName.toLowerCase() === decoded.toLowerCase());
+    const [v, ens, claim, instance] = await Promise.all([
       api.verify(decoded, {
         links: links?.split(","),
         viewCode: viewCode as `0x${string}` | undefined,
@@ -38,11 +41,13 @@ export default async function VerifyPage({ params, searchParams }: Params) {
       // What the name would claim if it resolved: a reader seeing "no record" deserves to know whether
       // nobody holds it or whether it could never have meant anything here.
       api.explain(decoded).catch(() => null),
+      instanceOf ? api.instance(instanceOf.domain).catch(() => null) : Promise.resolve(null),
     ]);
     return (
       <>
         <VerifyCard v={v} />
-        {v.status === "inactive" && claim && (
+        {instance && <InstanceAnswers data={instance} />}
+        {v.status === "inactive" && !instance && claim && (
           <section className="card" data-testid="would-claim">
             <h3>What this name would say</h3>
             <p className="muted">{claim.says}</p>

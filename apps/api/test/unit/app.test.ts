@@ -1034,6 +1034,50 @@ describe("a letter too long to sit on chain", () => {
   });
 });
 
+describe("GET /v1/instance/:domain — what people said under one name", () => {
+  const answer = (name: string, payload: string) => ({
+    name,
+    id: toBytes32(name),
+    wallet: user.account.address,
+    payload: toBytes32(payload),
+    validUntil: 1_800_000_000n,
+    nonce: 1n,
+    live: true,
+  });
+
+  it("lists the answers published under it, which is what the name is for", async () => {
+    // `kju-is.ketsuban.eth` is not an unclaimed person: it is where answers about one are published.
+    // Reporting "no record" there hides every answer anyone wrote.
+    const { chain } = fakeChain({
+      listed: { "kju-is": [answer("alice", "terrible dictator"), answer("bob", "no comment")] },
+      texts: { "kju-is.eth/description": "Answering tests affiliation with North Korean operators." },
+    });
+    const body = await (await app(chain).request("/v1/instance/kju-is")).json();
+    expect(body).toMatchObject({ domain: "kju-is", parentName: "kju-is.eth" });
+    expect(body.answers).toHaveLength(2);
+    expect(body.answers[0]).toMatchObject({
+      handle: "alice",
+      answer: "terrible dictator",
+      ensName: "alice.kju-is.eth",
+    });
+    // The purpose is published on the name itself, so it travels with the answers.
+    expect(body.description).toMatch(/North Korean/);
+  });
+
+  it("says an instance nobody mounted is not here, rather than answering with an empty list", async () => {
+    const { chain } = fakeChain();
+    expect((await app(chain).request("/v1/instance/nowhere")).status).toBe(404);
+  });
+
+  it("leaves out an answer that has lapsed, because it no longer says anything", async () => {
+    const { chain } = fakeChain({
+      listed: { "kju-is": [{ ...answer("alice", "terrible dictator"), live: false }] },
+    });
+    const body = await (await app(chain).request("/v1/instance/kju-is")).json();
+    expect(body.answers).toEqual([]);
+  });
+});
+
 describe("GET /v1/who — finding a person by an account", () => {
   const bobOnX = {
     name: "bob",

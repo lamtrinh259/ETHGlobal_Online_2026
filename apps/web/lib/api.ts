@@ -438,6 +438,21 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
       return (await readJson(res)) as { code: string };
     },
 
+    /** What people published under one instance name: the answers, and what the name says it is for. */
+    async instance(domain: string): Promise<{
+      domain: string;
+      parentName: string;
+      description: string | null;
+      answers: { handle: string; ensName: string; answer: string; validUntil: string }[];
+    }> {
+      return (await readJson(await call(`${base}/v1/instance/${encodeURIComponent(domain)}`))) as {
+        domain: string;
+        parentName: string;
+        description: string | null;
+        answers: { handle: string; ensName: string; answer: string; validUntil: string }[];
+      };
+    },
+
     /** People whose handle looks like this, most-referenced first: which `bob` did you mean. */
     async find(q: string): Promise<Found> {
       return findSchema.parse(await readJson(await call(`${base}/v1/find?q=${encodeURIComponent(q)}`)));
