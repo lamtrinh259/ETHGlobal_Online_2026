@@ -157,11 +157,40 @@ describe("text on the surface behind it", () => {
   const LIGHT = /^:root\[data-theme="light"\] \{[^}]*\}/m;
 
   /**
-   * Only the tokens this stylesheet sets as a `color`, and only against the surfaces they sit on. A
-   * ratio measured for a token used as a background says nothing, and holding those to a text standard
-   * would make the check noise somebody learns to override.
+   * Set as text *on* something this palette also paints, so the surface behind them is not the panel.
+   * Each is measured against its own background instead, below.
    */
-  const asText = ["--warning", "--consensus", "--contested"];
+  const onColouredSurface = new Set(["--bg"]);
+
+  /**
+   * Held to 3:1, which is what WCAG AA asks of large text. `.knot` appears in three places and all of
+   * them are inside an `h1`; a token that reached body text at this ratio would be a real failure, so
+   * this is a smaller claim than an exemption, not a way around one.
+   */
+  const largeTextOnly = new Set(["--knot"]);
+
+  /**
+   * Read out of the stylesheet, so a colour introduced later is checked without anybody remembering
+   * to add it. The property has to be `color` exactly — `border-left-color` and `background-color`
+   * end in the same characters, and counting those measured borders against a text standard and
+   * reported two failures that were not.
+   */
+  const asText = [
+    ...new Set([...css.matchAll(/^\s+color:\s*var\((--[a-zA-Z0-9-]+)\)/gm)].map((m) => m[1])),
+  ].filter((t) => !onColouredSurface.has(t));
+
+  it("checks every colour this stylesheet uses as text", () => {
+    // The list is derived, so the guard against it going stale is that it found something.
+    expect(asText).toEqual(expect.arrayContaining(["--text-primary", "--text-secondary", "--flame"]));
+    expect(asText).not.toContain("--bg");
+  });
+
+  it("reads white on the accent it is painted on", () => {
+    // `color: var(--bg)` sits on `background: var(--flame)`, so the panel is not what is behind it.
+    for (const block of [DARK, LIGHT]) {
+      expect(contrast(tokenIn(block, "--bg"), tokenIn(block, "--flame"))).toBeGreaterThanOrEqual(4.5);
+    }
+  });
 
   it("reads its text colours on the surfaces behind them, in both themes", () => {
     const failures: string[] = [];
@@ -171,8 +200,11 @@ describe("text on the surface behind it", () => {
     ] as const) {
       for (const token of asText) {
         for (const surface of ["--panel", "--panel-2"]) {
+          const need = largeTextOnly.has(token) ? 3 : 4.5;
           const ratio = contrast(tokenIn(block, token), tokenIn(block, surface));
-          if (ratio < 4.5) failures.push(`${name} ${token} on ${surface}: ${ratio.toFixed(2)}:1`);
+          if (ratio < need) {
+            failures.push(`${name} ${token} on ${surface}: ${ratio.toFixed(2)}:1 (needs ${need})`);
+          }
         }
       }
     }
