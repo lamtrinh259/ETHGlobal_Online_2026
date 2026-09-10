@@ -16,10 +16,14 @@ import { signMessage } from "viem/accounts";
  * deployment argument like every other subject here.
  */
 /**
- * Which connect URL a proof request points at. A client-side switch on the same app rather than a
- * separate one: the docs say only "to test during development, use the simulator and set environment
- * to staging". Whatever World accepts belongs here, so a deployment is never blocked by this file
- * having an opinion about it.
+ * Which World ID app a proof must come from.
+ *
+ * A property of the proof rather than a preference: `production` is the World App everyone has,
+ * `sandbox` is a separate app distributed through TestFlight and a private Play track by approval, and
+ * `staging` is the simulator. The portal refuses a proof made in one and presented as another, so a
+ * deployment that scans with the ordinary World App must say `production` whatever it is testing.
+ *
+ * The verify endpoint is the production one for all of them.
  */
 export type WorldEnvironment = "production" | "staging" | "sandbox";
 
