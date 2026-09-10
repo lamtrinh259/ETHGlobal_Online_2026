@@ -116,3 +116,31 @@ you have:
 A grant written by an older build is dropped rather than revived: its shape is not one this build can
 read, and reviving it anyway put an unusable row in the list that took every other share down with it.
 Re-share the account and the new grant persists normally.
+
+## "Read it yourself, through ENS" says the name could not be read
+
+The page turns any failure of `/v1/ens/<name>` into nothing at all, so the card cannot tell an
+unconfigured resolver from a read that did not come back. Check which it is:
+
+```bash
+curl -s $API/healthz | jq .config.universalResolver   # null means unconfigured
+curl -s "$API/v1/ens/peersky.ketsuban.eth" | jq       # 501 unconfigured, 502 the RPC did not answer
+```
+
+The Sepolia UniversalResolver ships with the bundled deployment, so `null` here usually means the API
+is running an older image or a chain id with no bundle.
+
+The command the card prints is meant to be run as it stands. Note that `cast` has **no** DNS encoder —
+there is no `--to-dns-name` — so the wire-format name is written into the command literally:
+
+```bash
+cast call 0x4a1817d13E9cF196f471725176355c1234b63c70 \
+  "resolve(bytes,bytes)(bytes,address)" \
+  0x0770656572736b79086b6574737562616e0365746800 \
+  $(cast calldata "addr(bytes32)" $(cast namehash peersky.ketsuban.eth)) \
+  --rpc-url $RPC
+# -> 0x…d70b5e8a232bf67f64658cbddebe32e1443894a0, and the resolver that answered
+```
+
+An empty `0x…20` `0x…00` answer is an empty string, not an error: that record simply has no value on
+that name. Answers live on the subject name (`<you>.kju-is.<root>`), not on the root name.

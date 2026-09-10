@@ -39,3 +39,34 @@ describe("EnsProof", () => {
     expect(screen.getByTestId("ens-proof").querySelector("pre")).toHaveTextContent("<universal-resolver>");
   });
 });
+
+describe("the command it tells you to run", () => {
+  it("gives one that cast can actually execute", () => {
+    // `cast --to-dns-name` does not exist — cast has no DNS encoder at all — so the command printed
+    // here has to carry the wire-format name itself or nobody can run it.
+    render(<EnsProof ens={ens} name="alice.ketsuban.eth" />);
+    const cmd = screen.getByTestId("ens-proof").querySelector("pre")!.textContent!;
+    expect(cmd).not.toContain("--to-dns-name");
+    // The DNS wire name for alice.ketsuban.eth, length-prefixed and root-terminated.
+    expect(cmd).toContain("0x05616c696365086b6574737562616e0365746800");
+    // The parts cast does have are still used.
+    expect(cmd).toContain("cast namehash alice.ketsuban.eth");
+    expect(cmd).toContain("resolve(bytes,bytes)(bytes,address)");
+  });
+
+  it("asks for a record this name actually has, so the command returns something", () => {
+    // Printing a key that is empty on this name teaches a reader nothing about whether it worked.
+    render(<EnsProof ens={ens} name="alice.ketsuban.eth" />);
+    expect(screen.getByTestId("ens-proof").querySelector("pre")).toHaveTextContent("ketsuban:answer");
+
+    render(<EnsProof ens={{ ...ens, texts: { description: "infra lead" } }} name="alice.ketsuban.eth" />);
+    expect(screen.getAllByTestId("ens-proof")[1].querySelector("pre")).toHaveTextContent("description");
+  });
+
+  it("does not blame configuration for a read that simply failed", () => {
+    // The page collapses every failure to `null`; claiming a specific cause it cannot know sends
+    // whoever is debugging to the wrong place.
+    render(<EnsProof ens={null} name="alice.ketsuban.eth" />);
+    expect(screen.getByTestId("ens-proof")).toHaveTextContent(/could not be read|not configured or/i);
+  });
+});
