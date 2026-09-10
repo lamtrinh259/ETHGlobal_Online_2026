@@ -144,3 +144,19 @@ cast call 0x4A1817d13E9cF196f471725176355C1234b63C70 \
 
 An empty `0x…20` `0x…00` answer is an empty string, not an error: that record simply has no value on
 that name. Answers live on the subject name (`<you>.kju-is.<root>`), not on the root name.
+
+## The footer shows a build time but no commit
+
+`next build` bakes the commit from whichever environment variable the platform sets, and a Docker
+build sees no git to fall back on. The build reads `SOURCE_COMMIT`, `GIT_SHA`, `GIT_COMMIT_SHA`,
+`COMMIT_SHA` and `GITHUB_SHA`, in that order, and records which one answered:
+
+```bash
+curl -s https://<site>/api/health | jq '{sha, shaFrom}'
+# {"sha": "", "shaFrom": "none"}   -> the platform passed none of them
+# {"sha": "b854b2b", "shaFrom": "SOURCE_COMMIT"}
+```
+
+`shaFrom: "none"` means the variable has to be set as a **build argument**, not a runtime one: the
+value is inlined at build time. `apps/web/Dockerfile` already declares `ARG SOURCE_COMMIT` before the
+build step, so setting it in the app's build environment is enough.
