@@ -366,14 +366,6 @@ button:disabled {
 }
 
 /* ── verification card ── */
-.badge {
-  display: inline-block;
-  padding: 2px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-family: var(--font-mono);
-  color: var(--bg);
-}
 .badge.ok {
   background: var(--consensus);
   color: #fff;
@@ -737,9 +729,17 @@ textarea:focus {
   gap: var(--sp-sm);
 }
 
-/* One word of state, set apart from the identity beside it rather than run into it. */
+/*
+ * One word of state, set apart from the identity beside it rather than run into it.
+ *
+ * Declared once. It was declared twice, three hundred lines apart, and the later one quietly won on
+ * size, padding and colour — so anyone tuning the first would have seen nothing change. What follows
+ * is what the cascade already computed, in the place it can be edited.
+ */
 .badge {
+  display: inline-block;
   flex: none;
+  font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -1154,16 +1154,13 @@ a.score-part-label:hover strong {
   font-size: 11px;
   color: var(--text-secondary);
   overflow-wrap: anywhere;
+  text-decoration: none;
 }
 .v-link-handle {
   font-weight: 600;
 }
 /* A name that leads somewhere still reads as a receipt, not as a call to action. */
 .v-ref-name,
-.v-link-name {
-  color: var(--text-secondary);
-  text-decoration: none;
-}
 .v-ref-name:hover,
 .v-link-name:hover {
   text-decoration: underline;
