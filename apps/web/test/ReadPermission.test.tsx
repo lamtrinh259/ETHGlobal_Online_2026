@@ -56,6 +56,12 @@ const api = {
     wallet: handle === "bob" ? BOB : null,
     live: handle === "bob",
   })),
+  reverse: vi.fn(async (address: string) => ({
+    address,
+    name: "bob.ketsuban.eth",
+    names: [],
+    primary: null,
+  })),
   disclosures: vi.fn(async (name: string) => ({ name, grants })),
   revoke,
 } as unknown as Api;
@@ -174,11 +180,12 @@ describe("permissions already given", () => {
   it("answers who can read what, naming the reader rather than showing a bare address", async () => {
     render(<ReadPermission api={api} links={links} name="alice.ketsuban.eth" />, { wrapper: wrapper() });
     const list = await screen.findByTestId("granted-list");
-    // A permission for one wallet and one for anybody are different facts and must not read alike.
+    // A permission for one reader and one for anybody are different facts and must not read alike.
     expect(list).toHaveTextContent("discord.com");
-    expect(list).toHaveTextContent(/one wallet/i);
     expect(list).toHaveTextContent("x.com");
     expect(list).toHaveTextContent(/anyone with the link/i);
+    // The reader is named, never left as a wallet: that is what having names is for.
+    await waitFor(() => expect(list).toHaveTextContent("bob.ketsuban.eth"));
   });
 
   it("takes one share back with one signature, leaving the other standing", async () => {

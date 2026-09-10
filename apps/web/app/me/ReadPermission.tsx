@@ -6,6 +6,7 @@ import type { Address, Hex } from "viem";
 import type { Api, WalletDashboard } from "@/lib/api";
 import { CopyButton } from "@/app/CopyButton";
 import { Switch } from "@/app/Switch";
+import { ReaderName } from "./ReaderName";
 import { Modal } from "@/app/Modal";
 import { useWebConfig } from "@/app/providers";
 import {
@@ -162,9 +163,9 @@ export function ReadPermission({ api, links, name }: Props) {
   return (
     <section className="card" data-testid="read-permission">
       <h2>Share a private account</h2>
-      <p className="muted">Sharing lets one reader see which account.</p>
+      <p className="muted"></p>
 
-      <h3>Who can read these now</h3>
+      <h3>Active view permissions</h3>
       {!live.data ? (
         <p className="muted">reading…</p>
       ) : live.data.grants.length === 0 ? (
@@ -190,7 +191,7 @@ export function ReadPermission({ api, links, name }: Props) {
                     <>anyone with the link</>
                   ) : (
                     <>
-                      one wallet, <code>{short(g.audience)}</code>
+                      <ReaderName api={api} address={g.audience} />
                     </>
                   )}{" "}
                   · until {new Date(g.expiresAt).toUTCString()}
