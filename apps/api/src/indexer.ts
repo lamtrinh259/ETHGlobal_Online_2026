@@ -9,6 +9,11 @@ export type IndexedRecord = {
   domainName: Hex;
   id: Hex;
   name: string;
+  /**
+   * The name exactly as the chain holds it. A masked record's name is a one-time pad, so decoding it
+   * to a string is lossy and a lookup that compares the decoded form can never match one.
+   */
+  rawName: Hex;
   wallet: Address;
   payload: Hex;
   validUntil: bigint;
@@ -158,6 +163,7 @@ export class Indexer implements RecordIndex {
       domainName,
       id: rec.id,
       name: fromBytes32(rec.name),
+      rawName: rec.name,
       wallet: rec.wallet,
       payload: rec.payload,
       validUntil: rec.validUntil,

@@ -35,6 +35,8 @@ import type { Config } from "./config.js";
 /** One Multipass record as seen in Registered/Renewed logs, with its current liveness */
 export type ListedRecord = {
   name: string;
+  /** The name as the chain holds it; a masked name does not survive being decoded */
+  rawName?: Hex;
   id: Hex;
   wallet: Address;
   payload: Hex;
@@ -886,6 +888,7 @@ function toListed(r: IndexedRecord): ListedRecord & { domain: string } {
   return {
     domain: r.domain,
     name: r.name,
+    rawName: r.rawName,
     id: r.id,
     wallet: r.wallet,
     payload: r.payload,

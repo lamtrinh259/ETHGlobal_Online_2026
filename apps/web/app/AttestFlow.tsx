@@ -105,7 +105,10 @@ export function AttestFlow({
     return () => clearTimeout(t);
   }, [handle]);
   const nameStatus = useNameStatus(api, domain, debounced, isNameDomain && !fixedHandle);
+  // A name holds 31 bytes, which is not 31 characters: an accented letter costs two, an emoji four.
+  // Counting characters would promise room that is not there.
   const answerBytes = new TextEncoder().encode(answer).length;
+  const answerChars = [...answer].length;
   // The root name is just a name: answers belong to the subject instances under it, and statements to a
   // candidate's vouch domain. Asking for one while claiming would write it nowhere anyone reads.
   const wantsAnswer = isNameDomain && domain !== config.instances[0]?.domain;
@@ -288,7 +291,11 @@ export function AttestFlow({
                   aria-label="answer"
                 />
                 <small className={answerBytes > 31 ? "error" : "muted"} data-testid="answer-bytes">
-                  {answerBytes}/31 characters used{answerBytes > 31 ? " — too long to fit in the name" : ""}
+                  {answerBytes}/31 bytes used
+                  {answerChars !== answerBytes
+                    ? ` · ${answerChars} characters, some cost more than one byte`
+                    : ""}
+                  {answerBytes > 31 ? " — too long to fit in the name" : ""}
                 </small>
               </label>
             )}

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 /**
@@ -128,5 +128,31 @@ describe("AttestFlow after signing", () => {
     render(<AttestFlow fixedDomain="google" />);
     expect(screen.getByTestId("published")).toHaveTextContent("Published.");
     expect(screen.queryByTestId("publish")).toBeNull();
+  });
+});
+
+describe("how much of a statement fits", () => {
+  it("counts bytes and says bytes, because a name holds 31 of them and not 31 characters", async () => {
+    // "café" is four characters and five bytes; an emoji is four bytes. A counter that says
+    // "characters" tells someone they have room they do not have.
+    render(<AttestFlow fixedDomain="~alice" answerLabel="Statement" />);
+    const box = await screen.findByLabelText("answer");
+
+    fireEvent.change(box, { target: { value: "cafe" } });
+    expect(screen.getByTestId("answer-bytes")).toHaveTextContent("4/31 bytes");
+    fireEvent.change(box, { target: { value: "café" } });
+    expect(screen.getByTestId("answer-bytes")).toHaveTextContent("5/31 bytes");
+    // The misleading claim was the limit itself: 31 bytes is not 31 characters.
+    expect(screen.getByTestId("answer-bytes")).not.toHaveTextContent("/31 characters");
+
+    // And when the two differ, it says why rather than leaving a wrong-looking number.
+    expect(screen.getByTestId("answer-bytes")).toHaveTextContent(/4 characters/);
+  });
+
+  it("says plainly when a statement will not fit at all", async () => {
+    render(<AttestFlow fixedDomain="~alice" answerLabel="Statement" />);
+    const box = await screen.findByLabelText("answer");
+    fireEvent.change(box, { target: { value: "x".repeat(32) } });
+    expect(screen.getByTestId("answer-bytes")).toHaveTextContent(/too long/);
   });
 });

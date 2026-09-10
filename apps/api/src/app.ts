@@ -592,7 +592,7 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     // A view code is 32 bytes the candidate handed over, so holding it is the permission. With it the
     // masked name is computed and matched exactly; without it a private account cannot be found at all.
     const match = viewCode
-      ? live.find((r) => r.name === maskName(storable(handle), viewCode as Hex))
+      ? live.find((r) => r.rawName === maskName(storable(handle), viewCode as Hex))
       : live.find((r) => r.name.toLowerCase() === handle.toLowerCase());
     if (!match) {
       // A masked record carries a view-code commitment where a public one carries nothing; the name

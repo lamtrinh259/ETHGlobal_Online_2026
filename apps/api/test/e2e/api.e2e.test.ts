@@ -546,6 +546,68 @@ describe("api e2e", () => {
     expect(delivered.ok).toBe(true);
   });
 
+  it("finds the person behind an account, and ranks people of a name by their references", async () => {
+    // The first step of referring someone, against a real chain: alice holds a name and a public `x`
+    // account, so both ways of looking for her have to arrive at the same person.
+    const found = await (await fetch(`${API}/v1/who?domain=x.com&handle=alice`)).json();
+    expect(found).toMatchObject({ found: true, wallet: user.account.address, candidate: "alice" });
+    expect(found.standing).toMatchObject({ claimed: true });
+
+    // An account nobody attested is simply absent — no guessing, no partial match.
+    const missing = await (await fetch(`${API}/v1/who?domain=x.com&handle=nobody-here`)).json();
+    expect(missing.found).toBe(false);
+
+    // And by name: every handle that looks like this, with the references each has received.
+    const search = await (await fetch(`${API}/v1/find?q=ali`)).json();
+    expect(search.matches.map((m: { handle: string }) => m.handle)).toContain("alice");
+    const alice = search.matches.find((m: { handle: string }) => m.handle === "alice");
+    expect(alice.received).toBeGreaterThanOrEqual(0);
+    expect(alice.claimed).toBe(true);
+  });
+
+  it("cannot find a private account without its view code, and finds it with one", async () => {
+    // The privacy claim, end to end: the chain holds a one-time pad, so the handle cannot be matched
+    // by anyone who was not given the code — and can be matched exactly by anyone who was.
+    const now = Math.floor(Date.now() / 1000);
+    const { next } = await (
+      await fetch(`${API}/v1/nonce?wallet=${user.account.address}&domain=telegram`)
+    ).json();
+    const intent = baseIntent(user.account, now, {
+      domain: "telegram",
+      optIn: true,
+      nonce: BigInt(next),
+      exp: BigInt(now + 3600),
+    });
+    const idToken = privy.mint({ sub: user.did, linked: user.linked, now });
+    const req = toWire(await signedAttestRequest(user.account, intent, idToken, 31337, deployment.multipass));
+    const attested = await (
+      await fetch(`${API}/v1/attest`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(req),
+      })
+    ).json();
+    expect(attested.error).toBeUndefined();
+    const viewCode = bytesToHex(eciesDecrypt(USER_KEY, attested.viewCode));
+    await fetch(`${API}/v1/cre/delivery`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-delivery-token": "e2e-delivery-token-0123456789" },
+      body: JSON.stringify(attested),
+    });
+
+    // As `fakeUser` writes it: the stored name is the username, not the person's root handle.
+    const handle = "alice_tg";
+    const blind = await (await fetch(`${API}/v1/who?domain=telegram&handle=${handle}`)).json();
+    expect(blind.found).toBe(false);
+    // Said plainly, because reporting "nobody" invites starting a second page for the same person.
+    expect(blind.note).toMatch(/private/i);
+
+    const withCode = await (
+      await fetch(`${API}/v1/who?domain=telegram&handle=${handle}&viewCode=${viewCode}`)
+    ).json();
+    expect(withCode).toMatchObject({ found: true, wallet: user.account.address });
+  });
+
   it("provisions the candidate's vouch instance and lets a verified voucher write under it", async () => {
     const now = Math.floor(Date.now() / 1000);
     // Bob: a second human with his own wallet and linked accounts.
