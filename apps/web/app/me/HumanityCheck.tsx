@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { IDKitRequestWidget, proofOfHuman, selfieCheckLegacy } from "@worldcoin/idkit";
+import { humanityError } from "@/lib/humanity";
 import type { Api, HumanityChallenge } from "@/lib/api";
 
 /**
@@ -83,7 +84,7 @@ export function HumanityCheck({
             setOpen(false);
             onVerified();
           }}
-          onError={(code) => setError(String(code))}
+          onError={(code) => setError(humanityError(String(code), challenge.credential))}
         />
       )}
     </>

@@ -98,6 +98,8 @@ Sepolia addresses and placeholders for the secrets:
 | `REGISTRAR_KEY`, `VIEWCODE_KEY` | only for the Node fallback; unset when the enclave signs |
 | `REGISTRY`, `PERMISSIONED_RESOLVER`, `REGISTRAR_ADDRESS`, `DEPLOY_BLOCK` | vouch-instance provisioning (relayer must own Multipass, factory, root registry); `VOUCH_PREFIX` defaults to `~` |
 | `WORLD_APP_ID`, `WORLD_RP_ID`, `WORLD_RP_SIGNING_KEY`, `WORLD_ACTION` | World ID, from [the Developer Portal](https://developer.world.org). All three ids and the key, or none: with any unset the humanity routes answer 501 and the CTA stays disabled. The `humanity` Multipass domain must already name this service as registrar, or the write reverts after someone has done the check |
+| `WORLD_CREDENTIAL` | Which credential a person is asked for: `selfie` (Selfie Check — no hardware, **in preview**, World must enable it for the app) or `proof_of_human` (World ID 4.0 falling back to the Orb, which anyone without an Orb nearby cannot finish). Default `selfie`. The API tells the browser which preset to open; the browser does not choose |
+| `WORLD_LEVELS` | Comma-separated credentials a verified proof may carry, as World names them in `results[].identifier`. Empty accepts whatever World verified. Pin it once a live proof has shown the exact string, and anything else is refused rather than written |
 | `CORS_ORIGINS` | the web app origin |
 
 Health: `GET /healthz`. No volumes, no ports, stateless — scale by replicas.
