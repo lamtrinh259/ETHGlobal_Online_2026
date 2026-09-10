@@ -847,6 +847,55 @@ describe("GET /v1/vouches/:handle", () => {
   });
 });
 
+describe("GET /v1/who — finding a person by an account", () => {
+  const bobOnX = {
+    name: "bob",
+    id: toBytes32("bx"),
+    wallet: user.account.address,
+    payload: zeroHash,
+    validUntil: 1_800_000_000n,
+    nonce: 1n,
+    live: true,
+  };
+
+  it("finds whoever attested an account publicly, and names their page", async () => {
+    const { chain } = fakeChain({
+      listed: { "x.com": [bobOnX] },
+      byWallet: [{ ...bobOnX, domain: "kju-is", name: "bobby" }],
+    });
+    const found = await (await app(chain).request("/v1/who?domain=x.com&handle=bob")).json();
+    expect(found).toMatchObject({
+      found: true,
+      domain: "x.com",
+      handle: "bob",
+      wallet: user.account.address,
+      // The person, not the account: a reference is written for whoever holds the account.
+      candidate: "bobby",
+    });
+  });
+
+  it("cannot find someone who attested privately, and says why rather than saying nobody", async () => {
+    // A masked record stores a one-time pad, so searching by handle cannot match it. Reporting this as
+    // "not found" would invite writing a second page for a person who already has one.
+    const masked = { ...bobOnX, name: maskName("bob", `0x${"5a".repeat(32)}`), payload: toBytes32("c") };
+    const { chain } = fakeChain({ listed: { "x.com": [masked] } });
+    const res = await (await app(chain).request("/v1/who?domain=x.com&handle=bob")).json();
+    expect(res.found).toBe(false);
+    expect(res.note).toMatch(/private/i);
+  });
+
+  it("says nothing was found for an account nobody has attested", async () => {
+    const { chain } = fakeChain({ listed: { "x.com": [] } });
+    const res = await (await app(chain).request("/v1/who?domain=x.com&handle=nobody")).json();
+    expect(res).toMatchObject({ found: false, domain: "x.com", handle: "nobody" });
+  });
+
+  it("refuses a search that names no account", async () => {
+    const { chain } = fakeChain();
+    expect((await app(chain).request("/v1/who?domain=x.com")).status).toBe(400);
+  });
+});
+
 describe("POST /v1/attest — vouch invitations", () => {
   const vouchIntent = (now: number) =>
     baseIntent(user.account, now, {

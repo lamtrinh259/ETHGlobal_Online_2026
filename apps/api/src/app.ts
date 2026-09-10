@@ -543,6 +543,51 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     });
   }
 
+  /**
+   * Who holds a platform account here. The first step of referring someone: you know them as `@bob` on
+   * x.com, and this says whether that account already belongs to a page rather than making you guess a
+   * handle for a person who already has one.
+   *
+   * Only accounts attested in the open can be found. A masked record stores a one-time pad over the
+   * handle, so no search can match it — and reporting that as "nobody" would invite writing a second
+   * page for someone who already has one. It is said plainly instead.
+   */
+  app.get("/v1/who", async (c) => {
+    const domain = c.req.query("domain");
+    const handle = c.req.query("handle")?.trim().toLowerCase().replace(/^@/, "");
+    if (!domain || !handle) return c.json({ error: "domain and handle required" }, 400);
+
+    const records = await chain.listRecords(domain);
+    const live = records.filter((r) => r.live);
+    const match = live.find((r) => r.name.toLowerCase() === handle);
+    if (!match) {
+      // A masked record carries a view-code commitment where a public one carries nothing; the name
+      // itself is a pad and cannot be re-encoded, let alone matched.
+      const masked = live.some((r) => r.payload !== zeroHash);
+      return c.json({
+        found: false,
+        domain,
+        handle,
+        ...(masked
+          ? {
+              note: "someone here attested a private account on this platform, and a private account cannot be searched — ask them for their page rather than starting a new one",
+            }
+          : {}),
+      });
+    }
+
+    // The account is held by a wallet; the page is whatever that wallet is called in a name domain.
+    const held = await chain.listRecordsByWallet(match.wallet);
+    const candidate = held.find((r) => r.live && config.NAME_DOMAINS.includes(r.domain))?.name;
+    return c.json({
+      found: true,
+      domain,
+      handle,
+      wallet: match.wallet,
+      candidate: candidate ?? null,
+    });
+  });
+
   app.post("/v1/attest", async (c) => {
     if (!config.REGISTRAR_KEY || !config.VIEWCODE_KEY) return c.json({ error: "registrar disabled" }, 501);
     const parsed = wireRequest.safeParse(await c.req.json().catch(() => null));
