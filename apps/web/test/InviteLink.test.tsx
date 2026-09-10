@@ -23,7 +23,30 @@ let existing: { code: string; requires: string[]; expiresAt: string }[] = [];
 const api = {
   storeInvite: vi.fn(async () => ({ code: "abcd1234" })),
   invites: vi.fn(async (handle: string) => ({ handle, invites: existing })),
+  // A real point on the curve, because the box is built with actual ECIES.
+  enclaveKey: vi.fn(async () => ({
+    publicKey:
+      "0x0479be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8",
+  })),
+  disclose: vi.fn(async () => ({ id: "0xgrant", expiresAt: "2027-01-01T00:00:00.000Z" })),
 } as unknown as Api;
+
+vi.mock("@/lib/keys", () => ({
+  loadViewCodes: () => ({ "discord.com": `0x${"22".repeat(32)}` }),
+}));
+
+const masked = [
+  {
+    domain: "discord.com",
+    name: "",
+    payload: "",
+    validUntil: "2027-01-01T00:00:00.000Z",
+    nonce: "1",
+    live: true,
+    optedIn: true,
+    ensName: "alice.com.discord.private-www.ketsuban.eth",
+  },
+] as never;
 
 const { InviteLink: Raw } = await import("@/app/me/InviteLink");
 
@@ -110,5 +133,48 @@ describe("invitations already made", () => {
     const row = screen.getByTestId("invite-aaaa1111");
     expect(row).toHaveTextContent("linkedin.com");
     expect(row).toHaveTextContent("mit.edu");
+  });
+});
+
+/**
+ * A writer who cannot see the private accounts is being asked to vouch for somebody half-visible.
+ * The permission is a second statement — a separate signature — addressed exactly as far as the
+ * invitation reaches.
+ */
+describe("opening private accounts to the writer", () => {
+  beforeEach(() => {
+    existing = [];
+    signed.length = 0;
+    (api.storeInvite as ReturnType<typeof vi.fn>).mockClear();
+    (api.disclose as ReturnType<typeof vi.fn>).mockClear();
+  });
+
+  it("offers nothing to open when the holder has no private accounts", () => {
+    render(<InviteLink api={api} handle="alice" name="alice.ketsuban.eth" links={[]} />);
+    fireEvent.click(screen.getByTestId("open-invite"));
+    expect(screen.queryByTestId("share-with-writer")).toBeNull();
+  });
+
+  it("signs a permission alongside the invitation, and only for what was picked", async () => {
+    render(<InviteLink api={api} handle="alice" name="alice.ketsuban.eth" links={masked} />);
+    fireEvent.click(screen.getByTestId("open-invite"));
+    expect(screen.getByTestId("share-with-writer")).toBeInTheDocument();
+
+    // Nothing is opened by accident: the invitation alone asks for no permission.
+    fireEvent.click(screen.getByTestId("make-invite"));
+    await waitFor(() => expect(api.storeInvite).toHaveBeenCalled());
+    expect(api.disclose).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId("open-invite"));
+    fireEvent.click(screen.getByRole("switch", { name: /discord\.com/ }));
+    expect(screen.getByTestId("make-invite")).toHaveTextContent("Sign the link and the permission");
+    fireEvent.click(screen.getByTestId("make-invite"));
+    await waitFor(() => expect(api.disclose).toHaveBeenCalled());
+    const wire = (api.disclose as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(wire.name).toBe("alice.ketsuban.eth");
+    expect(wire.domains).toEqual(["discord.com"]);
+    // As far as the link reaches, and no further: whoever holds it is who may already write.
+    expect(wire.audience).toBe("0x0000000000000000000000000000000000000000");
+    expect(wire.audienceName).toBe("");
   });
 });

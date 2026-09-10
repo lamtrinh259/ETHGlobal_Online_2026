@@ -9,10 +9,13 @@ import { CopyButton } from "@/app/CopyButton";
 import { fmtUtc } from "@/app/ui";
 import { useInvites } from "@/lib/hooks";
 import { vouchRequest } from "@/lib/profile";
-import type { Api } from "@/lib/api";
+import type { Api, WalletDashboard } from "@/lib/api";
 import { Modal } from "@/app/Modal";
 import { PlatformPicker } from "@/app/PlatformPicker";
 import { inviteTypedData } from "@/lib/intent";
+import { buildDisclosure, disclosureTypedData, toDisclosureWire } from "@/lib/disclose";
+import { loadViewCodes } from "@/lib/keys";
+import { Switch } from "@/app/Switch";
 
 const WEEK = 7 * 24 * 3600;
 
@@ -25,11 +28,17 @@ export function InviteLink({
   api,
   handle,
   rootParent = "",
+  links = [],
+  name = "",
 }: {
   api: Api;
   handle: string;
   /** The root parent name, for the message that goes with a link */
   rootParent?: string;
+  /** The holder's accounts, so a private one can be opened to the writer in the same breath */
+  links?: WalletDashboard["links"];
+  /** The holder's own name, which a permission is written against */
+  name?: string;
 }) {
   const config = useWebConfig();
   const { wallets } = useWallets();
@@ -38,6 +47,7 @@ export function InviteLink({
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
   const [picked, setPicked] = useState<string[]>([]);
+  const [shared, setShared] = useState<string[]>([]);
   const [domain, setDomain] = useState("");
   const [open, setOpen] = useState(false);
   const made = useInvites(api, handle);
@@ -68,6 +78,29 @@ export function InviteLink({
         exp: invite.exp.toString(),
         signature: signature as `0x${string}`,
       });
+      // A writer who cannot see the private accounts is asked to vouch for someone half-visible. The
+      // permission is a second statement, addressed exactly as far as the link reaches: whoever holds
+      // it, which is who the invitation already lets write.
+      if (shared.length > 0 && name) {
+        const codes = loadViewCodes();
+        const accounts = shared.map((d) => {
+          const viewCode = codes[d];
+          if (!viewCode) throw new Error(`the view code for ${d} is not in this browser — re-attest it`);
+          return { domain: d, viewCode: viewCode as `0x${string}` };
+        });
+        const { publicKey } = await api.enclaveKey();
+        const { disclosure, boxes } = buildDisclosure({
+          name,
+          accounts,
+          enclavePubkey: publicKey,
+          now: Math.floor(Date.now() / 1000),
+        });
+        const grant = await signTypedData(
+          disclosureTypedData(disclosure, config.chainId, config.multipass as Address) as never,
+          { address: wallet }
+        );
+        await api.disclose(toDisclosureWire(disclosure, boxes, grant.signature as `0x${string}`));
+      }
       setLink(`${siteUrl.replace(/\/$/, "")}/vouch/${handle}?invite=${code}`);
       setOpen(false);
       void made.refetch();
@@ -139,9 +172,35 @@ export function InviteLink({
               data-testid="require-domain"
             />
           </label>
+
+          {/* The other direction: what the writer gets to see. A reference written about somebody whose
+              accounts are all masked is written half blind. */}
+          {name && links.some((l) => l.live && l.optedIn) && (
+            <fieldset data-testid="share-with-writer">
+              <legend>Let them see your private accounts</legend>
+              <p className="muted">
+                Opened to whoever holds this link, for as long as the permission lasts. You can take it back
+                at any time, and taking it back is visible.
+              </p>
+              {links
+                .filter((l) => l.live && l.optedIn)
+                .map((l) => (
+                  <Switch
+                    key={l.domain}
+                    checked={shared.includes(l.domain)}
+                    onChange={() =>
+                      setShared((p) =>
+                        p.includes(l.domain) ? p.filter((x) => x !== l.domain) : [...p, l.domain]
+                      )
+                    }
+                    label={l.domain}
+                  />
+                ))}
+            </fieldset>
+          )}
           <p>
             <button className="primary" onClick={make} disabled={busy} data-testid="make-invite">
-              {busy ? "signing…" : "Create the link"}
+              {busy ? "signing…" : shared.length > 0 ? "Sign the link and the permission" : "Create the link"}
             </button>
           </p>
           {error && (
