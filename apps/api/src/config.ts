@@ -1,10 +1,20 @@
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { z } from "zod";
+import { getAddress } from "viem";
 import type { Address, Hex } from "viem";
 
 const hex = z.string().regex(/^0x[0-9a-fA-F]+$/);
-const address = z.string().regex(/^0x[0-9a-fA-F]{40}$/);
+/**
+ * An address, in whatever casing it arrived in. EIP-55 casing is a checksum, and viem refuses an
+ * address whose casing does not match its own — which surfaces much later as a failed read rather than
+ * as a configuration error. Normalising here means an address pasted in lower case from an explorer,
+ * or mis-cased in a deployment file, is simply the address it is.
+ */
+const address = z
+  .string()
+  .regex(/^0x[0-9a-fA-F]{40}$/)
+  .transform((v) => getAddress(v));
 const jwk = z.object({ kty: z.literal("EC"), crv: z.literal("P-256"), x: z.string(), y: z.string() });
 
 /**

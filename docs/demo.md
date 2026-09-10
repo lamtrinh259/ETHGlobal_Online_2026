@@ -10,7 +10,7 @@ through ENSv2, so the last section checks them without touching this project's c
 | AttestationBridge | `0xC7283bD9Aad1B08947C841536946Ce4dA9c99929` |
 | AttestationReporter (Chainlink CRE) | `0x4888d736a196c49CAf404FD626eB9CBbf175b140` |
 | KeystoneForwarder | `0xF8344CFd5c43616a4366C34E3EEE75af79a74482` |
-| ENSv2 UniversalResolver | `0x4a1817d13E9cF196f471725176355c1234b63c70` |
+| ENSv2 UniversalResolver | `0x4A1817d13E9cF196f471725176355C1234b63C70` |
 
 `API` below is the deployed relay, `alice` a candidate who has already been through the flow.
 
@@ -62,7 +62,7 @@ alice.anything.ketsuban.eth         ->  0x0
 ```
 
 ```bash
-cast call 0x4a1817d13E9cF196f471725176355c1234b63c70 \
+cast call 0x4A1817d13E9cF196f471725176355C1234b63C70 \
   "resolve(bytes,bytes)(bytes,address)" \
   $(cast --to-dns-name alice.ketsuban.eth) \
   $(cast calldata "text(bytes32,string)" $(cast namehash alice.ketsuban.eth) "ketsuban:answer") \
@@ -86,7 +86,7 @@ alice.anything.ketsuban.eth         ->  0x0
 ```
 
 ```bash
-cast call 0x4a1817d13E9cF196f471725176355c1234b63c70 \
+cast call 0x4A1817d13E9cF196f471725176355C1234b63C70 \
   "resolve(bytes,bytes)(bytes,address)" \
   $(cast --to-dns-name alice_x.com.x.www.ketsuban.eth) \
   $(cast calldata "addr(bytes32)" $(cast namehash alice_x.com.x.www.ketsuban.eth)) --rpc-url $SEPOLIA_RPC

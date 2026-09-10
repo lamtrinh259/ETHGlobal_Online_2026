@@ -850,6 +850,27 @@ describe("GET /v1/vouches/:handle", () => {
   });
 });
 
+describe("an address written with the wrong casing", () => {
+  it("is normalised rather than carried until viem refuses it", async () => {
+    // EIP-55 casing is a checksum. An address pasted from a explorer in lower case, or mis-cased in a
+    // deployment file, is still the same address — but viem rejects it at the call, which surfaces as
+    // a 502 from a read rather than as a configuration error anyone can act on.
+    const lower = "0x4a1817d13e9cf196f471725176355c1234b63c70";
+    const { chain } = fakeChain();
+    const a = createApp({
+      config: loadConfig({ ...baseEnv, UNIVERSAL_RESOLVER: lower }),
+      chain,
+      now: () => NOW,
+    });
+    const health = await (await a.request("/healthz")).json();
+    expect(health.config.universalResolver).toBe("0x4A1817d13E9cF196f471725176355C1234b63C70");
+  });
+
+  it("still refuses something that is not an address at all", () => {
+    expect(() => loadConfig({ ...baseEnv, UNIVERSAL_RESOLVER: "0xnope" })).toThrow();
+  });
+});
+
 describe("a letter too long to sit on chain", () => {
   const long = "Alice ran infrastructure at Acme for three years. ".repeat(30);
   const post = (app: ReturnType<typeof createApp>, body: object) =>
@@ -1888,7 +1909,7 @@ describe("disclosing a masked account", () => {
 describe("GET /v1/ens/:name", () => {
   const ensApp = (chain: ChainReader) =>
     createApp({
-      config: loadConfig({ ...baseEnv, UNIVERSAL_RESOLVER: "0x4a1817d13E9cF196f471725176355c1234b63c70" }),
+      config: loadConfig({ ...baseEnv, UNIVERSAL_RESOLVER: "0x4A1817d13E9cF196f471725176355C1234b63C70" }),
       chain,
       now: () => NOW,
     });
@@ -1904,7 +1925,7 @@ describe("GET /v1/ens/:name", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
       name: "alice.kju-is.eth",
-      universalResolver: "0x4a1817d13E9cF196f471725176355c1234b63c70",
+      universalResolver: "0x4A1817d13E9cF196f471725176355C1234b63C70",
       resolver: "0x178ff1589Be8Af3B19426Aa1d2Bd07cd178E215e",
       addr: user.account.address,
       texts: { "ketsuban:answer": "terrible dictator", avatar: "ipfs://x" },

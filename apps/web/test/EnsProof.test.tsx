@@ -5,7 +5,7 @@ import type { EnsResolution } from "@/lib/api";
 
 const ens: EnsResolution = {
   name: "alice.ketsuban.eth",
-  universalResolver: "0x4a1817d13E9cF196f471725176355c1234b63c70",
+  universalResolver: "0x4A1817d13E9cF196f471725176355C1234b63C70",
   resolver: "0x178ff1589Be8Af3B19426Aa1d2Bd07cd178E215e",
   addr: "0xEE4811b9462956C9C3535E79c08776D769CA9F3a",
   texts: { "ketsuban:answer": "terrible dictator", avatar: "", description: "infra lead" },
@@ -17,7 +17,7 @@ describe("EnsProof", () => {
   it("names the resolver it reached and lists only the records that have a value", () => {
     render(<EnsProof ens={ens} name="alice.ketsuban.eth" />);
     const card = screen.getByTestId("ens-proof");
-    expect(card).toHaveTextContent("0x4a18…3c70");
+    expect(card).toHaveTextContent("0x4A18…3C70");
     expect(card).toHaveTextContent("0x178f…215e");
     expect(card).toHaveTextContent("0xEE48…9F3a");
     expect(card).toHaveTextContent("terrible dictator");

@@ -134,7 +134,7 @@ The command the card prints is meant to be run as it stands. Note that `cast` ha
 there is no `--to-dns-name` — so the wire-format name is written into the command literally:
 
 ```bash
-cast call 0x4a1817d13E9cF196f471725176355c1234b63c70 \
+cast call 0x4A1817d13E9cF196f471725176355C1234b63C70 \
   "resolve(bytes,bytes)(bytes,address)" \
   0x0770656572736b79086b6574737562616e0365746800 \
   $(cast calldata "addr(bytes32)" $(cast namehash peersky.ketsuban.eth)) \
