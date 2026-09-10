@@ -102,6 +102,26 @@ const routes = [
       warning: "This is not identity verification.",
     }),
   ],
+  /*
+   * The independent read: the same names resolved through the UniversalResolver rather than through
+   * this service. It is the product's own claim about itself, and without a route here the appendix
+   * that makes it silently does not render.
+   */
+  [
+    /^\/v1\/ens\/([^/?]+)/,
+    (m) => {
+      const name = decodeURIComponent(m[1].split("?")[0]);
+      return {
+        name,
+        universalResolver: "0x4A1817d13E9cF196f471725176355C1234b63C70",
+        resolver: "0x178ff1589Be8Af3B19426Aa1d2Bd07cd178E215e",
+        addr: "0xEE4811b9462956C9C3535E79c08776D769CA9F3a",
+        texts: { name: "", avatar: "" },
+        status: "active",
+        warning: "This is not identity verification.",
+      };
+    },
+  ],
   [/^\/v1\/explain\/([^/?]+)/, (m) => ({ name: decodeURIComponent(m[1]), says: "alice is a person's name here.", kind: "person" })],
   [/^\/v1\/name\/([^/]+)\/([^/?]+)/, (m) => ({ domain: m[1], handle: m[2], taken: true, live: true, wallet: "0xEE4811b9462956C9C3535E79c08776D769CA9F3a" })],
   [

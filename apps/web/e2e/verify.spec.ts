@@ -9,6 +9,16 @@ test("verify page reads a name through the resolver and frames it", async ({ pag
   await expect(page.getByTestId("references")).toContainText("a terrible dictator");
   await expect(page.getByLabel("references received")).toContainText("Ran the platform team");
   await expect(page.locator(".sh-side")).toBeAttached();
+
+  /*
+   * The claim the product rests on: the same name read through the UniversalResolver rather than
+   * through this service. It is an appendix behind a disclosure, so a reader only meets it if they go
+   * looking — which is the point, and also why nothing noticed it was never rendered here at all.
+   */
+  const proof = page.getByTestId("ens-proof");
+  await expect(proof).toBeVisible();
+  await proof.getByText("Read it yourself, through ENS").click();
+  await expect(proof).toContainText("0x4A1817d13E9cF196f471725176355C1234b63C70");
 });
 
 // A name the attester does not know: the page must say so rather than crash.
