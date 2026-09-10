@@ -42,3 +42,15 @@ docs/                architecture and runbooks
 `pnpm check:lockfile` fails exactly the way the Docker build does when `pnpm-lock.yaml` is behind a
 `package.json`. A local install uses a warm store and happily proceeds, so this is the only cheap way
 to catch it before a deploy does.
+
+## Before you push
+
+`pnpm verify` — the same checks CI runs, in the same order. `pnpm verify:e2e` adds the docker loop.
+
+`pnpm test` is a subset and passing it is not evidence: it runs no browser journey and no chain. Two
+changes in one day passed it and broke on push — a form that moved behind a disclosure the journeys
+still typed into, and a fixture that kept hashing a signal the way the server had stopped hashing it.
+Neither unit suite could have known, because each shares its fixtures with the code it checks.
+
+Then read the run: `gh run list --limit 1`. A green local run and an unread red CI run is the same
+state as not having tested.

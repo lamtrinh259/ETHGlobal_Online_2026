@@ -33,11 +33,14 @@ The packages generate what the apps import — the registrar's types, and the er
 on purpose: the container build installs before it copies any source, and a hook there fails with nothing
 to compile.
 
-`pnpm -w lint && pnpm -w typecheck && pnpm -w test` is the gate: every package runs its own tests, with
-coverage thresholds where the language has them. `pnpm --filter @ketsuban/api test:e2e` is the slow one —
-anvil, the contracts deployed from this source, and the API image, driven from outside. Both run on every
-push through `.github/workflows/ci.yml`, and the e2e needs no secrets: the identity issuer is faked from a
-seed.
+`pnpm verify` is the gate: it runs what `.github/workflows/ci.yml` runs, in the same order — lint,
+typecheck, every package's own tests with the coverage thresholds the language allows, and the browser
+journeys. `pnpm verify:e2e` adds the slow one: anvil, the contracts deployed from this source, and the
+API image, driven from outside. That needs no secrets — the identity issuer is faked from a seed.
+
+Run `pnpm verify`, not `pnpm test`. The unit suites are a subset: they cannot see a form that moved
+behind a disclosure the journeys still type into, or a fixture that kept hashing a signal the way the
+server had stopped hashing it. Both of those passed `pnpm test` and failed on push.
 
 ## Packages
 
