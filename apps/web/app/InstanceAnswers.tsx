@@ -19,7 +19,7 @@ type Instance = {
 export function InstanceAnswers({ data }: { data: Instance }) {
   return (
     <section className="card" data-testid="instance-answers">
-      <h3>Answers under {data.parentName}</h3>
+      <h2>{data.parentName}</h2>
 
       {/* Who this page is about, from the name's own records. A page for someone who has claimed
           nothing is only worth reading if it says who they are, and that belongs on chain. */}
@@ -41,6 +41,7 @@ export function InstanceAnswers({ data }: { data: Instance }) {
       )}
 
       {!data.records?.description && data.description && <p className="muted">{data.description}</p>}
+      <h3>Answers</h3>
       {data.answers.length === 0 ? (
         <p className="muted">Nobody has answered yet.</p>
       ) : (

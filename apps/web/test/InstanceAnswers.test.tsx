@@ -54,3 +54,21 @@ describe("a name people answer under", () => {
     expect(screen.getByTestId("instance-answers")).toHaveTextContent(/nobody has answered/i);
   });
 });
+
+describe("a subject page reads as a profile", () => {
+  it("leads with the picture, the description and the link, not with a record that is not there", () => {
+    // `no record` described the wrong thing: this name is a page about a subject, and whether some
+    // person holds the label is beside the point.
+    render(
+      <InstanceAnswers
+        data={{ ...data, records: { ...data.records!, avatar: "https://example.test/kju.png" } }}
+      />
+    );
+    const card = screen.getByTestId("instance-answers");
+    expect(card.querySelector("img")).toHaveAttribute("src", "https://example.test/kju.png");
+    expect(card).toHaveTextContent("kju-is.ketsuban.eth");
+    expect(screen.getByTestId("about-url")).toBeInTheDocument();
+    // The answers are still there, under their own heading rather than as the page's subject.
+    expect(card).toHaveTextContent("Answers");
+  });
+});
