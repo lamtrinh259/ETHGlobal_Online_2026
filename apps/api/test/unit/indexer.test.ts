@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -376,5 +376,45 @@ describe("restoring a damaged snapshot", () => {
     const after = new Indexer(fakeSource(400n, []).source, MULTIPASS, 50n, { dataDir });
     expect(after.recordsByDomain("kju-is").map((r) => r.name)).toEqual(["alice"]);
     expect(after.status().indexedBlock).toBe(400);
+  });
+});
+
+/**
+ * Whether what the index holds would survive a restart.
+ *
+ * A volume that cannot be written costs nothing while the process lives — the index is in memory — and
+ * everything at the next restart, when the whole history is read again from the deploy block and the
+ * product is blank until it finishes. A log line that scrolled past hours ago is not where somebody
+ * inspecting a deployment will find that out.
+ */
+describe("whether the index is durable", () => {
+  it("says so when it has nowhere to write at all", async () => {
+    const indexer = new Indexer(fakeSource(10n, []).source, MULTIPASS, 0n);
+    await indexer.tick();
+    expect(indexer.status().durable).toBe(false);
+    expect(indexer.status().snapshotError).toBeNull();
+  });
+
+  it("says so, and why, when the write fails", async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), "ketsuban-index-ro-"));
+    const alice: Rec = { domain: "kju-is", name: "alice", wallet: ALICE, nonce: 1n, payload: "hi" };
+    const indexer = new Indexer(fakeSource(400n, [registeredLog(alice, 100n)]).source, MULTIPASS, 50n, {
+      dataDir,
+    });
+    await indexer.tick();
+    expect(indexer.status().durable).toBe(true);
+
+    // A directory where the snapshot file should be: the write fails the way a read-only or full
+    // volume fails, without pretending the process cannot serve.
+    rmSync(join(dataDir, "records.json"));
+    mkdirSync(join(dataDir, "records.json"));
+    await indexer.catchUp(500n);
+
+    const status = indexer.status();
+    expect(status.durable).toBe(false);
+    expect(status.snapshotError).toBeTruthy();
+    // Still reading: an index that cannot save is not an index that has stopped.
+    expect(status.lastError).toBeNull();
+    expect(indexer.recordsByDomain("kju-is").map((r) => r.name)).toEqual(["alice"]);
   });
 });

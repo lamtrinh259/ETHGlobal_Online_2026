@@ -29,6 +29,10 @@ export type IndexStatus = {
   synced: boolean;
   /** Why the last read failed, or null when it did not */
   lastError: string | null;
+  /** Whether what the index holds would survive a restart */
+  durable: boolean;
+  /** Why the snapshot could not be written, or null */
+  snapshotError: string | null;
   /** Seconds since a read last succeeded; null before the first one */
   staleForSeconds: number | null;
 };
@@ -66,6 +70,8 @@ export class Indexer implements RecordIndex {
   /** When a tick last completed, and why the last one did not; see `status`. */
   private lastOkAt = 0;
   private lastError: string | null = null;
+  /** Why the snapshot could not be written, if it could not; see `status`. */
+  private snapshotError: string | null = null;
   private queue: Promise<number> = Promise.resolve(0);
   private readonly snapshotPath?: string;
   /** Blocks per committed step; a long backfill is many of these rather than one silent sweep. */
@@ -185,6 +191,9 @@ export class Indexer implements RecordIndex {
       // first half forever, which is how a stale service goes on calling itself healthy.
       synced: this.headBlock > 0n && this.indexedBlock >= this.headBlock && this.lastError === null,
       lastError: this.lastError,
+      // Whether what the index holds would survive a restart.
+      durable: this.snapshotPath !== undefined && this.snapshotError === null,
+      snapshotError: this.snapshotError,
       // How long since anything succeeded, which is the fact a probe actually needs.
       staleForSeconds: this.lastOkAt === 0 ? null : Math.round((Date.now() - this.lastOkAt) / 1000),
     };
@@ -226,8 +235,17 @@ export class Indexer implements RecordIndex {
       const tmp = `${this.snapshotPath}.tmp`;
       writeFileSync(tmp, JSON.stringify(snapshot));
       renameSync(tmp, this.snapshotPath);
+      this.snapshotError = null;
     } catch (err) {
-      console.error(`index snapshot failed · ${(err as Error).message}`);
+      /*
+       * Kept, not only logged. A volume that cannot be written costs nothing while the process lives —
+       * the index is in memory — and everything at the next restart, when the whole history is read
+       * again from the deploy block and the product is blank until it finishes. That is a fact about
+       * the deployment, so it belongs where a deployment is inspected rather than in a log line that
+       * scrolled past hours ago.
+       */
+      this.snapshotError = (err as Error).message;
+      console.error(`index snapshot failed · ${this.snapshotError}`);
     }
   }
 
