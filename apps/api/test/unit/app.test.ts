@@ -3264,6 +3264,34 @@ describe("the humanity check", () => {
     WORLD_RP_SIGNING_KEY: SIGNING_KEY,
     WORLD_VERIFY_URL: "https://developer.world.org",
   };
+  /**
+   * A nullifier is claimed before the record is written, so two requests in flight cannot both spend
+   * it. Everything that can fail after that claim has to give it back — including the chain read,
+   * which is a network call like any other. A claim released on only some failures still strands
+   * somebody: their proof is spent against a wallet that never got a record, and they cannot move it
+   * to another one.
+   */
+  it("gives the proof back when the chain read fails, not only when the write does", async () => {
+    const { chain } = fakeChain();
+    chain.readOnchain = vi.fn(async () => {
+      throw new Error("rpc: connection reset");
+    }) as never;
+    const a = humanApp(chain, portal());
+
+    const first = await post(a, "/v1/humanity", { wallet, proof: proof(signal) });
+    expect(first.status).toBe(502);
+    expect((await first.json()).error).toMatch(/connection reset/);
+
+    // The same human, on another wallet: nothing was written for the first, so the proof is theirs to
+    // spend again. A claim kept here would have stranded them on a wallet holding no record.
+    const other = "0x000000000000000000000000000000000000B0b0";
+    const second = await post(a, "/v1/humanity", {
+      wallet: other,
+      proof: proof(other.toLowerCase()),
+    });
+    expect(second.status).not.toBe(409);
+  });
+
   const NULLIFIER = "0x2bf8406809dcefb1486dadc96c0a897db9bab002053054cf64272db512c6fbd8";
   const wallet = user.account.address;
   /**

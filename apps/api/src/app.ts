@@ -1334,19 +1334,22 @@ export function createApp({
     // gives it back: a person whose transaction reverted must not be locked out of their own proof.
     humans.set(human.nullifier, wallet);
 
-    const onchain = await chain.readOnchain(wallet, config.HUMANITY_DOMAIN);
-    const validUntil = BigInt(now() + config.RECORD_TERM_SECONDS);
-    const record: RegisterMessage = {
-      // A humanity record has no readable label: the resolver reaches it by wallet, never by name.
-      name: zeroHash,
-      id: human.nullifier,
-      domainName: toBytes32(config.HUMANITY_DOMAIN),
-      validUntil,
-      nonce: onchain.nonce + 1n,
-      wallet,
-      payload: toBytes32(human.level),
-    };
+    // Everything after the claim is inside the try, including the chain read: it is a network call
+    // like any other, and a claim released only on some of the ways this can fail is a claim that
+    // still strands somebody on a wallet that never got a record.
     try {
+      const onchain = await chain.readOnchain(wallet, config.HUMANITY_DOMAIN);
+      const validUntil = BigInt(now() + config.RECORD_TERM_SECONDS);
+      const record: RegisterMessage = {
+        // A humanity record has no readable label: the resolver reaches it by wallet, never by name.
+        name: zeroHash,
+        id: human.nullifier,
+        domainName: toBytes32(config.HUMANITY_DOMAIN),
+        validUntil,
+        nonce: onchain.nonce + 1n,
+        wallet,
+        payload: toBytes32(human.level),
+      };
       const signature = await signRecord(record, config.REGISTRAR_KEY, await env());
       const txHash = await chain.submit(record, signature);
       return c.json({
