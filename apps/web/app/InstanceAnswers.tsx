@@ -16,31 +16,43 @@ type Instance = {
  * `kju-is.<root>` is not an unclaimed person; it is where answers about one are published. Reporting
  * "no record" here read as though the name were broken, and hid every answer anyone wrote.
  */
-export function InstanceAnswers({ data }: { data: Instance }) {
+export function InstanceAnswers({
+  data,
+  texts,
+}: {
+  data: Instance;
+  /** The same keys as ENS itself returned, for when the attester read a resolver ENS has replaced */
+  texts?: Record<string, string>;
+}) {
+  // Prefer what the attester read — the same value by a shorter path — and fall back to the ENS read,
+  // which follows the resolver the registry actually names.
+  const about = {
+    description: data.records?.description || texts?.description || data.description || "",
+    url: data.records?.url || texts?.url || "",
+    avatar: data.records?.avatar || texts?.avatar || "",
+  };
   return (
     <section className="card" data-testid="instance-answers">
       <h2>{data.parentName}</h2>
 
       {/* Who this page is about, from the name's own records. A page for someone who has claimed
           nothing is only worth reading if it says who they are, and that belongs on chain. */}
-      {(data.records?.description || data.records?.url || data.records?.avatar) && (
+      {(about.description || about.url || about.avatar) && (
         <div className="me-head" data-testid="about">
-          {data.records.avatar && (
+          {about.avatar && (
             // eslint-disable-next-line @next/next/no-img-element -- an arbitrary URL, not a bundled asset
-            <img src={data.records.avatar} alt="" className="me-avatar-img" width={72} height={72} />
+            <img src={about.avatar} alt="" className="me-avatar-img" width={72} height={72} />
           )}
           <div className="me-head-text">
-            {data.records.description && <p>{data.records.description}</p>}
-            {data.records.url && (
-              <a href={data.records.url} rel="noreferrer nofollow" data-testid="about-url">
-                {data.records.url}
+            {about.description && <p>{about.description}</p>}
+            {about.url && (
+              <a href={about.url} rel="noreferrer nofollow" data-testid="about-url">
+                {about.url}
               </a>
             )}
           </div>
         </div>
       )}
-
-      {!data.records?.description && data.description && <p className="muted">{data.description}</p>}
       <h3>Answers</h3>
       {data.answers.length === 0 ? (
         <p className="muted">Nobody has answered yet.</p>

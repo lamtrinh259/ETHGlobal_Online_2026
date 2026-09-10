@@ -72,3 +72,24 @@ describe("a subject page reads as a profile", () => {
     expect(card).toHaveTextContent("Answers");
   });
 });
+
+describe("where the profile's text comes from", () => {
+  it("falls back to what ENS itself returned, when the attester has none", () => {
+    // The attester reads through the resolver the factory recorded; ENS reads through the one the
+    // registry names. When those differ the page still has the answer, because it asked ENS too.
+    render(
+      <InstanceAnswers
+        data={{ ...data, description: null, records: undefined }}
+        texts={{ description: "Kim Jong Un, Supreme Leader of North Korea.", url: "https://t.example" }}
+      />
+    );
+    const card = screen.getByTestId("instance-answers");
+    expect(card).toHaveTextContent("Supreme Leader");
+    expect(screen.getByTestId("about-url")).toHaveAttribute("href", "https://t.example");
+  });
+
+  it("prefers what the attester read, which is the same value by a shorter path", () => {
+    render(<InstanceAnswers data={data} texts={{ description: "stale", url: "" }} />);
+    expect(screen.getByTestId("instance-answers")).toHaveTextContent("Answering tests affiliation");
+  });
+});

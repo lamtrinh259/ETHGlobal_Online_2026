@@ -1093,6 +1093,22 @@ describe("GET /v1/instance/:domain — what people said under one name", () => {
     expect(body.description).toMatch(/North Korean/);
   });
 
+  it("reads the page's own text the way ENS does, not through the instance's resolver", async () => {
+    // `kju-is.<root>` is answered by the parent's resolver — the instance has none of its own in the
+    // registry — so reading through the instance's resolver finds nothing however the record was set.
+    const { chain } = fakeChain({
+      // Keyed by the name, as the universal read answers it.
+      texts: {
+        "kju-is.eth/description": "Kim Jong Un, Supreme Leader of North Korea.",
+        "kju-is.eth/url": "https://t.example",
+      },
+      listed: { "kju-is": [] },
+    });
+    const body = await (await app(chain).request("/v1/instance/kju-is")).json();
+    expect(body.records.description).toMatch(/Supreme Leader/);
+    expect(body.records.url).toBe("https://t.example");
+  });
+
   it("shows who the page is about, from the records the name itself holds", async () => {
     // A page created for someone who has claimed nothing is only worth reading if it says who they
     // are. That belongs on the name, where any ENS client reads it, not in this app.

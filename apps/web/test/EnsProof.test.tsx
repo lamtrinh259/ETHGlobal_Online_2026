@@ -70,3 +70,17 @@ describe("the command it tells you to run", () => {
     expect(screen.getByTestId("ens-proof")).toHaveTextContent(/could not be read|not configured or/i);
   });
 });
+
+describe("where the ENS cross-check belongs", () => {
+  it("is an appendix, folded away until someone wants it", () => {
+    // It is the proof, not the product: a reader who wants the page should not have to scroll past
+    // resolver addresses and a shell command to find it.
+    render(<EnsProof ens={ens} name="alice.ketsuban.eth" />);
+    const card = screen.getByTestId("ens-proof");
+    const fold = card.querySelector("details");
+    expect(fold).not.toBeNull();
+    // Closed by default: opening it is a deliberate act.
+    expect(fold).not.toHaveAttribute("open");
+    expect(card.querySelector("summary")).toHaveTextContent(/read it yourself/i);
+  });
+});

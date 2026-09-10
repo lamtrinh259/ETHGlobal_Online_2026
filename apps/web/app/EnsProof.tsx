@@ -15,47 +15,51 @@ export function EnsProof({ ens, name }: { ens: EnsResolution | null; name: strin
   const key = Object.entries(ens?.texts ?? {}).find(([, v]) => v)?.[0] ?? "ketsuban:answer";
   return (
     <section className="card" data-testid="ens-proof">
-      <h3>Read it yourself, through ENS</h3>
-      {ens ? (
-        <>
+      {/* The proof, not the product. Everything above is what the page is for; this is here so a
+          reader who does not take our word for it can check every value themselves. */}
+      <details>
+        <summary>Read it yourself, through ENS</summary>
+        {ens ? (
+          <>
+            <p className="muted">
+              The UniversalResolver at <code>{short(ens.universalResolver)}</code> walked the registry to{" "}
+              <code>{short(ens.resolver)}</code> and returned{" "}
+              {ens.addr ? <code>{short(ens.addr)}</code> : <em>no address</em>}
+              {ens.status === "inactive" && " — nothing is registered here right now"}.
+            </p>
+            {Object.entries(ens.texts).filter(([, v]) => v).length > 0 && (
+              <dl className="kv">
+                {Object.entries(ens.texts)
+                  .filter(([, v]) => v)
+                  .map(([k, v]) => (
+                    <div key={k} className="kv-row">
+                      <dt>
+                        <code>{k}</code>
+                      </dt>
+                      <dd>{v}</dd>
+                    </div>
+                  ))}
+              </dl>
+            )}
+          </>
+        ) : (
           <p className="muted">
-            The UniversalResolver at <code>{short(ens.universalResolver)}</code> walked the registry to{" "}
-            <code>{short(ens.resolver)}</code> and returned{" "}
-            {ens.addr ? <code>{short(ens.addr)}</code> : <em>no address</em>}
-            {ens.status === "inactive" && " — nothing is registered here right now"}.
-          </p>
-          {Object.entries(ens.texts).filter(([, v]) => v).length > 0 && (
-            <dl className="kv">
-              {Object.entries(ens.texts)
-                .filter(([, v]) => v)
-                .map(([k, v]) => (
-                  <div key={k} className="kv-row">
-                    <dt>
-                      <code>{k}</code>
-                    </dt>
-                    <dd>{v}</dd>
-                  </div>
-                ))}
-            </dl>
-          )}
-        </>
-      ) : (
-        <p className="muted">
-          {/* The page turns every failure into nothing at all, so this cannot name one cause: an
+            {/* The page turns every failure into nothing at all, so this cannot name one cause: an
               unconfigured resolver and an RPC that did not answer look identical from here. */}
-          This name could not be read through ENS just now — either the deployment has no UniversalResolver
-          configured, or the read did not come back. The command below is the same one this page would have
-          run.
-        </p>
-      )}
-      <pre>
-        <code>
-          {`cast call ${ens ? ens.universalResolver : "<universal-resolver>"} \\
+            This name could not be read through ENS just now — either the deployment has no UniversalResolver
+            configured, or the read did not come back. The command below is the same one this page would have
+            run.
+          </p>
+        )}
+        <pre>
+          <code>
+            {`cast call ${ens ? ens.universalResolver : "<universal-resolver>"} \\
   "resolve(bytes,bytes)(bytes,address)" \\
   ${wire} \\
   $(cast calldata "text(bytes32,string)" $(cast namehash ${name}) "${key}")`}
-        </code>
-      </pre>
+          </code>
+        </pre>
+      </details>
     </section>
   );
 }

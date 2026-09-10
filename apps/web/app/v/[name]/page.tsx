@@ -47,7 +47,7 @@ export default async function VerifyPage({ params, searchParams }: Params) {
       <>
         {/* An instance name is a page about a subject, not a person's record: leading with "no record"
             described the wrong thing. What it is comes first, and the answers under it follow. */}
-        {instance ? <InstanceAnswers data={instance} /> : <VerifyCard v={v} />}
+        {instance ? <InstanceAnswers data={instance} texts={ens?.texts} /> : <VerifyCard v={v} />}
         {v.status === "inactive" && !instance && claim && (
           <section className="card" data-testid="would-claim">
             <h3>What this name would say</h3>
