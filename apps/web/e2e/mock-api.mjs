@@ -10,6 +10,7 @@
  * that does not fit. Anything it does not know answers 404, and the pages must survive that too.
  */
 import { createServer } from "node:http";
+import { pathToFileURL } from "node:url";
 
 const PORT = Number(process.env.PORT ?? 8098);
 const ROOT = "ketsuban.eth";
@@ -70,7 +71,7 @@ const vouches = (handle) => ({
   ],
 });
 
-const routes = [
+export const routes = [
   [/^\/v1\/instances$/, () => ({ instances: [{ domain: "ketsuban", parentName: ROOT, parentLabel: "ketsuban" }], bridge: null, permissionedResolver: null, ethRegistry: null, registrar: false, paymentToken: null, humanity: true })],
   // `nobody.*` is the name the attester cannot answer for, so a page can be tested against a refusal
   // as well as against an answer.
@@ -194,13 +195,21 @@ const routes = [
   ],
 ];
 
-createServer((req, res) => {
-  const url = req.url ?? "/";
+/** What this mock answers for one path, or undefined when it answers nothing. */
+export function answer(url) {
   const hit = routes.find(([re]) => re.test(url));
-  const body = hit ? hit[1](url.match(hit[0])) : { error: "not found" };
-  res.writeHead(hit ? 200 : 404, {
-    "content-type": "application/json",
-    "access-control-allow-origin": "*",
-  });
-  res.end(JSON.stringify(body));
-}).listen(PORT, "127.0.0.1", () => console.log(`mock api on :${PORT}`));
+  return hit ? hit[1](url.match(hit[0])) : undefined;
+}
+
+// Imported by a test that checks these fixtures still parse; only listens when run as a program.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  createServer((req, res) => {
+    const url = req.url ?? "/";
+    const body = answer(url);
+    res.writeHead(body ? 200 : 404, {
+      "content-type": "application/json",
+      "access-control-allow-origin": "*",
+    });
+    res.end(JSON.stringify(body ?? { error: "not found" }));
+  }).listen(PORT, "127.0.0.1", () => console.log(`mock api on :${PORT}`));
+}
