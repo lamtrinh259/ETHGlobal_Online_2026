@@ -9,7 +9,7 @@ import { InviteTerms } from "./InviteTerms";
 import { LetterForm } from "./LetterForm";
 import { useWebConfig } from "@/app/providers";
 import { fmtUtc } from "@/app/ui";
-import { apiFor, useWalletDashboard } from "@/lib/hooks";
+import { apiFor, useContracts, useWalletDashboard } from "@/lib/hooks";
 import type { SignedInvite } from "@ketsuban/registrar";
 import type { Signer } from "@/lib/chain";
 import { WITHDRAWN } from "@ketsuban/registrar";
@@ -54,6 +54,7 @@ export function VouchFlow({
     };
   };
   const dash = useWalletDashboard(api, authenticated ? wallet : undefined);
+  const contracts = useContracts(api);
   const onChain = voucherProgress(dash.data, root?.domain ?? "", candidate);
 
   const [published, setPublished] = useState<Published>();
@@ -73,7 +74,13 @@ export function VouchFlow({
     <>
       <p className="muted">Five minutes. Four signatures, no fees. Here is the whole thing:</p>
       <ol className="journey" aria-label="Progress">
-        {vouchSteps(candidate, { authenticated, published: !!published }).map((step) => (
+        {vouchSteps(candidate, {
+          authenticated,
+          published: !!published,
+          // Undefined where this deployment cannot ask for a proof: the step then stays pending
+          // rather than becoming a task nobody can finish.
+          human: contracts.data?.humanity ? !!dash.data?.humanity : undefined,
+        }).map((step) => (
           <li key={step.id} className={step.state}>
             <span>
               <span className="j-label">

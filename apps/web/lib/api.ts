@@ -140,6 +140,8 @@ export const contractsSchema = z.object({
   ethRegistry: address.nullable().optional(),
   ethRegistrar: address.nullable().optional(),
   paymentToken: address.nullable().optional(),
+  /** Whether this deployment can ask for a proof of humanity at all */
+  humanity: z.boolean().optional(),
 });
 
 export const explainSchema = z.object({
@@ -277,6 +279,8 @@ export const walletSchema = z.object({
   address: z.string(),
   /** Set when this wallet is an onboarded organisation, which may issue references uninvited */
   org: z.object({ label: z.string(), validUntil: z.string() }).nullable().optional(),
+  /** Proof of humanity is keyed by wallet, so a voucher with no name still has an answer here */
+  humanity: z.object({ level: z.string(), until: z.string() }).nullable().optional(),
   names: z.array(walletRecord.extend({ ensName: z.string() })),
   links: z.array(
     walletRecord.extend({

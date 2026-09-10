@@ -191,6 +191,29 @@ describe("vouchSteps", () => {
   });
 });
 
+describe("the voucher's humanity step", () => {
+  it("says it is done once the voucher has proved it, rather than always pending", async () => {
+    // It was hard-coded `pending` while nothing could prove it. Now that something can, a voucher who
+    // has already proved it must not be shown an outstanding step they cannot clear.
+    const { vouchSteps } = await import("@/lib/journey");
+    const proved = vouchSteps("alice", { authenticated: true, published: false, human: true });
+    expect(proved.find((s) => s.id === "humanity")?.state).toBe("done");
+  });
+
+  it("is still the next thing to do when it has not been proved", async () => {
+    const { vouchSteps } = await import("@/lib/journey");
+    const not = vouchSteps("alice", { authenticated: true, published: false, human: false });
+    expect(not.find((s) => s.id === "humanity")?.state).toBe("now");
+  });
+
+  it("stays pending where the deployment cannot ask for it at all", async () => {
+    // With World unconfigured there is nothing to click, and an outstanding step would be a dead end.
+    const { vouchSteps } = await import("@/lib/journey");
+    const off = vouchSteps("alice", { authenticated: true, published: false });
+    expect(off.find((s) => s.id === "humanity")?.state).toBe("pending");
+  });
+});
+
 describe("what the humanity step promises", () => {
   it("does not promise a guarantee the proof may not carry", async () => {
     // World's own docs disagree on whether a v4 nullifier is stable per person or one-time-use

@@ -512,6 +512,9 @@ export function createApp({
       // something the person's own wallet does; the browser needs these two addresses to do it.
       ethRegistrar: config.ETH_REGISTRAR ?? null,
       paymentToken: config.PAYMENT_TOKEN ?? null,
+      // Whether a proof of humanity can be asked for at all. Unconfigured, those routes answer 501,
+      // and a button or a step that leads there is a dead end.
+      humanity: !!worldFrom(config),
     })
   );
 
@@ -1467,10 +1470,19 @@ export function createApp({
     // An organisation is a wallet with a record in ORG_DOMAIN; the browser needs it to know whether
     // this voucher may write uninvited.
     const org = records.find((r) => r.domain === config.ORG_DOMAIN && r.live);
+    // Proof of humanity is written against the wallet, not a name: a voucher may hold no name at all,
+    // so reading it through one could never answer for them.
+    const human = records.find((r) => r.domain === config.HUMANITY_DOMAIN && r.live);
     return c.json({
       address,
       org: org
         ? { label: org.name, validUntil: new Date(Number(org.validUntil) * 1000).toISOString() }
+        : null,
+      humanity: human
+        ? {
+            level: fromBytes32(human.payload),
+            until: new Date(Number(human.validUntil) * 1000).toISOString(),
+          }
         : null,
       names: records
         .filter((r) => isNameDomain(r.domain))

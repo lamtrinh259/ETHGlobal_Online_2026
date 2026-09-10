@@ -397,6 +397,8 @@ describe("GET /healthz", () => {
       // The browser registers a name itself: the registrar mints only to its caller.
       ethRegistrar: null,
       paymentToken: null,
+      // Whether a proof of humanity can be asked for; unconfigured here, as it ships.
+      humanity: false,
     });
     const withResolver = createApp({
       config: loadConfig({ ...baseEnv, PERMISSIONED_RESOLVER: baseEnv.FACTORY }),
@@ -1034,6 +1036,57 @@ describe("a letter too long to sit on chain", () => {
     const bob = listed.vouches.find((v: { voucher: string }) => v.voucher === "bob");
     expect(bob.letter).toBe(long);
     expect(bob.letterHash).toBe(createHash("sha256").update(long).digest("hex"));
+  });
+});
+
+describe("whether this deployment can ask for a proof of humanity", () => {
+  it("says so, so the browser does not offer a check that cannot run", async () => {
+    // Unconfigured, the humanity routes answer 501. A step or a button that leads there is a dead end,
+    // so the browser needs to know before it offers one.
+    const { chain } = fakeChain();
+    const off = await (await app(chain).request("/v1/instances")).json();
+    expect(off.humanity).toBe(false);
+
+    const on = createApp({
+      config: loadConfig({
+        ...baseEnv,
+        WORLD_APP_ID: "app_c261cf97840a427c7337b4449392834f",
+        WORLD_RP_ID: "rp_d8704840f70db08e",
+        WORLD_RP_SIGNING_KEY: `0x${"11".repeat(32)}`,
+      }),
+      chain,
+      now: () => NOW,
+    });
+    expect((await (await on.request("/v1/instances")).json()).humanity).toBe(true);
+  });
+});
+
+describe("a wallet's own proof of humanity", () => {
+  it("is reported on the wallet, because that is what the record is keyed by", async () => {
+    // A voucher may hold no name at all, so reading humanity through a name cannot answer for them.
+    // The record is written against the wallet; the dashboard is where the wallet is already read.
+    const { chain } = fakeChain({
+      byWallet: [
+        {
+          domain: "humanity",
+          name: "",
+          id: toBytes32("n"),
+          wallet: user.account.address,
+          payload: toBytes32("orb"),
+          validUntil: 1_800_000_000n,
+          nonce: 1n,
+          live: true,
+        },
+      ],
+    });
+    const body = await (await app(chain).request(`/v1/wallet/${user.account.address}`)).json();
+    expect(body.humanity).toMatchObject({ level: "orb" });
+  });
+
+  it("says nothing where the wallet has never proved it", async () => {
+    const { chain } = fakeChain();
+    const body = await (await app(chain).request(`/v1/wallet/${user.account.address}`)).json();
+    expect(body.humanity).toBeNull();
   });
 });
 

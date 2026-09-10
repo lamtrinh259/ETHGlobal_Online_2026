@@ -145,12 +145,13 @@ export type JourneyStep = { id: string; label: string; detail: string; state: St
 /**
  * The voucher's three steps. Attesting the accounts they worked from is onboarding, done once on the
  * profile, not per candidate: vouching for someone is proving you are one real person and writing the
- * reference. `humanity` is proved once on `/me` and shown here as pending, because this page never
- * drives it.
+ * reference. `humanity` is proved once and carries across every candidate, so it is shown as done or
+ * outstanding — and left pending only where the deployment cannot ask for it at all, since an
+ * outstanding step nobody can clear is a dead end.
  */
 export function vouchSteps(
   candidate: string,
-  at: { authenticated: boolean; published: boolean }
+  at: { authenticated: boolean; published: boolean; human?: boolean }
 ): JourneyStep[] {
   const stage = !at.authenticated ? "signin" : at.published ? "done" : "write";
   const mark = (mine: string, done: boolean): StepState => (done ? "done" : stage === mine ? "now" : "todo");
@@ -166,7 +167,7 @@ export function vouchSteps(
       label: "Prove you are one real person",
       detail:
         "A World ID proof, done once on your profile. It shows a verified human wrote this, without revealing who. We never see who you are.",
-      state: "pending",
+      state: at.human === undefined ? "pending" : at.human ? "done" : "now",
     },
     {
       id: "write",
