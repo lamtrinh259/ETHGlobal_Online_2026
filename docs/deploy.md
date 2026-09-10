@@ -52,17 +52,23 @@ and Sourcify.
 
 ENSv2 Sepolia addresses: [docs.ens.domains/learn/deployments](https://docs.ens.domains/learn/deployments/).
 
-## Before a deploy: does the attester answer what the app parses?
+## Around a deploy: does the attester answer what the app parses, and do the pages still say it?
 
 ```bash
-pnpm --filter @ketsuban/web check:live                                   # the deployed attester
-CHECK_API=http://127.0.0.1:8787 pnpm --filter @ketsuban/web check:live   # one you are running
+pnpm --filter @ketsuban/web check:live                                   # the deployment
+CHECK_API=http://127.0.0.1:8787 CHECK_WEB=http://127.0.0.1:3000 \
+  pnpm --filter @ketsuban/web check:live                                 # one you are running
 ```
 
-Reads six endpoints and parses each with the schema the web parses it with. It matters because every
+Two halves. The first reads six endpoints and parses each with the schema the web parses it with. It matters because every
 page is written to degrade: a response that has drifted is caught, and the page renders a fallback
 that reads as an ordinary empty state rather than as a fault. This is how that is found on purpose
 instead of from a screenshot of a page quietly showing nothing.
+
+The second asks the question after that: whether the pages built from those answers still carry what a
+reader came for — the question on the front page, the subject page and its way in to answer, and the
+commit the deployment reports. A deploy can be green in every other sense and still serve a page whose
+content quietly vanished.
 
 Kept out of the test run — it needs a reachable deployment, and a suite that fails when a server is
 down is a suite people learn to ignore.
