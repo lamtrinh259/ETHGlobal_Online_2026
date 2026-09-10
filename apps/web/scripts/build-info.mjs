@@ -14,6 +14,8 @@ import { fileURLToPath } from "node:url";
  * git, so the source is recorded alongside the value: a footer with no commit is otherwise
  * indistinguishable from a platform passing the variable under a name this does not read.
  */
+// Kept in step with lib/commit.ts, which the health route reads at run time: a platform that names
+// the commit under one of these should be understood whichever moment it names it at.
 const COMMIT_VARS = ["SOURCE_COMMIT", "GIT_SHA", "GIT_COMMIT_SHA", "COMMIT_SHA", "GITHUB_SHA"];
 
 function sha() {

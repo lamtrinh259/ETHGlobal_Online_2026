@@ -92,7 +92,10 @@ test("the footer names the build, and the health probe agrees with it", async ({
   const health = await (await request.get("/api/health")).json();
   // A screenshot of a bug should name the code that produced it, so both halves must be present.
   expect(health.builtAt).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}Z$/);
-  if (health.sha) await expect(footer).toContainText(health.sha);
+  // The footer can only show what was inlined at build. A sha the probe learned at run time is not in
+  // the bundle and must not be expected there — the probe simply knows more than the page.
+  const baked = health.sha && !String(health.shaFrom).startsWith("runtime:");
+  if (baked) await expect(footer).toContainText(health.sha);
   await expect(footer).toContainText(health.builtAt);
 });
 
