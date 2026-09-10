@@ -1071,3 +1071,37 @@ a.score-part-label:hover strong {
 .score-parts li.todo .score-part-label strong {
   font-weight: 600;
 }
+
+/* One card for the person: who they are, how far they have got, and the accounts behind it. */
+.profile-header .me-head {
+  margin-bottom: var(--sp-sm, 8px);
+}
+.profile-header .me-head-text h2 {
+  margin: 0 0 2px;
+  overflow-wrap: anywhere;
+}
+.profile-header .score-card {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: none;
+}
+.me-avatar-img {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex: none;
+}
+.profile-header .me-avatar-empty {
+  width: 72px;
+  height: 72px;
+}
+.profile-accounts {
+  border-top: 1px solid var(--border);
+  margin-top: var(--sp-md, 16px);
+  padding-top: var(--sp-sm, 8px);
+}
+.profile-accounts h3 {
+  margin-top: 0;
+}

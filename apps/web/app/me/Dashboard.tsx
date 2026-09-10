@@ -14,7 +14,7 @@ import type { Signer } from "@/lib/chain";
 import { nameRows, needsAttention } from "@/lib/journey";
 import { vouchRequest } from "@/lib/profile";
 import { Step } from "@/app/Step";
-import { ScoreRing } from "./ScoreRing";
+import { ProfileHeader } from "./ProfileHeader";
 import { profileScore } from "@/lib/score";
 import { AttestFlow } from "@/app/AttestFlow";
 import { Modal } from "@/app/Modal";
@@ -124,7 +124,41 @@ export function Dashboard() {
 
   return (
     <>
-      <ScoreRing score={scored.score} parts={scored.parts} />
+      <ProfileHeader
+        name={rootRow?.live ? rootRow.ensName : undefined}
+        handle={handle}
+        profile={rootProfile ?? undefined}
+        humanity={rootVerification.data?.humanity ?? null}
+        score={scored.score}
+        parts={scored.parts}
+        onClaim={() => setPublishing({ domain: root!.domain, title: "Claim your name" })}
+        editor={
+          rootRow?.live ? (
+            <>
+              {wallet && BigInt(d.balance) < ENOUGH_WEI && (
+                <div className="warning" data-testid="profile-needs-gas">
+                  <FundWallet api={api} wallet={wallet} balance={d.balance} topup={d.gasTopup} />
+                </div>
+              )}
+              <ProfileEditor api={api} name={rootRow.ensName} getSigner={getSigner} />
+            </>
+          ) : undefined
+        }
+        accounts={
+          <>
+            <Accounts
+              links={d.links}
+              handle={handle}
+              awaiting={awaiting}
+              onPublished={(domain) => {
+                setAwaiting(domain);
+                void dash.refetch();
+              }}
+            />
+            <OnChain api={api} wallet={wallet} dash={d} />
+          </>
+        }
+      />
 
       {attention.length > 0 && (
         <section className="card" data-testid="dash-attention">
@@ -154,85 +188,7 @@ export function Dashboard() {
         </section>
       )}
 
-      <Step n={1} title="Prove you are one real person" state="pending">
-        <p className="muted" data-testid="humanity">
-          A face scan through World. Partner access pending — nothing below waits on it.
-        </p>
-      </Step>
-
-      <Step n={2} title="Your accounts" anchor="accounts" state={liveLinks.length > 0 ? "done" : "now"}>
-        <Accounts
-          links={d.links}
-          handle={handle}
-          awaiting={awaiting}
-          onPublished={(domain) => {
-            setAwaiting(domain);
-            void dash.refetch();
-          }}
-        />
-        {/* What the rest of the world reads. It belongs with the accounts it is about, rather than as
-            a section of its own further down. */}
-        <OnChain api={api} wallet={wallet} dash={d} />
-      </Step>
-
-      <Step
-        n={3}
-        anchor="name"
-        title="Your name and profile"
-        state={handle ? "done" : liveLinks.length > 0 ? "now" : "todo"}
-      >
-        {awaiting === root?.domain && !handle && (
-          <p className="muted" data-testid="awaiting">
-            Published · waiting for the index.{" "}
-            <button className="linkish" onClick={() => void dash.refetch()}>
-              check now
-            </button>
-          </p>
-        )}
-        {handle && rootRow ? (
-          <p>
-            <Link href={`/p/${handle}`}>
-              <code>{rootRow.ensName}</code>
-            </Link>{" "}
-            <small className="muted">
-              live until {fmtUtc(rootRow.live!.validUntil)} ·{" "}
-              <button
-                className="linkish"
-                onClick={() => setPublishing({ domain: root!.domain, title: "Renew your name" })}
-              >
-                renew
-              </button>
-            </small>
-          </p>
-        ) : (
-          <>
-            <p className="muted">Claim yours and any waiting letters attach to it.</p>
-            <button
-              className="primary"
-              onClick={() => setPublishing({ domain: root!.domain, title: "Claim your name" })}
-              data-testid="claim"
-            >
-              Claim your name
-            </button>
-          </>
-        )}
-        {/* The name and what it says are one subject: a profile is what the name resolves to, and
-            splitting them made two steps out of one decision. */}
-        {handle && rootRow && (
-          <>
-            {/* The first transaction anyone here sends is a profile record, so an empty wallet is
-                worth saying before the wallet refuses rather than after. */}
-            {wallet && BigInt(d.balance) < ENOUGH_WEI && (
-              <div className="warning" data-testid="profile-needs-gas">
-                <FundWallet api={api} wallet={wallet} balance={d.balance} topup={d.gasTopup} />
-              </div>
-            )}
-            <ProfileEditor api={api} name={rootRow.ensName} getSigner={getSigner} />
-          </>
-        )}
-      </Step>
-
-      <Step n={4} anchor="refer" title="Refer someone" state={d.given.length > 0 ? "done" : "now"}>
+      <Step n={1} anchor="refer" title="Refer someone" state={d.given.length > 0 ? "done" : "now"}>
         <ReferSomeone
           api={api}
           onGo={(who, ask) => router.push(`/vouch/${who}${ask ? `?ask=${encodeURIComponent(ask.id)}` : ""}`)}
