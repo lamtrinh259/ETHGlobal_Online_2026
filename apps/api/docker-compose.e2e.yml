@@ -58,6 +58,22 @@ services:
         && DEPLOYMENT_FILE=deployments/local.json
         forge script script/AddNamespace.s.sol --rpc-url http://anvil:8545 --broadcast --skip-simulation -vv
 
+  # World's Developer Portal, stubbed. See test/e2e/world-stub.mjs for what it does and does not check.
+  world:
+    image: node:22-alpine
+    networks: [ketsuban_e2e]
+    volumes:
+      - ./test/e2e/world-stub.mjs:/stub.mjs:ro
+    environment:
+      WORLD_RP_ID: rp_e2e
+      PORT: "8080"
+    command: ["node", "/stub.mjs"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('net').connect(8080,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
   api:
     build:
       context: ../..
@@ -65,6 +81,7 @@ services:
     networks: [ketsuban_e2e]
     depends_on:
       deploy: { condition: service_completed_successfully }
+      world: { condition: service_healthy }
     ports:
       - "127.0.0.1:${E2E_API_PORT:-18787}:8787"
     volumes:
@@ -92,3 +109,11 @@ services:
       RPC_LOG_WINDOW: "5000"
       # Real storage, because a grant that does not survive a restart is the bug this stack should catch.
       DATA_DIR: /data
+      # Proof of humanity, against the stub above. The signing key is a test key and only ever signs
+      # requests to that stub; the wallet it derives to is asserted by the test.
+      WORLD_APP_ID: app_e2e
+      WORLD_RP_ID: rp_e2e
+      WORLD_ACTION: humanity
+      WORLD_RP_SIGNING_KEY: "0x000000000000000000000000000000000000000000000000000000000000d00d"
+      WORLD_VERIFY_URL: http://world:8080
+      WORLD_ENVIRONMENT: staging

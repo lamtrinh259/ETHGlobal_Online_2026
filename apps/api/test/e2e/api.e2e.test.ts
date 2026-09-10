@@ -20,6 +20,8 @@ import {
   parseAbi,
   zeroAddress,
   zeroHash,
+  recoverMessageAddress,
+  stringToBytes,
   type Hex,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
@@ -40,6 +42,7 @@ import {
   signRevocation,
 } from "@ketsuban/registrar";
 import { decodeRecord, fromBytes32, MultipassAbi, toBytes32 } from "@peeramid-labs/multipass-client";
+import { hashToField, rpSignatureMessage } from "../../src/world.js";
 import { APP_ID, PRIVY_SEED, restartApi } from "./global-setup.js";
 
 const API = process.env.E2E_API_URL ?? `http://127.0.0.1:${process.env.E2E_API_PORT ?? "18787"}`;
@@ -1092,5 +1095,163 @@ describe("api e2e", () => {
     });
     expect(res.status).toBe(422);
     expect(await res.json()).toEqual({ error: "intent: nonce not increasing" });
+  });
+});
+
+/**
+ * Proof of humanity, end to end against a stubbed Developer Portal (`world-stub.mjs`).
+ *
+ * The stub stands in for the zero-knowledge verification, which is World's half of the exchange and
+ * cannot be reproduced here. Everything on this side of the boundary is real: the request signature
+ * is checked against the key the deployment is configured with, the proof is refused unless it is
+ * bound to the wallet asking, the record lands on anvil, and the name resolves through the ENS shim
+ * to the credential — including across the restart that a redeploy would be.
+ */
+describe("proof of humanity", () => {
+  /** The key the compose stack signs proof requests with. Its address is what World would know us by. */
+  const WORLD_SIGNING_KEY = "0x000000000000000000000000000000000000000000000000000000000000d00d" as const;
+  const human = fakeUser("0x0000000000000000000000000000000000000000000000000000000000c0ffee", "hugo");
+  /** A second wallet, for the person who tries to spend somebody else's proof. */
+  const impostor = fakeUser("0x000000000000000000000000000000000000000000000000000000000000dead", "mallory");
+
+  /** A proof shaped as IDKit returns one, bound to `wallet` and carrying who the stub should answer as. */
+  const proofFor = (wallet: Hex, identity: string, extra: Record<string, unknown> = {}) => ({
+    protocol_version: 4,
+    action: "humanity",
+    responses: [{ identifier: "orb", signal_hash: hashToField(stringToBytes(wallet.toLowerCase())) }],
+    e2e_identity: identity,
+    ...extra,
+  });
+
+  const prove = (wallet: Hex, proof: unknown) =>
+    fetch(`${API}/v1/humanity`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ wallet, proof }),
+    });
+
+  it("says this deployment can ask for a proof at all", async () => {
+    expect((await (await fetch(`${API}/v1/instances`)).json()).humanity).toBe(true);
+  });
+
+  it("signs the proof request with the key World knows this app by", async () => {
+    const res = await fetch(`${API}/v1/humanity/challenge`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ wallet: human.account.address }),
+    });
+    const challenge = await res.json();
+    expect(challenge).toMatchObject({ app_id: "app_e2e", action: "humanity", environment: "staging" });
+    // The signal is the wallet, which is what binds the proof to one account.
+    expect(challenge.signal).toBe(human.account.address.toLowerCase());
+
+    const { nonce, created_at, expires_at, signature, rp_id } = challenge.rp_context;
+    expect(rp_id).toBe("rp_e2e");
+    expect(expires_at).toBeGreaterThan(created_at);
+    // The signature is the whole reason the widget opens: recover it, and check the deployment signs
+    // as the key it was configured with rather than as anybody else.
+    const signer = await recoverMessageAddress({
+      message: { raw: rpSignatureMessage(nonce, created_at, expires_at, "humanity") },
+      signature,
+    });
+    expect(signer).toBe(privateKeyToAccount(WORLD_SIGNING_KEY).address);
+  });
+
+  it("refuses a proof that is not bound to the wallet asking", async () => {
+    // Mallory replays Hugo's proof under her own wallet. It never reaches World.
+    const res = await prove(impostor.account.address, proofFor(human.account.address, "hugo"));
+    expect(res.status).toBe(422);
+    expect((await res.json()).error).toContain("not bound to");
+  });
+
+  it("refuses a proof for another action", async () => {
+    const res = await prove(
+      human.account.address,
+      proofFor(human.account.address, "hugo", { action: "some-other-app" })
+    );
+    expect(res.status).toBe(422);
+    expect((await res.json()).error).toContain("some-other-app");
+  });
+
+  it("refuses a proof World itself rejects", async () => {
+    const res = await prove(
+      human.account.address,
+      proofFor(human.account.address, "hugo", { e2e_reject: "expired root" })
+    );
+    expect(res.status).toBe(422);
+    expect((await res.json()).error).toContain("expired root");
+  });
+
+  it("writes the human on chain, and the wallet reports it", async () => {
+    const res = await prove(human.account.address, proofFor(human.account.address, "hugo"));
+    expect(res.status).toBe(200);
+    const proved = await res.json();
+    expect(proved).toMatchObject({ ok: true, level: "orb", renewal: false });
+    expect(proved.txHash).toMatch(/^0x[0-9a-f]{64}$/);
+    // sha256("hugo"), as the stub answers — stored padded to bytes32 rather than as the text it arrived as.
+    expect(proved.nullifier).toBe(`0x${createHash("sha256").update("hugo").digest("hex")}`);
+
+    const wallet = await (await fetch(`${API}/v1/wallet/${human.account.address}`)).json();
+    expect(wallet.humanity).toMatchObject({ level: "orb" });
+    expect(new Date(wallet.humanity.until).getTime()).toBeGreaterThan(Date.now());
+  });
+
+  it("answers ketsuban:humanity on the person's own name, through the resolver", async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const intent = baseIntent(human.account, now, {
+      domain: deployment.instanceDomain,
+      handle: "hugo",
+      payload: toBytes32("a real person"),
+      exp: BigInt(now + 3600),
+    });
+    const idToken = privy.mint({ sub: human.did, linked: human.linked, now });
+    const req = toWire(
+      await signedAttestRequest(human.account, intent, idToken, 31337, deployment.multipass)
+    );
+    const attested = await (
+      await fetch(`${API}/v1/attest`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(req),
+      })
+    ).json();
+    const delivered = await (
+      await fetch(`${API}/v1/cre/delivery`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-delivery-token": "e2e-delivery-token-0123456789" },
+        body: JSON.stringify(attested),
+      })
+    ).json();
+    expect(delivered.ok).toBe(true);
+
+    // The record is keyed by wallet in a domain of its own, so this is the resolver hopping from the
+    // name to the humanity domain — the read a verifier actually performs.
+    const name = `hugo.${deployment.instanceParent}`;
+    const verified = await (await fetch(`${API}/v1/verify/${name}`)).json();
+    expect(verified.humanity).toMatchObject({ level: "orb" });
+    expect(verified.evidence).toContain("humanity_attestation");
+  });
+
+  it("renews the same person's own proof without calling it a second human", async () => {
+    const res = await prove(human.account.address, proofFor(human.account.address, "hugo"));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ ok: true, renewal: true });
+  });
+
+  it("refuses one human a second account, and still refuses after a restart", async () => {
+    const res = await prove(impostor.account.address, proofFor(impostor.account.address, "hugo"));
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toContain("already held by another account");
+
+    // The binding is what makes this "one human, one account"; a redeploy that forgot it would hand
+    // that human a fresh account every time the container restarted.
+    await restartApi(API);
+    const after = await prove(impostor.account.address, proofFor(impostor.account.address, "hugo"));
+    expect(after.status).toBe(409);
+
+    // A different person is still welcome.
+    const other = await prove(impostor.account.address, proofFor(impostor.account.address, "mallory"));
+    expect(other.status).toBe(200);
+    expect(await other.json()).toMatchObject({ ok: true, level: "orb" });
   });
 });
