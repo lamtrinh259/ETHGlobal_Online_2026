@@ -128,3 +128,26 @@ test("the names page explains the namespace, and degrades when the API is unreac
   await expect(page.locator("main [role=alert]")).toHaveText(/no mounts to describe/);
   await expect(page.getByRole("link", { name: /Check a name/ })).toBeVisible();
 });
+
+test("a reference link carrying a popular ask renders, rather than failing on the server", async ({
+  page,
+}) => {
+  // This is the shape that broke: the page is a server component and reads the ask from the URL, so
+  // a helper living in a "use client" module made the whole route fail to render. Unit tests cannot
+  // see that boundary; only a real build can.
+  const errors: string[] = [];
+  page.on("response", (r) => {
+    if (r.status() >= 500) errors.push(`${r.status()} ${r.url()}`);
+  });
+
+  await page.goto("/vouch/alice?ask=kju-is");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Vouch for");
+  // An ask nobody offers is not an error either: the writer gets the plain form.
+  await page.goto("/vouch/alice?ask=not-an-ask");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Vouch for");
+  expect(errors).toEqual([]);
+});
+
+// A journey for the multi-account reveal would need a live API: `/v/<name>` fetches on the server, so
+// Playwright's route interception never sees it, and without a card the panels are not reached at all.
+// That path is covered by the unit tests for the page and by the docker e2e for the endpoints.
