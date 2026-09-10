@@ -428,6 +428,17 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
       };
     },
 
+    /** Invitations this candidate can still hand out; a link outlives the page that made it. */
+    async invites(handle: string): Promise<{
+      handle: string;
+      invites: { code: string; requires: string[]; expiresAt: string }[];
+    }> {
+      return (await readJson(await call(`${base}/v1/invites/${encodeURIComponent(handle)}`))) as {
+        handle: string;
+        invites: { code: string; requires: string[]; expiresAt: string }[];
+      };
+    },
+
     /** Keep a signed invitation and get the short code that stands for it. */
     async storeInvite(wire: object): Promise<{ code: string }> {
       const res = await call(`${base}/v1/invite`, {

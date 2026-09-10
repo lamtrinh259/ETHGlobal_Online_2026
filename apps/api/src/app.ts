@@ -617,6 +617,27 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     return c.json({ code });
   });
 
+  /**
+   * The invitations a candidate has made and can still hand out.
+   *
+   * The link used to live in the page's own state, so closing the tab lost it and the candidate had to
+   * sign another. An expired one is left out: its link no longer works, and showing it would be an
+   * offer nobody can take.
+   */
+  app.get("/v1/invites/:handle", (c) => {
+    const handle = c.req.param("handle").toLowerCase();
+    const invites = inviteStore
+      .entries()
+      .filter(([, i]) => i.handle === handle && Number(i.exp) > now())
+      .map(([code, i]) => ({
+        code,
+        requires: i.requires,
+        expiresAt: new Date(Number(i.exp) * 1000).toISOString(),
+      }))
+      .sort((a, b) => a.expiresAt.localeCompare(b.expiresAt));
+    return c.json({ handle, invites });
+  });
+
   app.get("/v1/invite/:code", (c) => {
     const code = c.req.param("code").toLowerCase();
     const invite = /^[0-9a-f]{8}$/.test(code) ? inviteStore.get(code) : undefined;

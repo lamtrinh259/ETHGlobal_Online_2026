@@ -914,6 +914,35 @@ describe("an invitation behind a short code", () => {
     expect(back.invite.requires).toEqual(["mit.edu", "linkedin.com"]);
   });
 
+  it("lists the invitations a candidate has made, so a link survives closing the page", async () => {
+    // The link lived in component state, so a reload lost it and the candidate had to sign another.
+    const dir = mkdtempSync(join(tmpdir(), "ketsuban-invites-list-"));
+    const { chain } = fakeChain({
+      names: { "kju-is/alice": { taken: true, wallet: user.account.address, live: true } },
+    });
+    const a = createApp({ config: loadConfig({ ...baseEnv, DATA_DIR: dir }), chain, now: () => NOW });
+    const made = await (await post(a, await wire({ requires: ["mit.edu"] }))).json();
+
+    const listed = await (await a.request(`/v1/invites/alice`)).json();
+    expect(listed.invites).toHaveLength(1);
+    expect(listed.invites[0]).toMatchObject({ code: made.code, requires: ["mit.edu"] });
+    // The signature is not needed to show a link, and is nobody else's business.
+    expect(JSON.stringify(listed)).not.toContain("signature");
+  });
+
+  it("leaves out an invitation that has expired, because its link no longer works", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "ketsuban-invites-old-"));
+    const { chain } = fakeChain({
+      names: { "kju-is/alice": { taken: true, wallet: user.account.address, live: true } },
+    });
+    const at = (t: number) =>
+      createApp({ config: loadConfig({ ...baseEnv, DATA_DIR: dir }), chain, now: () => t });
+    await post(at(NOW), "/v1/invite", await wire());
+
+    const later = at(NOW + 8 * 24 * 3600);
+    expect((await (await later.request("/v1/invites/alice")).json()).invites).toEqual([]);
+  });
+
   it("refuses an invitation nobody signed, so a code always stands for something real", async () => {
     const { chain } = fakeChain();
     const a = app(chain);

@@ -374,3 +374,26 @@ describe("a verifier who cares who asked", () => {
     expect(policyFromQuery({}, []).onlySolicited).toBe(false);
   });
 });
+
+describe("the message a candidate sends with an invitation", () => {
+  it("says which accounts the writer is asked to connect", async () => {
+    // The requirement is enforced on chain either way; a message that omits it sends someone to a
+    // page where their reference quietly comes out unsolicited.
+    const { vouchRequest } = await import("@/lib/profile");
+    const msg = vouchRequest("alice", "https://app.example", "ketsuban.eth", {
+      code: "abcd1234",
+      requires: ["linkedin.com", "mit.edu"],
+    });
+    expect(msg).toContain("linkedin.com");
+    expect(msg).toContain("mit.edu");
+    // The link is the invitation's own, not the bare page.
+    expect(msg).toContain("/vouch/alice?invite=abcd1234");
+  });
+
+  it("asks plainly when nothing is required, without an empty list", async () => {
+    const { vouchRequest } = await import("@/lib/profile");
+    const msg = vouchRequest("alice", "https://app.example", "ketsuban.eth");
+    expect(msg).toContain("/vouch/alice");
+    expect(msg).not.toMatch(/connect|account/i);
+  });
+});

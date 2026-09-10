@@ -279,7 +279,7 @@ export function Dashboard() {
                 </>
               )}
             </p>
-            <InviteLink api={api} handle={handle} />
+            <InviteLink api={api} handle={handle} rootParent={root?.parentName ?? ""} />
             <details>
               <summary className="muted">A message to send with it</summary>
               <code data-testid="vouch-request">{vouchRequest(handle, siteUrl, root?.parentName ?? "")}</code>
