@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   useIdentityToken,
   useLinkAccount,
@@ -12,6 +12,7 @@ import type { Address, Hex } from "viem";
 import type { SignedInvite } from "@ketsuban/registrar";
 import { PLATFORM_DOMAIN_NAMES } from "@ketsuban/registrar";
 import { fromBytes32 } from "@peeramid-labs/multipass-client";
+import { Hint } from "./Hint";
 import { apiFor, useAttest, useContracts, useDeliver, useNameStatus, useNonce } from "@/lib/hooks";
 import { isNameDomainFor, parentNameFor } from "@/lib/journey";
 import { buildIntent, intentTypedData, toWire } from "@/lib/intent";
@@ -32,8 +33,12 @@ type Props = {
   answerLabel?: string;
   /** Example text in the answer field */
   answerPlaceholder?: string;
+  /** A short explanation of what the answer does, attached to its label */
+  answerHint?: string;
   /** Pre-fill the answer (a withdrawal writes a fixed statement) */
   answerValue?: string;
+  /** Rendered under the answer, for a caller with a second field belonging to the same decision */
+  extra?: ReactNode;
   /** Sign-in only: render the gate and nothing else */
   hideForm?: boolean;
   /** Vouch domains: the candidate's invitation, from the link they shared */
@@ -58,7 +63,9 @@ export function AttestFlow({
   title,
   answerLabel,
   answerPlaceholder,
+  answerHint,
   answerValue,
+  extra,
   hideForm,
   invite,
   platformsOnly,
@@ -283,7 +290,7 @@ export function AttestFlow({
             )}
             {wantsAnswer && (
               <label>
-                {answerLabel ?? "A few words, permanent"}{" "}
+                {answerLabel ?? "A few words, permanent"} {answerHint && <Hint text={answerHint} />}{" "}
                 <input
                   value={answer}
                   onChange={(e) => setAnswer(e.target.value)}
@@ -299,6 +306,7 @@ export function AttestFlow({
                 </small>
               </label>
             )}
+            {extra}
           </>
         ) : (
           <Switch

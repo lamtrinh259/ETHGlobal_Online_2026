@@ -30,7 +30,6 @@ import {
   recoverRevokeSigner,
   RESERVED_HANDLES,
   signRecord,
-  sybilScore,
   inviteDomain,
   type SignedDisclosure,
   type SignedInvite,
@@ -182,13 +181,6 @@ export function serialize(r: AttestResult) {
 
 export const WARNING =
   "This is not identity, employment, safety, malware, nationality, or affiliation verification.";
-
-/**
- * Said wherever the sybil score is. It measures what an account cost to build, which is a different
- * question from who holds it, and the two get confused the moment a number appears next to a name.
- */
-export const SYBIL_WARNING =
-  "How expensive this account was to build, not who holds it. A high score is not an identity check.";
 
 export type AppDeps = {
   config: Config;
@@ -1600,63 +1592,6 @@ export function createApp({
     ).size;
     return { claimed: true, given, received };
   }
-
-  /**
-   * How hard this handle would be to fake.
-   *
-   * The expensive part is the referrers: whether each of them has spent a proof of humanity of their
-   * own, and whether the subject has referred them back. Both are chain reads, and both are what
-   * separate a reference from a person from a reference from another account the same person opened.
-   */
-  async function sybil(handle: string): Promise<Record<string, unknown>> {
-    const rootDomain = config.NAME_DOMAINS[0] ?? "";
-    const isName = (d: string) => config.NAME_DOMAINS.includes(d);
-    const status = await chain.nameStatus(rootDomain, handle);
-    const written = (await chain.listRecords(`${config.VOUCH_PREFIX}${handle}`)).filter((r) => r.live);
-    // One entry per referrer, not per record: writing twice is not being two people.
-    const byName = new Map(written.map((r) => [r.name, r]));
-    // Who the subject has referred, so a pair that refers each other can be seen for what it is.
-    const referredBack = new Set<string>(
-      status.live && status.wallet
-        ? (await chain.listRecordsByWallet(status.wallet as Address))
-            .filter((r) => r.live && isVouchDomain(r.domain))
-            .map((r) => r.domain.slice(config.VOUCH_PREFIX.length))
-        : []
-    );
-    const referrers = await Promise.all(
-      [...byName.values()].map(async (r) => ({
-        human: (await chain.readOnchain(r.wallet, config.HUMANITY_DOMAIN)).exists,
-        mutual: referredBack.has(r.name),
-      }))
-    );
-    const accounts =
-      status.live && status.wallet
-        ? new Set(
-            (await chain.listRecordsByWallet(status.wallet as Address))
-              .filter(
-                (k) =>
-                  k.live &&
-                  !isName(k.domain) &&
-                  !isVouchDomain(k.domain) &&
-                  k.domain !== config.ORG_DOMAIN &&
-                  k.domain !== config.HUMANITY_DOMAIN
-              )
-              .map((k) => k.domain)
-          ).size
-        : 0;
-    const human =
-      status.live && status.wallet
-        ? (await chain.readOnchain(status.wallet as Address, config.HUMANITY_DOMAIN)).exists
-        : false;
-    return { ...sybilScore({ human, referrers, accounts }), warning: SYBIL_WARNING };
-  }
-
-  /** How hard this handle would be to fake, with the parts shown rather than a bare number. */
-  app.get("/v1/sybil/:handle", async (c) => {
-    const handle = c.req.param("handle").toLowerCase();
-    if (!/^[a-z0-9-]{1,30}$/.test(handle)) return c.json({ error: "bad handle" }, 400);
-    return c.json({ handle, ...(await sybil(handle)) });
-  });
 
   app.get("/v1/standing/:handle", async (c) => {
     const handle = c.req.param("handle").toLowerCase();

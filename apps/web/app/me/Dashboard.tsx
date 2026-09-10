@@ -9,7 +9,7 @@ import { WITHDRAWN } from "@ketsuban/registrar";
 import { useWebConfig } from "@/app/providers";
 import { CopyButton } from "@/app/CopyButton";
 import { fmtUtc, short } from "@/app/ui";
-import { apiFor, useSybil, useVerification, useVouches, useWalletDashboard } from "@/lib/hooks";
+import { apiFor, useVerification, useVouches, useWalletDashboard } from "@/lib/hooks";
 import type { Signer } from "@/lib/chain";
 import { nameRows, needsAttention } from "@/lib/journey";
 import { vouchRequest } from "@/lib/profile";
@@ -18,7 +18,6 @@ import { ProfileHeader } from "./ProfileHeader";
 import { HumanityCheck } from "./HumanityCheck";
 import { Recommended } from "./Recommended";
 import { profileScore } from "@/lib/score";
-import { SybilScore } from "@/app/SybilScore";
 import { AttestFlow } from "@/app/AttestFlow";
 import { Modal } from "@/app/Modal";
 import { questionFor, questionTitle } from "@/lib/questions";
@@ -71,8 +70,6 @@ export function Dashboard() {
   const handle = rootRow?.live ? rootRow.ensName.split(".")[0] : undefined;
   const received = useVouches(api, handle);
   const rootVerification = useVerification(api, rootRow?.live ? rootRow.ensName : "");
-  // Your own account, scored the way somebody else would score it before believing your references.
-  const sybil = useSybil(api, handle);
   const rootProfile = rootVerification.data?.profile;
   const liveVouchers = (received.data?.vouches ?? [])
     .filter((v) => v.live && v.statement !== WITHDRAWN)
@@ -106,6 +103,7 @@ export function Dashboard() {
   const attention = needsAttention(d, Date.now());
   // One number at the top: what a verifier can check, weighted by how much they weigh it.
   const scored = profileScore({
+    human: !!rootVerification.data?.humanity,
     hasName: !!handle,
     accounts: d.links.filter((l) => l.live).length,
     profile: {
@@ -167,10 +165,6 @@ export function Dashboard() {
           </>
         }
       />
-
-      {/* The same reading somebody else gets of you, rather than a private version of it: what would
-          raise it is the point, and it is only useful if it is the number they will see. */}
-      {sybil.data && <SybilScore s={sybil.data} />}
 
       {attention.length > 0 && (
         <section className="card" data-testid="dash-attention">

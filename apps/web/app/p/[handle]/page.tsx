@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { EnsProof } from "@/app/EnsProof";
 import { ProfileCard } from "@/app/ProfileCard";
-import { SybilScore } from "@/app/SybilScore";
 import { CopyButton } from "@/app/CopyButton";
 import { createApi, type Verification } from "@/lib/api";
 import { loadWebConfig } from "@/lib/config";
@@ -64,9 +63,6 @@ export default async function ProfilePage({ params, searchParams }: Params) {
     subjects.map((s) => s.domain)
   );
   const ens = await api.ens(names[0]).catch(() => null);
-  // What the account cost to build. A reader deciding whether to believe the references is owed it,
-  // and it is the one number here that an attacker cannot raise by writing more of them.
-  const sybil = await api.sybil(handle).catch(() => null);
   const vouches = read?.vouches ?? [];
   const profile = assessProfile(handle, results, policy, vouches);
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "";
@@ -79,7 +75,6 @@ export default async function ProfilePage({ params, searchParams }: Params) {
         </p>
       )}
       <ProfileCard p={profile} rootParent={root.parentName} policy={policy} />
-      {sybil && <SybilScore s={sybil} />}
       <section className="card">
         <h3>Verify it yourself</h3>
         <p className="muted">

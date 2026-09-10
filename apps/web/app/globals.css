@@ -1237,3 +1237,58 @@ a.score-part-label:hover strong {
 .sybil-why {
   font-size: 12px;
 }
+
+/* A question mark that carries its own answer, for a rule that is permanent and surprising. */
+.hint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1;
+  cursor: help;
+  vertical-align: middle;
+}
+.hint:focus-visible {
+  outline: 2px solid var(--flame);
+  outline-offset: 2px;
+}
+
+/*
+ * Narrow screens. The rows built for a verifier put a name on the right of what it names, which reads
+ * well beside it and badly underneath a squeezed version of it — so on a phone the name gets its own
+ * line rather than a column two words wide.
+ */
+@media (max-width: 640px) {
+  .v-refs > li,
+  .v-links > li {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+  .v-ref-name,
+  .v-link-name {
+    margin-left: 0;
+  }
+  .acct .acct-state {
+    margin-left: 0;
+    width: 100%;
+  }
+  /* An ENS name is long and has no spaces in it; without this it is the widest thing on the page. */
+  code {
+    overflow-wrap: anywhere;
+  }
+  .me-head {
+    gap: var(--sp-sm);
+  }
+  /* A textarea inherits a fixed cols default, which is wider than a phone. */
+  textarea,
+  input {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+}

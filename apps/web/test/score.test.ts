@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { profileScore, type ScoreInput } from "@/lib/score";
 
 const empty: ScoreInput = {
+  human: false,
   hasName: false,
   accounts: 0,
   profile: { avatar: "", description: "", url: "" },
@@ -17,6 +18,7 @@ describe("how complete a profile is", () => {
     // Anything a person cannot yet do must not hold the number down: a score that cannot reach 100
     // reads as a broken product rather than as an incomplete profile.
     const done: ScoreInput = {
+      human: true,
       hasName: true,
       accounts: 2,
       profile: { avatar: "a", description: "b", url: "c" },
@@ -54,5 +56,37 @@ describe("how complete a profile is", () => {
     const some = profileScore({ ...empty, accounts: 1, references: 1 }).score;
     expect(some).toBeGreaterThan(0);
     expect(some).toBeLessThan(100);
+  });
+});
+
+/**
+ * Proof of humanity is the only part nobody can hold twice — a nullifier is spent once. Everything
+ * else can be manufactured in bulk by somebody determined, which is what the weights are saying.
+ */
+describe("proof of humanity in the score", () => {
+  it("is worth more than any part that can be produced more than once", () => {
+    const human = profileScore({ ...empty, human: true });
+    const part = human.parts.find((p) => p.id === "humanity")!;
+    for (const other of human.parts.filter((p) => p.id !== "humanity" && p.id !== "references")) {
+      expect(part.weight).toBeGreaterThanOrEqual(other.weight);
+    }
+    expect(human.score).toBe(part.weight);
+  });
+
+  it("leaves the rest of the score intact when it is missing", () => {
+    const rest = profileScore({ ...empty, hasName: true, references: 3 });
+    const both = profileScore({ ...empty, human: true, hasName: true, references: 3 });
+    expect(both.score - rest.score).toBe(25);
+  });
+
+  it("still reaches a hundred, so the number is not permanently unreachable", () => {
+    const all = profileScore({
+      human: true,
+      hasName: true,
+      accounts: 2,
+      profile: { avatar: "a", description: "b", url: "c" },
+      references: 3,
+    });
+    expect(all.score).toBe(100);
   });
 });

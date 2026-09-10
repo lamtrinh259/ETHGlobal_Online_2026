@@ -76,4 +76,3 @@ export {
   type NameClaim,
 } from "./namespace.js";
 export { base64urlDecode, base64urlEncode } from "./base64url.js";
-export * from "./sybil.js";

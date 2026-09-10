@@ -100,10 +100,9 @@ export default async function VouchPage({ params, searchParams }: Params) {
                 : "not claimed yet — an organisation can write now and the letter waits for them"}
           </p>
         )}
-        <p>
-          You are about to put your own permanent name behind{" "}
-          <Link href={`/p/${handle}`}>{candidateName}</Link>. Five minutes. Nothing you sign here can be
-          deleted — only revoked, visibly.
+        <p className="muted">
+          Your name goes on this permanently. It can be withdrawn, visibly — never deleted.{" "}
+          <Link href={`/p/${handle}`}>Their page →</Link>
         </p>
       </section>
       <VouchFlow candidate={handle} invite={invite} withdraw={withdraw === "1"} ask={askById(ask)} />

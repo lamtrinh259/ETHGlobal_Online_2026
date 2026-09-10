@@ -84,7 +84,7 @@ describe("the letter behind a reference", () => {
     form();
     const box = screen.getByLabelText("letter");
     fireEvent.change(box, { target: { value: "short" } });
-    expect(screen.getByTestId("letter-count")).toHaveTextContent(/on the record/i);
+    expect(screen.getByTestId("letter-count")).toHaveTextContent(/on chain whole/i);
 
     fireEvent.change(box, { target: { value: "x".repeat(700) } });
     // The trade is worth stating: the hash is permanent, the text is only as durable as the service.

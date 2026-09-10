@@ -8,6 +8,7 @@ const at = (over: Parameters<typeof profileScore>[0]) => profileScore(over);
 describe("the score at the top of a profile", () => {
   it("shows the number and what is still missing", () => {
     const { score, parts } = at({
+      human: false,
       hasName: true,
       accounts: 1,
       profile: { avatar: "", description: "", url: "" },
@@ -22,6 +23,7 @@ describe("the score at the top of a profile", () => {
 
   it("marks a finished part apart from an unfinished one", () => {
     const { score, parts } = at({
+      human: false,
       hasName: true,
       accounts: 2,
       profile: { avatar: "a", description: "b", url: "c" },
@@ -35,6 +37,7 @@ describe("the score at the top of a profile", () => {
   it("sends you to the step that fixes each part, so the number is a way in", () => {
     // A score that only grades is a verdict. Every part is the next thing to do, so it links to it.
     const { score, parts } = at({
+      human: false,
       hasName: false,
       accounts: 0,
       profile: { avatar: "", description: "", url: "" },
@@ -50,6 +53,7 @@ describe("the score at the top of a profile", () => {
 
   it("is readable without colour, for anyone who cannot use it", () => {
     const { score, parts } = at({
+      human: false,
       hasName: false,
       accounts: 0,
       profile: { avatar: "", description: "", url: "" },

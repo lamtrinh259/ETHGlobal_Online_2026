@@ -4,6 +4,7 @@ import { ProfileHeader } from "@/app/me/ProfileHeader";
 import { profileScore } from "@/lib/score";
 
 const scored = profileScore({
+  human: false,
   hasName: true,
   accounts: 1,
   profile: { avatar: "", description: "", url: "" },

@@ -4,11 +4,13 @@
  * The parts are weighted by what a verifier actually asks for rather than by effort: a name and
  * references are most of the score, because they are what anyone else can check.
  *
- * Humanity is deliberately not in here. This measures how far a profile has got, which is the holder's
- * own business; how hard the account would be to fake is a different question, asked of it by somebody
- * else, and answered by the sybil score instead.
+ * Proof of humanity is the heaviest single part, because it is the only one that cannot be produced
+ * twice by the same person: a nullifier is spent once. Everything else here can be manufactured in
+ * bulk by somebody determined, which is what the weights are saying.
  */
 export type ScoreInput = {
+  /** Whether this wallet holds a live proof of humanity */
+  human: boolean;
   hasName: boolean;
   accounts: number;
   profile: { avatar: string; description: string; url: string };
@@ -16,7 +18,7 @@ export type ScoreInput = {
 };
 
 export type ScorePart = {
-  id: "name" | "accounts" | "profile" | "references";
+  id: "humanity" | "name" | "accounts" | "profile" | "references";
   label: string;
   /** What this part is worth out of 100 */
   weight: number;
@@ -40,35 +42,44 @@ export function profileScore(input: ScoreInput): { score: number; parts: ScorePa
     {
       id: "references",
       label: "References",
-      weight: 40,
-      earned: Math.round((40 * references) / REFERENCE_FLOOR),
+      weight: 30,
+      earned: Math.round((30 * references) / REFERENCE_FLOOR),
       done: references >= REFERENCE_FLOOR,
       hint: `${input.references} of ${REFERENCE_FLOOR}`,
     },
     {
+      id: "humanity",
+      label: "Humanity",
+      weight: 25,
+      earned: input.human ? 25 : 0,
+      done: input.human,
+      // The only part nobody can hold twice, which is why it weighs as much as a claimed name.
+      hint: input.human ? "proved" : "not proved",
+    },
+    {
       id: "name",
       label: "Name",
-      weight: 25,
-      earned: input.hasName ? 25 : 0,
+      weight: 20,
+      earned: input.hasName ? 20 : 0,
       done: input.hasName,
       hint: input.hasName ? "claimed" : "not claimed",
     },
     {
       id: "accounts",
       label: "Accounts",
-      weight: 20,
-      earned: accounts * 10,
+      weight: 15,
+      earned: accounts * 7.5,
       done: accounts >= 2,
       hint: `${input.accounts} attested`,
     },
     {
       id: "profile",
       label: "Profile",
-      weight: 15,
-      earned: fields * 5,
+      weight: 10,
+      earned: Math.round((10 * fields) / 3),
       done: fields >= 3,
       hint: `${fields} of 3 filled`,
     },
   ];
-  return { score: parts.reduce((n, p) => n + p.earned, 0), parts };
+  return { score: Math.round(parts.reduce((n, p) => n + p.earned, 0)), parts };
 }

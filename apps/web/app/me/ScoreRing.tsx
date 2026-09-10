@@ -3,6 +3,7 @@ import type { ScorePart } from "@/lib/score";
 /** Where each part is fixed. A name and the profile it resolves to are one step, so they share one. */
 const STEPS: Record<ScorePart["id"], string> = {
   references: "references",
+  humanity: "humanity",
   name: "name",
   accounts: "accounts",
   profile: "name",
@@ -10,6 +11,7 @@ const STEPS: Record<ScorePart["id"], string> = {
 
 const ICONS: Record<ScorePart["id"], string> = {
   references: "✍",
+  humanity: "☝",
   name: "◈",
   accounts: "⛓",
   profile: "☺",

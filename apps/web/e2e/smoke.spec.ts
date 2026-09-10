@@ -101,3 +101,18 @@ test("health endpoint answers", async ({ request }) => {
   expect(r.ok()).toBeTruthy();
   expect(await r.json()).toMatchObject({ ok: true });
 });
+
+/**
+ * The pages a verifier and a writer land on, at phone width.
+ *
+ * The API is not reachable here, so the content-heavy parts degrade to error cards — what this can
+ * still prove is that the shell, the hero and the forms fit, which is where the fixed widths that
+ * break a phone actually live.
+ */
+for (const path of ["/vouch/alice", "/verify", "/v/alice.ketsuban.eth", "/p/alice"]) {
+  test(`${path} fits the viewport`, async ({ page }) => {
+    await page.goto(path);
+    await expect(page.locator("main")).toBeVisible();
+    await noOverflow(page);
+  });
+}

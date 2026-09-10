@@ -9,12 +9,14 @@ import { InviteTerms } from "./InviteTerms";
 import { LetterForm } from "./LetterForm";
 import { useWebConfig } from "@/app/providers";
 import { fmtUtc } from "@/app/ui";
-import { apiFor, useContracts, useWalletDashboard } from "@/lib/hooks";
+import { apiFor, useContracts, useLetterWrite, useWalletDashboard } from "@/lib/hooks";
 import type { SignedInvite } from "@ketsuban/registrar";
 import type { Signer } from "@/lib/chain";
 import { WITHDRAWN } from "@ketsuban/registrar";
 import { VOUCH_PREFIX, voucherProgress, vouchSteps } from "@/lib/journey";
 import { OpenToCandidate } from "./OpenToCandidate";
+import { LETTER_MAX } from "@/lib/chain";
+import { LetterField, letterBytes } from "./LetterField";
 import type { Ask } from "@/lib/asks";
 
 type Stage = "signin" | "onboarding" | "statement" | "done";
@@ -59,6 +61,13 @@ export function VouchFlow({
   const onChain = voucherProgress(dash.data, root?.domain ?? "", candidate);
 
   const [published, setPublished] = useState<Published>();
+  // The body of the reference, written in the same form as its title. It cannot be signed until the
+  // record exists — the text record hangs on the name the record creates — so it is held here and
+  // written the moment that name is there, rather than asked for again on a second screen.
+  const [letter, setLetter] = useState("");
+  const [letterState, setLetterState] = useState<"idle" | "writing" | "done" | "failed">("idle");
+  const [letterError, setLetterError] = useState<string>();
+  const letterWrite = useLetterWrite(candidate);
   const isLinked = onChain.linked;
   const handle = onChain.named;
   const stage: Stage = !authenticated
@@ -69,11 +78,34 @@ export function VouchFlow({
         ? "onboarding"
         : "statement";
   const vouchDomain = `${VOUCH_PREFIX}${candidate}`;
+
+  /**
+   * Write the letter onto the name the record just created. Kept by its hash when it is too long to
+   * live on chain, and kept before the record points at it: a record naming a letter nobody holds is
+   * worse than a record with no letter.
+   */
+  async function writeLetter(name: string, text: string) {
+    const resolver = contracts.data?.permissionedResolver as Address | undefined;
+    if (!resolver) {
+      setLetterState("failed");
+      setLetterError("this deployment has no permissioned resolver, so a letter cannot be written");
+      return;
+    }
+    setLetterState("writing");
+    setLetterError(undefined);
+    try {
+      const onChain = letterBytes(text) > LETTER_MAX ? (await api.storeLetter(text)).ref : text;
+      await letterWrite.mutateAsync({ signer: await getSigner(), resolver, name, letter: onChain });
+      setLetterState("done");
+    } catch (e) {
+      setLetterState("failed");
+      setLetterError((e as Error).message);
+    }
+  }
   const loading = !ready || (authenticated && !!wallet && dash.isPending);
 
   return (
     <>
-      <p className="muted">Five minutes. Four signatures, no fees. Here is the whole thing:</p>
       <ol className="journey" aria-label="Progress">
         {vouchSteps(candidate, {
           authenticated,
@@ -165,14 +197,13 @@ export function VouchFlow({
       {!loading && stage === "statement" && root && !withdraw && (
         <>
           <p className="muted" data-testid="statement-intro">
-            A few words is what the name itself carries; the full letter comes next, as a text record. It
-            lands as{" "}
+            Lands as{" "}
             <code>
               {handle ?? "<you>"}.{candidate}.{root.parentName}
             </code>
-            , signed by your wallet, permanent.
+            , signed by your wallet.
             {!handle &&
-              " The name you pick here is how this reference is signed; reuse it and your history adds up."}
+              " The name you pick is how this reference is signed; reuse it and your history adds up."}
           </p>
           {onChain.existing && (
             <p className="warning" data-testid="existing-statement">
@@ -192,9 +223,15 @@ export function VouchFlow({
             fixedHandle={handle}
             invite={invite}
             title={onChain.existing ? "Update your reference" : "Write your reference"}
-            answerLabel="A few words about them, permanent"
+            answerLabel="Title"
+            answerHint="Written into the name itself, on chain, and permanent. 31 bytes is all a name holds."
             answerPlaceholder="CTO at Acme 2019-22"
-            onPublished={setPublished}
+            extra={<LetterField value={letter} onChange={setLetter} candidate={candidate} />}
+            onPublished={(p) => {
+              setPublished(p);
+              // One decision, one form: the letter was written here, so it is not asked for again.
+              if (p.name && letter.trim()) void writeLetter(p.name, letter.trim());
+            }}
           />
         </>
       )}
@@ -211,7 +248,23 @@ export function VouchFlow({
         />
       )}
 
-      {stage === "done" && published?.name && (
+      {/* The letter was written in the same form as the title, so what happened to it is said here
+          rather than left to a second form the person did not ask for. */}
+      {stage === "done" && letterState !== "idle" && (
+        <p
+          className={letterState === "failed" ? "error" : "muted"}
+          role={letterState === "failed" ? "alert" : undefined}
+          data-testid="letter-status"
+        >
+          {letterState === "writing"
+            ? "writing your letter…"
+            : letterState === "done"
+              ? "Letter written."
+              : `Your reference is published, but the letter was not written: ${letterError}`}
+        </p>
+      )}
+
+      {stage === "done" && published?.name && letterState !== "done" && (
         <LetterForm api={api} candidate={candidate} name={published.name} getSigner={getSigner} />
       )}
 
@@ -219,8 +272,7 @@ export function VouchFlow({
         <section className="card" data-testid="vouch-done">
           <h2>Reference published</h2>
           <p>
-            <code>{published.name}</code> now resolves to your statement. It carries your standing: anyone
-            checking {candidate} sees who you are and what else you have vouched for.
+            <code>{published.name}</code> resolves to your statement, and carries your standing with it.
           </p>
           {handle ? (
             <p>
