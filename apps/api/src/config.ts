@@ -135,6 +135,26 @@ export const configSchema = z.object({
   /** Where proofs are verified; the staging host is what the World simulator answers for */
   WORLD_VERIFY_URL: z.string().url().default("https://developer.world.org"),
   WORLD_ENVIRONMENT: z.enum(["production", "staging"]).default("production"),
+  /**
+   * Which credential to ask a person for. `proof_of_human` is World ID 4.0 with an Orb fallback, so a
+   * person without an Orb nearby cannot finish it. `selfie` is Selfie Check, which needs no hardware —
+   * it is in preview and World must enable it for the app before the widget will offer it.
+   */
+  WORLD_CREDENTIAL: z.enum(["proof_of_human", "selfie"]).default("selfie"),
+  /**
+   * Credentials this deployment will write a record for, as World names them in a verified proof.
+   * Empty accepts whatever World verified, which is what the widget was asked for. Set it to pin the
+   * answer once the exact string has been seen from a live proof.
+   */
+  WORLD_LEVELS: z
+    .string()
+    .default("")
+    .transform((v) =>
+      v
+        .split(",")
+        .map((d) => d.trim())
+        .filter(Boolean)
+    ),
   /** Prefix of per-candidate vouch domains (`~alice`) */
   VOUCH_PREFIX: z.string().min(1).default("~"),
   /** Below this the relayer cannot pay for records; the preflight warns. Default 0.002 ETH. */

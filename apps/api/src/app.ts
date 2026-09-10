@@ -1268,6 +1268,9 @@ export function createApp({
       app_id: world.appId,
       action: world.action,
       environment: world.environment,
+      // Which credential to ask for. The browser is told rather than deciding: a widget that asked for
+      // something this deployment will not accept sends people through a check for nothing.
+      credential: world.credential,
       signal: body.data.wallet.toLowerCase(),
       rp_context: {
         rp_id: world.rpId,

@@ -22,6 +22,10 @@ export type WorldConfig = {
   signingKey: Hex;
   verifyUrl: string;
   environment: "production" | "staging";
+  /** Which credential the widget asks for; the browser cannot be trusted to pick it */
+  credential: "proof_of_human" | "selfie";
+  /** Credentials a verified proof may carry, or empty to accept whatever World verified */
+  levels: string[];
 };
 
 /** What the config carries; absent unless every part of it is set. */
@@ -32,6 +36,8 @@ export function worldFrom(c: {
   WORLD_RP_SIGNING_KEY?: Hex;
   WORLD_VERIFY_URL: string;
   WORLD_ENVIRONMENT: "production" | "staging";
+  WORLD_CREDENTIAL: "proof_of_human" | "selfie";
+  WORLD_LEVELS: string[];
 }): WorldConfig | undefined {
   if (!c.WORLD_APP_ID || !c.WORLD_RP_ID || !c.WORLD_RP_SIGNING_KEY) return undefined;
   return {
@@ -41,6 +47,8 @@ export function worldFrom(c: {
     signingKey: c.WORLD_RP_SIGNING_KEY,
     verifyUrl: c.WORLD_VERIFY_URL.replace(/\/$/, ""),
     environment: c.WORLD_ENVIRONMENT,
+    credential: c.WORLD_CREDENTIAL,
+    levels: c.WORLD_LEVELS,
   };
 }
 
@@ -183,6 +191,11 @@ export async function verifyHumanProof(
     credential?.identifier ?? (typeof responses[0]?.identifier === "string" ? responses[0].identifier : "");
   if (!level || stringToBytes(level).length > STORABLE_BYTES) {
     throw new Error(`world: level "${level}" does not fit a record payload`);
+  }
+  // The widget is asked for one credential and the browser hands back whatever it was given. A
+  // deployment that has decided which credential it accepts says so here, where it is decided.
+  if (world.levels.length > 0 && !world.levels.includes(level)) {
+    throw new Error(`world: this deployment does not accept a "${level}" credential`);
   }
   return { nullifier: canonicalNullifier(nullifier), level };
 }

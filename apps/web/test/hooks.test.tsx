@@ -79,6 +79,7 @@ function fakeApi(): Api {
       app_id: "app_test",
       action: "humanity",
       environment: "production" as const,
+      credential: "selfie" as const,
       signal: wallet.toLowerCase(),
       rp_context: {
         rp_id: "rp_test",

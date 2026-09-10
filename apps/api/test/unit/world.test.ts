@@ -28,6 +28,9 @@ const world: WorldConfig = {
   signingKey: VECTOR_KEY,
   verifyUrl: "https://developer.world.org",
   environment: "production",
+  credential: "selfie",
+  // Empty: accept whatever World verified, which is what the widget was asked for.
+  levels: [],
 };
 
 /** A legacy (3.0) uniqueness proof as IDKit hands it over, shaped as the docs' response example. */
@@ -302,10 +305,53 @@ describe("the World configuration", () => {
       WORLD_RP_SIGNING_KEY: VECTOR_KEY as Hex,
       WORLD_VERIFY_URL: "https://developer.world.org",
       WORLD_ENVIRONMENT: "production" as const,
+      WORLD_CREDENTIAL: "selfie" as const,
+      WORLD_LEVELS: [],
     };
     expect(worldFrom(full)).toEqual(world);
     expect(worldFrom({ ...full, WORLD_APP_ID: undefined })).toBeUndefined();
     expect(worldFrom({ ...full, WORLD_RP_ID: undefined })).toBeUndefined();
     expect(worldFrom({ ...full, WORLD_RP_SIGNING_KEY: undefined })).toBeUndefined();
+  });
+});
+
+/**
+ * The widget is asked for one credential and the browser hands back whatever it was given. Asking for
+ * Selfie Check and accepting an Orb proof would make the choice cosmetic.
+ */
+describe("which credential this deployment accepts", () => {
+  const pinned = (levels: string[]): WorldConfig => ({ ...world, levels });
+  const verified = (identifier: string) =>
+    portal(200, {
+      success: true,
+      action: "humanity",
+      nullifier: "0x2bf8406809dcefb1486dadc96c0a897db9bab002053054cf64272db512c6fbd8",
+      results: [
+        {
+          identifier,
+          success: true,
+          nullifier: "0x2bf8406809dcefb1486dadc96c0a897db9bab002053054cf64272db512c6fbd8",
+        },
+      ],
+    });
+  const proofOf = (identifier: string) =>
+    proofFor("0xreader", {
+      responses: [{ identifier, signal_hash: hashToField(stringToBytes("0xreader")) }],
+    });
+
+  it("accepts anything World verified when nothing is pinned", async () => {
+    const got = await verifyHumanProof(world, proofOf("orb"), "0xreader", verified("orb"));
+    expect(got.level).toBe("orb");
+  });
+
+  it("refuses a credential the deployment does not accept", async () => {
+    await expect(
+      verifyHumanProof(pinned(["selfie"]), proofOf("orb"), "0xreader", verified("orb"))
+    ).rejects.toThrow('does not accept a "orb" credential');
+  });
+
+  it("accepts the one it does", async () => {
+    const got = await verifyHumanProof(pinned(["selfie"]), proofOf("selfie"), "0xreader", verified("selfie"));
+    expect(got.level).toBe("selfie");
   });
 });

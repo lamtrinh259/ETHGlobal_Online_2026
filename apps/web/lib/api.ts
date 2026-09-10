@@ -77,6 +77,8 @@ export const humanityChallengeSchema = z.object({
   app_id: z.string(),
   action: z.string(),
   environment: z.enum(["production", "staging"]),
+  /** Which credential to ask for; an older API that does not say means the Orb-backed one */
+  credential: z.enum(["proof_of_human", "selfie"]).default("proof_of_human"),
   /** What the proof is bound to: the wallet, lower-cased, because a signal is hashed as bytes */
   signal: z.string(),
   rp_context: z.object({

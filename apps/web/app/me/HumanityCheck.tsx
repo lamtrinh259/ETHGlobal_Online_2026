@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { IDKitRequestWidget, proofOfHuman } from "@worldcoin/idkit";
+import { IDKitRequestWidget, proofOfHuman, selfieCheckLegacy } from "@worldcoin/idkit";
 import type { Api, HumanityChallenge } from "@/lib/api";
 
 /**
@@ -53,11 +53,21 @@ export function HumanityCheck({
           app_id={challenge.app_id as `app_${string}`}
           action={challenge.action}
           rp_context={challenge.rp_context}
-          // An Orb-verified person who has not moved to World ID 4.0 can still prove it this way.
+          // Selfie Check returns World ID 3.0 proofs, and an Orb-verified person who has not moved to
+          // 4.0 proves it the same way. Neither works without this.
           allow_legacy_proofs={true}
           environment={challenge.environment}
-          // The signal binds the proof to this wallet; the server refuses one bound to anything else.
-          preset={proofOfHuman({ signal: challenge.signal })}
+          /*
+           * Which credential a person is asked for, decided by the deployment rather than here.
+           * `proof_of_human` falls back to the Orb, which asks someone to find one before they can be
+           * counted; Selfie Check asks for no hardware at all. The signal binds the proof to this
+           * wallet, and the server refuses one bound to anything else.
+           */
+          preset={
+            challenge.credential === "selfie"
+              ? selfieCheckLegacy({ signal: challenge.signal })
+              : proofOfHuman({ signal: challenge.signal })
+          }
           handleVerify={async (result) => {
             // World says the proof is sound. Only this deployment can say the nullifier is unspent,
             // and only it can write the record the badge is read from. Rethrown so IDKit stops here:
