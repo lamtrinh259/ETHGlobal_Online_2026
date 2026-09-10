@@ -58,6 +58,8 @@ function fakeApi(): Api {
   return {
     nonce: vi.fn(async () => ({ exists: nonce > 1n, next: nonce, ready: true, reason: null })),
     attest: vi.fn(async () => result),
+    disclosures: vi.fn(async (name: string) => ({ name, grants: [] })),
+    revoke: vi.fn(async () => ({ ok: true as const, domain: "x" })),
     explain: vi.fn(async (name: string) => ({ name, says: "", kind: "unknown" as const })),
     ethLabel: vi.fn(async (label: string) => ({
       label,

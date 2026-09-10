@@ -27,11 +27,6 @@ export class PersistentSet {
     this.persist();
   }
 
-  /** Every stored value, for endpoints that answer about a set rather than one key. */
-  entries(): [string, T][] {
-    return [...this.values.entries()];
-  }
-
   get size(): number {
     return this.values.size;
   }
