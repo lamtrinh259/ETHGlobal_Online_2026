@@ -592,14 +592,14 @@ describe("api e2e", () => {
     });
     const bobToken = privy.mint({ sub: bob.did, linked: bob.linked, now });
 
-    // A statement needs the candidate's invitation: alice signs one, nobody else can.
+    // Anyone may write a statement: an invitation is evidence the candidate asked, never permission.
     const uninvited = toWire(
       await signedAttestRequest(bob.account, vouchIntent, bobToken, 31337, deployment.multipass)
     );
-    const refused = await post("/v1/attest", uninvited);
-    expect(refused.status).toBe(422);
-    expect((await refused.json()).error).toContain("needs the candidate's invitation");
+    expect((await post("/v1/attest", uninvited)).status).toBe(200);
 
+    // And an "invitation" bob signed for himself is worth nothing: only the wallet holding alice's
+    // name can say she asked, which this reads on chain.
     const forged = toWire(
       await signedAttestRequest(
         bob.account,
@@ -610,7 +610,7 @@ describe("api e2e", () => {
         await signedInvite(bob.account, "alice", now, 31337, deployment.multipass)
       )
     );
-    expect((await post("/v1/attest", forged)).status).toBe(422);
+    expect((await post("/v1/attest", forged)).status).toBe(200);
 
     const vouch = toWire(
       await signedAttestRequest(
@@ -630,6 +630,13 @@ describe("api e2e", () => {
     });
     const delivered = await (await post("/v1/cre/delivery", attested, tok)).json();
     expect(delivered.ok).toBe(true);
+
+    // Alice's own invitation counts, so this reference is reported as one she asked for, and the
+    // signature travels with it for a verifier to check.
+    const listed = await (await fetch(`${API}/v1/vouches/alice`)).json();
+    const written = listed.vouches.find((v: { voucher: string }) => v.voucher === "bob");
+    expect(written.solicited).toBe(true);
+    expect(written.invite).toMatchObject({ handle: "alice" });
 
     // The index must answer for a record this service wrote a moment ago, with no poll in between.
     const health = await (await fetch(`${API}/healthz`)).json();

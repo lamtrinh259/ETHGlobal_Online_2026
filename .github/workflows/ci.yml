@@ -48,6 +48,10 @@ jobs:
       # for days without anyone noticing.
       - name: install browsers
         run: pnpm --filter @ketsuban/web exec playwright install --with-deps chromium
+      # NEXT_PUBLIC_* values are inlined at build time, so the app cannot start without them. The
+      # example file is a complete, public-by-design config; a fresh checkout has no `.env.local`.
+      - name: web env for the journeys
+        run: cp apps/web/.env.example apps/web/.env.local
       - name: web journeys
         timeout-minutes: 12
         run: pnpm --filter @ketsuban/web run test:e2e
