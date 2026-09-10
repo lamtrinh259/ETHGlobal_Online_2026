@@ -1,13 +1,19 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
+import type { Verification } from "@/lib/api";
 
 /**
  * `/v/<name>` renders on the server, so its data never passes through the browser: a Playwright route
  * cannot intercept it. These tests drive the page function directly, which is the only way to cover what
  * a verifier sees when a candidate has opened an account for them.
  */
-const verification = {
+/*
+ * Typed, so a field added to the schema fails here rather than in a page that reads it. An untyped
+ * literal in a mock is the same hole a cast leaves: the fixture drifts from what the API actually
+ * sends, and only a component crash finds out.
+ */
+const verification: Verification = {
   name: "alice.ketsuban.eth",
   instance: { domain: "ketsuban", parentName: "ketsuban.eth" },
   status: "active" as const,
