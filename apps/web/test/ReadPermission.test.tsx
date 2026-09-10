@@ -21,6 +21,12 @@ vi.mock("@/app/providers", () => ({
   }),
 }));
 
+// The view code lives in the holder's browser and never leaves it; without one there is nothing to
+// put in a box, and sharing refuses before it signs.
+vi.mock("@/lib/keys", () => ({
+  loadViewCodes: () => ({ "discord.com": `0x${"22".repeat(32)}`, "x.com": `0x${"33".repeat(32)}` }),
+}));
+
 const { ReadPermission, readerHandle } = await import("@/app/me/ReadPermission");
 
 const link = (domain: string, ensName: string | null) => ({
@@ -63,6 +69,19 @@ const api = {
     primary: null,
   })),
   disclosures: vi.fn(async (name: string) => ({ name, grants })),
+  // A full name is resolved by the resolver, which knows every namespace; the root lookup above knows
+  // only one domain and could never answer for an account's own name.
+  verify: vi.fn(async (name: string) => ({
+    name,
+    status: name === "lamtrinh259.com.github.www.ketsuban.eth" ? "active" : "inactive",
+    wallet: name === "lamtrinh259.com.github.www.ketsuban.eth" ? BOB : null,
+  })),
+  // A real point on the curve — the generator — because the box is built with actual ECIES.
+  enclaveKey: vi.fn(async () => ({
+    publicKey:
+      "0x0479be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8",
+  })),
+  disclose: vi.fn(async () => ({ id: "0xgrant", expiresAt: "2027-01-01T00:00:00.000Z" })),
   revoke,
 } as unknown as Api;
 
@@ -114,23 +133,64 @@ describe("sharing a private account", () => {
     expect(screen.getByTestId("share")).toHaveTextContent("Share 2 accounts");
   });
 
-  it("names the person a permission is bound to, and refuses to share until it resolves", async () => {
+  it("names the person a permission is bound to, and says which wallet that is", async () => {
     render(<ReadPermission api={api} links={links} name="alice.ketsuban.eth" />, { wrapper: wrapper() });
     fireEvent.click(screen.getByTestId("add-viewer"));
     fireEvent.click(screen.getByTestId("pick-discord.com").querySelector("input") as HTMLInputElement);
     fireEvent.click(screen.getByTestId("scope-person"));
-    const share = () => screen.getByTestId("share");
-    expect(share()).toBeDisabled();
-
-    fireEvent.change(screen.getByTestId("reader"), { target: { value: "nobody" } });
-    await waitFor(() => expect(screen.getByTestId("reader-resolved")).toHaveTextContent("Nobody holds"));
-    expect(share()).toBeDisabled();
+    expect(screen.getByTestId("share")).toBeDisabled();
 
     fireEvent.change(screen.getByTestId("reader"), { target: { value: "bob.ketsuban.eth" } });
     await waitFor(() =>
       expect(screen.getByTestId("reader-resolved")).toHaveTextContent("Only that wallet can open it")
     );
-    expect(share()).toBeEnabled();
+    expect(screen.getByTestId("share")).toBeEnabled();
+  });
+
+  /**
+   * An account has a name of its own, and it does not live in the root instance: the root lookup asks
+   * one domain and would answer "nobody holds it" for every one of them.
+   */
+  it("resolves an account's own name through the resolver, not through the root instance", async () => {
+    render(<ReadPermission api={api} links={links} name="alice.ketsuban.eth" />, { wrapper: wrapper() });
+    fireEvent.click(screen.getByTestId("add-viewer"));
+    fireEvent.click(screen.getByTestId("pick-discord.com").querySelector("input") as HTMLInputElement);
+    fireEvent.click(screen.getByTestId("scope-person"));
+    fireEvent.change(screen.getByTestId("reader"), {
+      target: { value: "lamtrinh259.com.github.www.ketsuban.eth" },
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("reader-resolved")).toHaveTextContent("Only that wallet can open it")
+    );
+    expect(screen.getByTestId("share")).toBeEnabled();
+  });
+
+  /**
+   * Nobody holding the name yet is not a dead end. A permission addressed to the name opens for
+   * whoever proves on chain that they hold it, which is what lets somebody be invited before they
+   * have arrived.
+   */
+  it("addresses a permission to a name nobody holds yet, so it opens when they claim it", async () => {
+    render(<ReadPermission api={api} links={links} name="alice.ketsuban.eth" />, { wrapper: wrapper() });
+    fireEvent.click(screen.getByTestId("add-viewer"));
+    fireEvent.click(screen.getByTestId("pick-discord.com").querySelector("input") as HTMLInputElement);
+    fireEvent.click(screen.getByTestId("scope-person"));
+    fireEvent.change(screen.getByTestId("reader"), { target: { value: "nobody" } });
+    await waitFor(() => expect(screen.getByTestId("reader-resolved")).toHaveTextContent("Nobody holds"));
+    // The difference from a wallet is stated, because it is a real one.
+    expect(screen.getByTestId("reader-resolved")).toHaveTextContent("A name can change hands");
+    expect(screen.getByTestId("share")).toBeEnabled();
+
+    fireEvent.click(screen.getByTestId("share"));
+    await waitFor(() => {
+      const err = screen.queryByRole("alert");
+      expect(err?.textContent ?? "no error").toBe("no error");
+      expect(api.disclose).toHaveBeenCalled();
+    });
+    const wire = (api.disclose as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    // Addressed to the name itself, not to a wallet nobody has proved.
+    expect(wire.audienceName).toBe("nobody.ketsuban.eth");
+    expect(wire.audience).toBe(ZERO);
   });
 
   it("shares with a whole branch, which is a group the holder cannot list", async () => {

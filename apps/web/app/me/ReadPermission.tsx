@@ -16,7 +16,7 @@ import {
   revocationTypedData,
   toDisclosureWire,
 } from "@/lib/disclose";
-import { useDisclosures, useNameStatus, useRevoke } from "@/lib/hooks";
+import { useDisclosures, useNameStatus, useRevoke, useVerification } from "@/lib/hooks";
 import { isDnsName, mountPath, PUBLIC_GROUPINGS } from "@ketsuban/registrar";
 import { loadViewCodes } from "@/lib/keys";
 import { short } from "@/app/ui";
@@ -29,6 +29,9 @@ export function readerHandle(input: string, rootParent: string): string {
   const suffix = `.${rootParent.toLowerCase()}`;
   return clean.endsWith(suffix) ? clean.slice(0, -suffix.length) : clean;
 }
+
+/** A name deep enough to be somebody's, rather than a typo with a dot in it. */
+const NAME_RE = /^[a-z0-9-]+(\.[a-z0-9-]+)+$/;
 
 /** The audience a grant carries when it is for whoever holds the link. */
 const ANYONE = "0x0000000000000000000000000000000000000000";
@@ -72,9 +75,35 @@ export function ReadPermission({ api, links, name }: Props) {
   const typed = reader.trim();
   const handle = useMemo(() => readerHandle(typed, root?.parentName ?? ""), [typed, root?.parentName]);
   const lookup = useNameStatus(api, root?.domain ?? "", handle, scope === "person" && !isAddress(typed));
+  /**
+   * A name that is not a bare handle in the root instance — an account's own name, such as
+   * `lamtrinh259.com.github.www.<root>`. The root lookup can never find one: it asks a single domain,
+   * and these live under whichever namespace was mounted for the platform. The resolver knows where
+   * every name lives, so the question goes there instead.
+   */
+  const fullName = useMemo(() => {
+    const clean = typed.toLowerCase().replace(/^@/, "");
+    if (isAddress(typed) || !clean.includes(".")) return "";
+    return NAME_RE.test(clean) ? clean : "";
+  }, [typed]);
+  const resolved = useVerification(api, scope === "person" ? fullName : "");
   const audience: Address | undefined = isAddress(typed)
     ? (typed as Address)
-    : ((lookup.data?.live && lookup.data.wallet ? (lookup.data.wallet as Address) : undefined) ?? undefined);
+    : ((lookup.data?.live && lookup.data.wallet ? (lookup.data.wallet as Address) : undefined) ??
+      (resolved.data?.status === "active" && resolved.data.wallet
+        ? (resolved.data.wallet as Address)
+        : undefined));
+  /**
+   * Nobody holds it yet. The permission can still be addressed to the name itself: whoever proves on
+   * chain that they hold it can open it, which is what lets a person be invited before they arrive.
+   * A name is not a key — it can change hands — so the page says so rather than quietly binding one.
+   */
+  const pendingName = useMemo(() => {
+    if (scope !== "person" || audience || isAddress(typed)) return "";
+    if (fullName) return resolved.isFetching ? "" : fullName;
+    if (!root || !/^[a-z0-9-]{1,31}$/.test(handle)) return "";
+    return lookup.isFetching ? "" : `${handle}.${root.parentName}`;
+  }, [scope, audience, typed, fullName, resolved.isFetching, root, handle, lookup.isFetching]);
   /**
    * The branch a DNS name mounts at, public side. `acme.com` under `www` is `com.acme.www.<root>`, and
    * every name in it resolves through ENSv2 without any of them being registered one by one — which is
@@ -85,7 +114,9 @@ export function ReadPermission({ api, links, name }: Props) {
     if (!isDnsName(dns) || !root) return undefined;
     return [...mountPath(dns, PUBLIC_GROUPINGS[0]).reverse(), root.parentName].join(".");
   }, [branch, root]);
-  const ready = scope === "link" || (scope === "person" ? !!audience : scope === "branch" && !!branchName);
+  const ready =
+    scope === "link" ||
+    (scope === "person" ? !!audience || !!pendingName : scope === "branch" && !!branchName);
 
   /**
    * Share everything picked, under one signature. Three accounts is one decision and one link, so
@@ -106,7 +137,14 @@ export function ReadPermission({ api, links, name }: Props) {
         Address | undefined;
       if (!wallet) throw new Error("no wallet yet — Privy is still creating it");
       const only = scope === "person" ? audience : undefined;
-      const branchOf = scope === "branch" && branchName ? `*.${branchName}` : undefined;
+      // Either a branch, or one exact name nobody holds yet. Both are read the same way: the reader
+      // proves the name on chain, and the grant opens for whoever that turns out to be.
+      const branchOf =
+        scope === "branch" && branchName
+          ? `*.${branchName}`
+          : scope === "person" && !only && pendingName
+            ? pendingName
+            : undefined;
 
       const { publicKey } = await api.enclaveKey();
       const { disclosure, boxes } = buildDisclosure({
@@ -313,24 +351,25 @@ export function ReadPermission({ api, links, name }: Props) {
                   <>
                     That wallet only: <code>{short(typed)}</code>. Nobody else can open it, link or no link.
                   </>
-                ) : !handle ? (
+                ) : !handle && !fullName ? (
                   "A name here, or a wallet address. The permission is bound to it, so only they can open it."
-                ) : lookup.isFetching ? (
+                ) : lookup.isFetching || resolved.isFetching ? (
                   "looking…"
                 ) : audience ? (
                   <>
-                    <code>
-                      {handle}.{root?.parentName}
-                    </code>{" "}
-                    is held by <code>{short(audience)}</code>. Only that wallet can open it.
+                    <code>{fullName || `${handle}.${root?.parentName}`}</code> is held by{" "}
+                    <code>{short(audience)}</code>. Only that wallet can open it.
+                  </>
+                ) : pendingName ? (
+                  <>
+                    Nobody holds <code>{pendingName}</code> yet. The permission is addressed to the name, so
+                    it opens for whoever proves on chain that they hold it — they can be invited now and read
+                    it when they arrive. A name can change hands; a wallet address cannot.
                   </>
                 ) : (
                   <>
-                    Nobody holds{" "}
-                    <code>
-                      {handle}.{root?.parentName}
-                    </code>{" "}
-                    here. Ask them to claim their name, or paste their wallet address.
+                    <code>{typed}</code> is not a name this can be addressed to. Try a handle, a full name, or
+                    a wallet address.
                   </>
                 )}
               </p>
