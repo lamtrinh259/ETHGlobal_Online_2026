@@ -38,7 +38,7 @@ describe("a name people answer under", () => {
     render(<InstanceAnswers data={data} />);
     const card = screen.getByTestId("instance-answers");
     expect(card).toHaveTextContent("Answering tests affiliation");
-    expect(screen.getByTestId("about-url")).toHaveAttribute(
+    expect(screen.getByTestId("head-url")).toHaveAttribute(
       "href",
       "https://en.wikipedia.org/wiki/Kim_Jong_Un"
     );
@@ -65,9 +65,9 @@ describe("a subject page reads as a profile", () => {
       />
     );
     const card = screen.getByTestId("instance-answers");
-    expect(card.querySelector("img")).toHaveAttribute("src", "https://example.test/kju.png");
+    expect(screen.getByTestId("head-avatar")).toHaveAttribute("src", "https://example.test/kju.png");
     expect(card).toHaveTextContent("kju-is.ketsuban.eth");
-    expect(screen.getByTestId("about-url")).toBeInTheDocument();
+    expect(screen.getByTestId("head-url")).toBeInTheDocument();
     // The answers are still there, under their own heading rather than as the page's subject.
     expect(card).toHaveTextContent("Answers");
   });
@@ -85,7 +85,7 @@ describe("where the profile's text comes from", () => {
     );
     const card = screen.getByTestId("instance-answers");
     expect(card).toHaveTextContent("Supreme Leader");
-    expect(screen.getByTestId("about-url")).toHaveAttribute("href", "https://t.example");
+    expect(screen.getByTestId("head-url")).toHaveAttribute("href", "https://t.example");
   });
 
   it("prefers what the attester read, which is the same value by a shorter path", () => {
@@ -99,7 +99,7 @@ describe("naming a page about a subject", () => {
     // `kju-is.ketsuban.eth` says what the name is, not who it is about. Both belong, in that order.
     render(<InstanceAnswers data={{ ...data, records: { ...data.records!, name: "Kim Jong Un" } }} />);
     const card = screen.getByTestId("instance-answers");
-    expect(card.querySelector("h2")).toHaveTextContent("Kim Jong Un");
+    expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("Kim Jong Un");
     expect(card).toHaveTextContent("kju-is.ketsuban.eth");
   });
 
@@ -113,6 +113,6 @@ describe("naming a page about a subject", () => {
   it("shows a placeholder where there is no picture, so the page keeps its shape", () => {
     // Without one the heading sat alone and the page read as broken rather than as unillustrated.
     render(<InstanceAnswers data={data} />);
-    expect(screen.getByTestId("about-avatar")).toBeInTheDocument();
+    expect(screen.getByTestId("head-avatar")).toBeInTheDocument();
   });
 });

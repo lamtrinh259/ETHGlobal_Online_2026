@@ -1,4 +1,5 @@
 import type { Verification } from "@/lib/api";
+import { ProfileHead } from "./ProfileHead";
 import { fmtUtc } from "./ui";
 
 /** Public verification view: exactly what any ENS client would read, with the warning always visible. */
@@ -6,7 +7,16 @@ export function VerifyCard({ v }: { v: Verification }) {
   const active = v.status === "active";
   return (
     <section aria-label="verification" className="card">
-      <h2>{v.name}</h2>
+      {/* Who this is comes first: the page opened on `wallet / answer / expires`, which is true and
+          not what a reader came for. The verification follows it. */}
+      <ProfileHead
+        ensName={v.name}
+        records={{
+          description: v.profile?.description ?? undefined,
+          url: v.profile?.url ?? undefined,
+          avatar: v.profile?.avatar ?? undefined,
+        }}
+      />
       <p className="row">
         <span className={`badge ${active ? "ok" : "off"}`} data-testid="status">
           {active ? "active" : "no record"}

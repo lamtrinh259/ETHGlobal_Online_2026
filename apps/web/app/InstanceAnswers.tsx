@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ProfileHead } from "./ProfileHead";
 import { fmtUtc } from "./ui";
 
 type Instance = {
@@ -34,44 +35,18 @@ export function InstanceAnswers({
   };
   return (
     <section className="card" data-testid="instance-answers">
-      {/* Who the page is about leads; the ENS name is what it is called, and stays as the smaller line. */}
-      <h2>{about.name || data.parentName}</h2>
-      {about.name && (
-        <p className="muted">
-          <code>{data.parentName}</code>
-        </p>
-      )}
+      {/* The same head a person's page uses: a reader arriving at either asks who this is first. */}
+      <ProfileHead
+        ensName={data.parentName}
+        records={{
+          name: about.name || undefined,
+          description: about.description || undefined,
+          url: about.url || undefined,
+          avatar: about.avatar || undefined,
+        }}
+      />
+      {!about.description && <p className="muted">Nobody has said who this is about yet.</p>}
 
-      {/* Who this page is about, from the name's own records. A page for someone who has claimed
-          nothing is only worth reading if it says who they are, and that belongs on chain. */}
-      <div className="me-head" data-testid="about">
-        {about.avatar ? (
-          // eslint-disable-next-line @next/next/no-img-element -- an arbitrary URL, not a bundled asset
-          <img
-            src={about.avatar}
-            alt=""
-            className="me-avatar-img"
-            data-testid="about-avatar"
-            width={72}
-            height={72}
-          />
-        ) : (
-          // Without one the heading sits alone and the page reads as broken rather than unillustrated.
-          <span className="me-avatar-empty" data-testid="about-avatar" aria-hidden />
-        )}
-        <div className="me-head-text">
-          {about.description ? (
-            <p>{about.description}</p>
-          ) : (
-            <p className="muted">Nobody has said who this is about yet.</p>
-          )}
-          {about.url && (
-            <a href={about.url} rel="noreferrer nofollow" data-testid="about-url">
-              {about.url}
-            </a>
-          )}
-        </div>
-      </div>
       <h3>Answers</h3>
       {data.answers.length === 0 ? (
         <p className="muted">Nobody has answered yet.</p>
