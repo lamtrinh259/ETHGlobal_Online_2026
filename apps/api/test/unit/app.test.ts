@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -819,6 +820,7 @@ describe("GET /v1/vouches/:handle", () => {
           // references the candidate actually asked for.
           solicited: false,
           invite: null,
+          letterHash: null,
           standing: { claimed: true, given: 2, received: 2 },
           letter: "Bob managed the platform team at Acme while Alice led infra.",
         },
@@ -833,6 +835,7 @@ describe("GET /v1/vouches/:handle", () => {
           live: false,
           solicited: false,
           invite: null,
+          letterHash: null,
           standing: null,
           letter: null,
         },
@@ -844,6 +847,86 @@ describe("GET /v1/vouches/:handle", () => {
     expect(chain.nameStatus).not.toHaveBeenCalledWith("kju-is", "carol");
     expect((await app(chain).request("/v1/vouches/Not%20Valid")).status).toBe(400);
     expect((await (await app(chain).request("/v1/vouches/nobody")).json()).vouches).toEqual([]);
+  });
+});
+
+describe("a letter too long to sit on chain", () => {
+  const long = "Alice ran infrastructure at Acme for three years. ".repeat(30);
+  const post = (app: ReturnType<typeof createApp>, body: object) =>
+    app.request("/v1/letter", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+  it("keeps the text by its own hash, and hands back the pointer a record can hold", async () => {
+    // A name holds 31 bytes and a text record costs gas by the byte. The letter lives here; what goes
+    // on chain is the hash of it, which is what makes the copy checkable rather than trusted.
+    const dir = mkdtempSync(join(tmpdir(), "ketsuban-letters-"));
+    const { chain } = fakeChain();
+    const a = createApp({ config: loadConfig({ ...baseEnv, DATA_DIR: dir }), chain, now: () => NOW });
+
+    const stored = await (await post(a, { text: long })).json();
+    expect(stored.ref).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(stored.hash).toBe(stored.ref.slice("sha256:".length));
+
+    const read = await (await a.request(`/v1/letter/${stored.hash}`)).json();
+    expect(read.text).toBe(long);
+    // Anyone can check the copy they were given is the one the record names.
+    expect(createHash("sha256").update(long).digest("hex")).toBe(stored.hash);
+  });
+
+  it("stores one copy of the same letter, however many times it is written", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "ketsuban-letters-same-"));
+    const { chain } = fakeChain();
+    const a = createApp({ config: loadConfig({ ...baseEnv, DATA_DIR: dir }), chain, now: () => NOW });
+    const one = await (await post(a, { text: long })).json();
+    const two = await (await post(a, { text: long })).json();
+    expect(one.hash).toBe(two.hash);
+  });
+
+  it("refuses an empty letter and one nobody could be asked to read", async () => {
+    const { chain } = fakeChain();
+    const a = app(chain);
+    expect((await post(a, { text: "" })).status).toBe(400);
+    expect((await post(a, { text: "x".repeat(20_001) })).status).toBe(413);
+  });
+
+  it("says a letter it does not hold is missing, rather than answering with nothing", async () => {
+    const { chain } = fakeChain();
+    const missing = await app(chain).request(`/v1/letter/${"ab".repeat(32)}`);
+    expect(missing.status).toBe(404);
+  });
+
+  it("resolves the pointer on a reference, and says the copy matches the hash on chain", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "ketsuban-letters-vouch-"));
+    const { chain } = fakeChain({
+      listed: {
+        "~alice": [
+          {
+            name: "bob",
+            id: toBytes32("b"),
+            wallet: user.account.address,
+            payload: toBytes32("worked together"),
+            validUntil: 1_800_000_000n,
+            nonce: 1n,
+            live: true,
+          },
+        ],
+      },
+      instances: [instance, vouchInstance],
+      // The key the fake resolver answers on: `<name>/<key>`.
+      texts: {
+        "bob.alice.kju-is.eth/description": `sha256:${createHash("sha256").update(long).digest("hex")}`,
+      },
+    });
+    const a = createApp({ config: loadConfig({ ...baseEnv, DATA_DIR: dir }), chain, now: () => NOW });
+    await post(a, { text: long });
+
+    const listed = await (await a.request("/v1/vouches/alice")).json();
+    const bob = listed.vouches.find((v: { voucher: string }) => v.voucher === "bob");
+    expect(bob.letter).toBe(long);
+    expect(bob.letterHash).toBe(createHash("sha256").update(long).digest("hex"));
   });
 });
 

@@ -78,6 +78,24 @@ describe("ProfileCard", () => {
     );
   });
 
+  it("says a long letter is checkable against the hash the record names", () => {
+    const vouches = [
+      { ...profile.vouches[0], voucher: "bob", letter: "the full letter", letterHash: "ab".repeat(32) },
+    ];
+    render(<ProfileCard p={{ ...profile, vouches }} rootParent="ketsuban.eth" />);
+    expect(screen.getByTestId("vouch-bob")).toHaveTextContent("the full letter");
+    // The hash is the reason to believe the text: it is on chain, the text is not.
+    expect(screen.getByTestId("letter-hash-bob")).toHaveTextContent(/ab/);
+  });
+
+  it("says a letter is missing rather than pretending the reference has none", () => {
+    // The hash is permanent; the text is only as durable as whoever kept it. Silence here would read
+    // as "no letter written", which is a different claim entirely.
+    const vouches = [{ ...profile.vouches[0], voucher: "bob", letter: null, letterHash: "cd".repeat(32) }];
+    render(<ProfileCard p={{ ...profile, vouches }} rootParent="ketsuban.eth" />);
+    expect(screen.getByTestId("vouch-bob")).toHaveTextContent(/letter.*not|cannot be shown|missing/i);
+  });
+
   it("marks a reference nobody asked for, without hiding it", () => {
     // Anyone may refer anyone, so a reader needs to know which references the subject asked for. It is
     // a note on the reference, not a reason to leave it out.

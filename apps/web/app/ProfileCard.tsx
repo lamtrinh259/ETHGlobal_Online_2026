@@ -179,6 +179,19 @@ export function ProfileCard({ p, rootParent, policy }: { p: Profile; rootParent:
                   {v.letter}
                 </span>
               )}
+              {/* A letter too long for a record is kept off chain and named on chain by its hash. The
+                  hash is the reason to believe the text; without it there is nothing to check. */}
+              {v.letterHash && v.letter && (
+                <small className="muted" data-testid={`letter-hash-${v.voucher}`}>
+                  letter checks against <code>sha256:{v.letterHash.slice(0, 12)}…</code> on the record
+                </small>
+              )}
+              {v.letterHash && !v.letter && (
+                <small className="warning" data-testid={`letter-gone-${v.voucher}`}>
+                  a letter was written and cannot be shown: the record names{" "}
+                  <code>sha256:{v.letterHash.slice(0, 12)}…</code>, but nobody holds a copy any more
+                </small>
+              )}
               <span className="vouch-meta muted">
                 {v.live ? "live" : "expired"} · until {fmtUtc(v.validUntil)}
                 {/* The reference is a name of its own: read it anywhere, not only here. */}

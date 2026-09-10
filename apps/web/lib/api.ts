@@ -80,6 +80,8 @@ export const vouchesSchema = z.object({
         .nullable()
         .optional(),
       letter: z.string().nullable().optional(),
+      /** Set when the letter is kept off chain: the hash the record names, so a reader can check it */
+      letterHash: z.string().nullable().optional(),
     })
   ),
   warning: z.string(),
@@ -403,6 +405,19 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
         body: JSON.stringify(wire),
       });
       return (await readJson(res)) as { ok: true; id: Hex; domains: string[]; expiresAt: string };
+    },
+
+    /**
+     * Keep a letter too long for a text record, and get the pointer one can hold. The hash is what
+     * goes on chain, so whoever reads the letter can check it is the one the record names.
+     */
+    async storeLetter(text: string): Promise<{ hash: string; ref: string; bytes: number }> {
+      const res = await call(`${base}/v1/letter`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      return (await readJson(res)) as { hash: string; ref: string; bytes: number };
     },
 
     /** People whose handle looks like this, most-referenced first: which `bob` did you mean. */

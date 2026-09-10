@@ -543,6 +543,52 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     });
   }
 
+  /** Split a `description` into the letter a reader sees and the hash that proves it, if there is one. */
+  function letterOf(text: string): { letter: string | null; letterHash: string | null } {
+    const ref = /^sha256:([0-9a-f]{64})$/.exec(text.trim());
+    if (!ref) return { letter: text || null, letterHash: null };
+    return { letter: letterStore.get(ref[1]) ?? null, letterHash: ref[1] };
+  }
+
+  /**
+   * A letter too long to sit on chain.
+   *
+   * A name holds 31 bytes and a text record costs gas by the byte, so a full reference cannot live
+   * there. The letter is kept here and addressed by the hash of its own text; what goes on the
+   * reference is `sha256:<hash>`, which is what makes the copy checkable instead of trusted — anyone
+   * can hash what they were handed and compare it with the record.
+   *
+   * The trade is honest and worth stating: the hash is permanent, the text is only as durable as this
+   * service's storage. A lost letter can be proven to have said what it said, not recovered.
+   */
+  const LETTER_MAX_BYTES = 20_000;
+  const letterStore = new PersistentMap<string>(
+    "letters",
+    config.DATA_DIR || undefined,
+    (raw) => raw as string,
+    (text) => text
+  );
+
+  app.post("/v1/letter", async (c) => {
+    const body = (await c.req.json().catch(() => null)) as { text?: unknown } | null;
+    const text = typeof body?.text === "string" ? body.text : "";
+    if (!text.trim()) return c.json({ error: "a letter needs something in it" }, 400);
+    const size = new TextEncoder().encode(text).length;
+    if (size > LETTER_MAX_BYTES) {
+      return c.json({ error: `a letter must be under ${LETTER_MAX_BYTES / 1000}kB` }, 413);
+    }
+    const hash = createHash("sha256").update(text).digest("hex");
+    letterStore.set(hash, text);
+    return c.json({ hash, ref: `sha256:${hash}`, bytes: size });
+  });
+
+  app.get("/v1/letter/:hash", (c) => {
+    const hash = c.req.param("hash").toLowerCase();
+    const text = /^[0-9a-f]{64}$/.test(hash) ? letterStore.get(hash) : undefined;
+    if (text === undefined) return c.json({ error: "no letter with that hash" }, 404);
+    return c.json({ hash, text });
+  });
+
   /**
    * Who holds a platform account here. The first step of referring someone: you know them as `@bob` on
    * x.com, and this says whether that account already belongs to a page rather than making you guess a
@@ -1277,7 +1323,10 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
         nonce: r.nonce.toString(),
         live: r.live,
         standing: standings.get(r.name) ?? null,
-        letter: letters.get(r.name) || null,
+        // `description` holds the letter itself when it fits, or `sha256:<hash>` when it does not.
+        // The pointer is resolved here so a reader gets the text and the hash that names it, and can
+        // check one against the other without asking this service to be believed.
+        ...letterOf(letters.get(r.name) ?? ""),
       })),
       warning: WARNING,
     };

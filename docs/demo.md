@@ -140,6 +140,21 @@ the candidate gave a view code to can pass it as `&viewCode=0x…`, which comput
 matches exactly. Without the code the answer says a private account exists rather than "nobody",
 because reporting nobody invites writing a second page for a person who already has one.
 
+A reference is two things: a few words that live in the name itself, and a letter that cannot. A name
+holds 31 bytes — not 31 characters; an accented letter costs two and an emoji four — and a text record
+costs gas by the byte, so a full letter goes to the attester and only its hash goes on chain:
+
+```bash
+curl -s -XPOST $API/v1/letter -H 'content-type: application/json' \
+  -d '{"text":"Alice ran infrastructure at Acme…"}' | jq   # -> { "ref": "sha256:…" }
+```
+
+The voucher writes that `sha256:…` as the `description` record on their vouch name — the same key the
+bridge already grants them a role for — and a reader hashes the copy they are given and compares. The
+trade is worth stating plainly: the hash is permanent, the text is only as durable as the service that
+kept it. A lost letter can still be proven to have said what it said; it cannot be recovered, and the
+card says so rather than showing a reference with no letter.
+
 Referring is non-permissioned: anyone may write a reference for anyone, and the subject need not have
 claimed a handle yet. A reference the candidate did not ask for is written all the same and reported
 as `solicited: false`, which the card shows as an **unsolicited** badge — a note on the reference, not
