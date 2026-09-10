@@ -15,6 +15,7 @@ import { nameRows, needsAttention } from "@/lib/journey";
 import { vouchRequest } from "@/lib/profile";
 import { Step } from "@/app/Step";
 import { ProfileHeader } from "./ProfileHeader";
+import { HumanityCheck } from "./HumanityCheck";
 import { Recommended } from "./Recommended";
 import { profileScore } from "@/lib/score";
 import { AttestFlow } from "@/app/AttestFlow";
@@ -130,6 +131,9 @@ export function Dashboard() {
         handle={handle}
         profile={rootProfile ?? undefined}
         humanity={rootVerification.data?.humanity ?? null}
+        humanityCta={
+          <HumanityCheck api={api} wallet={wallet} onVerified={() => void rootVerification.refetch()} />
+        }
         score={scored.score}
         parts={scored.parts}
         onClaim={() => setPublishing({ domain: root!.domain, title: "Claim your name" })}

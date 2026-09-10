@@ -119,6 +119,22 @@ export const configSchema = z.object({
   ORG_DOMAIN: z.string().min(1).default("org"),
   /** Shared secret for `POST /v1/org`; without it no organisation can be onboarded through the API */
   ORG_TOKEN: z.string().min(16).optional(),
+  /**
+   * Multipass domain holding humanity attestations. The instance resolver hops into it keyed by the
+   * wallet, which is what makes `ketsuban:humanity` answer on a person's own name.
+   */
+  HUMANITY_DOMAIN: z.string().min(1).default("humanity"),
+  /** World ID app from the Developer Portal (`app_…`); unset leaves the humanity check unavailable */
+  WORLD_APP_ID: z.string().optional(),
+  /** The same app's relying-party id (`rp_…`), which the verify endpoint is addressed by */
+  WORLD_RP_ID: z.string().optional(),
+  /** What a proof is scoped to. A nullifier is unique per action, so this is the subject of "once". */
+  WORLD_ACTION: z.string().min(1).default("humanity"),
+  /** The key proof requests are signed with; World refuses a request it cannot attribute to the app */
+  WORLD_RP_SIGNING_KEY: hex.optional(),
+  /** Where proofs are verified; the staging host is what the World simulator answers for */
+  WORLD_VERIFY_URL: z.string().url().default("https://developer.world.org"),
+  WORLD_ENVIRONMENT: z.enum(["production", "staging"]).default("production"),
   /** Prefix of per-candidate vouch domains (`~alice`) */
   VOUCH_PREFIX: z.string().min(1).default("~"),
   /** Below this the relayer cannot pay for records; the preflight warns. Default 0.002 ETH. */
@@ -161,6 +177,7 @@ export type Config = Omit<
   | "ETH_REGISTRY"
   | "ETH_REGISTRAR"
   | "PAYMENT_TOKEN"
+  | "WORLD_RP_SIGNING_KEY"
 > & {
   MULTIPASS: Address;
   BRIDGE: Address;
@@ -176,6 +193,7 @@ export type Config = Omit<
   ETH_REGISTRY?: Address;
   ETH_REGISTRAR?: Address;
   PAYMENT_TOKEN?: Address;
+  WORLD_RP_SIGNING_KEY?: Hex;
 };
 
 /**

@@ -416,6 +416,104 @@ describe("api client", () => {
     ).toBe(true);
   });
 
+  it("asks for a signed proof request and hands the proof back to the relay", async () => {
+    // Two calls, in this order, and the wallet in both: the first gets the signature only the server
+    // can make, the second is where the nullifier is checked and the record written. A client that
+    // talked to World alone would show a tick over nothing.
+    const { fn, calls } = fetchMock({
+      "http://api.test/v1/humanity/challenge": {
+        body: {
+          app_id: "app_ketsuban",
+          action: "kju-humanity",
+          environment: "production",
+          signal: account.address.toLowerCase(),
+          rp_context: {
+            rp_id: "rp_ketsuban",
+            nonce: "0x00ab",
+            created_at: 1_800_000_000,
+            expires_at: 1_800_000_300,
+            signature: "0xsig",
+          },
+        },
+      },
+      "http://api.test/v1/humanity": {
+        body: {
+          ok: true,
+          level: "orb",
+          until: "2026-10-08T09:14:22.000Z",
+          nullifier: `0x${"11".repeat(32)}`,
+          txHash: `0x${"ab".repeat(32)}`,
+          renewal: false,
+        },
+      },
+    });
+    const api = createApi("http://api.test", "http://api.test/v1/attest", fn);
+
+    const challenge = await api.humanityChallenge(account.address);
+    expect(challenge.rp_context.rp_id).toBe("rp_ketsuban");
+    expect(challenge.signal).toBe(account.address.toLowerCase());
+    expect(calls[0].url).toBe("http://api.test/v1/humanity/challenge");
+    expect(JSON.parse(calls[0].init?.body as string)).toEqual({ wallet: account.address });
+
+    const proved = await api.proveHumanity(account.address, { protocol_version: "3.0" });
+    expect(proved).toMatchObject({ level: "orb", renewal: false });
+    expect(calls[1].url).toBe("http://api.test/v1/humanity");
+    expect(JSON.parse(calls[1].init?.body as string)).toEqual({
+      wallet: account.address,
+      proof: { protocol_version: "3.0" },
+    });
+  });
+
+  it("reads the lookups a page needs before anybody signs anything", async () => {
+    // Each of these answers a question the UI asks in order to say "no" cheaply: what a name would
+    // claim, who already owns the label, which `bob` was meant, who holds an account, and what an
+    // address is called. Each parses through its own schema, so a shape drift here is a broken page.
+    const { fn, calls } = fetchMock({
+      "http://api.test/v1/explain/alice.ketsuban.eth": {
+        body: { name: "alice.ketsuban.eth", says: "a person", kind: "person" },
+      },
+      "http://api.test/v1/eth-label/alice": {
+        body: { label: "alice", registry: account.address, owner: null },
+      },
+      "http://api.test/v1/find": { body: { q: "bob", matches: [] } },
+      "http://api.test/v1/who": {
+        body: { found: true, domain: "x.com", handle: "bob", wallet: account.address },
+      },
+      "http://api.test/v1/reverse/": {
+        body: {
+          address: account.address,
+          name: "alice.ketsuban.eth",
+          names: [],
+          primary: null,
+          note: "read from Multipass through the instance resolvers",
+        },
+      },
+    });
+    const api = createApi("http://api.test", "http://api.test/v1/attest", fn);
+
+    expect((await api.explain("alice.ketsuban.eth")).kind).toBe("person");
+    // `owner: null` is the answer that lets the page say nobody holds it, rather than a missing field.
+    expect((await api.ethLabel("alice")).owner).toBeNull();
+    expect((await api.find("bob")).matches).toEqual([]);
+    expect((await api.who("x.com", "bob")).found).toBe(true);
+    expect((await api.reverse(account.address)).name).toBe("alice.ketsuban.eth");
+    // The view code is a permission, so it only travels when the reader was given one.
+    expect(calls[3].url).toBe("http://api.test/v1/who?domain=x.com&handle=bob");
+    await api.who("x.com", "bob", "0x01");
+    expect(calls[5].url).toBe("http://api.test/v1/who?domain=x.com&handle=bob&viewCode=0x01");
+  });
+
+  it("refuses a challenge that is missing the signature World needs", async () => {
+    // A half-built rp_context would open a widget World then refuses, which reads as the user's fault.
+    const { fn } = fetchMock({
+      "http://api.test/v1/humanity/challenge": {
+        body: { app_id: "app_x", action: "a", environment: "production", signal: "0x1", rp_context: {} },
+      },
+    });
+    const api = createApi("http://api.test", "http://api.test/v1/attest", fn);
+    await expect(api.humanityChallenge(account.address)).rejects.toThrow();
+  });
+
   it("surfaces API errors with status and message and rejects malformed payloads", async () => {
     const { fn } = fetchMock({
       "http://api.test/v1/attest": { status: 422, body: { error: "intent: expired" } },

@@ -92,6 +92,28 @@ curl -s $API/v1/preflight | jq .warnings       # the same, where the app shows i
 Mount a volume at `DATA_DIR` and make sure the container's user can write to it. Until then, an upload
 answers 503 naming the directory, rather than a 500 naming nothing.
 
+## The humanity badge never changes
+
+Read the two answers in that order:
+
+```bash
+curl -s $API/healthz | jq '.config.world, .config.secrets.worldSigningKey'
+curl -s -XPOST $API/v1/humanity/challenge -H 'content-type: application/json' -d '{"wallet":"0x…"}' | jq
+```
+
+`world: null` means the deployment has no World ID app configured, which is the intended off state: the
+CTA is disabled and nothing else changes. Configured, the challenge answers a signed `rp_context`; if
+the widget then opens and World refuses the request, the signing key is not the one that app registered.
+
+Past the proof, the write is the ordinary one and fails the ordinary ways. 409 means that nullifier is
+already bound to another account — one human, one account, and the binding lives in `DATA_DIR` so it
+survives a redeploy. 422 carries World's own reason (`all_verifications_failed`, `already_verified`).
+503 naming the registrar means the `humanity` domain does not name this service, exactly as for any
+other domain; `curl -s $API/v1/preflight | jq .multipass.domains` says so before anyone signs anything.
+
+A verified person whose badge is still grey is a resolution problem, not a World one: the record is
+keyed by the wallet, so `ketsuban:humanity` only answers on a name that same wallet holds.
+
 ## The picture on my profile is gone, or will not upload
 
 Pictures are kept under `DATA_DIR` and served back at `/v1/avatar/<hash>.<ext>`, because an ENS text

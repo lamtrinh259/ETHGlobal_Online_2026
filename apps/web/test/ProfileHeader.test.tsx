@@ -47,6 +47,18 @@ describe("the profile header", () => {
     expect(screen.queryByTestId("humanity-cta")).toBeNull();
   });
 
+  it("hands the check to whatever can actually run it, and asks nobody twice", () => {
+    // The header knows a fact about a person, not how World ID works. A deployment with no World app
+    // configured passes nothing and keeps the disabled button, which is why the fallback stays.
+    const cta = <button data-testid="humanity-cta">Prove you are one person</button>;
+    header({ humanityCta: cta });
+    expect(screen.getByTestId("humanity-cta")).toBeEnabled();
+
+    // And once it is proved there is nothing left to ask, whoever supplied the button.
+    header({ humanity: { level: "orb", until: null }, humanityCta: cta });
+    expect(screen.queryAllByTestId("humanity-cta")).toHaveLength(1);
+  });
+
   it("carries the social accounts below the rest, as part of who you are", () => {
     header({ accounts: <ul data-testid="accounts-slot" /> });
     const card = screen.getByTestId("profile-header");

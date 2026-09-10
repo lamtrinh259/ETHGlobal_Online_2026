@@ -55,6 +55,36 @@ export const verifySchema = z.object({
 });
 export type Verification = z.infer<typeof verifySchema>;
 
+/**
+ * What the browser needs to ask World for a proof of unique humanity. The signature is made server
+ * side with a key that never reaches here, so this cannot be built locally — see
+ * https://docs.world.org/world-id/idkit/signatures.
+ */
+export const humanityChallengeSchema = z.object({
+  app_id: z.string(),
+  action: z.string(),
+  environment: z.enum(["production", "staging"]),
+  /** What the proof is bound to: the wallet, lower-cased, because a signal is hashed as bytes */
+  signal: z.string(),
+  rp_context: z.object({
+    rp_id: z.string(),
+    nonce: z.string(),
+    created_at: z.number(),
+    expires_at: z.number(),
+    signature: z.string(),
+  }),
+});
+export type HumanityChallenge = z.infer<typeof humanityChallengeSchema>;
+
+export const humanitySchema = z.object({
+  ok: z.literal(true),
+  level: z.string(),
+  until: z.string(),
+  nullifier: z.string(),
+  txHash: z.string(),
+  renewal: z.boolean(),
+});
+
 export const vouchesSchema = z.object({
   handle: z.string(),
   domain: z.string(),
@@ -538,6 +568,26 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
       return vouchesSchema.parse(
         await readJson(await call(`${base}/v1/vouches/${encodeURIComponent(handle)}`))
       );
+    },
+
+    /** A proof request signed as this app; without one World will not issue a proof at all. */
+    async humanityChallenge(wallet: string): Promise<HumanityChallenge> {
+      const res = await call(`${base}/v1/humanity/challenge`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ wallet }),
+      });
+      return humanityChallengeSchema.parse(await readJson(res));
+    },
+
+    /** Hand the proof back to the relay, which verifies it with World and writes the record. */
+    async proveHumanity(wallet: string, proof: unknown): Promise<z.infer<typeof humanitySchema>> {
+      const res = await call(`${base}/v1/humanity`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ wallet, proof }),
+      });
+      return humanitySchema.parse(await readJson(res));
     },
 
     async verify(name: string, opts: { links?: string[]; viewCode?: Hex } = {}): Promise<Verification> {

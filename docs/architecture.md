@@ -84,6 +84,17 @@ PermissionedResolver, the bridge, the factory, the CRE workflow, the API.
 5. **Resolution.** `<handle>.<parentName>` resolves through `AttestationResolver`; expiry is enforced at resolution,
    so a name goes dark at `validUntil` and returns on renewal.
 
+## Humanity
+
+The `humanity` domain is global and keyed by wallet, so the instance resolver hops into it from any name
+the same wallet holds and answers `ketsuban:humanity[:until]`. The record's id is a World ID nullifier —
+stable for one human, this app and one action — and its payload is the credential (`orb`,
+`proof_of_human`). One human, one account is that id: Multipass refuses a second record carrying it, and
+the relay refuses before spending anything, from a binding kept in `DATA_DIR`.
+
+The proof is verified in the relay rather than the enclave: it carries no secret of the person's, and
+World is the party that decides whether the mathematics holds. `apps/api/README.md` has the exchange.
+
 ## Trust boundaries
 
 | Holder | Power |

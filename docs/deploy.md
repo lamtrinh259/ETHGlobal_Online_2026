@@ -97,6 +97,7 @@ Sepolia addresses and placeholders for the secrets:
 | `DELIVERY_TOKEN` | ≥16 chars, same value in the CRE delivery header |
 | `REGISTRAR_KEY`, `VIEWCODE_KEY` | only for the Node fallback; unset when the enclave signs |
 | `REGISTRY`, `PERMISSIONED_RESOLVER`, `REGISTRAR_ADDRESS`, `DEPLOY_BLOCK` | vouch-instance provisioning (relayer must own Multipass, factory, root registry); `VOUCH_PREFIX` defaults to `~` |
+| `WORLD_APP_ID`, `WORLD_RP_ID`, `WORLD_RP_SIGNING_KEY`, `WORLD_ACTION` | World ID, from [the Developer Portal](https://developer.world.org). All three ids and the key, or none: with any unset the humanity routes answer 501 and the CTA stays disabled. The `humanity` Multipass domain must already name this service as registrar, or the write reverts after someone has done the check |
 | `CORS_ORIGINS` | the web app origin |
 
 Health: `GET /healthz`. No volumes, no ports, stateless — scale by replicas.

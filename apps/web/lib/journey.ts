@@ -145,7 +145,8 @@ export type JourneyStep = { id: string; label: string; detail: string; state: St
 /**
  * The voucher's three steps. Attesting the accounts they worked from is onboarding, done once on the
  * profile, not per candidate: vouching for someone is proving you are one real person and writing the
- * reference. `humanity` is the World Selfie Check gate, shown as pending until partner access lands.
+ * reference. `humanity` is proved once on `/me` and shown here as pending, because this page never
+ * drives it.
  */
 export function vouchSteps(
   candidate: string,
@@ -164,7 +165,7 @@ export function vouchSteps(
       id: "humanity",
       label: "Prove you are one real person",
       detail:
-        "A short face scan through World. It stops one person running ten voucher accounts. We never see the image.",
+        "A World ID proof, done once on your profile. It stops one person running ten voucher accounts. We never see who you are.",
       state: "pending",
     },
     {

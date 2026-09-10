@@ -1,10 +1,19 @@
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { Hono, type Context } from "hono";
 import { cors } from "hono/cors";
 import { z } from "zod";
-import { bytesToHex, keccak256, stringToBytes, zeroAddress, zeroHash, type Address, type Hex } from "viem";
+import {
+  bytesToHex,
+  getAddress,
+  keccak256,
+  stringToBytes,
+  zeroAddress,
+  zeroHash,
+  type Address,
+  type Hex,
+} from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import {
   candidateOf,
@@ -37,6 +46,7 @@ import type { ChainReader, Instance } from "./chain.js";
 import { explainRevert } from "./errors.js";
 import type { Config } from "./config.js";
 import { PersistentMap, PersistentSet } from "./store.js";
+import { signRequest, verifyHumanProof, worldFrom, type Fetch } from "./world.js";
 
 const hex = z.string().regex(/^0x[0-9a-fA-F]*$/);
 const decimal = z.string().regex(/^\d+$/);
@@ -172,7 +182,13 @@ export function serialize(r: AttestResult) {
 export const WARNING =
   "This is not identity, employment, safety, malware, nationality, or affiliation verification.";
 
-export type AppDeps = { config: Config; chain: ChainReader; now?: () => number };
+export type AppDeps = {
+  config: Config;
+  chain: ChainReader;
+  now?: () => number;
+  /** How proofs reach World; an argument so a test can answer as the Developer Portal does */
+  fetch?: Fetch;
+};
 
 /** Split `<handle>.<parentName>` against the known instances */
 /**
@@ -223,7 +239,12 @@ export function locate(
   return undefined;
 }
 
-export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1000) }: AppDeps) {
+export function createApp({
+  config,
+  chain,
+  now = () => Math.floor(Date.now() / 1000),
+  fetch: fetchImpl = fetch,
+}: AppDeps) {
   const app = new Hono();
   app.use(
     "*",
@@ -233,6 +254,9 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
       allowMethods: ["GET", "POST", "OPTIONS"],
     })
   );
+
+  /** The World ID app this deployment proves humanity with, or nothing when it has none. */
+  const world = worldFrom(config);
 
   /**
    * Why a record in `domain` cannot be written, or null. A vouch domain is the exception to
@@ -342,6 +366,11 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
       relayer: chain.relayer,
       nameDomains: config.NAME_DOMAINS,
       orgDomain: config.ORG_DOMAIN,
+      humanityDomain: config.HUMANITY_DOMAIN,
+      // Identifiers, never the key: this one signs proof requests as the app itself.
+      world: world
+        ? { appId: world.appId, rpId: world.rpId, action: world.action, environment: world.environment }
+        : null,
       vouchPrefix: config.VOUCH_PREFIX,
       deployBlock: String(config.DEPLOY_BLOCK),
       privyAppId: config.PRIVY_APP_ID,
@@ -356,6 +385,7 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
         deliveryToken: !!config.DELIVERY_TOKEN,
         orgToken: !!config.ORG_TOKEN,
         privyVerificationKey: !!config.PRIVY_VERIFICATION_KEY_JWK,
+        worldSigningKey: !!config.WORLD_RP_SIGNING_KEY,
       },
       missing: Object.entries(optional)
         .filter(([, v]) => !v)
@@ -1159,6 +1189,124 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
       const txHash = await chain.submit(record, signature);
       return c.json({ ok: true, label, wallet, txHash, renewal: onchain.exists });
     } catch (e) {
+      return c.json({ ok: false, error: (e as Error).message }, 502);
+    }
+  });
+
+  /**
+   * One human, one account.
+   *
+   * A World ID nullifier is stable for a person, this app and this action, so binding it to a wallet
+   * is what makes the humanity record mean anything. The binding has to outlive a restart, or the same
+   * person gets a second account with every redeploy — the failure `DATA_DIR` exists for.
+   */
+  const humans = new PersistentMap<Address>(
+    "world-nullifiers",
+    config.DATA_DIR || undefined,
+    (raw) => {
+      if (typeof raw !== "string" || !/^0x[0-9a-fA-F]{40}$/.test(raw)) {
+        throw new Error("humanity: not a wallet this build can read");
+      }
+      return raw as Address;
+    },
+    (wallet) => wallet
+  );
+
+  const walletBody = z.object({ wallet: z.string().regex(/^0x[0-9a-fA-F]{40}$/) });
+
+  /**
+   * What the browser needs to ask World for a proof: the app to ask as, and a request signed with the
+   * key that attributes it to this app. World refuses an unattributed request, and the key that
+   * attributes it can never reach a browser — see https://docs.world.org/world-id/idkit/signatures.
+   *
+   * The signal is the wallet: it travels into the proof, and the write path refuses a proof bound to
+   * anything else, so a proof captured in flight cannot be spent on another account.
+   */
+  app.post("/v1/humanity/challenge", async (c) => {
+    if (!world) return c.json({ error: "World ID not configured" }, 501);
+    const body = walletBody.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: "wallet required" }, 400);
+    const signed = await signRequest({
+      signingKey: world.signingKey,
+      action: world.action,
+      createdAt: now(),
+      random: randomBytes(32),
+    });
+    return c.json({
+      app_id: world.appId,
+      action: world.action,
+      environment: world.environment,
+      signal: body.data.wallet.toLowerCase(),
+      rp_context: {
+        rp_id: world.rpId,
+        nonce: signed.nonce,
+        created_at: signed.createdAt,
+        expires_at: signed.expiresAt,
+        signature: signed.sig,
+      },
+    });
+  });
+
+  /**
+   * Verify a World ID proof and write the human into the humanity domain.
+   *
+   * The record is keyed by the nullifier and carries the credential as its payload, which is what the
+   * instance resolver hops into to answer `ketsuban:humanity` on a person's own name. Multipass gives
+   * the same guarantee a second time on chain — an id is unique within a domain — so a nullifier that
+   * slipped past the store still cannot land twice.
+   */
+  app.post("/v1/humanity", async (c) => {
+    if (!world) return c.json({ error: "World ID not configured" }, 501);
+    if (!config.REGISTRAR_KEY) return c.json({ error: "registrar disabled" }, 501);
+    const body = walletBody
+      .extend({ proof: z.record(z.unknown()) })
+      .safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: "wallet and proof required" }, 400);
+    const wallet = getAddress(body.data.wallet);
+
+    const blocker = await writeBlocker(config.HUMANITY_DOMAIN);
+    if (blocker) return c.json({ error: blocker }, 503);
+
+    let human;
+    try {
+      human = await verifyHumanProof(world, body.data.proof, wallet.toLowerCase(), fetchImpl);
+    } catch (e) {
+      return c.json({ error: (e as Error).message }, 422);
+    }
+
+    const bound = humans.get(human.nullifier);
+    if (bound && bound.toLowerCase() !== wallet.toLowerCase()) {
+      return c.json({ error: "that proof of humanity is already held by another account" }, 409);
+    }
+    // Claimed before the write, so two requests in flight cannot both spend it. A write that fails
+    // gives it back: a person whose transaction reverted must not be locked out of their own proof.
+    humans.set(human.nullifier, wallet);
+
+    const onchain = await chain.readOnchain(wallet, config.HUMANITY_DOMAIN);
+    const validUntil = BigInt(now() + config.RECORD_TERM_SECONDS);
+    const record: RegisterMessage = {
+      // A humanity record has no readable label: the resolver reaches it by wallet, never by name.
+      name: zeroHash,
+      id: human.nullifier,
+      domainName: toBytes32(config.HUMANITY_DOMAIN),
+      validUntil,
+      nonce: onchain.nonce + 1n,
+      wallet,
+      payload: toBytes32(human.level),
+    };
+    try {
+      const signature = await signRecord(record, config.REGISTRAR_KEY, await env());
+      const txHash = await chain.submit(record, signature);
+      return c.json({
+        ok: true,
+        level: human.level,
+        until: new Date(Number(validUntil) * 1000).toISOString(),
+        nullifier: human.nullifier,
+        txHash,
+        renewal: onchain.exists,
+      });
+    } catch (e) {
+      if (!bound) humans.delete(human.nullifier);
       return c.json({ ok: false, error: (e as Error).message }, 502);
     }
   });

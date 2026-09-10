@@ -8,7 +8,9 @@ import {
   encodePacked,
   hexToBytes,
   keccak256,
+  recoverMessageAddress,
   recoverTypedDataAddress,
+  stringToBytes,
   type Address,
   type Hex,
   zeroAddress,
@@ -42,6 +44,7 @@ import {
   viewCodeCommitment,
 } from "@peeramid-labs/multipass-client";
 import { createApp, locate, WARNING } from "../../src/app.js";
+import { hashToField, rpSignatureMessage, type Fetch } from "../../src/world.js";
 import type { ChainReader, Instance, ListedRecord, Preflight } from "../../src/chain.js";
 import { explainConfigError, loadConfig } from "../../src/config.js";
 
@@ -2982,5 +2985,284 @@ describe("the avatar a profile points at", () => {
     const refused = await upload(a, png());
     expect(refused.status).toBe(501);
     expect((await refused.json()).error).toMatch(/DATA_DIR/);
+  });
+});
+
+describe("the humanity check", () => {
+  // A Developer Portal app, as https://docs.world.org/world-id/idkit/integrate step 2 describes it:
+  // an app id for the widget, an rp id the verify endpoint is addressed by, and a signing key.
+  const SIGNING_KEY = "0x000000000000000000000000000000000000000000000000000000000000cafe" as const;
+  const signing = privateKeyToAccount(SIGNING_KEY);
+  const worldEnv = {
+    ...baseEnv,
+    WORLD_APP_ID: "app_ketsuban",
+    WORLD_RP_ID: "rp_ketsuban",
+    WORLD_ACTION: "kju-humanity",
+    WORLD_RP_SIGNING_KEY: SIGNING_KEY,
+    WORLD_VERIFY_URL: "https://developer.world.org",
+  };
+  const NULLIFIER = "0x2bf8406809dcefb1486dadc96c0a897db9bab002053054cf64272db512c6fbd8";
+  const wallet = user.account.address;
+  /**
+   * What the proof is bound to. The challenge hands the browser the wallet in lower case, because a
+   * signal is hashed as the bytes of a string and EIP-55 casing would make one wallet two signals.
+   */
+  const signal = wallet.toLowerCase();
+
+  /** The IDKit result for a legacy uniqueness proof, bound to `signal`. */
+  const proof = (signal: string, over: Record<string, unknown> = {}) => ({
+    protocol_version: "3.0",
+    nonce: "0xabc123",
+    action: "kju-humanity",
+    environment: "production",
+    responses: [
+      {
+        identifier: "orb",
+        signal_hash: hashToField(stringToBytes(signal)),
+        proof: "0x1a2b",
+        merkle_root: "0x0abc",
+        nullifier: NULLIFIER,
+      },
+    ],
+    user_presence_completed: false,
+    ...over,
+  });
+
+  const portal = (status = 200, body?: unknown) =>
+    vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify(
+            body ?? {
+              success: true,
+              action: "kju-humanity",
+              nullifier: NULLIFIER,
+              environment: "production",
+              results: [{ identifier: "orb", success: true, nullifier: NULLIFIER }],
+            }
+          ),
+          { status, headers: { "content-type": "application/json" } }
+        )
+    );
+
+  const humanApp = (chain: ChainReader, fetchImpl: Fetch, env: Record<string, string> = worldEnv) =>
+    createApp({ config: loadConfig(env), chain, now: () => NOW, fetch: fetchImpl });
+
+  it("offers nothing at all until World ID is configured", async () => {
+    // Half a configuration is worse than none: a CTA that opens a widget World will refuse leaves the
+    // person staring at a spinner. Unconfigured has to be a plain answer, which is what the button
+    // stays disabled on.
+    const { chain } = fakeChain();
+    const a = app(chain);
+    expect((await post(a, "/v1/humanity/challenge", { wallet })).status).toBe(501);
+    expect((await post(a, "/v1/humanity", { wallet, proof: proof(signal) })).status).toBe(501);
+    expect((await (await a.request("/healthz")).json()).config.world).toBeNull();
+  });
+
+  it("hands the browser a request signed as this app, which it could not sign itself", async () => {
+    // World refuses a proof request it cannot attribute to the app, and the key that attributes it
+    // must never reach the browser. If this drifts the widget simply never opens.
+    const { chain } = fakeChain();
+    const res = await post(humanApp(chain, portal()), "/v1/humanity/challenge", { wallet });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toMatchObject({
+      app_id: "app_ketsuban",
+      action: "kju-humanity",
+      environment: "production",
+      signal: wallet.toLowerCase(),
+      rp_context: { rp_id: "rp_ketsuban", created_at: NOW, expires_at: NOW + 300 },
+    });
+    // The signature has to recover to the configured key over exactly the documented message, or
+    // World rejects it. Recovering it here is the only check available without a Portal account.
+    const message = rpSignatureMessage(body.rp_context.nonce, NOW, NOW + 300, "kju-humanity");
+    expect(
+      await recoverMessageAddress({ message: { raw: message }, signature: body.rp_context.signature })
+    ).toBe(signing.address);
+    // Two challenges must not share a nonce, or the second request is a replay of the first.
+    const again = await (await post(humanApp(chain, portal()), "/v1/humanity/challenge", { wallet })).json();
+    expect(again.rp_context.nonce).not.toBe(body.rp_context.nonce);
+  });
+
+  it("writes the human into the humanity domain, keyed by the nullifier", async () => {
+    // This is what makes `ketsuban:humanity` answer: the resolver hops from a person's name into this
+    // domain by wallet, reads the level out of the payload and the expiry out of validUntil. A record
+    // written with the wrong id or payload resolves to nothing and the badge never changes.
+    const { chain, submitted } = fakeChain();
+    const res = await post(humanApp(chain, portal()), "/v1/humanity", { wallet, proof: proof(signal) });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      ok: true,
+      level: "orb",
+      until: new Date((NOW + 2_592_000) * 1000).toISOString(),
+      nullifier: NULLIFIER,
+      renewal: false,
+    });
+    expect(submitted).toHaveLength(1);
+    const record = submitted[0].record;
+    expect(record).toMatchObject({
+      name: zeroHash,
+      id: NULLIFIER,
+      domainName: toBytes32("humanity"),
+      payload: toBytes32("orb"),
+      wallet,
+      nonce: 1n,
+      validUntil: BigInt(NOW + 2_592_000),
+    });
+    // And the registrar signed it, because Multipass accepts nothing else.
+    expect(
+      await recoverTypedDataAddress({
+        domain: {
+          name: "MultipassDNS",
+          version: "1.0.0",
+          chainId: 31337,
+          verifyingContract: baseEnv.MULTIPASS as Address,
+        },
+        types: registerNameTypes,
+        primaryType: "registerName",
+        message: record,
+        signature: submitted[0].signature,
+      })
+    ).toBe(registrar.address);
+  });
+
+  it("refuses a second wallet claiming the same human, and keeps refusing after a restart", async () => {
+    // The whole point of a nullifier: one human, one account. A binding held only in memory makes that
+    // "one per process", so every redeploy would hand the same person another account — the same
+    // failure DATA_DIR was added for elsewhere.
+    const dir = mkdtempSync(join(tmpdir(), "ketsuban-humanity-"));
+    const env = { ...worldEnv, DATA_DIR: dir };
+    const first = fakeChain();
+    expect(
+      (await post(humanApp(first.chain, portal(), env), "/v1/humanity", { wallet, proof: proof(signal) }))
+        .status
+    ).toBe(200);
+
+    const other = "0x1111111111111111111111111111111111111111" as Address;
+    const second = fakeChain();
+    const stolen = await post(humanApp(second.chain, portal(), env), "/v1/humanity", {
+      wallet: other,
+      proof: proof(other.toLowerCase()),
+    });
+    expect(stolen.status).toBe(409);
+    expect((await stolen.json()).error).toMatch(/already/i);
+    // Refused before spending anything: a rejected claim must not cost the relayer a transaction.
+    expect(second.submitted).toHaveLength(0);
+  });
+
+  it("lets the same person renew, because a record expires", async () => {
+    // A humanity record goes dark at validUntil like every other record here. If the nullifier were
+    // simply burnt, the person who verified would have no way back once theirs lapsed.
+    const { chain, submitted } = fakeChain({
+      records: {
+        [`${wallet.toLowerCase()}:humanity`]: { exists: true, nonce: 4n, id: NULLIFIER, wallet },
+      },
+    });
+    const res = await post(humanApp(chain, portal()), "/v1/humanity", { wallet, proof: proof(signal) });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ renewal: true });
+    // A renewal is the next nonce on the existing record, not a fresh one.
+    expect(submitted[0].record.nonce).toBe(5n);
+  });
+
+  it("says what World said when the proof is refused", async () => {
+    // `all_verifications_failed` and a network fault mean different things to whoever is stuck, and
+    // both used to arrive as an unexplained failure.
+    const { chain, submitted } = fakeChain();
+    const refused = await post(
+      humanApp(
+        chain,
+        portal(400, {
+          success: false,
+          code: "all_verifications_failed",
+          detail: "All proof verifications failed.",
+        })
+      ),
+      "/v1/humanity",
+      { wallet, proof: proof(signal) }
+    );
+    expect(refused.status).toBe(422);
+    expect((await refused.json()).error).toMatch(/all_verifications_failed/);
+    expect(submitted).toHaveLength(0);
+  });
+
+  it("refuses a proof bound to a different wallet", async () => {
+    // Proofs travel through the browser. Without the signal binding, one watched in flight could be
+    // replayed to bind somebody else's humanity to the watcher's own account.
+    const { chain, submitted } = fakeChain();
+    const res = await post(humanApp(chain, portal()), "/v1/humanity", {
+      wallet,
+      proof: proof("0x2222222222222222222222222222222222222222"),
+    });
+    expect(res.status).toBe(422);
+    expect((await res.json()).error).toMatch(/signal/);
+    expect(submitted).toHaveLength(0);
+  });
+
+  it("refuses before signing when the humanity domain cannot be written", async () => {
+    // The same rule as every other write here: a domain this attester is not the registrar for reverts
+    // on chain, and the person has already done the face check by then.
+    const { chain, submitted } = fakeChain({
+      ready: { humanity: { initialised: true, active: true, registrarOk: false } },
+    });
+    const res = await post(humanApp(chain, portal()), "/v1/humanity", { wallet, proof: proof(signal) });
+    expect(res.status).toBe(503);
+    expect((await res.json()).error).toMatch(/registrar/);
+    expect(submitted).toHaveLength(0);
+  });
+
+  it("gives the proof back when the write itself fails", async () => {
+    // Claiming the nullifier before submitting is what stops two requests in flight from both
+    // spending it. If a reverted transaction kept the claim, the person who verified would be locked
+    // out of their own humanity forever, with no way to ask for it again.
+    const dir = mkdtempSync(join(tmpdir(), "ketsuban-humanity-fail-"));
+    const env = { ...worldEnv, DATA_DIR: dir };
+    const broken = fakeChain();
+    broken.chain.submit = vi.fn(async () => {
+      throw new Error("execution reverted");
+    });
+    const failed = await post(humanApp(broken.chain, portal(), env), "/v1/humanity", {
+      wallet,
+      proof: proof(signal),
+    });
+    expect(failed.status).toBe(502);
+    expect((await failed.json()).error).toMatch(/reverted/);
+
+    const retry = fakeChain();
+    const second = await post(humanApp(retry.chain, portal(), env), "/v1/humanity", {
+      wallet,
+      proof: proof(signal),
+    });
+    expect(second.status).toBe(200);
+    expect(retry.submitted).toHaveLength(1);
+  });
+
+  it("drops a binding it cannot read rather than refusing to start", async () => {
+    // The same rule the grant store learned: one unreadable entry written by another build must not
+    // take the rest of the file down with it, and must not become a wallet nobody can identify.
+    const dir = mkdtempSync(join(tmpdir(), "ketsuban-humanity-junk-"));
+    writeFileSync(join(dir, "world-nullifiers.json"), JSON.stringify({ [NULLIFIER]: "not-a-wallet" }));
+    const { chain, submitted } = fakeChain();
+    const res = await post(humanApp(chain, portal(), { ...worldEnv, DATA_DIR: dir }), "/v1/humanity", {
+      wallet,
+      proof: proof(signal),
+    });
+    expect(res.status).toBe(200);
+    expect(submitted).toHaveLength(1);
+  });
+
+  it("reports the World app it is pointed at, and never the key", async () => {
+    // Every other secret here is reported as set or unset. The signing key forges proof requests for
+    // this app, so it is the one thing that must never appear in an answer anybody can fetch.
+    const { chain } = fakeChain();
+    const body = await (await humanApp(chain, portal()).request("/healthz")).json();
+    expect(body.config.world).toEqual({
+      appId: "app_ketsuban",
+      rpId: "rp_ketsuban",
+      action: "kju-humanity",
+      environment: "production",
+    });
+    expect(body.config.secrets.worldSigningKey).toBe(true);
+    expect(JSON.stringify(body)).not.toContain("cafe");
   });
 });

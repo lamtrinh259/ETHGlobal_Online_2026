@@ -20,6 +20,7 @@
     "@peeramid-labs/multipass-client": "1.1.0",
     "@privy-io/react-auth": "^3.40.0",
     "@tanstack/react-query": "^5.62.0",
+    "@worldcoin/idkit": "^4.2.3",
     "next": "^15.1.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

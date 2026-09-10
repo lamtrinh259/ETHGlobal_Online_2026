@@ -23,6 +23,7 @@ export function ProfileHeader({
   handle,
   profile,
   humanity,
+  humanityCta,
   score,
   parts,
   onClaim,
@@ -33,6 +34,8 @@ export function ProfileHeader({
   handle?: string;
   profile?: Profile;
   humanity: { level: string; until: string | null } | null;
+  /** How to prove it, when the deployment can offer that; without one the check is unavailable */
+  humanityCta?: ReactNode;
   score: number;
   parts: ScorePart[];
   onClaim: () => void;
@@ -62,11 +65,17 @@ export function ProfileHeader({
             <span className={`badge ${humanity ? "badge-private" : "badge-public"}`} data-testid="humanity">
               {humanity ? `human · verified` : "human · unverified"}
             </span>
-            {!humanity && (
-              <button className="linkish" disabled title="Partner access pending" data-testid="humanity-cta">
-                Run the face check
-              </button>
-            )}
+            {!humanity &&
+              (humanityCta ?? (
+                <button
+                  className="linkish"
+                  disabled
+                  title="World ID not configured"
+                  data-testid="humanity-cta"
+                >
+                  Prove you are one person
+                </button>
+              ))}
           </p>
         </div>
       </div>

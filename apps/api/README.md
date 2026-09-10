@@ -26,6 +26,8 @@ CORS: `CORS_ORIGINS` (comma list, default `*`) — set it to the web app origin 
 | `POST /v1/submit` | `{record, signature}` → relays a registrar-signed record through the bridge. No secret needed: Multipass accepts it only because the registrar signed it. |
 | `POST /v1/org` | `{wallet, label}` with `x-org-token` → gives a wallet a record in `ORG_DOMAIN`, which lets it issue references uninvited. Operator-only: the uninvited path is safe only because somebody vouched for the organisation. |
 | `POST /v1/provision` | `{handle}` → provisions the candidate's `~<handle>` vouch instance. Idempotent; refuses a handle with no live record in the root name domain, so it needs no secret. |
+| `POST /v1/humanity/challenge` | `{wallet}` → the World ID proof request, signed as this app: `app_id`, `action`, `environment`, the `signal` the proof must be bound to (the wallet, lower-cased), and `rp_context`. 501 without `WORLD_APP_ID`, `WORLD_RP_ID` and `WORLD_RP_SIGNING_KEY`. |
+| `POST /v1/humanity` | `{wallet, proof}` → verifies the IDKit result with World, then writes the human into `HUMANITY_DOMAIN` keyed by the nullifier, which is what makes `ketsuban:humanity` answer. 409 when that nullifier already belongs to another account, 422 with World's own reason when the proof is refused. |
 | `POST /v1/gas` | `{wallet}` → relayer sends `GAS_TOPUP_WEI` once to a wallet holding a live name and below that balance (disabled when 0). "Once" is kept in `DATA_DIR`, so a redeploy does not hand out a second payout. |
 | `GET /v1/ens/:name` | The name read through the ENSv2 UniversalResolver: the resolver it reached, the address and text records any ENS client would see (`?keys=` overrides). 501 unless `UNIVERSAL_RESOLVER` is set. |
 | `GET /v1/enclave-key` | The registrar's public key: what a candidate encrypts a view code to, so only the enclave can open it. |
@@ -50,6 +52,40 @@ Vouch instances: when a delivery registers a record in the root name domain (`NA
 `~<handle>` — Multipass domain (fee 0, registrar `REGISTRAR_ADDRESS`) → `AttestationFactory.create` → root
 `setSubregistry(handle)` — so `bob.alice.<root>` is a real ENS name. Needs `REGISTRY`, `PERMISSIONED_RESOLVER`
 (from `DEPLOYMENT_FILE`) and `REGISTRAR_ADDRESS`; the relayer must own Multipass, the factory and the root registry.
+
+## Proof of unique humanity
+
+One human, one account. The person proves it in World App; the record that comes out is keyed by the
+nullifier, which is stable for this app and this action, so a second wallet cannot claim the same human.
+
+```mermaid
+sequenceDiagram
+  participant B as browser
+  participant A as api
+  participant W as World
+  participant M as Multipass
+  B->>A: POST /v1/humanity/challenge {wallet}
+  A-->>B: rp_context, signed with WORLD_RP_SIGNING_KEY
+  B->>W: IDKit request (signal = wallet)
+  W-->>B: proof
+  B->>A: POST /v1/humanity {wallet, proof}
+  A->>A: action ours? signal this wallet? nullifier unspent?
+  A->>W: POST /api/v4/verify/{rp_id}, the result verbatim
+  W-->>A: { success, nullifier, results }
+  A->>M: register(name 0, id nullifier, payload level) as registrar
+```
+
+Three checks, and each has a job. The **action** scopes the nullifier, so a proof minted for a different
+action of the same app is a proof of something else. The **signal** binds the proof to the wallet that
+asked, so one captured in flight cannot be spent on another account. The **nullifier** is the person:
+its binding to a wallet is kept in `DATA_DIR`, because held in memory it would mean "one per process"
+and every redeploy would hand the same human another account. Multipass gives the same guarantee a
+second time — an id is unique within a domain — so a binding that was lost still cannot land twice.
+
+Unconfigured, both routes answer 501 and the web CTA stays disabled: nothing here is required for the
+rest of the service. The spec followed is [RP signatures](https://docs.world.org/world-id/idkit/signatures)
+and [cloud verification](https://docs.world.org/world-id/idkit/integrate); the IDKit result is forwarded
+verbatim, as those pages require.
 
 ## Configuration
 

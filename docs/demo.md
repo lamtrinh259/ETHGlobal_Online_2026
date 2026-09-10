@@ -133,6 +133,16 @@ how a verifier judges the person speaking, not just the sentence.
    resolve independently.
 4. `/w/<address>` — the same from an address rather than a handle.
 
+The humanity badge on `/me` is World ID: the relay signs the proof request, World App produces the
+proof, and the record lands in the `humanity` domain keyed by the nullifier — so a second wallet cannot
+claim the same person. A deployment with no World app configured answers 501 and the button stays
+disabled.
+
+```bash
+curl -s $API/healthz | jq .config.world                  # null when the check is not configured here
+curl -s $API/v1/verify/alice.ketsuban.eth | jq .humanity
+```
+
 Finding the person first: `/v1/who?domain=x.com&handle=bob` says who holds an account, and
 `/v1/find?q=bob` lists everyone of that name with the references each has received, most first.
 Nothing on chain decides which `bob` anybody means — the one people have actually vouched for is the

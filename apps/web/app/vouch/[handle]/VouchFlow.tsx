@@ -20,7 +20,7 @@ type Stage = "signin" | "onboarding" | "statement" | "done";
 
 /**
  * Sequenced voucher steps, resumed from the wallet's on-chain records so a reload never repeats a
- * step. Humanity (World Selfie Check) is gated on partner access and shown as pending. The statement
+ * step. Humanity is proved once on the profile and shown here as pending. The statement
  * is a record in the candidate's own vouch domain, so no name of the voucher's own is required first;
  * a held root name is reused as the label, and claiming one is offered after publishing.
  */
