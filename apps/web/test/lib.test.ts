@@ -12,7 +12,7 @@ import {
 } from "@ketsuban/registrar";
 import { toBytes32 } from "@peeramid-labs/multipass-client";
 import { ApiError, createApi } from "@/lib/api";
-import { loadWebConfig } from "@/lib/config";
+import { loadWebConfig, isConfidential } from "@/lib/config";
 import { buildIntent, intentTypedData, inviteLink, inviteTypedData, toWire } from "@/lib/intent";
 import { fromPrivateKey, loadOrCreateViewKey, loadViewCodes, openViewCode, saveViewCode } from "@/lib/keys";
 
@@ -646,5 +646,27 @@ describe("a request that times out", () => {
   it("leaves a read alone, because nothing was committed by one", async () => {
     const api = createApi("http://api.test", "http://api.test/v1/attest", timeout as never);
     await expect(api.nonce("0x00", "ketsuban")).rejects.toThrow("signal timed out");
+  });
+});
+
+/**
+ * Where the intent is signed is a guarantee to the person signing it: on the API's own node the
+ * operator could read their identity token and their linked accounts, and in a Chainlink CRE enclave
+ * nobody can. The page may claim the second only when it holds, and the address the browser will post
+ * to is the honest way to know — it is the same fact the browser acts on.
+ */
+describe("whether attestation is confidential", () => {
+  it("is not, when the intent goes to this deployment's own attester", () => {
+    expect(isConfidential("https://api.example", "https://api.example/v1/attest")).toBe(false);
+  });
+
+  it("is, when it goes somewhere this deployment does not run", () => {
+    expect(isConfidential("https://api.example", "https://trigger.cre.chain.link/abc")).toBe(true);
+  });
+
+  it("claims nothing when either address is missing or unusable", () => {
+    // An unconfigured deployment must not accidentally promise an enclave.
+    expect(isConfidential("", "")).toBe(false);
+    expect(isConfidential("https://api.example", "not-a-url")).toBe(false);
   });
 });
