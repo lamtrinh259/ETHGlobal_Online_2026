@@ -522,3 +522,44 @@ describe("initWorkflow", () => {
     expect(trigger.config.authorizedKeys[0]).toMatchObject({ type: 1, publicKey: "0x1111111111111111111111111111111111111111" });
   });
 });
+
+/**
+ * The seam between this workflow and AttestationReporter.
+ *
+ * `encodeReport` names its fields in a hand-written list, and the contract decodes them as
+ * `LibMultipass.Record`. Every field is a fixed 32-byte slot, so a list that drifted out of order
+ * would decode without reverting and register a record whose wallet was its name — while both suites
+ * carried on passing, each checking only its own side.
+ *
+ * The same bytes are asserted in packages/contracts/test/ReportEncoding.t.sol. Change the encoding and
+ * one of the two fails, which is why this pins bytes and not a shape.
+ */
+describe("what the enclave hands the reporter", () => {
+  const VECTOR =
+    "0x000000000000000000000000ee4811b9462956c9c3535e79c08776d769ca9f3a" +
+    "616c696365000000000000000000000000000000000000000000000000000000" +
+    "3132333435363738393031323334353637383900000000000000000000000000" +
+    "0000000000000000000000000000000000000000000000000000000000000007" +
+    "7800000000000000000000000000000000000000000000000000000000000000" +
+    "000000000000000000000000000000000000000000000000000000006aca5818" +
+    "00000000000000000000000000000000000000000000000000000000000000ff" +
+    "0000000000000000000000000000000000000000000000000000000000000100" +
+    "0000000000000000000000000000000000000000000000000000000000000002" +
+    "1234000000000000000000000000000000000000000000000000000000000000";
+
+  test("is the byte-for-byte report that contract decodes", () => {
+    const encoded = encodeReport({
+      record: {
+        wallet: "0xEE4811b9462956C9C3535E79c08776D769CA9F3a",
+        name: "0x616c696365000000000000000000000000000000000000000000000000000000",
+        id: "0x3132333435363738393031323334353637383900000000000000000000000000",
+        nonce: 7n,
+        domainName: "0x7800000000000000000000000000000000000000000000000000000000000000",
+        validUntil: 1791645720n,
+        payload: "0x00000000000000000000000000000000000000000000000000000000000000ff",
+      },
+      signature: "0x1234",
+    } as never);
+    expect(encoded).toBe(VECTOR);
+  });
+});
