@@ -28,6 +28,11 @@ write description "Kim Jong Un, Supreme Leader of North Korea. The United States
 
 write url "https://home.treasury.gov/news/press-releases/sm774"
 
+# Wikimedia's own thumbnail, so nothing here has to host or resize a picture. Only the widths
+# Wikimedia has already generated are served — 330px answers, 256px does not — so this URL is the
+# resized one rather than a size to pick freely.
+write avatar "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d0/Kim_Jong-un_and_Vladimir_Putin_%282023-09-13%29_12_%28cropped_2%29.jpg/330px-Kim_Jong-un_and_Vladimir_Putin_%282023-09-13%29_12_%28cropped_2%29.jpg"
+
 echo "written · read it back with:"
 echo "  cast call \$UNIVERSAL_RESOLVER 'resolve(bytes,bytes)(bytes,address)' <dns-encoded $NAME> \\"
 echo "    \$(cast calldata 'text(bytes32,string)' \$(cast namehash $NAME) 'description') --rpc-url \$RPC"
