@@ -26,7 +26,7 @@ import {
   discloseDomain,
   eciesDecrypt,
   eciesEncrypt,
-  hashBox,
+  hashBoxes,
   signDisclosure,
   signRevocation,
   type RegisterMessage,
@@ -1237,14 +1237,20 @@ describe("disclosing a masked account", () => {
     return { chain, viewCode };
   }
 
-  async function grantFor(viewCode: Hex, over: Partial<{ audience: Address; exp: bigint }> = {}) {
-    const box = eciesEncrypt(ENCLAVE.publicKey, hexToBytes(viewCode), new Uint8Array(32).fill(3));
+  async function grantFor(
+    viewCode: Hex,
+    over: Partial<{ audience: Address; exp: bigint; domains: string[] }> = {}
+  ) {
+    const domains = over.domains ?? ["x"];
+    const boxes = domains.map((_, i) =>
+      eciesEncrypt(ENCLAVE.publicKey, hexToBytes(viewCode), new Uint8Array(32).fill(3 + i))
+    );
     const disclosure = {
       name: aliceName,
-      domain: "x",
+      domains,
       audience: (over.audience ?? zeroAddress) as Address,
       exp: over.exp ?? BigInt(NOW + 3600),
-      boxHash: hashBox(box),
+      boxesHash: hashBoxes(boxes),
     };
     const signature = await signDisclosure(
       user.account,
@@ -1254,7 +1260,7 @@ describe("disclosing a masked account", () => {
     return {
       ...disclosure,
       exp: disclosure.exp.toString(),
-      box,
+      boxes,
       signature,
     };
   }
@@ -1268,6 +1274,33 @@ describe("disclosing a masked account", () => {
     );
     return { ...revocation, at: revocation.at.toString(), signature };
   }
+
+  it("shares several accounts under one signature, and lists each of them", async () => {
+    // Sharing three accounts is one decision: the reader gets one link either way, so the holder
+    // should not be asked to sign once per account.
+    const { chain, viewCode } = maskedChain();
+    const a = app(chain);
+    const stored = await post(a, "/v1/disclose", await grantFor(viewCode, { domains: ["discord.com", "x"] }));
+    expect(stored.status).toBe(200);
+    expect((await stored.json()).domains).toEqual(["discord.com", "x"]);
+
+    const listed = await (await a.request(`/v1/disclosures/${aliceName}`)).json();
+    expect(listed.grants.map((g: { domain: string }) => g.domain)).toEqual(["discord.com", "x"]);
+    // Each account is reachable on its own: the reader asks about one, not about the selection.
+    expect((await a.request(`/v1/disclose/${aliceName}/x`)).status).toBe(200);
+  });
+
+  it("takes back only the account it was asked to, leaving the rest of one grant standing", async () => {
+    const { chain, viewCode } = maskedChain();
+    const a = app(chain);
+    await post(a, "/v1/disclose", await grantFor(viewCode, { domains: ["discord.com", "x"] }));
+
+    expect((await post(a, "/v1/revoke", await revokeFor())).status).toBe(200);
+    expect((await a.request(`/v1/disclose/${aliceName}/x`)).status).toBe(404);
+    // The other account of the same grant is a separate permission and must survive.
+    const left = await (await a.request(`/v1/disclosures/${aliceName}`)).json();
+    expect(left.grants.map((g: { domain: string }) => g.domain)).toEqual(["discord.com"]);
+  });
 
   it("lists what a name has shared, so the holder can see who can read it", async () => {
     const { chain, viewCode } = maskedChain();

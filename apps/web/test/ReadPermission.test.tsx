@@ -73,17 +73,33 @@ describe("sharing a private account", () => {
     expect(readerHandle("bob", "ketsuban.eth")).toBe("bob");
   });
 
-  it("shares with anyone by default, and says so", () => {
+  it("shares with anyone by default, and shares nothing until an account is picked", () => {
     render(<ReadPermission api={api} links={links} name="alice.ketsuban.eth" />, { wrapper: wrapper() });
     // No address to paste before anything can be shared: the default is a link.
     expect(screen.queryByTestId("reader")).toBeNull();
-    expect(screen.getByTestId("allow-discord.com")).toHaveTextContent("Share");
+    // Nothing is shared by accident: the button waits for a choice.
+    expect(screen.getByTestId("share")).toBeDisabled();
+    fireEvent.click(screen.getByTestId("pick-discord.com").querySelector("input") as HTMLInputElement);
+    expect(screen.getByTestId("share")).toBeEnabled();
+  });
+
+  it("counts the accounts one link will open, so the reach of a share is visible before signing", () => {
+    const two = [
+      link("discord.com", "alice.com.discord.private-www.ketsuban.eth"),
+      link("x.com", "alice.com.x.private-www.ketsuban.eth"),
+    ] as WalletDashboard["links"];
+    render(<ReadPermission api={api} links={two} name="alice.ketsuban.eth" />, { wrapper: wrapper() });
+    fireEvent.click(screen.getByTestId("pick-discord.com").querySelector("input") as HTMLInputElement);
+    expect(screen.getByTestId("share")).toHaveTextContent("Share");
+    fireEvent.click(screen.getByTestId("pick-x.com").querySelector("input") as HTMLInputElement);
+    expect(screen.getByTestId("share")).toHaveTextContent("Share 2 accounts");
   });
 
   it("names the person a permission is bound to, and refuses to share until it resolves", async () => {
     render(<ReadPermission api={api} links={links} name="alice.ketsuban.eth" />, { wrapper: wrapper() });
+    fireEvent.click(screen.getByTestId("pick-discord.com").querySelector("input") as HTMLInputElement);
     fireEvent.click(screen.getByTestId("scope-person"));
-    const share = () => screen.getByTestId("allow-discord.com").querySelector("button") as HTMLButtonElement;
+    const share = () => screen.getByTestId("share");
     expect(share()).toBeDisabled();
 
     fireEvent.change(screen.getByTestId("reader"), { target: { value: "nobody" } });

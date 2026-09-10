@@ -159,6 +159,10 @@ curl -s "$API/v1/disclose/alice.ketsuban.eth/x" | jq
 The link the candidate hands over is `/v/alice.ketsuban.eth?reveal=x`. Without a live permission the
 same page says so instead of showing anything.
 
+One grant covers everything picked. Sharing three accounts is one decision and one link, so it is one
+signature over the whole selection: the statement names its accounts in one order and carries their
+view codes as boxes in the same order, each encrypted separately to the enclave.
+
 Sharing is not one-way. The profile lists every live permission — which account, which reader, until
 when — and takes any of them back with one signature:
 

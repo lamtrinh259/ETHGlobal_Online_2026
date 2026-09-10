@@ -34,7 +34,7 @@ import {
   discloseDomain,
   eciesDecrypt,
   eciesEncrypt,
-  hashBox,
+  hashBoxes,
   signDisclosure,
   signRevocation,
 } from "@ketsuban/registrar";
@@ -278,10 +278,10 @@ describe("api e2e", () => {
     const box = eciesEncrypt(publicKey, hexToBytes(viewCode as Hex), new Uint8Array(32).fill(11));
     const disclosure = {
       name,
-      domain: "x",
+      domains: ["x"],
       audience: reader.address,
       exp: BigInt(now + 3600),
-      boxHash: hashBox(box),
+      boxesHash: hashBoxes([box]),
     };
     const grant = await (
       await fetch(`${API}/v1/disclose`, {
@@ -290,7 +290,7 @@ describe("api e2e", () => {
         body: JSON.stringify({
           ...disclosure,
           exp: disclosure.exp.toString(),
-          box,
+          boxes: [box],
           signature: await signDisclosure(
             user.account,
             disclosure,

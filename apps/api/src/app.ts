@@ -62,11 +62,14 @@ export const wireRecord = z.object({
 
 export const wireDisclosure = z.object({
   name: z.string(),
-  domain: z.string(),
+  domains: z.array(z.string()).min(1).max(16),
   audience: hex,
   exp: decimal,
-  boxHash: hex,
-  box: z.object({ ephemeralPubkey: hex, nonce: hex, ciphertext: hex }),
+  boxesHash: hex,
+  boxes: z
+    .array(z.object({ ephemeralPubkey: hex, nonce: hex, ciphertext: hex }))
+    .min(1)
+    .max(16),
   signature: hex,
 });
 
@@ -549,15 +552,15 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     if (!body.success) return c.json({ error: "bad request", issues: body.error.issues }, 400);
     const grant: SignedDisclosure = {
       name: body.data.name.toLowerCase(),
-      domain: body.data.domain,
+      domains: body.data.domains,
       audience: body.data.audience as Address,
       exp: BigInt(body.data.exp),
-      boxHash: body.data.boxHash as Hex,
-      box: {
-        ephemeralPubkey: body.data.box.ephemeralPubkey as Hex,
-        nonce: body.data.box.nonce as Hex,
-        ciphertext: body.data.box.ciphertext as Hex,
-      },
+      boxesHash: body.data.boxesHash as Hex,
+      boxes: body.data.boxes.map((b) => ({
+        ephemeralPubkey: b.ephemeralPubkey as Hex,
+        nonce: b.nonce as Hex,
+        ciphertext: b.ciphertext as Hex,
+      })),
       signature: body.data.signature as Hex,
     };
     const located = locate(grant.name, await chain.instances());
@@ -567,10 +570,10 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
       const signer = await recoverDiscloseSigner(
         {
           name: grant.name,
-          domain: grant.domain,
+          domains: grant.domains,
           audience: grant.audience,
           exp: grant.exp,
-          boxHash: grant.boxHash,
+          boxesHash: grant.boxesHash,
         },
         grant.signature,
         discloseDomain(config.CHAIN_ID, config.MULTIPASS)
@@ -579,12 +582,13 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     } catch (e) {
       return c.json({ error: (e as Error).message }, 422);
     }
-    const key = `${grant.name}:${grant.domain}`;
-    grantStore.set(key, grant);
+    // One signed statement, stored once per account it names: a read asks about one account, and the
+    // grant it finds still carries the whole selection so the signature can be checked again.
+    for (const domain of grant.domains) grantStore.set(`${grant.name}:${domain}`, grant);
     return c.json({
       ok: true,
       name: grant.name,
-      domain: grant.domain,
+      domains: grant.domains,
       expiresAt: new Date(Number(grant.exp) * 1000).toISOString(),
     });
   });
@@ -599,8 +603,8 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     const grants = grantStore
       .entries()
       .filter(([, g]) => g.name === name && g.exp > BigInt(now()))
-      .map(([, g]) => ({
-        domain: g.domain,
+      .map(([key, g]) => ({
+        domain: key.slice(name.length + 1),
         audience: g.audience,
         expiresAt: new Date(Number(g.exp) * 1000).toISOString(),
       }))
@@ -657,10 +661,10 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
       const signer = await recoverDiscloseSigner(
         {
           name: grant.name,
-          domain: grant.domain,
+          domains: grant.domains,
           audience: grant.audience,
           exp: grant.exp,
-          boxHash: grant.boxHash,
+          boxesHash: grant.boxesHash,
         },
         grant.signature,
         discloseDomain(config.CHAIN_ID, config.MULTIPASS)
@@ -673,7 +677,11 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     const packed = await chain.resolveData(located.instance.resolver, name, `ketsuban:link:${domain}`);
     if (packed === "0x" || packed.length !== 194) return c.json({ error: "no record for that account" }, 404);
     try {
-      const viewCode = bytesToHex(eciesDecrypt(config.REGISTRAR_KEY, grant.box));
+      // The grant names its accounts in one order and carries their boxes in the same one: this
+      // account's view code is the box at its own position, never simply the first.
+      const box = grant.boxes[grant.domains.indexOf(domain)];
+      if (!box) return c.json({ error: "no disclosure for that account" }, 404);
+      const viewCode = bytesToHex(eciesDecrypt(config.REGISTRAR_KEY, box));
       const disclosed = decodeRecord(
         {
           name: `0x${packed.slice(2, 66)}` as Hex,

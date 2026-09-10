@@ -19,27 +19,35 @@ import type { EciesBox } from "./types.js";
 export const DISCLOSE_TYPES = {
   Disclose: [
     { name: "name", type: "string" },
-    { name: "domain", type: "string" },
+    { name: "domains", type: "string[]" },
     { name: "audience", type: "address" },
     { name: "exp", type: "uint256" },
-    { name: "boxHash", type: "bytes32" },
+    { name: "boxesHash", type: "bytes32" },
   ],
 } as const;
 
 export type Disclosure = {
   /** The ENS name the disclosure is about, e.g. `alice.ketsuban.eth` */
   name: string;
-  /** Platform domain being disclosed, e.g. `x` */
-  domain: string;
+  /** Platform domains being disclosed, in the order their boxes are carried, e.g. `["discord.com", "x"]` */
+  domains: string[];
   /** Wallet allowed to read it, or the zero address for anyone */
   audience: Address;
   /** Unix seconds */
   exp: bigint;
-  /** keccak256 over the encrypted view code, so the signature binds to this exact box */
-  boxHash: Hex;
+  /** keccak256 over every encrypted view code, so the signature binds to this exact set of boxes */
+  boxesHash: Hex;
 };
 
-export type SignedDisclosure = Disclosure & { box: EciesBox; signature: Hex };
+export type SignedDisclosure = Disclosure & { boxes: EciesBox[]; signature: Hex };
+
+/**
+ * The accounts of a grant in one order. Sharing three accounts is one decision and one signature, so
+ * two identical selections must produce the same statement rather than two that differ by click order.
+ */
+export function domainsKey(domains: readonly string[]): string[] {
+  return [...new Set(domains)].sort();
+}
 
 /** Separated from every other domain so a disclosure can never be replayed as an intent or an invite */
 export function discloseDomain(chainId: number, multipass: Address): TypedDataDomain {
@@ -74,9 +82,17 @@ export async function signDisclosure(
   });
 }
 
-/** The hash a disclosure signature binds to: the exact ciphertext, not just the fact of one. */
+/** The hash one ciphertext contributes: the exact bytes, not just the fact of one. */
 export function hashBox(box: EciesBox): Hex {
   return keccak256(concatHex([box.ephemeralPubkey, box.nonce, box.ciphertext]));
+}
+
+/**
+ * What a grant's signature binds to. Order matters: two accounts whose boxes were swapped would hand a
+ * reader one account's view code under the other's name, so the hash covers the sequence, not a set.
+ */
+export function hashBoxes(boxes: readonly EciesBox[]): Hex {
+  return keccak256(concatHex(boxes.map(hashBox)));
 }
 
 /**
@@ -92,7 +108,12 @@ export function checkDisclosure(
     throw new Error("disclosure: not signed by the wallet that holds the record");
   }
   if (grant.exp <= BigInt(opts.now)) throw new Error("disclosure: expired");
-  if (hashBox(grant.box) !== grant.boxHash) throw new Error("disclosure: signature is for a different box");
+  if (grant.boxes.length !== grant.domains.length) {
+    throw new Error("disclosure: signature is for a different box set");
+  }
+  if (hashBoxes(grant.boxes) !== grant.boxesHash) {
+    throw new Error("disclosure: signature is for a different box");
+  }
 }
 
 /**

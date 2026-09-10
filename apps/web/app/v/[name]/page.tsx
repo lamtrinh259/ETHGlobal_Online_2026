@@ -51,7 +51,13 @@ export default async function VerifyPage({ params, searchParams }: Params) {
             )}
           </section>
         )}
-        {reveal && <Revealed name={decoded} domain={reveal} audience={addressedTo} />}
+        {/* One link can open several accounts: the grant was one signature over the whole selection. */}
+        {reveal
+          ?.split(",")
+          .filter(Boolean)
+          .map((domain) => (
+            <Revealed key={domain} name={decoded} domain={domain} audience={addressedTo} />
+          ))}
         <EnsProof ens={ens} name={decoded} />
       </>
     );

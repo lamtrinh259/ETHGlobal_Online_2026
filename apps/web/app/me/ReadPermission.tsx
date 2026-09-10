@@ -5,6 +5,7 @@ import { useSignTypedData, useWallets } from "@privy-io/react-auth";
 import type { Address, Hex } from "viem";
 import type { Api, WalletDashboard } from "@/lib/api";
 import { CopyButton } from "@/app/CopyButton";
+import { Switch } from "@/app/Switch";
 import { useWebConfig } from "@/app/providers";
 import {
   buildDisclosure,
@@ -46,11 +47,12 @@ export function ReadPermission({ api, links, name }: Props) {
   const { wallets } = useWallets();
   const { signTypedData } = useSignTypedData();
   const root = config.instances[0];
+  const [picked, setPicked] = useState<string[]>([]);
   const [scope, setScope] = useState<"link" | "person">("link");
   const [reader, setReader] = useState("");
   const [busy, setBusy] = useState<string>();
   const [error, setError] = useState<string>();
-  const [granted, setGranted] = useState<{ domain: string; expiresAt: string; audience?: Address }>();
+  const [granted, setGranted] = useState<{ domains: string[]; expiresAt: string; audience?: Address }>();
   const live = useDisclosures(api, name);
   const revoking = useRevoke(api, name);
   const [taking, setTaking] = useState<string>();
@@ -65,23 +67,30 @@ export function ReadPermission({ api, links, name }: Props) {
     : ((lookup.data?.live && lookup.data.wallet ? (lookup.data.wallet as Address) : undefined) ?? undefined);
   const ready = scope === "link" || !!audience;
 
-  async function allow(domain: string) {
+  /**
+   * Share everything picked, under one signature. Three accounts is one decision and one link, so
+   * asking for three signatures would be asking the same question three times.
+   */
+  async function share() {
     setError(undefined);
-    setBusy(domain);
+    setBusy("share");
     try {
-      const viewCode = loadViewCodes()[domain];
-      if (!viewCode)
-        throw new Error(`the view code for ${domain} is not in this browser — re-attest it to get one`);
+      const codes = loadViewCodes();
+      const accounts = picked.map((domain) => {
+        const viewCode = codes[domain];
+        if (!viewCode)
+          throw new Error(`the view code for ${domain} is not in this browser — re-attest it to get one`);
+        return { domain, viewCode: viewCode as Hex };
+      });
       const wallet = (wallets.find((w) => w.walletClientType === "privy") ?? wallets[0])?.address as
         Address | undefined;
       if (!wallet) throw new Error("no wallet yet — Privy is still creating it");
       const only = scope === "person" ? audience : undefined;
 
       const { publicKey } = await api.enclaveKey();
-      const { disclosure, box } = buildDisclosure({
+      const { disclosure, boxes } = buildDisclosure({
         name,
-        domain,
-        viewCode: viewCode as Hex,
+        accounts,
         enclavePubkey: publicKey,
         audience: only,
         now: Math.floor(Date.now() / 1000),
@@ -90,8 +99,8 @@ export function ReadPermission({ api, links, name }: Props) {
         disclosureTypedData(disclosure, config.chainId, config.multipass as Address) as never,
         { address: wallet }
       );
-      const ack = await api.disclose(toDisclosureWire(disclosure, box, signature as Hex));
-      setGranted({ domain, expiresAt: ack.expiresAt, audience: only });
+      const ack = await api.disclose(toDisclosureWire(disclosure, boxes, signature as Hex));
+      setGranted({ domains: disclosure.domains, expiresAt: ack.expiresAt, audience: only });
       void live.refetch();
     } catch (e) {
       setError((e as Error).message);
@@ -117,7 +126,10 @@ export function ReadPermission({ api, links, name }: Props) {
         { address: wallet }
       );
       await revoking.mutateAsync({ ...revocation, at: revocation.at.toString(), signature });
-      if (granted?.domain === domain) setGranted(undefined);
+      if (granted?.domains.includes(domain)) {
+        const left = granted.domains.filter((d) => d !== domain);
+        setGranted(left.length ? { ...granted, domains: left } : undefined);
+      }
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -136,6 +148,22 @@ export function ReadPermission({ api, links, name }: Props) {
         published and this app never sees it either.
       </p>
 
+      <h3>Which accounts</h3>
+      <ul className="acct" data-testid="pick-list">
+        {masked.map((l) => (
+          <li key={l.domain} data-testid={`pick-${l.domain}`}>
+            <Switch
+              checked={picked.includes(l.domain)}
+              onChange={(on) => setPicked((p) => (on ? [...p, l.domain] : p.filter((d) => d !== l.domain)))}
+              label={l.domain}
+              // Two records for one platform look identical without the name each answers at.
+              hint={l.ensName ?? "private, unnamed"}
+            />
+          </li>
+        ))}
+      </ul>
+
+      <h3>Who may read them</h3>
       <p className="row" role="group" aria-label="who it is for">
         <button
           className={scope === "link" ? "primary" : ""}
@@ -194,20 +222,18 @@ export function ReadPermission({ api, links, name }: Props) {
         </>
       )}
 
-      <ul className="acct">
-        {masked.map((l) => (
-          <li key={l.domain} data-testid={`allow-${l.domain}`}>
-            <span className="acct-who">{l.domain}</span>
-            {/* Two records for one platform look identical without the name each answers at. */}
-            <small className="muted">{l.ensName ? <code>{l.ensName}</code> : "private, unnamed"}</small>
-            <span className="acct-state">
-              <button onClick={() => allow(l.domain)} disabled={busy === l.domain || !ready}>
-                {busy === l.domain ? "signing…" : "Share"}
-              </button>
-            </span>
-          </li>
-        ))}
-      </ul>
+      <p>
+        <button
+          className="primary"
+          onClick={() => void share()}
+          disabled={busy === "share" || !ready || picked.length === 0}
+          data-testid="share"
+        >
+          {busy === "share" ? "signing…" : picked.length > 1 ? `Share ${picked.length} accounts` : "Share"}
+        </button>{" "}
+        {picked.length === 0 && <small className="muted">Pick an account above to share it.</small>}
+      </p>
+
       <h3>Who can read these now</h3>
       {!live.data ? (
         <p className="muted">reading…</p>
@@ -253,20 +279,21 @@ export function ReadPermission({ api, links, name }: Props) {
       {granted && (
         <div className="done" data-testid="granted">
           <p>
-            <strong>{granted.domain}</strong>{" "}
+            <strong>{granted.domains.join(", ")}</strong>{" "}
+            {granted.domains.length > 1 ? "can be read" : "can be read"}{" "}
             {granted.audience ? (
               <>
-                can be read by <code>{short(granted.audience)}</code> only
+                by <code>{short(granted.audience)}</code> only
               </>
             ) : (
-              "can be read by anyone holding this link"
+              "by anyone holding this link"
             )}
             , until {new Date(granted.expiresAt).toUTCString()}.
           </p>
-          <code>{revealLink(siteUrl, name, granted.domain, granted.audience)}</code>
+          <code>{revealLink(siteUrl, name, granted.domains, granted.audience)}</code>
           <p>
             <CopyButton
-              text={revealLink(siteUrl, name, granted.domain, granted.audience)}
+              text={revealLink(siteUrl, name, granted.domains, granted.audience)}
               label="Copy the link"
             />
           </p>

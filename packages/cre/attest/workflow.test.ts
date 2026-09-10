@@ -25,7 +25,7 @@ import {
   type Hex,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { discloseDomain, eciesDecrypt, eciesEncrypt, hashBox, signDisclosure } from "@ketsuban/registrar";
+import { discloseDomain, eciesDecrypt, eciesEncrypt, hashBoxes, signDisclosure } from "@ketsuban/registrar";
 import {
   encodeReport,
   handleFromLog,
@@ -391,22 +391,33 @@ describe("onDisclose", () => {
     return `0x${record.name.slice(2)}${record.id.slice(2)}${record.payload.slice(2)}` as Hex;
   }
 
-  async function grant(over: { audience?: Hex; exp?: bigint; name?: string } = {}) {
+  async function grant(
+    over: { audience?: Hex; exp?: bigint; name?: string; domains?: string[] } = {}
+  ) {
     const registrarAccount = privateKeyToAccount(REGISTRAR_KEY);
-    const box = eciesEncrypt(registrarAccount.publicKey, hexToBytes(VIEW_CODE), new Uint8Array(32).fill(4));
+    const domains = over.domains ?? ["x"];
+    // Each account has its own view code, and only `x`'s opens the record under test: a grant that
+    // read the wrong box would decode to nonsense rather than quietly return the right answer.
+    const boxes = domains.map((d, i) =>
+      eciesEncrypt(
+        registrarAccount.publicKey,
+        hexToBytes(d === "x" ? VIEW_CODE : (`0x${"c3".repeat(32)}` as Hex)),
+        new Uint8Array(32).fill(4 + i)
+      )
+    );
     const disclosure = {
       name: over.name ?? "alice.kju-is.eth",
-      domain: "x",
+      domains,
       audience: (over.audience ?? `0x${"00".repeat(20)}`) as Hex,
       exp: over.exp ?? BigInt(NOW + 3600),
-      boxHash: hashBox(box),
+      boxesHash: hashBoxes(boxes),
     };
     const signature = await signDisclosure(
       user.account,
       disclosure as never,
       discloseDomain(config.chainId, config.multipass as Hex)
     );
-    return { ...disclosure, exp: disclosure.exp.toString(), box, signature };
+    return { ...disclosure, exp: disclosure.exp.toString(), boxes, signature };
   }
 
   const payload = async (over: Parameters<typeof grant>[0] = {}, extra: object = {}) => ({
@@ -420,6 +431,24 @@ describe("onDisclose", () => {
         ...extra,
       })
     ),
+  });
+
+  test("opens the account asked about, not simply the first the grant names", async () => {
+    // One signature can cover several accounts. Reading the wrong box would hand back one account's
+    // handle under another account's name — the failure a verifier could never detect.
+    const { runtime } = fakeTeeRuntime();
+    const many = { domains: ["discord.com", "x"] };
+    const out = JSON.parse(await onDisclose(runtime, (await payload(many)) as any));
+    expect(out).toEqual({
+      name: "alice.kju-is.eth",
+      domain: "x",
+      disclosed: { handle: "alice_x", platformId: "1234567890" },
+    });
+
+    // An account the grant does not name is refused, even though the signature itself is good.
+    await expect(
+      onDisclose(runtime, (await payload(many, { domain: "github.com" })) as any)
+    ).rejects.toThrow(/different record/);
   });
 
   test("answers the handle inside the enclave, and nothing else leaves", async () => {

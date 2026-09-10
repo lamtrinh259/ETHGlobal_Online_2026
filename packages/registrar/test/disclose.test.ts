@@ -6,7 +6,8 @@ import {
   checkAudience,
   checkDisclosure,
   discloseDomain,
-  hashBox,
+  domainsKey,
+  hashBoxes,
   checkRevocation,
   recoverDiscloseSigner,
   recoverRevokeSigner,
@@ -26,12 +27,13 @@ const enclave = privateKeyToAccount(ENCLAVE_KEY);
 const NOW = 1_800_000_000;
 
 const box = eciesEncrypt(enclave.publicKey, new Uint8Array(32).fill(7), new Uint8Array(32).fill(9));
+const box2 = eciesEncrypt(enclave.publicKey, new Uint8Array(32).fill(8), new Uint8Array(32).fill(6));
 const base: Disclosure = {
   name: "alice.ketsuban.eth",
-  domain: "x",
+  domains: ["x"],
   audience: zeroAddress,
   exp: BigInt(NOW + 3600),
-  boxHash: hashBox(box),
+  boxesHash: hashBoxes([box]),
 };
 
 describe("disclosure grants", () => {
@@ -55,7 +57,7 @@ describe("disclosure grants", () => {
     const other = eciesEncrypt(enclave.publicKey, new Uint8Array(32).fill(1), new Uint8Array(32).fill(2));
     expect(() =>
       checkDisclosure(
-        { ...base, box: other, signature },
+        { ...base, boxes: [other], signature },
         { holder: alice.address, now: NOW, signer: alice.address }
       )
     ).toThrow("signature is for a different box");
@@ -63,7 +65,7 @@ describe("disclosure grants", () => {
 
   it("accepts only a live grant from the record's own wallet, addressed to the reader", async () => {
     const signature = await signDisclosure(alice, base, discloseDomain(11155111, MULTIPASS));
-    const grant = { ...base, box, signature };
+    const grant = { ...base, boxes: [box], signature };
     const ok = { holder: alice.address, now: NOW, signer: alice.address };
     expect(() => checkDisclosure(grant, ok)).not.toThrow();
 
@@ -84,7 +86,7 @@ describe("disclosure grants", () => {
 });
 
 describe("revoking a grant", () => {
-  const revocation = { name: base.name, domain: base.domain, at: BigInt(NOW) };
+  const revocation = { name: base.name, domain: "x", at: BigInt(NOW) };
   const domain = discloseDomain(11155111, MULTIPASS);
 
   it("only the wallet that holds the record can take a grant back", async () => {
@@ -118,5 +120,40 @@ describe("revoking a grant", () => {
     const asGrant = await signDisclosure(alice, base, domain);
     expect(await recoverRevokeSigner(revocation, asGrant, domain)).not.toBe(alice.address);
     expect(await recoverDiscloseSigner(base, signature, domain)).not.toBe(alice.address);
+  });
+});
+
+describe("one grant, several accounts", () => {
+  const many: Disclosure = {
+    name: "alice.ketsuban.eth",
+    // Sharing three accounts must not cost three signatures: the reader is given one link either way.
+    domains: ["discord.com", "x"],
+    audience: zeroAddress,
+    exp: BigInt(NOW + 3600),
+    boxesHash: hashBoxes([box, box2]),
+  };
+  const domain = discloseDomain(11155111, MULTIPASS);
+
+  it("binds to every ciphertext it carries, in the order it names them", async () => {
+    const signature = await signDisclosure(alice, many, domain);
+    const ok = { holder: alice.address, now: NOW, signer: alice.address };
+    expect(() => checkDisclosure({ ...many, boxes: [box, box2], signature }, ok)).not.toThrow();
+
+    // Swapping two boxes would hand a reader the wrong account's view code under the right name.
+    expect(() => checkDisclosure({ ...many, boxes: [box2, box], signature }, ok)).toThrow(/different box/);
+    // And dropping one must not silently narrow the grant to whatever is left.
+    expect(() => checkDisclosure({ ...many, boxes: [box], signature }, ok)).toThrow(/different box/);
+  });
+
+  it("keeps each account's own view code, because one code never opens another account", () => {
+    expect(eciesDecrypt(ENCLAVE_KEY, box)).toEqual(new Uint8Array(32).fill(7));
+    expect(eciesDecrypt(ENCLAVE_KEY, box2)).toEqual(new Uint8Array(32).fill(8));
+  });
+
+  it("names its accounts in one order, so the same selection is the same grant", () => {
+    // The signature covers the list as given; sorting it first is what makes two identical selections
+    // produce the same statement rather than two that differ only by click order.
+    expect(domainsKey(["x", "discord.com"])).toEqual(["discord.com", "x"]);
+    expect(domainsKey(["x", "x"])).toEqual(["x"]);
   });
 });
