@@ -568,6 +568,8 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     (raw) => raw as string,
     (text) => text
   );
+  const letterBytes = () =>
+    letterStore.entries().reduce((n, [, text]) => n + new TextEncoder().encode(text).length, 0);
 
   app.post("/v1/letter", async (c) => {
     const body = (await c.req.json().catch(() => null)) as { text?: unknown } | null;
@@ -578,6 +580,14 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
       return c.json({ error: `a letter must be under ${LETTER_MAX_BYTES / 1000}kB` }, 413);
     }
     const hash = createHash("sha256").update(text).digest("hex");
+    // Already held: content-addressed, so writing the same letter twice costs nothing and is not
+    // refused for space it does not need.
+    if (letterStore.get(hash) === undefined && letterBytes() + size > config.LETTER_STORE_BYTES) {
+      return c.json(
+        { error: "the letter store is full; ask the operator to raise LETTER_STORE_BYTES or free space" },
+        507
+      );
+    }
     letterStore.set(hash, text);
     return c.json({ hash, ref: `sha256:${hash}`, bytes: size });
   });

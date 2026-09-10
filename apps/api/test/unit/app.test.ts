@@ -892,6 +892,32 @@ describe("a letter too long to sit on chain", () => {
     expect((await post(a, { text: "x".repeat(20_001) })).status).toBe(413);
   });
 
+  it("stops taking letters before an unauthenticated caller can fill the disk", async () => {
+    // Nothing gates this endpoint, and the same directory holds the grants and the avatars. Without a
+    // ceiling, anyone could take the whole deployment down by writing letters nobody asked for.
+    const dir = mkdtempSync(join(tmpdir(), "ketsuban-letters-full-"));
+    const { chain } = fakeChain();
+    const a = createApp({
+      config: loadConfig({ ...baseEnv, DATA_DIR: dir, LETTER_STORE_BYTES: "4000" }),
+      chain,
+      now: () => NOW,
+    });
+
+    // Each letter is distinct, so content-addressing cannot dedupe the pressure away.
+    for (let i = 0; i < 2; i++) {
+      expect((await post(a, { text: `${i} ${"x".repeat(1_500)}` })).status).toBe(200);
+    }
+    const full = await post(a, { text: `over ${"y".repeat(1_500)}` });
+    expect(full.status).toBe(507);
+    expect((await full.json()).error).toMatch(/full/i);
+
+    // A letter already held is still readable: the ceiling refuses new writes, it does not lose old ones.
+    const first = createHash("sha256")
+      .update(`0 ${"x".repeat(1_500)}`)
+      .digest("hex");
+    expect((await a.request(`/v1/letter/${first}`)).status).toBe(200);
+  });
+
   it("says a letter it does not hold is missing, rather than answering with nothing", async () => {
     const { chain } = fakeChain();
     const missing = await app(chain).request(`/v1/letter/${"ab".repeat(32)}`);

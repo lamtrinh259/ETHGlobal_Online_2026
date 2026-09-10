@@ -7,6 +7,7 @@
  * `DeployLocal.s.sol` into anvil and starts the API image against it. The full loop is exercised: intent → attest (node registrar) → delivery →
  * bridge.verify on chain → name resolves through the ENS shim → verify endpoint.
  */
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { beforeAll, describe, expect, it } from "vitest";
 import {
@@ -354,6 +355,29 @@ describe("api e2e", () => {
     // Masked again: the reader who could open it a moment ago now gets the same answer as a stranger.
     expect((await fetch(`${API}/v1/disclose/${name}/x?reader=${reader.address}`)).status).toBe(404);
     expect((await (await fetch(`${API}/v1/disclosures/${name}`)).json()).grants).toEqual([]);
+  });
+
+  it("keeps a letter by its hash, serves it back, and still has it after a restart", async () => {
+    // The letter is the part that cannot fit on chain. What goes on chain is the hash, so the copy a
+    // reader is handed is checkable — and the copy has to outlive a deploy or the reference points at
+    // nothing.
+    const letter = "Alice ran infrastructure at Acme for three years. ".repeat(40);
+    const kept = await (
+      await fetch(`${API}/v1/letter`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ text: letter }),
+      })
+    ).json();
+    expect(kept.ref).toBe(`sha256:${kept.hash}`);
+
+    const read = await (await fetch(`${API}/v1/letter/${kept.hash}`)).json();
+    expect(read.text).toBe(letter);
+    // The hash is the whole point: anyone can check what they were given is what the record names.
+    expect(createHash("sha256").update(letter).digest("hex")).toBe(kept.hash);
+
+    await restartApi(API);
+    expect((await (await fetch(`${API}/v1/letter/${kept.hash}`)).json()).text).toBe(letter);
   });
 
   it("keeps a share across a restart, because a redeploy must not revoke anybody", async () => {

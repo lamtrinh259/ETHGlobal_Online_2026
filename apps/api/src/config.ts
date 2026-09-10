@@ -88,6 +88,15 @@ export const configSchema = z.object({
    * anyone may refer anyone, and a reference the candidate never asked for is reported as unsolicited
    * rather than refused. A deployment that wants the closed behaviour sets this to `true`.
    */
+  /**
+   * How many bytes of letters this service will hold. Nothing gates writing one, and the same
+   * directory holds grants and avatars, so an unbounded store is a way to take the deployment down.
+   */
+  LETTER_STORE_BYTES: z
+    .string()
+    .default("26214400")
+    .transform((v) => Number(v))
+    .pipe(z.number().int().positive()),
   REQUIRE_INVITE: z
     .string()
     .default("false")
