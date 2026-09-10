@@ -1093,6 +1093,25 @@ describe("GET /v1/instance/:domain — what people said under one name", () => {
     expect(body.description).toMatch(/North Korean/);
   });
 
+  it("shows who the page is about, from the records the name itself holds", async () => {
+    // A page created for someone who has claimed nothing is only worth reading if it says who they
+    // are. That belongs on the name, where any ENS client reads it, not in this app.
+    const { chain } = fakeChain({
+      listed: { "kju-is": [] },
+      texts: {
+        "kju-is.eth/description": "Supreme Leader of North Korea.",
+        "kju-is.eth/url": "https://en.wikipedia.org/wiki/Kim_Jong_Un",
+        "kju-is.eth/avatar": "https://example.test/kju.png",
+      },
+    });
+    const body = await (await app(chain).request("/v1/instance/kju-is")).json();
+    expect(body.records).toEqual({
+      description: "Supreme Leader of North Korea.",
+      url: "https://en.wikipedia.org/wiki/Kim_Jong_Un",
+      avatar: "https://example.test/kju.png",
+    });
+  });
+
   it("says an instance nobody mounted is not here, rather than answering with an empty list", async () => {
     const { chain } = fakeChain();
     expect((await app(chain).request("/v1/instance/nowhere")).status).toBe(404);

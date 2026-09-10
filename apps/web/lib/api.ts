@@ -191,6 +191,15 @@ export const whoSchema = z.object({
 });
 export type Who = z.infer<typeof whoSchema>;
 
+/** What one instance name holds: who it is about, and what people answered under it. */
+export type InstanceRead = {
+  domain: string;
+  parentName: string;
+  description: string | null;
+  records?: { description: string; url: string; avatar: string };
+  answers: { handle: string; ensName: string; answer: string; validUntil: string }[];
+};
+
 export const grantsSchema = z.object({
   name: z.string(),
   grants: z.array(
@@ -450,18 +459,10 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
     },
 
     /** What people published under one instance name: the answers, and what the name says it is for. */
-    async instance(domain: string): Promise<{
-      domain: string;
-      parentName: string;
-      description: string | null;
-      answers: { handle: string; ensName: string; answer: string; validUntil: string }[];
-    }> {
-      return (await readJson(await call(`${base}/v1/instance/${encodeURIComponent(domain)}`))) as {
-        domain: string;
-        parentName: string;
-        description: string | null;
-        answers: { handle: string; ensName: string; answer: string; validUntil: string }[];
-      };
+    async instance(domain: string): Promise<InstanceRead> {
+      return (await readJson(
+        await call(`${base}/v1/instance/${encodeURIComponent(domain)}`)
+      )) as InstanceRead;
     },
 
     /** People whose handle looks like this, most-referenced first: which `bob` did you mean. */
