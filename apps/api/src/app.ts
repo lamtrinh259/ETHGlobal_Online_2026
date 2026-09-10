@@ -748,6 +748,10 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     if (!parsed.success) return c.json({ ok: false, error: "bad request", issues: parsed.error.issues }, 400);
     try {
       const record = toRecord(parsed.data.record);
+      // The candidate's vouch domain has to exist before a statement can be written into it. The
+      // browser path already does this; without it here, referring someone who has claimed nothing
+      // reverts as an uninitialised domain — which is exactly the person the open model is for.
+      await ensureVouchDomain(record);
       const txHash = await chain.submit(record, parsed.data.signature as Hex);
       // A newly claimed root name gets its vouch instance so others can write references under it.
       let vouchInstance: { domain: string; created: boolean } | undefined;

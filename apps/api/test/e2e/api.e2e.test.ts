@@ -965,6 +965,55 @@ describe("api e2e", () => {
    * else is in place — no invitation, no candidate name, no vouch instance — so if any of that is
    * really required, this fails.
    */
+  it("lets an ordinary person refer someone who has claimed nothing, and marks it unsolicited", async () => {
+    // The headline of the open model, end to end: no invitation, no organisation, and a subject who
+    // holds no name. The relay builds their vouch instance from the signed record, and the reference
+    // waits there for whoever claims the handle.
+    const now = Math.floor(Date.now() / 1000);
+    const REFERRER_KEY = "0x00000000000000000000000000000000000000000000000000000000000000cc" as const;
+    const referrer = fakeUser(REFERRER_KEY, "dave");
+    const post = (path: string, body: unknown, headers: Record<string, string> = {}) =>
+      fetch(`${API}${path}`, {
+        method: "POST",
+        headers: { "content-type": "application/json", ...headers },
+        body: JSON.stringify(body),
+      });
+
+    // Nobody holds "erin", so no invitation exists and none can.
+    expect((await (await fetch(`${API}/v1/name/${deployment.instanceDomain}/erin`)).json()).live).toBe(false);
+
+    const wire = toWire(
+      await signedAttestRequest(
+        referrer.account,
+        baseIntent(referrer.account, now, {
+          domain: "~erin",
+          handle: "dave",
+          payload: toBytes32("worked together 2020-23"),
+          exp: BigInt(now + 3600),
+        }),
+        privy.mint({ sub: referrer.did, linked: referrer.linked, now }),
+        31337,
+        deployment.multipass
+      )
+    );
+    const attested = await (await post("/v1/attest", wire)).json();
+    expect(attested.error).toBeUndefined();
+    const delivered = await (
+      await post("/v1/cre/delivery", attested, { "x-delivery-token": "e2e-delivery-token-0123456789" })
+    ).json();
+    expect(delivered.error ?? "").toBe("");
+    expect(delivered).toMatchObject({ ok: true });
+
+    // The reference stands, and says plainly that erin never asked for it.
+    const listed = await (await fetch(`${API}/v1/vouches/erin`)).json();
+    const written = listed.vouches.find((v: { voucher: string }) => v.voucher === "dave");
+    expect(written).toMatchObject({ statement: "worked together 2020-23", live: true, solicited: false });
+
+    // And erin is now findable as someone with a reference waiting, though she has claimed nothing.
+    const standing = await (await fetch(`${API}/v1/standing/erin`)).json();
+    expect(standing).toMatchObject({ claimed: false, received: 1 });
+  });
+
   it("lets an onboarded organisation write a letter before the person exists", async () => {
     const now = Math.floor(Date.now() / 1000);
     const ORG_KEY = "0x00000000000000000000000000000000000000000000000000000000000000aa" as const;
