@@ -28,6 +28,17 @@ export class PersistentSet {
     this.persist();
   }
 
+  /**
+   * Give a claim back.
+   *
+   * A set like this is often claimed before the thing it stands for is done, so two requests in flight
+   * cannot both spend it. That is only correct if a failure releases it again — otherwise one bad
+   * moment denies somebody the single chance they had.
+   */
+  delete(value: string): void {
+    if (this.values.delete(value)) this.persist();
+  }
+
   /** Whether what this set holds would survive a restart; see PersistentMap.health. */
   health(): StoreHealth {
     if (!this.path) return { durable: false, writable: false, lastError: null };

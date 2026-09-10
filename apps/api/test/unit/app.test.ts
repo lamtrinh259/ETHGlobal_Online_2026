@@ -3010,6 +3010,37 @@ describe("POST /v1/gas", () => {
     createApp({ config: loadConfig({ ...baseEnv, GAS_TOPUP_WEI: wei }), chain, now: () => NOW });
   const body = { wallet: user.account.address };
 
+  /**
+   * The claim is taken before the send, so two requests in flight cannot both pay out. That is only
+   * correct if a failure gives it back: this is the single top-up a wallet gets, and a wallet with no
+   * gas cannot do anything else — losing it to one bad RPC moment would end that person's use of the
+   * product, with nothing on the page to explain why.
+   */
+  it("gives the one top-up back when the send fails, so a bad moment is not permanent", async () => {
+    const { chain, state } = fakeChain({ byWallet: [live], balance: 0n });
+    let fail = true;
+    chain.sendEth = vi.fn(async (to: Address, value: bigint) => {
+      if (fail) throw new Error("replacement transaction underpriced");
+      state.sent.push({ to, value });
+      return `0x${"cc".repeat(32)}` as const;
+    }) as never;
+
+    const a = gasApp(chain);
+    const first = await post(a, "/v1/gas", body);
+    expect(first.status).toBe(502);
+    expect((await first.json()).error).toMatch(/underpriced/);
+    expect(state.sent).toHaveLength(0);
+
+    // The same wallet may still ask, because nothing was spent on it.
+    fail = false;
+    const second = await post(a, "/v1/gas", body);
+    expect(second.status).toBe(200);
+    expect(state.sent).toEqual([{ to: user.account.address, value: 2_000_000_000_000_000n }]);
+
+    // And once it has been spent, the claim holds.
+    expect((await post(a, "/v1/gas", body)).status).toBe(409);
+  });
+
   it("is disabled unless GAS_TOPUP_WEI is set", async () => {
     const { chain } = fakeChain({ byWallet: [live] });
     expect((await post(app(chain), "/v1/gas", body)).status).toBe(501);

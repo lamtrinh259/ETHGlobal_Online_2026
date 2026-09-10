@@ -1585,9 +1585,17 @@ export function createApp({
       return c.json({ error: "wallet holds no live name" }, 403);
     if ((await chain.balance(wallet)) >= config.GAS_TOPUP_WEI)
       return c.json({ error: "wallet has enough gas" }, 409);
+    // Claimed before the send, so two requests in flight cannot both pay out. Given back if the send
+    // fails: this is the one top-up a wallet gets, and a wallet with no gas cannot ask for anything
+    // else — losing it to an RPC hiccup would end that person's use of the product.
     toppedUp.add(key);
-    const hash = await chain.sendEth(wallet, config.GAS_TOPUP_WEI);
-    return c.json({ hash, amount: config.GAS_TOPUP_WEI.toString() });
+    try {
+      const hash = await chain.sendEth(wallet, config.GAS_TOPUP_WEI);
+      return c.json({ hash, amount: config.GAS_TOPUP_WEI.toString() });
+    } catch (e) {
+      toppedUp.delete(key);
+      return c.json({ error: `could not send gas: ${(e as Error).message}` }, 502);
+    }
   });
 
   /** References written under a candidate: every record in the `<prefix><handle>` vouch domain. */
