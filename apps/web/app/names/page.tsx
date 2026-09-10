@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { createApi } from "@/lib/api";
 import { loadWebConfig } from "@/lib/config";
-import { nameKinds } from "@/lib/namespace";
+import { nameKinds, platformMounts } from "@/lib/namespace";
 import { Explain } from "./Explain";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +18,7 @@ export default async function NamesPage() {
   const api = createApi(config.apiUrl, config.attestUrl);
   const contracts = await api.contracts().catch(() => undefined);
   const kinds = nameKinds(contracts, config.nameDomains);
-  const mounts = (contracts?.instances ?? []).filter((i) => !config.nameDomains.includes(i.domain));
+  const mounts = platformMounts(contracts, config.nameDomains);
 
   return (
     <>

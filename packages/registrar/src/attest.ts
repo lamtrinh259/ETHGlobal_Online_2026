@@ -23,7 +23,12 @@ import {
   type PlatformAccount,
 } from "./accounts.js";
 import { eciesEncrypt } from "./ecies.js";
-import { PRIVATE_GROUPINGS, PUBLIC_GROUPINGS } from "./namespace.js";
+import {
+  DEFAULT_NAME_DOMAIN_PREFIXES,
+  isNameDomain as isNameDomainIn,
+  PRIVATE_GROUPINGS,
+  PUBLIC_GROUPINGS,
+} from "./namespace.js";
 import { intentDomain, recoverIntentSigner } from "./intent.js";
 import { candidateOf, inviteDomain, meetsInvite, recoverInviteSigner, ZERO_ADDRESS } from "./invite.js";
 import { verifyEs256Jwt } from "./jwt.js";
@@ -32,7 +37,7 @@ import type { AttestEnv, AttestRequest, AttestResult, OnchainState, RegistrarSec
 const DAY = 24 * 60 * 60;
 const HANDLE_RE = /^[a-z0-9-]{1,31}$/;
 
-export const DEFAULT_NAME_DOMAIN_PREFIXES: readonly string[] = ["~"];
+export { DEFAULT_NAME_DOMAIN_PREFIXES };
 
 /**
  * Labels a person may not claim in a name domain, because something else already answers there. The
@@ -60,9 +65,7 @@ export function isNameDomain(
   domain: string,
   env: Pick<AttestEnv, "nameDomains" | "nameDomainPrefixes">
 ): boolean {
-  if (env.nameDomains.includes(domain)) return true;
-  const prefixes = env.nameDomainPrefixes ?? DEFAULT_NAME_DOMAIN_PREFIXES;
-  return prefixes.some((p) => domain.length > p.length && domain.startsWith(p));
+  return isNameDomainIn(domain, env.nameDomains, env.nameDomainPrefixes ?? DEFAULT_NAME_DOMAIN_PREFIXES);
 }
 
 function isSupported(domain: string, env: AttestEnv): boolean {

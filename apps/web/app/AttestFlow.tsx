@@ -83,7 +83,7 @@ export function AttestFlow({
 
   // What this deployment can actually attest into, which is a DNS name wherever the namespace is
   // deployed. The flat list is the fallback for a deployment that has no platform instances at all.
-  const deployed = config.instances.map((i) => i.domain).filter((d) => !config.nameDomains.includes(d));
+  const deployed = config.instances.map((i) => i.domain).filter((d) => !isNameDomainFor(d, config));
   const platforms = domainOptions?.length
     ? domainOptions
     : deployed.length
@@ -95,7 +95,7 @@ export function AttestFlow({
   const [handle, setHandle] = useState(fixedHandle ?? "");
   const [answer, setAnswer] = useState(answerValue ?? "");
   // A linked account is masked by default: the commitment proves control, the handle stays private.
-  const [optIn, setOptIn] = useState(!fixedDomain || !config.nameDomains.includes(fixedDomain));
+  const [optIn, setOptIn] = useState(!fixedDomain || !isNameDomainFor(fixedDomain, config));
   const [signing, setSigning] = useState(false);
   const [signError, setSignError] = useState<string>();
   const [viewCode, setViewCode] = useState<Hex>();

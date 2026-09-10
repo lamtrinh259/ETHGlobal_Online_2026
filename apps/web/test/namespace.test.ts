@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { explainName, nameKinds } from "@/lib/namespace";
+import { explainName, nameKinds, platformMounts } from "@/lib/namespace";
 import type { Contracts } from "@/lib/api";
 
 const mount = (domain: string, parentName: string, maskedParentName?: string) => ({
@@ -20,6 +20,21 @@ const contracts = {
   bridge: "0x0000000000000000000000000000000000000003" as const,
   permissionedResolver: null,
 } as Contracts;
+
+describe("what is mounted", () => {
+  // Every claimed candidate gets a vouch instance mounted under their own name. It is a real mount,
+  // so a list built by excluding the configured name domains shows `~alice` beside `x.com` — under a
+  // heading that says "a platform or mail host", naming people as platforms.
+  const withVouch = {
+    ...contracts,
+    instances: [...contracts.instances, mount("~alice", "alice.ketsuban.eth")],
+  } as Contracts;
+
+  it("lists the platforms and mail hosts, not the candidates", () => {
+    const domains = platformMounts(withVouch, ["ketsuban"]).map((i) => i.domain);
+    expect(domains).toEqual(["x.com", "peeramid.xyz"]);
+  });
+});
 
 describe("what every name means", () => {
   it("is read back from the mounts, never from a list this page keeps", () => {

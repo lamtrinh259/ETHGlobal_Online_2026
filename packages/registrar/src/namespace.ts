@@ -45,6 +45,25 @@ export function ensNameFor(at: {
 /** A mount as the factory records it: enough to say what a name under it means. */
 export type Mount = { domain: string; parentName: string; maskedParentName?: string };
 
+/** Prefixes marking a per-candidate vouch instance (`~alice`), whose records are references. */
+export const DEFAULT_NAME_DOMAIN_PREFIXES: readonly string[] = ["~"];
+
+/**
+ * Whether a domain holds names rather than accounts.
+ *
+ * A deployment configures its root name domains, but every claimed candidate also gets a vouch
+ * instance of their own — `~alice`, mounted at `alice.<root>` — which is never in that list and is a
+ * name domain all the same. Testing membership alone reads those mounts as platforms.
+ */
+export function isNameDomain(
+  domain: string,
+  nameDomains: readonly string[],
+  prefixes: readonly string[] = DEFAULT_NAME_DOMAIN_PREFIXES
+): boolean {
+  if (nameDomains.includes(domain)) return true;
+  return prefixes.some((p) => domain.length > p.length && domain.startsWith(p));
+}
+
 export type NameClaim = {
   /** What this name says, in a sentence */
   says: string;
@@ -79,7 +98,7 @@ export function explainName(
 
   for (const mount of mounts) {
     const open = under(mount.parentName);
-    if (open && !nameDomains.includes(mount.domain)) {
+    if (open && !isNameDomain(mount.domain, nameDomains)) {
       return {
         says: `${open} is an account at ${mount.domain}, attested in the open by whoever holds it.`,
         kind: "account",

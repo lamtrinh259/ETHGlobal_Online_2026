@@ -1,5 +1,6 @@
 import { groupingFor } from "@ketsuban/registrar";
 import type { Contracts } from "./api";
+import { isNameDomainFor } from "./journey";
 
 export type NameKind = {
   /** What lives here, in the reader's words */
@@ -8,6 +9,18 @@ export type NameKind = {
   pattern: string;
   detail: string;
 };
+
+/**
+ * The mounts that are somewhere to hold an account: a platform or a mail host.
+ *
+ * Every claimed candidate also has a vouch instance mounted under their own name (`~alice` at
+ * `alice.<root>`), which no configured list of name domains contains. Excluding only that list leaves
+ * the candidates in, so a page about platforms ends up naming people as one.
+ */
+export function platformMounts(contracts: Contracts | undefined, nameDomains: readonly string[]) {
+  const instances = contracts?.instances ?? [];
+  return instances.filter((i) => !isNameDomainFor(i.domain, { instances, nameDomains: [...nameDomains] }));
+}
 
 /**
  * The namespace a deployment holds, read back from its own mounts. Nothing here is a convention this

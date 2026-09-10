@@ -67,6 +67,9 @@ describe("what a person may not be called", () => {
 describe("what a name claims", () => {
   const mounts = [
     { domain: "ketsuban", parentName: "ketsuban.eth" },
+    // A claimed candidate has a vouch instance of their own, mounted under their name. It is a mount
+    // like any other, so a classifier that reads the mounts sees it — and must not read it as a platform.
+    { domain: "~alice", parentName: "alice.ketsuban.eth" },
     {
       domain: "discord.com",
       parentName: "com.discord.www.ketsuban.eth",
@@ -87,6 +90,16 @@ describe("what a name claims", () => {
     });
     expect(claim("alice.ketsuban.eth")).toMatchObject({ kind: "person", label: "alice" });
     expect(claim("bob.alice.ketsuban.eth")).toMatchObject({ kind: "reference", label: "bob" });
+  });
+
+  it("reads a reference as a reference even though the candidate's vouch instance is a mount", () => {
+    // `~alice` is mounted at `alice.ketsuban.eth`, so `bob.alice.ketsuban.eth` is one label under a
+    // mount — the shape of an account. It is not one: a vouch instance holds references, and calling
+    // bob "an account at ~alice" both invents a platform and hides who the reference is about.
+    const claimed = claim("bob.alice.ketsuban.eth");
+    expect(claimed.kind).toBe("reference");
+    expect(claimed.says).toContain("written for alice by bob");
+    expect(claimed.says).not.toContain("~alice");
   });
 
   it("says nothing it cannot support", () => {
