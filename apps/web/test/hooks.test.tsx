@@ -60,6 +60,8 @@ function fakeApi(): Api {
     attest: vi.fn(async () => result),
     uploadAvatar: vi.fn(async () => ({ id: "a.png", url: "https://api.test/v1/avatar/a.png" })),
     find: vi.fn(async (q: string) => ({ q, matches: [] })),
+    storeInvite: vi.fn(async () => ({ code: "abcd1234" })),
+    invite: vi.fn(async (code: string) => ({ code, invite: {} })),
     storeLetter: vi.fn(async (text: string) => ({
       hash: "a".repeat(64),
       ref: `sha256:${"a".repeat(64)}`,

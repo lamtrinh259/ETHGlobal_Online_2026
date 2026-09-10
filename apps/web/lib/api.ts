@@ -420,6 +420,24 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
       return (await readJson(res)) as { hash: string; ref: string; bytes: number };
     },
 
+    /** The signed invitation a short code stands for; checked the same as one that arrived in full. */
+    async invite(code: string): Promise<{ code: string; invite: Record<string, unknown> }> {
+      return (await readJson(await call(`${base}/v1/invite/${encodeURIComponent(code)}`))) as {
+        code: string;
+        invite: Record<string, unknown>;
+      };
+    },
+
+    /** Keep a signed invitation and get the short code that stands for it. */
+    async storeInvite(wire: object): Promise<{ code: string }> {
+      const res = await call(`${base}/v1/invite`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(wire),
+      });
+      return (await readJson(res)) as { code: string };
+    },
+
     /** People whose handle looks like this, most-referenced first: which `bob` did you mean. */
     async find(q: string): Promise<Found> {
       return findSchema.parse(await readJson(await call(`${base}/v1/find?q=${encodeURIComponent(q)}`)));

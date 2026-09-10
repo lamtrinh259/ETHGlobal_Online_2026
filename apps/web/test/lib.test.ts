@@ -31,7 +31,12 @@ const account = privateKeyToAccount("0x00000000000000000000000000000000000000000
 
 describe("invitations", () => {
   it("signs an invite the registrar accepts and puts it in a URL-safe link", async () => {
-    const invite = { handle: "alice", voucher: ZERO_ADDRESS, exp: BigInt(NOW + 604800) } as const;
+    const invite = {
+      handle: "alice",
+      voucher: ZERO_ADDRESS,
+      exp: BigInt(NOW + 604800),
+      requires: [] as string[],
+    };
     const td = inviteTypedData(invite, 11155111, "0x418F82fd0014a4CA402F145978bfaF0555a9cA06");
     expect(td.message.exp).toBe(String(invite.exp));
     expect(() => JSON.stringify(td)).not.toThrow();

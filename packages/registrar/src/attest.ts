@@ -25,7 +25,7 @@ import {
 import { eciesEncrypt } from "./ecies.js";
 import { PRIVATE_GROUPINGS, PUBLIC_GROUPINGS } from "./namespace.js";
 import { intentDomain, recoverIntentSigner } from "./intent.js";
-import { candidateOf, inviteDomain, recoverInviteSigner, ZERO_ADDRESS } from "./invite.js";
+import { candidateOf, inviteDomain, meetsInvite, recoverInviteSigner, ZERO_ADDRESS } from "./invite.js";
 import { verifyEs256Jwt } from "./jwt.js";
 import type { AttestEnv, AttestRequest, AttestResult, OnchainState, RegistrarSecrets } from "./types.js";
 
@@ -156,8 +156,11 @@ export async function solicitedBy(
   }
   const candidateWallet = onchain.candidateWallet;
   if (!candidateWallet || candidateWallet.toLowerCase() === ZERO_ADDRESS) return false;
+  // What the candidate asked the writer to show. Unmet is not solicited: the invitation was for
+  // someone who could show it, and this writer is not that person.
+  if (!meetsInvite(invite, onchain.writerDomains ?? [])) return false;
   const signer = await recoverInviteSigner(
-    { handle: invite.handle, voucher: invite.voucher, exp: invite.exp },
+    { handle: invite.handle, voucher: invite.voucher, exp: invite.exp, requires: invite.requires },
     invite.signature,
     inviteDomain(env.chainId, env.multipass)
   );

@@ -37,6 +37,7 @@ export {
   encodeInvite,
   INVITE_TYPES,
   inviteDomain,
+  meetsInvite,
   recoverInviteSigner,
   signInvite,
   WITHDRAWN,

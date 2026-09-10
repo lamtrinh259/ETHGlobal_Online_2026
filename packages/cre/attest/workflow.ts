@@ -94,7 +94,13 @@ const wireSchema = z.object({
   idToken: z.string(),
   signature: hex,
   invite: z
-    .object({ handle: z.string(), voucher: hex, exp: z.string().regex(/^\d+$/), signature: hex })
+    .object({
+      handle: z.string(),
+      voucher: hex,
+      exp: z.string().regex(/^\d+$/),
+      requires: z.array(z.string()).max(8).default([]),
+      signature: hex,
+    })
     .optional(),
   intent: z.object({
     wallet: hex,
@@ -120,6 +126,8 @@ export function parseRequest(input: Uint8Array): AttestRequest {
             handle: w.invite.handle,
             voucher: w.invite.voucher as Address,
             exp: BigInt(w.invite.exp),
+            // An invitation made before requirements existed asked for nothing, which is what it meant.
+            requires: w.invite.requires ?? [],
             signature: w.invite.signature as Hex,
           },
         }

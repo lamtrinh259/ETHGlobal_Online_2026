@@ -871,6 +871,63 @@ describe("an address written with the wrong casing", () => {
   });
 });
 
+describe("an invitation behind a short code", () => {
+  const wire = async (over: object = {}) => {
+    const invite = await signedInvite(user.account, "alice", NOW, 31337, baseEnv.MULTIPASS as Hex, over);
+    return { ...invite, exp: invite.exp.toString() };
+  };
+  const post = (app: ReturnType<typeof createApp>, body: object) =>
+    app.request("/v1/invite", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+  it("hands back a code short enough to read out, and gives the invitation back for it", async () => {
+    // A base64 invitation makes a link nobody can paste into a message without it wrapping.
+    const dir = mkdtempSync(join(tmpdir(), "ketsuban-invites-"));
+    // Only the wallet holding the name can invite on its behalf, so the fixture has to hold it.
+    const { chain } = fakeChain({
+      names: { "kju-is/alice": { taken: true, wallet: user.account.address, live: true } },
+    });
+    const a = createApp({ config: loadConfig({ ...baseEnv, DATA_DIR: dir }), chain, now: () => NOW });
+
+    const res = await post(a, await wire());
+    const made = await res.json();
+    expect(made.error ?? "").toBe("");
+    expect(made.code).toMatch(/^[0-9a-z]{8}$/);
+
+    const back = await (await a.request(`/v1/invite/${made.code}`)).json();
+    expect(back.invite).toMatchObject({ handle: "alice", requires: [] });
+    // The signature comes back untouched: the code is a shortcut, never a substitute for it.
+    expect(back.invite.signature).toBe((await wire()).signature);
+  });
+
+  it("keeps what the candidate asked the writer to show", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "ketsuban-invites-req-"));
+    const { chain } = fakeChain({
+      names: { "kju-is/alice": { taken: true, wallet: user.account.address, live: true } },
+    });
+    const a = createApp({ config: loadConfig({ ...baseEnv, DATA_DIR: dir }), chain, now: () => NOW });
+    const made = await (await post(a, await wire({ requires: ["mit.edu", "linkedin.com"] }))).json();
+    const back = await (await a.request(`/v1/invite/${made.code}`)).json();
+    expect(back.invite.requires).toEqual(["mit.edu", "linkedin.com"]);
+  });
+
+  it("refuses an invitation nobody signed, so a code always stands for something real", async () => {
+    const { chain } = fakeChain();
+    const a = app(chain);
+    expect((await post(a, { handle: "alice", voucher: zeroAddress, exp: "1", requires: [] })).status).toBe(
+      400
+    );
+  });
+
+  it("says a code it does not hold is unknown, rather than answering with nothing", async () => {
+    const { chain } = fakeChain();
+    expect((await app(chain).request("/v1/invite/zzzzzzzz")).status).toBe(404);
+  });
+});
+
 describe("a letter too long to sit on chain", () => {
   const long = "Alice ran infrastructure at Acme for three years. ".repeat(30);
   const post = (app: ReturnType<typeof createApp>, body: object) =>

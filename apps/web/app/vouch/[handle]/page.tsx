@@ -41,8 +41,26 @@ export default async function VouchPage({ params, searchParams }: Params) {
   }
   // A malformed or truncated link is simply no invitation; the flow says what to do about it.
   let invite: SignedInvite | undefined;
+  // A short code stands for the same signed invitation; it is fetched and then checked identically.
+  const fromCode =
+    token && /^[0-9a-f]{8}$/.test(token)
+      ? await createApi(config.apiUrl, config.attestUrl)
+          .invite(token)
+          .then((r) => r.invite as unknown as Record<string, string>)
+          .catch(() => undefined)
+      : undefined;
   try {
-    invite = token ? decodeInvite(token) : undefined;
+    invite = fromCode
+      ? ({
+          handle: fromCode.handle,
+          voucher: fromCode.voucher,
+          exp: BigInt(fromCode.exp),
+          requires: (fromCode.requires as unknown as string[]) ?? [],
+          signature: fromCode.signature,
+        } as SignedInvite)
+      : token
+        ? decodeInvite(token)
+        : undefined;
   } catch {
     invite = undefined;
   }

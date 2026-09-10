@@ -203,6 +203,29 @@ describe("attest — vouch instance (~candidate) domain", () => {
     );
   });
 
+  it("does not count an invitation whose terms the writer does not meet", async () => {
+    // "Only from someone with a university address" is a real thing to ask. The writer is not turned
+    // away — anyone may refer anyone — but the reference cannot claim the candidate asked for it.
+    const intent = makeIntent({ domain: "~alice", handle: "bob", payload: toBytes32("hi") });
+    const invite = await makeInvite({ requires: ["mit.edu"] });
+    const asked = (writerDomains: string[]) =>
+      signedRequest(intent, undefined, undefined, invite).then((req) =>
+        solicitedBy(req, { ...noVouchRecord, writerDomains }, env)
+      );
+
+    expect(await asked(["mit.edu"])).toBe(true);
+    expect(await asked(["mit.edu", "x.com"])).toBe(true);
+    expect(await asked(["x.com"])).toBe(false);
+    expect(await asked([])).toBe(false);
+
+    // And the write itself still goes through: the terms decide the marker, never the permission.
+    await expect(
+      signedRequest(intent, undefined, undefined, invite).then((req) =>
+        verifyPublicLeg(req, { ...noVouchRecord, writerDomains: [] }, env)
+      )
+    ).resolves.toBeUndefined();
+  });
+
   it("still turns away the uninvited where a deployment asked for that", async () => {
     const intent = makeIntent({ domain: "~alice", handle: "bob", payload: toBytes32("hi") });
     const closed = { ...env, requireInvite: true };

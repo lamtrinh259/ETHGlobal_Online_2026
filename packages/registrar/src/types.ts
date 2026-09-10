@@ -68,6 +68,11 @@ export type OnchainState = {
    */
   candidateWallet?: Address;
   /**
+   * Vouch domains only: the domains the writer holds live records in. An invitation may ask for a
+   * workplace or a university address, and that is only checkable against what they have attested.
+   */
+  writerDomains?: string[];
+  /**
    * Vouch domains only: whether the intent's wallet holds a live record in the organisation domain. An
    * organisation may write a reference for a handle nobody has claimed yet — the university case — so
    * it needs no invitation.

@@ -102,7 +102,13 @@ export async function makeInvite(
   over: Partial<Invite> = {},
   signer = candidateAccount
 ): Promise<SignedInvite> {
-  const invite: Invite = { handle: "alice", voucher: ZERO_ADDRESS, exp: BigInt(NOW + 3600), ...over };
+  const invite: Invite = {
+    handle: "alice",
+    voucher: ZERO_ADDRESS,
+    exp: BigInt(NOW + 3600),
+    requires: [],
+    ...over,
+  };
   const signature = await signInvite(signer, invite, inviteDomain(CHAIN_ID, MULTIPASS));
   return { ...invite, signature };
 }

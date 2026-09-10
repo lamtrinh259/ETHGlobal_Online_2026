@@ -17,10 +17,13 @@ import {
   grantId,
   eciesDecrypt,
   recoverDiscloseSigner,
+  recoverInviteSigner,
   recoverRevokeSigner,
   RESERVED_HANDLES,
   signRecord,
+  inviteDomain,
   type SignedDisclosure,
+  type SignedInvite,
   PLATFORM_DOMAIN_NAMES,
   type AttestEnv,
   type AttestRequest,
@@ -52,7 +55,15 @@ export const wireRequest = z.object({
     payload: hex.default(zeroHash),
   }),
   /** Vouch domains: the candidate's invitation, as the browser received it */
-  invite: z.object({ handle: z.string(), voucher: hex, exp: decimal, signature: hex }).optional(),
+  invite: z
+    .object({
+      handle: z.string(),
+      voucher: hex,
+      exp: decimal,
+      requires: z.array(z.string()).max(8).default([]),
+      signature: hex,
+    })
+    .optional(),
 });
 
 export const wireRecord = z.object({
@@ -76,6 +87,14 @@ export const wireDisclosure = z.object({
     .array(z.object({ ephemeralPubkey: hex, nonce: hex, ciphertext: hex }))
     .min(1)
     .max(16),
+  signature: hex,
+});
+
+export const wireInvite = z.object({
+  handle: z.string(),
+  voucher: hex,
+  exp: decimal,
+  requires: z.array(z.string()).max(8).default([]),
   signature: hex,
 });
 
@@ -112,6 +131,7 @@ export function toRequest(w: z.infer<typeof wireRequest>): AttestRequest {
             handle: w.invite.handle,
             voucher: w.invite.voucher as Address,
             exp: BigInt(w.invite.exp),
+            requires: w.invite.requires,
             signature: w.invite.signature as Hex,
           },
         }
@@ -261,9 +281,13 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
       // An organisation needs no invitation, so whether this wallet is one is part of the public leg.
       chain.readOnchain(req.intent.wallet, config.ORG_DOMAIN),
     ]);
+    // An invitation may ask the writer to have attested a workplace or a university address, which is
+    // only checkable against what they actually hold.
+    const held = await chain.listRecordsByWallet(req.intent.wallet);
     return {
       ...onchain,
       candidateWallet: status.live ? (status.wallet ?? undefined) : undefined,
+      writerDomains: held.filter((r) => r.live).map((r) => r.domain),
       issuerOrg: org.exists,
     };
   }
@@ -549,6 +573,56 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     if (!ref) return { letter: text || null, letterHash: null };
     return { letter: letterStore.get(ref[1]) ?? null, letterHash: ref[1] };
   }
+
+  /**
+   * An invitation behind a short code.
+   *
+   * The invitation is a signature over what the candidate asked for, and base64 makes a link nobody
+   * can paste into a message without it wrapping. The code is only a shortcut: what comes back is the
+   * signed invitation itself, checked the same way whether it arrived by code or in full.
+   */
+  /** The invitation as it travels: `exp` is a decimal string, which is what a stored JSON holds. */
+  type WireInvite = Omit<SignedInvite, "exp"> & { exp: string };
+  const inviteStore = new PersistentMap<WireInvite>(
+    "invites",
+    config.DATA_DIR || undefined,
+    (raw) => raw as WireInvite,
+    (invite) => invite
+  );
+
+  app.post("/v1/invite", async (c) => {
+    const body = wireInvite.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: "bad request", issues: body.error.issues }, 400);
+    const invite = {
+      handle: body.data.handle.toLowerCase(),
+      voucher: body.data.voucher as Address,
+      exp: body.data.exp,
+      requires: body.data.requires.map((d) => d.toLowerCase()),
+      signature: body.data.signature as Hex,
+    };
+    // Only the candidate can invite on their own behalf; a code that stood for anything else would be
+    // a link this service made up.
+    const signer = await recoverInviteSigner(
+      { handle: invite.handle, voucher: invite.voucher, exp: BigInt(invite.exp), requires: invite.requires },
+      invite.signature,
+      inviteDomain(config.CHAIN_ID, config.MULTIPASS)
+    ).catch(() => undefined);
+    const status = await chain.nameStatus(config.NAME_DOMAINS[0] ?? "", invite.handle);
+    if (!signer || !status.live || signer.toLowerCase() !== (status.wallet ?? "").toLowerCase()) {
+      return c.json({ error: "an invitation must be signed by the wallet holding that name" }, 400);
+    }
+    // Addressed by its own signature, so the same invitation is always the same code.
+    const code = createHash("sha256").update(invite.signature).digest("hex").slice(0, 8);
+    inviteStore.set(code, invite);
+    return c.json({ code });
+  });
+
+  app.get("/v1/invite/:code", (c) => {
+    const code = c.req.param("code").toLowerCase();
+    const invite = /^[0-9a-f]{8}$/.test(code) ? inviteStore.get(code) : undefined;
+    if (!invite) return c.json({ error: "no invitation with that code" }, 404);
+    return c.json({ code, invite });
+  });
 
   /**
    * A letter too long to sit on chain.
