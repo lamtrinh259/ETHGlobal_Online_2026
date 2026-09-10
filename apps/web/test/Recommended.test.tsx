@@ -55,6 +55,21 @@ describe("questions recommended to answer", () => {
     expect(link).toHaveAttribute("href", "/v/kju-is.ketsuban.eth");
   });
 
+  it("keeps showing a question already answered, so it can be changed or renewed", () => {
+    // An answer lapses. A section that disappears once you are done leaves nowhere to renew it from.
+    const all = [
+      {
+        domain: "kju-is",
+        ensName: "alice.kju-is.ketsuban.eth",
+        answer: "dictator",
+        validUntil: "2027-01-01T00:00:00.000Z",
+      },
+    ];
+    render(<Recommended rows={all} onAnswer={vi.fn()} />);
+    expect(screen.getByTestId("answer-kju-is")).toHaveTextContent("dictator");
+    expect(screen.getByTestId("answer-now-kju-is")).toHaveTextContent(/change/i);
+  });
+
   it("shows nothing at all when this deployment asks no questions", () => {
     const { container } = render(<Recommended rows={[]} onAnswer={vi.fn()} />);
     expect(container).toBeEmptyDOMElement();

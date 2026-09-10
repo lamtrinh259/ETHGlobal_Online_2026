@@ -190,9 +190,11 @@ export function Dashboard() {
       )}
 
       {subjectRows.length > 0 && (
+        {/* Kept once everything is answered: an answer lapses, and a section that vanishes when you
+            are done gives you nowhere to renew it from. */}
         <Step
           anchor="recommended"
-          title="Recommended"
+          title="Suggested"
           state={answered.length === subjectRows.length ? "done" : "now"}
         >
           <Recommended
