@@ -30,9 +30,21 @@ describe("inviting someone to refer you", () => {
     (api.storeInvite as ReturnType<typeof vi.fn>).mockClear();
   });
 
+  it("keeps the choices behind the CTA, so the section is an offer rather than a form", () => {
+    render(<InviteLink api={api} handle="alice" />);
+    // Nothing to decide until someone says they want an invitation.
+    expect(screen.queryByTestId("platform-linkedin.com")).toBeNull();
+    expect(screen.queryByTestId("require-domain")).toBeNull();
+
+    fireEvent.click(screen.getByTestId("open-invite"));
+    expect(screen.getByTestId("platform-linkedin.com")).toBeInTheDocument();
+    expect(screen.getByTestId("make-invite")).toBeInTheDocument();
+  });
+
   it("makes a link short enough to send in a message", async () => {
     // A signed invitation encoded into the URL wraps in every chat client; the code stands for it.
     render(<InviteLink api={api} handle="alice" />);
+    fireEvent.click(screen.getByTestId("open-invite"));
     fireEvent.click(screen.getByTestId("make-invite"));
     await waitFor(() => expect(screen.getByTestId("invite-link")).toHaveTextContent("abcd1234"));
     const link = screen.getByTestId("invite-link").textContent!;
@@ -42,6 +54,7 @@ describe("inviting someone to refer you", () => {
 
   it("asks the writer for the accounts the candidate picked, and signs over them", async () => {
     render(<InviteLink api={api} handle="alice" />);
+    fireEvent.click(screen.getByTestId("open-invite"));
     fireEvent.click(screen.getByTestId("platform-linkedin.com"));
     fireEvent.click(screen.getByTestId("make-invite"));
 
@@ -52,6 +65,7 @@ describe("inviting someone to refer you", () => {
 
   it("takes an email domain the candidate types, for a university or a workplace", async () => {
     render(<InviteLink api={api} handle="alice" />);
+    fireEvent.click(screen.getByTestId("open-invite"));
     fireEvent.change(screen.getByTestId("require-domain"), { target: { value: "MIT.edu" } });
     fireEvent.click(screen.getByTestId("make-invite"));
     await waitFor(() => expect(signed).toHaveLength(1));
@@ -61,6 +75,7 @@ describe("inviting someone to refer you", () => {
 
   it("asks for nothing by default, which is the common case", async () => {
     render(<InviteLink api={api} handle="alice" />);
+    fireEvent.click(screen.getByTestId("open-invite"));
     fireEvent.click(screen.getByTestId("make-invite"));
     await waitFor(() => expect(signed).toHaveLength(1));
     expect(signed[0]).toMatchObject({ requires: [] });
