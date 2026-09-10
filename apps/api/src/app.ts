@@ -1,27 +1,40 @@
-import { Hono } from "hono";
+import { createHash } from "node:crypto";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { Hono, type Context } from "hono";
 import { cors } from "hono/cors";
 import { z } from "zod";
-import { bytesToHex, keccak256, stringToBytes, zeroHash, type Address, type Hex } from "viem";
+import { bytesToHex, keccak256, stringToBytes, zeroAddress, zeroHash, type Address, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import {
   candidateOf,
+  solicitedBy,
   attest,
   checkAudience,
   checkDisclosure,
+  checkRevocation,
   discloseDomain,
+  grantId,
   eciesDecrypt,
   recoverDiscloseSigner,
+  recoverInviteSigner,
+  recoverRevokeSigner,
   RESERVED_HANDLES,
   signRecord,
+  inviteDomain,
   type SignedDisclosure,
+  type SignedInvite,
+  PLATFORM_DOMAIN_NAMES,
   type AttestEnv,
   type AttestRequest,
   type AttestResult,
   type RegisterMessage,
   type OnchainState,
 } from "@ketsuban/registrar";
-import { decodeRecord, fromBytes32, isOptedIn, toBytes32 } from "@peeramid-labs/multipass-client";
+import { decodeRecord, fromBytes32, isOptedIn, maskName, toBytes32 } from "@peeramid-labs/multipass-client";
+import { explainName, isDnsName, platformOf, storable } from "@ketsuban/registrar";
 import type { ChainReader, Instance } from "./chain.js";
+import { explainRevert } from "./errors.js";
 import type { Config } from "./config.js";
 import { PersistentMap, PersistentSet } from "./store.js";
 
@@ -42,7 +55,15 @@ export const wireRequest = z.object({
     payload: hex.default(zeroHash),
   }),
   /** Vouch domains: the candidate's invitation, as the browser received it */
-  invite: z.object({ handle: z.string(), voucher: hex, exp: decimal, signature: hex }).optional(),
+  invite: z
+    .object({
+      handle: z.string(),
+      voucher: hex,
+      exp: decimal,
+      requires: z.array(z.string()).max(8).default([]),
+      signature: hex,
+    })
+    .optional(),
 });
 
 export const wireRecord = z.object({
@@ -57,11 +78,30 @@ export const wireRecord = z.object({
 
 export const wireDisclosure = z.object({
   name: z.string(),
-  domain: z.string(),
+  domains: z.array(z.string()).min(1).max(16),
   audience: hex,
+  audienceName: z.string().max(255).default(""),
   exp: decimal,
-  boxHash: hex,
-  box: z.object({ ephemeralPubkey: hex, nonce: hex, ciphertext: hex }),
+  boxesHash: hex,
+  boxes: z
+    .array(z.object({ ephemeralPubkey: hex, nonce: hex, ciphertext: hex }))
+    .min(1)
+    .max(16),
+  signature: hex,
+});
+
+export const wireInvite = z.object({
+  handle: z.string(),
+  voucher: hex,
+  exp: decimal,
+  requires: z.array(z.string()).max(8).default([]),
+  signature: hex,
+});
+
+export const wireRevocation = z.object({
+  name: z.string(),
+  grantId: hex,
+  at: decimal,
   signature: hex,
 });
 
@@ -91,6 +131,7 @@ export function toRequest(w: z.infer<typeof wireRequest>): AttestRequest {
             handle: w.invite.handle,
             voucher: w.invite.voucher as Address,
             exp: BigInt(w.invite.exp),
+            requires: w.invite.requires,
             signature: w.invite.signature as Hex,
           },
         }
@@ -134,17 +175,50 @@ export const WARNING =
 export type AppDeps = { config: Config; chain: ChainReader; now?: () => number };
 
 /** Split `<handle>.<parentName>` against the known instances */
+/**
+ * The ENS name a linked account answers at: the account's own where it is public, and the person's in
+ * the private branch where it is not. Shared by the dashboard and by reverse resolution, so both say
+ * the same thing about the same record.
+ */
+export function linkName(
+  record: { name: string; payload: string },
+  mount: Instance | undefined,
+  held: string | undefined
+): { ensName: string | null; nameless: string | null } {
+  const optedIn = record.payload !== zeroHash;
+  const label = /^[a-z0-9_-]{1,63}$/.test(record.name.toLowerCase()) ? record.name.toLowerCase() : null;
+  const masked = optedIn && mount?.maskedParentName && held ? `${held}.${mount.maskedParentName}` : null;
+  const open = !optedIn && label && mount?.parentName ? `${label}.${mount.parentName}` : null;
+  const ensName = open ?? masked;
+  return {
+    ensName,
+    // Why there is no name, when there is none: privacy, or a handle that cannot be a label.
+    nameless: ensName ? null : optedIn ? "private" : label ? null : "not-a-label",
+  };
+}
+
 export function locate(
   name: string,
   instances: Instance[]
-): { handle: string; instance: Instance } | undefined {
+): { handle: string; instance: Instance; resolver: Address; masked?: true } | undefined {
   const lower = name.toLowerCase();
+  const under = (parent: string | undefined) => {
+    if (!parent) return undefined;
+    const suffix = `.${parent.toLowerCase()}`;
+    if (!lower.endsWith(suffix)) return undefined;
+    const handle = lower.slice(0, -suffix.length);
+    return handle && !handle.includes(".") ? handle : undefined;
+  };
   for (const instance of instances) {
-    const suffix = `.${instance.parentName.toLowerCase()}`;
-    if (lower.endsWith(suffix)) {
-      const handle = lower.slice(0, -suffix.length);
-      if (handle && !handle.includes(".")) return { handle, instance };
-    }
+    const handle = under(instance.parentName);
+    if (handle) return { handle, instance, resolver: instance.resolver };
+  }
+  // A name in the private branch belongs to the person, not to the account: it answers from the mirror,
+  // which reads the root record and says only that they have an account here.
+  for (const instance of instances) {
+    const handle = under(instance.maskedParentName);
+    if (handle && instance.maskedResolver)
+      return { handle, instance, resolver: instance.maskedResolver, masked: true };
   }
   return undefined;
 }
@@ -165,9 +239,28 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
    * "must exist": it is created from the first signed record, which is how an organisation writes for
    * someone who has no name yet.
    */
+  /**
+   * A DNS domain nobody has deployed yet is not a dead end: the relay builds its namespace on demand,
+   * the way it provisions a candidate's vouch instance. Only the operator pays, so the request has to
+   * have proved itself first — this runs after the attester has verified the identity token and that
+   * the account really was issued by that domain.
+   */
+  /**
+   * What this deployment may do with a DNS domain nobody has mounted here. `write` is any domain the
+   * chain already holds — the record is writable exactly as it is, whatever this service knows about
+   * mounts — and `mount` is the rest, which the relay builds on demand.
+   */
+  async function namespacePlan(domain: string): Promise<{ write: boolean; mount: boolean }> {
+    if (!isDnsName(domain) || !platformOf(domain)) return { write: false, mount: false };
+    const ready = await chain.domainReady(domain);
+    if (ready.initialised) return { write: true, mount: false };
+    return { write: !!config.NAMESPACE_FACTORY, mount: !!config.NAMESPACE_FACTORY };
+  }
+
   async function writeBlocker(domain: string): Promise<string | null> {
     const ready = await chain.domainReady(domain);
-    const provisionable = candidateOf(domain, [config.VOUCH_PREFIX]) !== undefined;
+    const provisionable =
+      candidateOf(domain, [config.VOUCH_PREFIX]) !== undefined || (await namespacePlan(domain)).mount;
     if (!ready.initialised)
       return provisionable ? null : `domain "${domain}" is not initialised on Multipass`;
     if (!ready.active) return `domain "${domain}" is not active on Multipass`;
@@ -188,14 +281,26 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
       // An organisation needs no invitation, so whether this wallet is one is part of the public leg.
       chain.readOnchain(req.intent.wallet, config.ORG_DOMAIN),
     ]);
+    // An invitation may ask the writer to have attested a workplace or a university address, which is
+    // only checkable against what they actually hold.
+    const held = await chain.listRecordsByWallet(req.intent.wallet);
     return {
       ...onchain,
       candidateWallet: status.live ? (status.wallet ?? undefined) : undefined,
+      writerDomains: held.filter((r) => r.live).map((r) => r.domain),
       issuerOrg: org.exists,
     };
   }
 
-  const env = (): AttestEnv => ({
+  /**
+   * What the attester may write into. The deployment decides: a platform mounted at its own DNS name is
+   * `x.com` here, and a mail host is whichever ones were deployed. The flat platform names stay allowed
+   * for a deployment that predates the namespace, where a record is written before any mount exists.
+   */
+  const env = async (): Promise<AttestEnv> => ({
+    platformDomains: [
+      ...new Set([...(await chain.instances()).map((i) => i.domain), ...PLATFORM_DOMAIN_NAMES]),
+    ],
     now: now(),
     chainId: config.CHAIN_ID,
     multipass: config.MULTIPASS,
@@ -208,8 +313,140 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     requireInvite: config.REQUIRE_INVITE,
   });
 
+  /**
+   * What this process is actually pointed at. Half of every deployment problem is one variable naming
+   * the wrong contract, and the only way to see it from outside is to be told. Addresses are public;
+   * a secret is reported as set or unset and never by value, and the RPC URL is left out because it
+   * carries an API key.
+   */
+  function configReport() {
+    const optional = {
+      REGISTRY: config.REGISTRY,
+      PERMISSIONED_RESOLVER: config.PERMISSIONED_RESOLVER,
+      UNIVERSAL_RESOLVER: config.UNIVERSAL_RESOLVER,
+      NAMESPACE_FACTORY: config.NAMESPACE_FACTORY,
+      ETH_REGISTRY: config.ETH_REGISTRY,
+      REGISTRAR_ADDRESS: config.REGISTRAR_ADDRESS,
+    };
+    return {
+      chainId: config.CHAIN_ID,
+      multipass: config.MULTIPASS,
+      bridge: config.BRIDGE,
+      factory: config.FACTORY,
+      namespaceFactory: config.NAMESPACE_FACTORY ?? null,
+      registry: config.REGISTRY ?? null,
+      permissionedResolver: config.PERMISSIONED_RESOLVER ?? null,
+      universalResolver: config.UNIVERSAL_RESOLVER ?? null,
+      ethRegistry: config.ETH_REGISTRY ?? null,
+      registrarAddress: config.REGISTRAR_ADDRESS ?? null,
+      relayer: chain.relayer,
+      nameDomains: config.NAME_DOMAINS,
+      orgDomain: config.ORG_DOMAIN,
+      vouchPrefix: config.VOUCH_PREFIX,
+      deployBlock: String(config.DEPLOY_BLOCK),
+      privyAppId: config.PRIVY_APP_ID,
+      // Grants and gas top-ups are the state this service owns. Without a directory they are held in
+      // memory, and a redeploy takes every permission with it; with one that cannot be written, the
+      // same thing happens while everything still looks fine.
+      storage: { dataDir: config.DATA_DIR || null, ...grantStore.health() },
+      secrets: {
+        relayerKey: !!config.RELAYER_KEY,
+        registrarKey: !!config.REGISTRAR_KEY,
+        viewcodeKey: !!config.VIEWCODE_KEY,
+        deliveryToken: !!config.DELIVERY_TOKEN,
+        orgToken: !!config.ORG_TOKEN,
+        privyVerificationKey: !!config.PRIVY_VERIFICATION_KEY_JWK,
+      },
+      missing: Object.entries(optional)
+        .filter(([, v]) => !v)
+        .map(([k]) => k),
+    };
+  }
+
+  /**
+   * A picture for a profile. ENS text records hold a URL, not bytes, so the picture has to live
+   * somewhere this service can serve it from — which means `DATA_DIR`, or the record would dangle
+   * after the next restart.
+   *
+   * What is stored is decided by the bytes, never by the name or the declared type: an HTML page
+   * announcing itself as a PNG, served back from this origin, would run as a page on it. The file is
+   * named by the hash of its own content, so nothing a caller sends becomes part of a path.
+   */
+  const AVATAR_MAX = 2_000_000;
+  const PICTURES: { ext: string; type: string; magic: number[] }[] = [
+    { ext: "png", type: "image/png", magic: [0x89, 0x50, 0x4e, 0x47] },
+    { ext: "jpg", type: "image/jpeg", magic: [0xff, 0xd8, 0xff] },
+    { ext: "gif", type: "image/gif", magic: [0x47, 0x49, 0x46, 0x38] },
+  ];
+  const pictureOf = (bytes: Uint8Array) => {
+    const known = PICTURES.find((p) => p.magic.every((b, i) => bytes[i] === b));
+    if (known) return known;
+    // WEBP is `RIFF....WEBP`, so its mark is split in two.
+    const riff = [0x52, 0x49, 0x46, 0x46].every((b, i) => bytes[i] === b);
+    const webp = [0x57, 0x45, 0x42, 0x50].every((b, i) => bytes[8 + i] === b);
+    return riff && webp ? { ext: "webp", type: "image/webp", magic: [] } : undefined;
+  };
+  const avatarDir = () => join(config.DATA_DIR, "avatars");
+
+  app.post("/v1/avatar", async (c) => {
+    if (!config.DATA_DIR) {
+      return c.json(
+        { error: "no DATA_DIR: there is nowhere to keep a picture that outlives a restart" },
+        501
+      );
+    }
+    const body = await c.req.parseBody().catch(() => null);
+    const file = body?.["file"];
+    if (!(file instanceof File)) return c.json({ error: "send a picture as `file`" }, 400);
+    if (file.size > AVATAR_MAX) {
+      return c.json({ error: `a picture must be under ${AVATAR_MAX / 1_000_000}MB` }, 413);
+    }
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const picture = pictureOf(bytes);
+    if (!picture) return c.json({ error: "that is not a picture this service can serve" }, 415);
+
+    const id = `${createHash("sha256").update(bytes).digest("hex")}.${picture.ext}`;
+    try {
+      mkdirSync(avatarDir(), { recursive: true });
+      writeFileSync(join(avatarDir(), id), bytes);
+    } catch (e) {
+      // A DATA_DIR with no volume behind it fails here first, and an unhandled throw says nothing to
+      // whoever has to fix the deployment.
+      return c.json(
+        { error: `DATA_DIR (${config.DATA_DIR}) cannot be written: ${(e as Error).message}` },
+        503
+      );
+    }
+    return c.json({ id, url: new URL(`/v1/avatar/${id}`, c.req.url).toString() });
+  });
+
+  app.get("/v1/avatar/:id", (c) => {
+    const id = c.req.param("id");
+    // The only names that exist are ones this service made: a hash and a known extension.
+    const known = /^[0-9a-f]{64}\.(png|jpg|gif|webp)$/.exec(id);
+    if (!known || !config.DATA_DIR) return c.json({ error: "no such picture" }, 404);
+    const picture = PICTURES.find((p) => p.ext === known[1]) ?? { type: "image/webp" };
+    try {
+      const bytes = readFileSync(join(avatarDir(), id));
+      return c.body(bytes as unknown as ArrayBuffer, 200, {
+        "content-type": picture.type,
+        "x-content-type-options": "nosniff",
+        "content-security-policy": "default-src 'none'; sandbox",
+        "cache-control": "public, max-age=31536000, immutable",
+      });
+    } catch {
+      return c.json({ error: "no such picture" }, 404);
+    }
+  });
+
   app.get("/healthz", (c) =>
-    c.json({ ok: true, relayer: chain.relayer, chainId: config.CHAIN_ID, index: chain.indexStatus() })
+    c.json({
+      ok: true,
+      relayer: chain.relayer,
+      chainId: config.CHAIN_ID,
+      index: chain.indexStatus(),
+      config: configReport(),
+    })
   );
 
   /** Instances plus the two contracts a wallet writes to directly (profile records, own-name alias). */
@@ -217,7 +454,19 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
   app.get("/v1/preflight", async (c) => {
     try {
       const p = await chain.preflight();
-      return c.json(p, p.ok ? 200 : 503);
+      // Storage is not on chain, but a deployment that cannot keep a permission is misconfigured in
+      // exactly the way this endpoint exists to report.
+      const store = grantStore.health();
+      const warnings = [
+        ...p.warnings,
+        ...(store.durable
+          ? []
+          : ["DATA_DIR is not set: permissions and gas top-ups are kept in memory and lost on restart"]),
+        ...(store.durable && !store.writable
+          ? [`DATA_DIR cannot be written (${store.lastError}): nothing kept here survives a restart`]
+          : []),
+      ];
+      return c.json({ ...p, warnings }, p.ok ? 200 : 503);
     } catch (e) {
       return c.json({ ok: false, warnings: [(e as Error).message] }, 502);
     }
@@ -228,8 +477,44 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
       instances: await chain.instances(),
       bridge: config.BRIDGE,
       permissionedResolver: config.PERMISSIONED_RESOLVER ?? null,
+      ethRegistry: config.ETH_REGISTRY ?? null,
+      // The registrar mints only to its caller and the names do not transfer, so registering is
+      // something the person's own wallet does; the browser needs these two addresses to do it.
+      ethRegistrar: config.ETH_REGISTRAR ?? null,
+      paymentToken: config.PAYMENT_TOKEN ?? null,
     })
   );
+
+  /**
+   * What a name would claim here, whether or not anything resolves at it. An agent handed a name needs to
+   * tell "nobody holds this" from "this could never mean anything in this deployment", and the answer
+   * comes from the same function the app reads, so the two can never drift.
+   */
+  app.get("/v1/explain/:name", async (c) => {
+    const name = c.req.param("name");
+    const claim = explainName(name, await chain.instances(), config.NAME_DOMAINS);
+    return c.json({ name, ...claim, warning: WARNING });
+  });
+
+  /**
+   * Who owns a `.eth` label on the registry the bridge checks. A name held on another ENS deployment
+   * is not here at all, which is the whole answer someone needs before paying for a reverted call.
+   */
+  app.get("/v1/eth-label/:label", async (c) => {
+    const label = c.req.param("label").toLowerCase();
+    if (!/^[a-z0-9-]{1,63}$/.test(label)) return c.json({ error: "bad label" }, 400);
+    if (!config.ETH_REGISTRY) return c.json({ error: "no eth registry configured" }, 501);
+    try {
+      const owner = await chain.ethLabelOwner(label);
+      return c.json({
+        label,
+        registry: config.ETH_REGISTRY,
+        owner: owner && owner !== zeroAddress ? owner : null,
+      });
+    } catch (e) {
+      return c.json({ error: explainRevert(e) }, 502);
+    }
+  });
 
   /** Current on-chain state for (wallet, domain): the browser needs the nonce to build an intent. */
   app.get("/v1/nonce", async (c) => {
@@ -257,6 +542,251 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
    * Node registrar fallback (spec B.9.7): same input and byte-identical output as the enclave.
    * Enabled only when REGISTRAR_KEY / VIEWCODE_KEY are configured.
    */
+  /**
+   * References the candidate asked for, by `<candidate>:<voucher>`. Anyone may write a reference, so
+   * this records which ones were invited — with the invitation itself, so the claim is checkable by
+   * whoever reads it rather than trusted because this service says so.
+   */
+  const solicitedStore = new PersistentMap<{ handle: string; voucher: Address; exp: string; signature: Hex }>(
+    "solicited",
+    config.DATA_DIR || undefined,
+    (raw) => raw as { handle: string; voucher: Address; exp: string; signature: Hex },
+    (value) => value
+  );
+
+  async function rememberSolicited(req: AttestRequest): Promise<void> {
+    const candidate = candidateOf(req.intent.domain, [config.VOUCH_PREFIX]);
+    if (!candidate || !req.invite) return;
+    const onchain = await readFor(req);
+    if (!(await solicitedBy(req, onchain, await env()))) return;
+    solicitedStore.set(`${candidate}:${req.intent.handle}`, {
+      handle: req.invite.handle,
+      voucher: req.invite.voucher,
+      exp: req.invite.exp.toString(),
+      signature: req.invite.signature,
+    });
+  }
+
+  /** Split a `description` into the letter a reader sees and the hash that proves it, if there is one. */
+  function letterOf(text: string): { letter: string | null; letterHash: string | null } {
+    const ref = /^sha256:([0-9a-f]{64})$/.exec(text.trim());
+    if (!ref) return { letter: text || null, letterHash: null };
+    return { letter: letterStore.get(ref[1]) ?? null, letterHash: ref[1] };
+  }
+
+  /**
+   * An invitation behind a short code.
+   *
+   * The invitation is a signature over what the candidate asked for, and base64 makes a link nobody
+   * can paste into a message without it wrapping. The code is only a shortcut: what comes back is the
+   * signed invitation itself, checked the same way whether it arrived by code or in full.
+   */
+  /** The invitation as it travels: `exp` is a decimal string, which is what a stored JSON holds. */
+  type WireInvite = Omit<SignedInvite, "exp"> & { exp: string };
+  const inviteStore = new PersistentMap<WireInvite>(
+    "invites",
+    config.DATA_DIR || undefined,
+    (raw) => raw as WireInvite,
+    (invite) => invite
+  );
+
+  app.post("/v1/invite", async (c) => {
+    const body = wireInvite.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: "bad request", issues: body.error.issues }, 400);
+    const invite = {
+      handle: body.data.handle.toLowerCase(),
+      voucher: body.data.voucher as Address,
+      exp: body.data.exp,
+      requires: body.data.requires.map((d) => d.toLowerCase()),
+      signature: body.data.signature as Hex,
+    };
+    // Only the candidate can invite on their own behalf; a code that stood for anything else would be
+    // a link this service made up.
+    const signer = await recoverInviteSigner(
+      { handle: invite.handle, voucher: invite.voucher, exp: BigInt(invite.exp), requires: invite.requires },
+      invite.signature,
+      inviteDomain(config.CHAIN_ID, config.MULTIPASS)
+    ).catch(() => undefined);
+    const status = await chain.nameStatus(config.NAME_DOMAINS[0] ?? "", invite.handle);
+    if (!signer || !status.live || signer.toLowerCase() !== (status.wallet ?? "").toLowerCase()) {
+      return c.json({ error: "an invitation must be signed by the wallet holding that name" }, 400);
+    }
+    // Addressed by its own signature, so the same invitation is always the same code.
+    const code = createHash("sha256").update(invite.signature).digest("hex").slice(0, 8);
+    inviteStore.set(code, invite);
+    return c.json({ code });
+  });
+
+  app.get("/v1/invite/:code", (c) => {
+    const code = c.req.param("code").toLowerCase();
+    const invite = /^[0-9a-f]{8}$/.test(code) ? inviteStore.get(code) : undefined;
+    if (!invite) return c.json({ error: "no invitation with that code" }, 404);
+    return c.json({ code, invite });
+  });
+
+  /**
+   * A letter too long to sit on chain.
+   *
+   * A name holds 31 bytes and a text record costs gas by the byte, so a full reference cannot live
+   * there. The letter is kept here and addressed by the hash of its own text; what goes on the
+   * reference is `sha256:<hash>`, which is what makes the copy checkable instead of trusted — anyone
+   * can hash what they were handed and compare it with the record.
+   *
+   * The trade is honest and worth stating: the hash is permanent, the text is only as durable as this
+   * service's storage. A lost letter can be proven to have said what it said, not recovered.
+   */
+  const LETTER_MAX_BYTES = 20_000;
+  const letterStore = new PersistentMap<string>(
+    "letters",
+    config.DATA_DIR || undefined,
+    (raw) => raw as string,
+    (text) => text
+  );
+  const letterBytes = () =>
+    letterStore.entries().reduce((n, [, text]) => n + new TextEncoder().encode(text).length, 0);
+
+  app.post("/v1/letter", async (c) => {
+    const body = (await c.req.json().catch(() => null)) as { text?: unknown } | null;
+    const text = typeof body?.text === "string" ? body.text : "";
+    if (!text.trim()) return c.json({ error: "a letter needs something in it" }, 400);
+    const size = new TextEncoder().encode(text).length;
+    if (size > LETTER_MAX_BYTES) {
+      return c.json({ error: `a letter must be under ${LETTER_MAX_BYTES / 1000}kB` }, 413);
+    }
+    const hash = createHash("sha256").update(text).digest("hex");
+    // Already held: content-addressed, so writing the same letter twice costs nothing and is not
+    // refused for space it does not need.
+    if (letterStore.get(hash) === undefined && letterBytes() + size > config.LETTER_STORE_BYTES) {
+      return c.json(
+        { error: "the letter store is full; ask the operator to raise LETTER_STORE_BYTES or free space" },
+        507
+      );
+    }
+    letterStore.set(hash, text);
+    return c.json({ hash, ref: `sha256:${hash}`, bytes: size });
+  });
+
+  app.get("/v1/letter/:hash", (c) => {
+    const hash = c.req.param("hash").toLowerCase();
+    const text = /^[0-9a-f]{64}$/.test(hash) ? letterStore.get(hash) : undefined;
+    if (text === undefined) return c.json({ error: "no letter with that hash" }, 404);
+    return c.json({ hash, text });
+  });
+
+  /**
+   * What people said under one instance name.
+   *
+   * `kju-is.<root>` is not an unclaimed person: it is where answers about one are published, and a
+   * page reporting "no record" there hides every answer anyone wrote. The purpose is read from the
+   * name's own description record, so it travels with the answers rather than living in this app.
+   */
+  app.get("/v1/instance/:domain", async (c) => {
+    const domain = c.req.param("domain").toLowerCase();
+    const instance = (await chain.instances()).find((i) => i.domain === domain);
+    if (!instance) return c.json({ error: `no instance called "${domain}" here` }, 404);
+
+    const [records, description] = await Promise.all([
+      chain.listRecords(domain),
+      chain.resolveText(instance.resolver, instance.parentName, "description").catch(() => ""),
+    ]);
+    return c.json({
+      domain,
+      parentName: instance.parentName,
+      description: description || null,
+      answers: records
+        .filter((r) => r.live)
+        .map((r) => ({
+          handle: r.name,
+          ensName: `${r.name}.${instance.parentName}`,
+          answer: fromBytes32(r.payload),
+          wallet: r.wallet,
+          validUntil: new Date(Number(r.validUntil) * 1000).toISOString(),
+        })),
+      warning: WARNING,
+    });
+  });
+
+  /**
+   * Who holds a platform account here. The first step of referring someone: you know them as `@bob` on
+   * x.com, and this says whether that account already belongs to a page rather than making you guess a
+   * handle for a person who already has one.
+   *
+   * Only accounts attested in the open can be found. A masked record stores a one-time pad over the
+   * handle, so no search can match it — and reporting that as "nobody" would invite writing a second
+   * page for someone who already has one. It is said plainly instead.
+   */
+  /**
+   * People whose handle looks like what was typed, most-referenced first.
+   *
+   * Two people can be called `bob`, and nothing on chain decides which one anybody means. The one
+   * people have actually written references for is the one they mean, and that answer gets truer over
+   * time rather than being settled up front by whoever registered first. So this ranks rather than
+   * picks, and the person referring makes the call with the evidence in front of them.
+   */
+  app.get("/v1/find", async (c) => {
+    const q = c.req.query("q")?.trim().toLowerCase().replace(/^@/, "") ?? "";
+    if (q.length < 2) return c.json({ error: "search for at least two characters" }, 400);
+
+    const rootDomain = config.NAME_DOMAINS[0] ?? "";
+    const live = (await chain.listRecords(rootDomain)).filter((r) => r.live);
+    const hits = live.filter((r) => r.name.toLowerCase().includes(q)).slice(0, 10);
+    const matches = await Promise.all(
+      hits.map(async (r) => {
+        const s = await standing(r.name);
+        return { handle: r.name, wallet: r.wallet, ...s };
+      })
+    );
+    // Most references first; a tie falls back to the shorter name, which is the plainer one.
+    matches.sort((a, b) => b.received - a.received || a.handle.length - b.handle.length);
+    return c.json({ q, matches });
+  });
+
+  app.get("/v1/who", async (c) => {
+    const domain = c.req.query("domain");
+    const handle = c.req.query("handle")?.trim().replace(/^@/, "");
+    if (!domain || !handle) return c.json({ error: "domain and handle required" }, 400);
+    const viewCode = c.req.query("viewCode");
+    if (viewCode !== undefined && !/^0x[0-9a-fA-F]{64}$/.test(viewCode)) {
+      return c.json({ error: "viewCode must be 32 bytes of hex" }, 400);
+    }
+
+    const records = await chain.listRecords(domain);
+    const live = records.filter((r) => r.live);
+    // A view code is 32 bytes the candidate handed over, so holding it is the permission. With it the
+    // masked name is computed and matched exactly; without it a private account cannot be found at all.
+    const match = viewCode
+      ? live.find((r) => r.rawName === maskName(storable(handle), viewCode as Hex))
+      : live.find((r) => r.name.toLowerCase() === handle.toLowerCase());
+    if (!match) {
+      // A masked record carries a view-code commitment where a public one carries nothing; the name
+      // itself is a pad and cannot be re-encoded, let alone matched.
+      const masked = live.some((r) => r.payload !== zeroHash);
+      return c.json({
+        found: false,
+        domain,
+        handle: handle.toLowerCase(),
+        ...(masked
+          ? {
+              note: "someone here attested a private account on this platform, and a private account cannot be searched — ask them for their page rather than starting a new one",
+            }
+          : {}),
+      });
+    }
+
+    // The account is held by a wallet; the page is whatever that wallet is called in a name domain.
+    const held = await chain.listRecordsByWallet(match.wallet);
+    const candidate = held.find((r) => r.live && config.NAME_DOMAINS.includes(r.domain))?.name;
+    return c.json({
+      found: true,
+      domain,
+      handle: handle.toLowerCase(),
+      wallet: match.wallet,
+      candidate: candidate ?? null,
+      // How many references they hold, so the same evidence is on screen here as in a name search.
+      standing: candidate ? await standing(candidate) : null,
+    });
+  });
+
   app.post("/v1/attest", async (c) => {
     if (!config.REGISTRAR_KEY || !config.VIEWCODE_KEY) return c.json({ error: "registrar disabled" }, 501);
     const parsed = wireRequest.safeParse(await c.req.json().catch(() => null));
@@ -266,40 +796,85 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     // signature the user already gave is wasted either way.
     const blocker = await writeBlocker(req.intent.domain);
     if (blocker) return c.json({ error: blocker }, 503);
+    const domain = req.intent.domain;
+    const plan = await namespacePlan(domain);
+    let result;
     try {
       const onchain = await readFor(req);
-      const result = await attest(
+      const base = await env();
+      result = await attest(
         req,
         onchain,
         { registrarKey: config.REGISTRAR_KEY, viewcodeKey: config.VIEWCODE_KEY },
-        env()
+        // A domain about to be provisioned is one this deployment will hold in a moment. The attester
+        // still has to agree the account belongs to it, which is what makes the spend safe.
+        plan.write ? { ...base, platformDomains: [...(base.platformDomains ?? []), domain] } : base
       );
-      return c.json(serialize(result));
     } catch (e) {
       return c.json({ error: (e as Error).message }, 422);
     }
+    // Whether the candidate asked for this reference: a fact about it, kept so the card can say so.
+    // The invitation is kept with it, so a reader can check the signature rather than take our word.
+    await rememberSolicited(req);
+    // Only now, with the account proven: the signature is worthless until the domain exists on chain.
+    if (plan.mount) {
+      try {
+        await chain.ensureNamespace(domain);
+      } catch (e) {
+        return c.json({ error: `could not mount "${domain}": ${explainRevert(e)}` }, 503);
+      }
+    }
+    return c.json(serialize(result));
   });
+
+  /**
+   * Write a registrar-signed record, and arrange what has to exist around it.
+   *
+   * Both delivery routes go through here on purpose. They accept the same record and differ only in
+   * who is allowed to call them, so anything one of them arranges the other must arrange too: when
+   * they drifted, a statement written through the enclave reverted for a candidate who had claimed
+   * nothing, and a name claimed from a browser never got the instance others write references into.
+   */
+  async function deliver(record: RegisterMessage, signature: Hex) {
+    // The candidate's vouch domain has to exist before a statement can be written into it.
+    await ensureVouchDomain(record);
+    const txHash = await chain.submit(record, signature);
+    // A newly claimed root name gets its own vouch instance, so others can refer that person.
+    let vouchInstance: { domain: string; created: boolean } | undefined;
+    if (config.NAME_DOMAINS[0] && fromBytes32(record.domainName) === config.NAME_DOMAINS[0]) {
+      try {
+        vouchInstance = await chain.ensureVouchInstance(fromBytes32(record.name));
+      } catch (e) {
+        // The record is written either way; the instance is arranged again on the first reference.
+        vouchInstance = undefined;
+        console.error(
+          JSON.stringify({
+            msg: "vouch instance provisioning failed",
+            handle: fromBytes32(record.name),
+            error: (e as Error).message,
+          })
+        );
+      }
+    }
+    return { ok: true as const, txHash, ...(vouchInstance ? { vouchInstance } : {}) };
+  }
 
   /**
    * Submit a registrar-signed record from a browser. No secret: the record is only accepted because
    * the registrar signed it, so relaying someone else's signed record writes exactly what they asked
-   * for and nothing more. The token-gated delivery route stays for the enclave, which also asks for
-   * the candidate's vouch instance to be provisioned.
+   * for and nothing more. The token-gated route below is the enclave's.
    */
   app.post("/v1/submit", async (c) => {
     const parsed = wireDelivery.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return c.json({ ok: false, error: "bad request", issues: parsed.error.issues }, 400);
     try {
-      const record = toRecord(parsed.data.record);
-      await ensureVouchDomain(record);
-      const txHash = await chain.submit(record, parsed.data.signature as Hex);
-      return c.json({ ok: true, txHash });
+      return c.json(await deliver(toRecord(parsed.data.record), parsed.data.signature as Hex));
     } catch (e) {
       return c.json({ ok: false, error: (e as Error).message }, 502);
     }
   });
 
-  /** CRE external delivery: submit a registrar-signed record through the bridge. */
+  /** CRE external delivery: the same write, gated on the delivery token. */
   app.post("/v1/cre/delivery", async (c) => {
     if (config.DELIVERY_TOKEN && c.req.header("x-delivery-token") !== config.DELIVERY_TOKEN) {
       return c.json({ ok: false, error: "unauthorized" }, 401);
@@ -307,25 +882,7 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     const parsed = wireDelivery.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return c.json({ ok: false, error: "bad request", issues: parsed.error.issues }, 400);
     try {
-      const record = toRecord(parsed.data.record);
-      const txHash = await chain.submit(record, parsed.data.signature as Hex);
-      // A newly claimed root name gets its vouch instance so others can write references under it.
-      let vouchInstance: { domain: string; created: boolean } | undefined;
-      if (config.NAME_DOMAINS[0] && fromBytes32(record.domainName) === config.NAME_DOMAINS[0]) {
-        try {
-          vouchInstance = await chain.ensureVouchInstance(fromBytes32(record.name));
-        } catch (e) {
-          vouchInstance = undefined;
-          console.error(
-            JSON.stringify({
-              msg: "vouch instance provisioning failed",
-              handle: fromBytes32(record.name),
-              error: (e as Error).message,
-            })
-          );
-        }
-      }
-      return c.json({ ok: true, txHash, ...(vouchInstance ? { vouchInstance } : {}) });
+      return c.json(await deliver(toRecord(parsed.data.record), parsed.data.signature as Hex));
     } catch (e) {
       return c.json({ ok: false, error: (e as Error).message }, 502);
     }
@@ -365,8 +922,14 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     "disclosures",
     config.DATA_DIR || undefined,
     (raw) => {
+      // Anything that is not a grant this build understands — one written by an older format, say — is
+      // refused here and dropped by the store. Reviving it anyway put an unusable row in the list and
+      // took every other share down with it.
       const g = raw as Omit<SignedDisclosure, "exp"> & { exp: string };
-      return { ...g, exp: BigInt(g.exp) };
+      if (!Array.isArray(g?.domains) || !Array.isArray(g?.boxes) || typeof g?.boxesHash !== "string") {
+        throw new Error("disclosure: not a grant this build can read");
+      }
+      return { ...g, audienceName: g.audienceName ?? "", exp: BigInt(g.exp) };
     },
     (grant) => ({ ...grant, exp: grant.exp.toString() })
   );
@@ -375,15 +938,16 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     if (!body.success) return c.json({ error: "bad request", issues: body.error.issues }, 400);
     const grant: SignedDisclosure = {
       name: body.data.name.toLowerCase(),
-      domain: body.data.domain,
+      domains: body.data.domains,
       audience: body.data.audience as Address,
+      audienceName: body.data.audienceName.toLowerCase(),
       exp: BigInt(body.data.exp),
-      boxHash: body.data.boxHash as Hex,
-      box: {
-        ephemeralPubkey: body.data.box.ephemeralPubkey as Hex,
-        nonce: body.data.box.nonce as Hex,
-        ciphertext: body.data.box.ciphertext as Hex,
-      },
+      boxesHash: body.data.boxesHash as Hex,
+      boxes: body.data.boxes.map((b) => ({
+        ephemeralPubkey: b.ephemeralPubkey as Hex,
+        nonce: b.nonce as Hex,
+        ciphertext: b.ciphertext as Hex,
+      })),
       signature: body.data.signature as Hex,
     };
     const located = locate(grant.name, await chain.instances());
@@ -393,10 +957,11 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
       const signer = await recoverDiscloseSigner(
         {
           name: grant.name,
-          domain: grant.domain,
+          domains: grant.domains,
           audience: grant.audience,
+          audienceName: grant.audienceName,
           exp: grant.exp,
-          boxHash: grant.boxHash,
+          boxesHash: grant.boxesHash,
         },
         grant.signature,
         discloseDomain(config.CHAIN_ID, config.MULTIPASS)
@@ -405,15 +970,87 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     } catch (e) {
       return c.json({ error: (e as Error).message }, 422);
     }
-    const key = `${grant.name}:${grant.domain}`;
-    grantStore.set(key, grant);
+    // One signature, one grant, one thing to take back. Storing it per account would make a share of
+    // two accounts look like two permissions, and would let a second share of one account quietly
+    // replace the first rather than standing beside it.
+    grantStore.set(`${grant.name}:${grantId(grant)}`, grant);
     return c.json({
       ok: true,
+      id: grantId(grant),
       name: grant.name,
-      domain: grant.domain,
+      domains: grant.domains,
       expiresAt: new Date(Number(grant.exp) * 1000).toISOString(),
     });
   });
+
+  /**
+   * What this name is currently sharing. A summary only — domain, reader and expiry — because the
+   * question it answers is the holder's own: who can read my private accounts, and until when.
+   * Expired grants are left out rather than shown dead, so the list is exactly what is live.
+   */
+  app.get("/v1/disclosures/:name", async (c) => {
+    const name = c.req.param("name").toLowerCase();
+    const grants = grantStore
+      .entries()
+      .filter(([, g]) => g.name === name && g.exp > BigInt(now()))
+      .map(([, g]) => ({
+        id: grantId(g),
+        domains: g.domains,
+        audience: g.audience,
+        audienceName: g.audienceName,
+        expiresAt: new Date(Number(g.exp) * 1000).toISOString(),
+      }))
+      .sort((a, b) => a.expiresAt.localeCompare(b.expiresAt) || a.id.localeCompare(b.id));
+    return c.json({ name, grants });
+  });
+
+  /**
+   * Take one back. Signed by the same wallet that granted it and dated, so a captured revocation
+   * cannot be replayed later to undo a share made since.
+   */
+  app.post("/v1/revoke", async (c) => {
+    const body = wireRevocation.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: "bad request", issues: body.error.issues }, 400);
+    const revocation = {
+      name: body.data.name.toLowerCase(),
+      grantId: body.data.grantId as Hex,
+      at: BigInt(body.data.at),
+    };
+    const key = `${revocation.name}:${revocation.grantId}`;
+    const existing = grantStore.get(key);
+    if (!existing) return c.json({ error: "no such grant" }, 404);
+    const located = locate(revocation.name, await chain.instances());
+    if (!located) return c.json({ error: "unknown instance for name" }, 404);
+    const holder = await chain.resolveAddr(located.instance.resolver, revocation.name);
+    try {
+      const signer = await recoverRevokeSigner(
+        revocation,
+        body.data.signature as Hex,
+        discloseDomain(config.CHAIN_ID, config.MULTIPASS)
+      );
+      checkRevocation(revocation, { holder, now: now(), signer });
+    } catch (e) {
+      return c.json({ error: (e as Error).message }, 422);
+    }
+    grantStore.delete(key);
+    return c.json({ ok: true, name: revocation.name, id: revocation.grantId, domains: existing.domains });
+  });
+
+  /**
+   * The name a reader may be judged by. A grant can be addressed to a person or to a branch rather than
+   * to a key, so the reader says which name they hold — and this resolves it, refusing anything that
+   * does not answer with their own wallet. A claim is never evidence; the resolver is.
+   */
+  async function heldBy(
+    claimed: string | undefined,
+    reader: Address | undefined
+  ): Promise<string | undefined> {
+    if (!claimed || !reader) return undefined;
+    const at = locate(claimed.toLowerCase(), await chain.instances());
+    if (!at) return undefined;
+    const owner = await chain.resolveAddr(at.instance.resolver, claimed.toLowerCase());
+    return owner.toLowerCase() === reader.toLowerCase() ? claimed.toLowerCase() : undefined;
+  }
 
   /**
    * Read a masked account the candidate allowed. The handle is never written anywhere: the enclave
@@ -423,33 +1060,51 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     if (!config.REGISTRAR_KEY) return c.json({ error: "registrar disabled" }, 501);
     const name = c.req.param("name").toLowerCase();
     const domain = c.req.param("domain");
-    const grant = grantStore.get(`${name}:${domain}`);
-    if (!grant) return c.json({ error: "no disclosure for that account" }, 404);
+    // One account can be shared with several people, each by its own grant. The reader is asking about
+    // the account, so every grant that names it is a candidate and the first one that opens for them wins.
+    const candidates = grantStore
+      .entries()
+      .filter(([, g]) => g.name === name && g.domains.includes(domain))
+      .map(([, g]) => g);
+    if (candidates.length === 0) return c.json({ error: "no disclosure for that account" }, 404);
     const reader = c.req.query("reader") as Address | undefined;
+    const readerName = await heldBy(c.req.query("as"), reader);
     const located = locate(name, await chain.instances());
     if (!located) return c.json({ error: "unknown instance for name" }, 404);
     const holder = await chain.resolveAddr(located.instance.resolver, name);
-    try {
-      const signer = await recoverDiscloseSigner(
-        {
-          name: grant.name,
-          domain: grant.domain,
-          audience: grant.audience,
-          exp: grant.exp,
-          boxHash: grant.boxHash,
-        },
-        grant.signature,
-        discloseDomain(config.CHAIN_ID, config.MULTIPASS)
-      );
-      checkDisclosure(grant, { holder, now: now(), signer });
-      checkAudience(grant, reader);
-    } catch (e) {
-      return c.json({ error: (e as Error).message }, 403);
+    let grant: SignedDisclosure | undefined;
+    let refusal = "disclosure: addressed to a different reader";
+    for (const candidate of candidates) {
+      try {
+        const signer = await recoverDiscloseSigner(
+          {
+            name: candidate.name,
+            domains: candidate.domains,
+            audience: candidate.audience,
+            audienceName: candidate.audienceName,
+            exp: candidate.exp,
+            boxesHash: candidate.boxesHash,
+          },
+          candidate.signature,
+          discloseDomain(config.CHAIN_ID, config.MULTIPASS)
+        );
+        checkDisclosure(candidate, { holder, now: now(), signer });
+        checkAudience(candidate, { reader, readerName });
+        grant = candidate;
+        break;
+      } catch (e) {
+        refusal = (e as Error).message;
+      }
     }
+    if (!grant) return c.json({ error: refusal }, 403);
     const packed = await chain.resolveData(located.instance.resolver, name, `ketsuban:link:${domain}`);
     if (packed === "0x" || packed.length !== 194) return c.json({ error: "no record for that account" }, 404);
     try {
-      const viewCode = bytesToHex(eciesDecrypt(config.REGISTRAR_KEY, grant.box));
+      // The grant names its accounts in one order and carries their boxes in the same one: this
+      // account's view code is the box at its own position, never simply the first.
+      const box = grant.boxes[grant.domains.indexOf(domain)];
+      if (!box) return c.json({ error: "no disclosure for that account" }, 404);
+      const viewCode = bytesToHex(eciesDecrypt(config.REGISTRAR_KEY, box));
       const disclosed = decodeRecord(
         {
           name: `0x${packed.slice(2, 66)}` as Hex,
@@ -500,7 +1155,7 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
       payload: zeroHash,
     };
     try {
-      const signature = await signRecord(record, config.REGISTRAR_KEY, env());
+      const signature = await signRecord(record, config.REGISTRAR_KEY, await env());
       const txHash = await chain.submit(record, signature);
       return c.json({ ok: true, label, wallet, txHash, renewal: onchain.exists });
     } catch (e) {
@@ -590,13 +1245,38 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
           domain: i.domain,
           name: await chain.reverseName(i.resolver, address as Address).catch(() => ""),
           resolver: i.resolver,
+          kind: "name" as const,
         }))
     );
     const found = named.filter((n) => n.name !== "");
+    // The accounts this wallet attested are names too. They come from the index rather than another
+    // round of resolver calls, and they are the same names the dashboard shows.
+    const mountOf = new Map(instances.map((i) => [i.domain, i]));
+    const records = await chain.listRecordsByWallet(address as Address).catch(() => []);
+    const held = found[0]?.name?.split(".")[0];
+    const accounts = records
+      .filter((r) => r.live && mountOf.has(r.domain) && !config.NAME_DOMAINS.includes(r.domain))
+      .map((r) => {
+        const mount = mountOf.get(r.domain);
+        const { ensName } = linkName(r, mount, held);
+        return ensName
+          ? {
+              domain: r.domain,
+              name: ensName,
+              resolver: (r.payload !== zeroHash ? mount?.maskedResolver : mount?.resolver) as Address,
+              kind: r.payload !== zeroHash ? ("private" as const) : ("account" as const),
+            }
+          : undefined;
+      })
+      .filter((n): n is NonNullable<typeof n> => !!n && !!n.resolver);
+    // What ENS itself says when asked about this address. Nobody here writes it: the holder sets their
+    // own primary name, and this service answers reverse lookups from the record either way.
+    const primary = await chain.primaryName(address as Address).catch(() => null);
     return c.json({
       address,
       name: found[0]?.name ?? null,
-      names: found,
+      names: [...found, ...accounts],
+      primary,
       note: "answered from the Multipass record, not from a reverse registry",
       warning: WARNING,
     });
@@ -608,6 +1288,7 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     if (!/^0x[0-9a-fA-F]{40}$/.test(address)) return c.json({ error: "bad address" }, 400);
     const instances = await chain.instances();
     const parentOf = new Map(instances.map((i) => [i.domain, i.parentName]));
+    const mountOf = new Map(instances.map((i) => [i.domain, i]));
     // Every platform domain has its own instance now, so an instance no longer means "a name domain".
     // Classify by configuration, which is what decides whether a record carries a handle and an answer.
     const isNameDomain = (d: string) => config.NAME_DOMAINS.includes(d);
@@ -650,18 +1331,8 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
         .filter((r) => !isNameDomain(r.domain) && !isVouch(r.domain) && r.domain !== config.ORG_DOMAIN)
         .map((r) => {
           const optedIn = r.payload !== zeroHash;
-          const parent = parentOf.get(r.domain);
-          // A public account is a name any ENS client can read — when its handle can be a label at all.
-          // An email address cannot: `@` and `.` separate labels, they are not characters in one.
-          // Underscores are fine in an ENS label and common in platform handles; `@` and `.` are not.
-          const label = /^[a-z0-9_-]{1,63}$/.test(r.name.toLowerCase()) ? r.name.toLowerCase() : null;
-          return {
-            ...fmt(r),
-            optedIn,
-            ensName: parent && !optedIn && label ? `${label}.${parent}` : null,
-            // Why there is no name, when there is none: privacy, or a handle that cannot be a label.
-            nameless: optedIn ? "private" : label ? null : "not-a-label",
-          };
+          const held = records.find((k) => k.live && isNameDomain(k.domain))?.name;
+          return { ...fmt(r), optedIn, ...linkName(r, mountOf.get(r.domain), held) };
         }),
       given: records
         .filter((r) => isVouch(r.domain))
@@ -767,13 +1438,22 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
       vouches: records.map((r) => ({
         voucher: r.name,
         voucherName: rootParent ? `${r.name}.${rootParent}` : null,
+        // The reference is itself a name, in the candidate's own namespace: `<voucher>.<candidate>.<root>`.
+        ensName: vouchInstance ? `${r.name}.${vouchInstance.parentName}` : null,
         wallet: r.wallet,
         statement: fromBytes32(r.payload),
+        // Anyone may refer anyone; this says whether the candidate asked. The invitation travels with
+        // it so a verifier can recover the signer themselves.
+        solicited: !!solicitedStore.get(`${handle}:${r.name}`),
+        invite: solicitedStore.get(`${handle}:${r.name}`) ?? null,
         validUntil: new Date(Number(r.validUntil) * 1000).toISOString(),
         nonce: r.nonce.toString(),
         live: r.live,
         standing: standings.get(r.name) ?? null,
-        letter: letters.get(r.name) || null,
+        // `description` holds the letter itself when it fits, or `sha256:<hash>` when it does not.
+        // The pointer is resolved here so a reader gets the text and the hash that names it, and can
+        // check one against the other without asking this service to be believed.
+        ...letterOf(letters.get(r.name) ?? ""),
       })),
       warning: WARNING,
     };
@@ -800,7 +1480,7 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     const located = locate(name, await chain.instances());
     if (!located) return undefined;
     const { instance } = located;
-    const r = instance.resolver;
+    const r = located.resolver;
 
     const [wallet, answer, expiry, humanity, humanityUntil, avatar, description, url, email] =
       await Promise.all([
@@ -816,6 +1496,9 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
         chain.resolveText(r, name, "email"),
       ]);
     const active = wallet !== "0x0000000000000000000000000000000000000000";
+    const mounts = new Map((await chain.instances()).map((i) => [i.domain, i]));
+    // The label the person holds: what the private branch names their masked accounts after.
+    const held = name.split(".")[0] ?? "";
     const links = active
       ? await Promise.all(
           opts.linkDomains.map(async (domain) => {
@@ -835,9 +1518,16 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
                 disclosed = undefined;
               }
             }
+            // The name a verifier can check in any ENS client: the account's own where it is public,
+            // and the person's in the private branch where it is not.
+            const mount = mounts.get(domain);
+            const label = optedIn ? held : readable(fromBytes32(record.name))?.toLowerCase();
+            const parent = optedIn ? mount?.maskedParentName : mount?.parentName;
+            const ensName = parent && label && /^[a-z0-9_-]{1,63}$/.test(label) ? `${label}.${parent}` : null;
             return {
               domain,
               optedIn,
+              ensName,
               ...(optedIn ? { commitment: record.payload } : {}),
               ...(disclosed ? { disclosed } : {}),
             };
@@ -848,11 +1538,16 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     const evidence = [
       "wallet_binding",
       ...(humanity ? ["humanity_attestation"] : []),
-      ...links.filter(Boolean).map((l) => `${l!.domain}_account_control`),
+      // Named by the platform, not by the mount: a verifier reads `x_account_control` either way.
+      ...links.filter(Boolean).map((l) => `${platformOf(l!.domain) ?? l!.domain}_account_control`),
     ];
     return {
       name,
       instance: { domain: instance.domain, parentName: instance.parentName },
+      // A name in the private branch is a narrower claim: this person has an account in that domain,
+      // and the account itself stays behind a view code. A verifier should be told which they are
+      // reading rather than inferring it from the shape of the name.
+      branch: located.masked ? ("private" as const) : ("open" as const),
       status: active ? "active" : "inactive",
       wallet: active ? wallet : null,
       answer: active ? answer : null,
@@ -876,12 +1571,30 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     };
   }
 
-  const DEFAULT_LINKS = "x,telegram,github,discord,google,email,linkedin";
-  const linkQuery = (q?: string) => (q ?? DEFAULT_LINKS).split(",").filter(Boolean);
+  const FLAT_LINKS = ["x", "telegram", "github", "discord", "google", "email", "linkedin"];
+
+  /**
+   * Which accounts to look for. A verifier arriving at a name should not have to guess the domain list,
+   * so the default is what this deployment mounts — plus the flat names, for records written before the
+   * DNS namespace existed.
+   */
+  async function linkQuery(q?: string): Promise<string[]> {
+    if (q) return q.split(",").filter(Boolean);
+    const mounted = (await chain.instances())
+      .map((i) => i.domain)
+      .filter(
+        (d) =>
+          !config.NAME_DOMAINS.includes(d) &&
+          d !== config.ORG_DOMAIN &&
+          d !== "humanity" &&
+          !d.startsWith(config.VOUCH_PREFIX)
+      );
+    return [...new Set([...mounted, ...FLAT_LINKS])];
+  }
 
   app.get("/v1/verify/:name", async (c) => {
     const v = await verifyName(c.req.param("name"), {
-      linkDomains: linkQuery(c.req.query("links")),
+      linkDomains: await linkQuery(c.req.query("links")),
       viewCode: c.req.query("viewCode") as Hex | undefined,
     });
     if (!v) return c.json({ error: "unknown instance for name" }, 404);
@@ -899,7 +1612,7 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     const subjects = instances.filter((i) => config.NAME_DOMAINS.includes(i.domain));
     if (subjects.length === 0) return c.json({ error: "no name domains configured" }, 501);
     const opts = {
-      linkDomains: linkQuery(c.req.query("links")),
+      linkDomains: await linkQuery(c.req.query("links")),
       viewCode: c.req.query("viewCode") as Hex | undefined,
     };
     const names = await Promise.all(

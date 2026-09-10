@@ -31,7 +31,12 @@ const account = privateKeyToAccount("0x00000000000000000000000000000000000000000
 
 describe("invitations", () => {
   it("signs an invite the registrar accepts and puts it in a URL-safe link", async () => {
-    const invite = { handle: "alice", voucher: ZERO_ADDRESS, exp: BigInt(NOW + 604800) } as const;
+    const invite = {
+      handle: "alice",
+      voucher: ZERO_ADDRESS,
+      exp: BigInt(NOW + 604800),
+      requires: [] as string[],
+    };
     const td = inviteTypedData(invite, 11155111, "0x418F82fd0014a4CA402F145978bfaF0555a9cA06");
     expect(td.message.exp).toBe(String(invite.exp));
     expect(() => JSON.stringify(td)).not.toThrow();
@@ -423,5 +428,24 @@ describe("api client", () => {
     } satisfies Partial<ApiError>);
     await expect(api.verify("x")).rejects.toThrow();
     await expect(api.nonce(account.address, "x")).rejects.toMatchObject({ status: 404 });
+  });
+});
+
+describe("addresses that arrive in the wrong case", () => {
+  it("are normalised in the browser config too, not carried until a write fails", async () => {
+    // The same checksum trap as the attester: viem refuses an address whose EIP-55 casing does not
+    // match, and here it would surface as a failed transaction rather than as a bad setting.
+    const { loadWebConfig } = await import("@/lib/config");
+    const config = loadWebConfig({
+      NEXT_PUBLIC_PRIVY_APP_ID: "app",
+      NEXT_PUBLIC_PRIVY_CLIENT_ID: "client",
+      NEXT_PUBLIC_API_URL: "http://api.test",
+      NEXT_PUBLIC_ATTEST_URL: "http://api.test/v1/attest",
+      NEXT_PUBLIC_CHAIN_ID: "11155111",
+      NEXT_PUBLIC_MULTIPASS: "0x418f82fd0014a4ca402f145978bfaf0555a9ca06",
+      NEXT_PUBLIC_NAME_DOMAINS: "ketsuban",
+      NEXT_PUBLIC_PARENT_NAMES: "ketsuban.eth",
+    });
+    expect(config.multipass).toBe("0x418F82fd0014a4CA402F145978bfaF0555a9cA06");
   });
 });

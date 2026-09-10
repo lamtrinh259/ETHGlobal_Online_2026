@@ -4,13 +4,14 @@ import { decodeInvite, type SignedInvite } from "@ketsuban/registrar";
 import { createApi } from "@/lib/api";
 import { loadWebConfig } from "@/lib/config";
 import { HANDLE_RE } from "@/lib/profile";
+import { askById } from "@/lib/asks";
 import { VouchFlow } from "./VouchFlow";
 
 export const dynamic = "force-dynamic";
 
 type Params = {
   params: Promise<{ handle: string }>;
-  searchParams: Promise<{ invite?: string; withdraw?: string }>;
+  searchParams: Promise<{ invite?: string; withdraw?: string; ask?: string }>;
 };
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
@@ -25,7 +26,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
  */
 export default async function VouchPage({ params, searchParams }: Params) {
   const { handle: raw } = await params;
-  const { invite: token, withdraw } = await searchParams;
+  const { invite: token, withdraw, ask } = await searchParams;
   const handle = decodeURIComponent(raw).toLowerCase();
   const config = loadWebConfig();
   const root = config.instances[0];
@@ -40,8 +41,26 @@ export default async function VouchPage({ params, searchParams }: Params) {
   }
   // A malformed or truncated link is simply no invitation; the flow says what to do about it.
   let invite: SignedInvite | undefined;
+  // A short code stands for the same signed invitation; it is fetched and then checked identically.
+  const fromCode =
+    token && /^[0-9a-f]{8}$/.test(token)
+      ? await createApi(config.apiUrl, config.attestUrl)
+          .invite(token)
+          .then((r) => r.invite as unknown as Record<string, string>)
+          .catch(() => undefined)
+      : undefined;
   try {
-    invite = token ? decodeInvite(token) : undefined;
+    invite = fromCode
+      ? ({
+          handle: fromCode.handle,
+          voucher: fromCode.voucher,
+          exp: BigInt(fromCode.exp),
+          requires: (fromCode.requires as unknown as string[]) ?? [],
+          signature: fromCode.signature,
+        } as SignedInvite)
+      : token
+        ? decodeInvite(token)
+        : undefined;
   } catch {
     invite = undefined;
   }
@@ -76,7 +95,7 @@ export default async function VouchPage({ params, searchParams }: Params) {
           . Five minutes. Nothing you sign here can be deleted — only revoked, visibly.
         </p>
       </section>
-      <VouchFlow candidate={handle} invite={invite} withdraw={withdraw === "1"} />
+      <VouchFlow candidate={handle} invite={invite} withdraw={withdraw === "1"} ask={askById(ask)} />
     </>
   );
 }

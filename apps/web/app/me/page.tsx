@@ -7,10 +7,7 @@ export default function MePage() {
     <>
       <section className="hero">
         <h1>Your page</h1>
-        <p>
-          Four things make a reference worth reading: your name, your answers, the accounts that back you, and
-          who spoke for you.
-        </p>
+        <p>Everything below is a name anybody can read for themselves.</p>
       </section>
       <Dashboard />
     </>

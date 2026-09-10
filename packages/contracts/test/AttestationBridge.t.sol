@@ -32,6 +32,28 @@ contract AttestationBridgeTest is BaseTest {
         assertFalse(inner.hasTextGrant(dns("other.acme-alumni.eth"), "avatar", alice));
     }
 
+    /// @dev The grant is the point, so what it permits and refuses is worth asserting, not just its flag.
+    function test_theGrantIsPerKeyAndPerName() public {
+        LibMultipass.Record memory r = record(INSTANCE, alice, b32("alice"), b32("id"), 1, b32("answer"));
+        registerVia(alice, r, 0);
+
+        // Her own name, a key the bridge granted: hers to write, and readable through the resolver.
+        vm.prank(alice);
+        inner.setText(node(NAME), "avatar", "ipfs://cat");
+        assertEq(resolveText(NAME, "avatar"), "ipfs://cat");
+
+        // A key nobody granted, on the same name: refused by the resolver, not by this service.
+        vm.prank(alice);
+        vm.expectRevert();
+        inner.setText(node(NAME), "com.twitter", "@someone-else");
+
+        // Somebody else's name, a key that was granted — to them.
+        vm.prank(bob);
+        vm.expectRevert();
+        inner.setText(node(NAME), "avatar", "ipfs://not-yours");
+        assertEq(resolveText(NAME, "avatar"), "ipfs://cat");
+    }
+
     function test_verify_platformDomainGrantsNothing() public {
         LibMultipass.Record memory r = record(X, alice, b32("alice_x"), b32("1"), 1, bytes32(0));
         registerVia(alice, r, X_FEE);

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { privateKeyToAccount } from "viem/accounts";
 import {
   candidateOf,
+  meetsInvite,
   decodeInvite,
   encodeInvite,
   inviteDomain,
@@ -16,7 +17,7 @@ const alice = privateKeyToAccount("0x0000000000000000000000000000000000000000000
 const bob = privateKeyToAccount("0x000000000000000000000000000000000000000000000000000000000000b0bb");
 
 describe("invite signatures", () => {
-  const invite = { handle: "alice", voucher: ZERO_ADDRESS, exp: 1_800_000_000n } as const;
+  const invite = { handle: "alice", voucher: ZERO_ADDRESS, exp: 1_800_000_000n, requires: [] } as const;
 
   it("recovers the candidate who signed it", async () => {
     const signature = await signInvite(alice, invite, inviteDomain(11155111, MULTIPASS));
@@ -53,9 +54,10 @@ describe("invite transport", () => {
       handle: "alice",
       voucher: bob.address,
       exp: 1_800_000_000n,
+      requires: [],
       signature: await signInvite(
         alice,
-        { handle: "alice", voucher: bob.address, exp: 1_800_000_000n },
+        { handle: "alice", voucher: bob.address, exp: 1_800_000_000n, requires: [] },
         inviteDomain(11155111, MULTIPASS)
       ),
     };
@@ -79,5 +81,40 @@ describe("candidateOf", () => {
     expect(candidateOf("~alice", ["~"])).toBe("alice");
     expect(candidateOf("kju-is", ["~"])).toBeUndefined();
     expect(candidateOf("~", ["~"])).toBeUndefined();
+  });
+});
+
+describe("an invitation that asks something of the writer", () => {
+  const base = { handle: "alice", voucher: ZERO_ADDRESS, exp: 1_800_000_000n, requires: [] as string[] };
+  const domain = inviteDomain(11155111, MULTIPASS);
+
+  it("carries the accounts the candidate wants seen, and signs over them", async () => {
+    // "Only from someone with a university address" is a real thing to ask for, and it only means
+    // anything if the requirement is part of what was signed.
+    const asked = { ...base, requires: ["linkedin.com", "mit.edu"] };
+    const signature = await signInvite(alice, asked, domain);
+    expect(await recoverInviteSigner(asked, signature, domain)).toBe(alice.address);
+
+    // Dropping or adding a requirement is a different invitation, not the same one relaxed.
+    expect(await recoverInviteSigner({ ...asked, requires: ["linkedin.com"] }, signature, domain)).not.toBe(
+      alice.address
+    );
+    expect(await recoverInviteSigner(base, signature, domain)).not.toBe(alice.address);
+  });
+
+  it("is met only by a writer who holds every account it names", () => {
+    const asked = { ...base, requires: ["linkedin.com", "mit.edu"] };
+    expect(meetsInvite(asked, ["linkedin.com", "mit.edu", "x.com"])).toBe(true);
+    expect(meetsInvite(asked, ["linkedin.com"])).toBe(false);
+    expect(meetsInvite(asked, [])).toBe(false);
+    // An invitation that asks for nothing is met by anyone, which is the common case.
+    expect(meetsInvite(base, [])).toBe(true);
+  });
+
+  it("compares domains as domains, not as text", () => {
+    const asked = { ...base, requires: ["MIT.edu"] };
+    expect(meetsInvite(asked, ["mit.edu"])).toBe(true);
+    // A neighbouring domain is a different institution: matching on suffix would let anyone in.
+    expect(meetsInvite(asked, ["notmit.edu"])).toBe(false);
   });
 });

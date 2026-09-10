@@ -58,7 +58,6 @@ contract AttestationReporterTest is BaseTest {
         assertTrue(ok);
     }
 
-
     function test_onReport_renewsWhenTheRecordAlreadyExists() public {
         LibMultipass.Record memory first = record(INSTANCE, alice, b32("alice"), b32("id"), 1, b32("first"));
         vm.prank(forwarder);

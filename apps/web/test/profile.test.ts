@@ -14,6 +14,7 @@ import {
   presetPolicy,
   shareSnippet,
   vouchRequest,
+  type Policy,
 } from "@/lib/profile";
 
 const config = {
@@ -74,6 +75,8 @@ describe("assessProfile", () => {
           validUntil: "2027-01-01T00:00:00.000Z",
           nonce: "1",
           live: true,
+          solicited: false,
+          invite: null,
         },
         {
           voucher: "bob",
@@ -83,6 +86,8 @@ describe("assessProfile", () => {
           validUntil: "2026-01-01T00:00:00.000Z",
           nonce: "0",
           live: false,
+          solicited: false,
+          invite: null,
         },
         {
           voucher: "carol",
@@ -92,6 +97,8 @@ describe("assessProfile", () => {
           validUntil: "2027-01-01T00:00:00.000Z",
           nonce: "1",
           live: true,
+          solicited: false,
+          invite: null,
         },
       ]
     );
@@ -129,6 +136,8 @@ describe("assessProfile", () => {
       validUntil: "2027-01-01T00:00:00.000Z",
       nonce: "2",
       live: true,
+      solicited: false,
+      invite: null,
     });
     const p = assessProfile(
       "alice",
@@ -223,6 +232,8 @@ describe("policyFromQuery", () => {
       requiredAnswers: ["kju-is", "uni"],
       minLinks: 1,
       requireHumanity: false,
+      // Anyone may refer anyone, so the default counts every live reference however it arrived.
+      onlySolicited: false,
       minVouches: 3,
     });
     expect(
@@ -231,10 +242,12 @@ describe("policyFromQuery", () => {
       requiredAnswers: [],
       minLinks: 3,
       requireHumanity: true,
+      onlySolicited: false,
       minVouches: 0,
     });
     expect(policyFromQuery({ answers: "uni", minLinks: "x", minVouches: "y" }, ["kju-is"])).toEqual({
       requiredAnswers: ["uni"],
+      onlySolicited: false,
       minLinks: 1,
       requireHumanity: false,
       minVouches: 3,
@@ -250,6 +263,23 @@ describe("disclosureLink", () => {
   });
 });
 
+describe("what a verifier is shown", () => {
+  it("states each check as the question it checks, never the domain", () => {
+    // The id keeps the domain, because that is what the query string and the code join on; the label is
+    // the half a person reads, and "Answered kju-is" tells a hiring manager nothing.
+    const { checks } = assessProfile(
+      "alice",
+      [
+        { instanceDomain: "ketsuban", name: "alice.ketsuban.eth", v: null },
+        { instanceDomain: "kju-is", name: "alice.kju-is.ketsuban.eth", v: null },
+      ],
+      { requiredAnswers: ["kju-is"], minLinks: 0, minVouches: 0, requireHumanity: false }
+    );
+    const answer = checks.find((c) => c.id === "answer:kju-is");
+    expect(answer?.label).toBe("Answered What do you think of Kim Jong Un?");
+  });
+});
+
 describe("policy presets", () => {
   it("expand to full policies, round-trip through the query string, and describe themselves", () => {
     const hiring = POLICY_PRESETS.find((p) => p.id === "hiring")!;
@@ -258,6 +288,8 @@ describe("policy presets", () => {
       requiredAnswers: ["kju-is", "uni"],
       minLinks: 1,
       requireHumanity: false,
+      // Anyone may refer anyone, so the default counts every live reference however it arrived.
+      onlySolicited: false,
       minVouches: 3,
     });
     const q = policyToQuery(policy, "hiring");
@@ -273,8 +305,10 @@ describe("policy presets", () => {
     expect(policyFromQuery({ preset: "dao", minLinks: "9" }, ["kju-is"])).toEqual(dao);
     expect(policyFromQuery({ preset: "nope" }, ["kju-is"]).minLinks).toBe(1);
 
+    // A policy is stated in questions, not in the domains they live in: the verifier setting it has
+    // never heard of `kju-is`, and the query string keeps the domain either way.
     expect(describePolicy(dao)).toBe(
-      "answers for kju-is · ≥0 linked accounts · ≥2 live references · humanity attested"
+      "answers for What do you think of Kim Jong Un? · ≥0 linked accounts · ≥2 live references · humanity attested"
     );
     expect(
       describePolicy(
@@ -284,5 +318,59 @@ describe("policy presets", () => {
         )
       )
     ).toBe("no answers required · ≥1 linked account · ≥1 live reference");
+  });
+});
+
+describe("a verifier who cares who asked", () => {
+  const vouch = (voucher: string, solicited: boolean) => ({
+    voucher,
+    voucherName: `${voucher}.ketsuban.eth`,
+    wallet: "0x1",
+    statement: "worked together",
+    validUntil: "2027-01-01T00:00:00.000Z",
+    nonce: "1",
+    live: true,
+    solicited,
+    invite: null,
+  });
+  const assess = (policy: Partial<Policy>, vouches: ReturnType<typeof vouch>[]) =>
+    assessProfile(
+      "alice",
+      [{ instanceDomain: "ketsuban", name: "alice.ketsuban.eth", v: active("alice.ketsuban.eth") }],
+      { requiredAnswers: [], minLinks: 0, requireHumanity: false, minVouches: 2, ...policy },
+      vouches
+    );
+
+  it("counts every live reference by default, however it arrived", () => {
+    // Anyone may refer anyone, so the default policy must not quietly discount the unsolicited.
+    const p = assess({}, [vouch("bob", false), vouch("carol", false)]);
+    expect(p.checks.find((c) => c.id === "vouches")?.ok).toBe(true);
+  });
+
+  it("counts only the ones the candidate asked for when a verifier says so", () => {
+    const strict = { onlySolicited: true };
+    expect(
+      assess(strict, [vouch("bob", false), vouch("carol", false)]).checks.find((c) => c.id === "vouches")?.ok
+    ).toBe(false);
+    expect(
+      assess(strict, [vouch("bob", true), vouch("carol", true)]).checks.find((c) => c.id === "vouches")?.ok
+    ).toBe(true);
+    // Mixed: two live references, one of them unsolicited, is one reference by this policy.
+    const mixed = assess(strict, [vouch("bob", true), vouch("carol", false)]);
+    expect(mixed.checks.find((c) => c.id === "vouches")?.ok).toBe(false);
+    expect(mixed.checks.find((c) => c.id === "vouches")?.detail).toMatch(/solicited/i);
+  });
+
+  it("carries the choice through the query string, so a policy is a link", () => {
+    const policy = {
+      requiredAnswers: [],
+      minLinks: 0,
+      requireHumanity: false,
+      minVouches: 2,
+      onlySolicited: true,
+    };
+    expect(policyToQuery(policy)).toContain("solicited=1");
+    expect(policyFromQuery({ solicited: "1" }, []).onlySolicited).toBe(true);
+    expect(policyFromQuery({}, []).onlySolicited).toBe(false);
   });
 });

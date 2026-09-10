@@ -22,6 +22,7 @@ export const INVITE_TYPES = {
     { name: "handle", type: "string" },
     { name: "voucher", type: "address" },
     { name: "exp", type: "uint256" },
+    { name: "requires", type: "string[]" },
   ],
 } as const;
 
@@ -32,7 +33,21 @@ export type Invite = {
   voucher: Address;
   /** Unix seconds */
   exp: bigint;
+  /**
+   * Accounts the candidate wants the writer to have attested — a workplace, a university address.
+   * Part of what is signed, so relaxing it makes a different invitation rather than the same one.
+   */
+  requires: string[];
 };
+
+/**
+ * Does this writer hold what the invitation asked for. Domains are compared whole and lowercased: a
+ * suffix match would let `notmit.edu` pass for `mit.edu`, which is a different institution.
+ */
+export function meetsInvite(invite: Pick<Invite, "requires">, attested: readonly string[]): boolean {
+  const held = new Set(attested.map((d) => d.toLowerCase()));
+  return invite.requires.every((d) => held.has(d.toLowerCase()));
+}
 
 export type SignedInvite = Invite & { signature: Hex };
 
@@ -77,7 +92,13 @@ export function encodeInvite(invite: SignedInvite): string {
 
 export function decodeInvite(token: string): SignedInvite {
   const json = bytesToString(base64urlDecode(token));
-  const raw = JSON.parse(json) as { handle: string; voucher: Address; exp: string; signature: Hex };
+  const raw = JSON.parse(json) as {
+    handle: string;
+    voucher: Address;
+    exp: string;
+    requires?: string[];
+    signature: Hex;
+  };
   if (
     typeof raw.handle !== "string" ||
     typeof raw.voucher !== "string" ||
@@ -85,7 +106,14 @@ export function decodeInvite(token: string): SignedInvite {
   ) {
     throw new Error("invite: malformed");
   }
-  return { handle: raw.handle, voucher: raw.voucher, exp: BigInt(raw.exp), signature: raw.signature };
+  return {
+    handle: raw.handle,
+    voucher: raw.voucher,
+    exp: BigInt(raw.exp),
+    // An invitation made before requirements existed asked for nothing, which is what it meant.
+    requires: Array.isArray(raw.requires) ? raw.requires : [],
+    signature: raw.signature,
+  };
 }
 
 /** The candidate's handle a vouch domain belongs to: `~alice` → `alice`. */

@@ -1,3 +1,5 @@
+import { PLATFORM_DNS_NAMES } from "@ketsuban/registrar";
+
 /** The linked accounts Privy exposes, reduced to what the UI needs to name a person. */
 export type LinkedAccounts = {
   twitter?: { username?: string | null } | null;
@@ -26,7 +28,8 @@ export function whoAmI(user: LinkedAccounts | null | undefined, wallet?: string)
   const tg = user?.telegram?.username;
   if (tg) return { label: `@${tg}`, source: "telegram" };
   const dc = user?.discord?.username;
-  if (dc) return { label: dc, source: "discord" };
+  // Discord writes `peersky#0` for an account with no discriminator; nobody calls themselves that.
+  if (dc) return { label: dc.split("#")[0] || dc, source: "discord" };
   const goog = user?.google?.email;
   if (goog) return { label: goog, source: "google" };
   const mail = user?.email?.address;
@@ -41,7 +44,7 @@ export function linkedDomains(user: LinkedAccounts | null | undefined): string[]
     ["x", user?.twitter?.username],
     ["github", user?.github?.username],
     ["telegram", user?.telegram?.username],
-    ["discord", user?.discord?.username],
+    ["discord", user?.discord?.username?.split("#")[0]],
     ["google", user?.google?.email],
     ["email", user?.email?.address],
   ];
@@ -56,9 +59,42 @@ export function connectedAccounts(user: LinkedAccounts | null | undefined): Conn
     ["x", user?.twitter?.username ? `@${user.twitter.username}` : null],
     ["github", user?.github?.username],
     ["telegram", user?.telegram?.username ? `@${user.telegram.username}` : null],
-    ["discord", user?.discord?.username],
+    ["discord", user?.discord?.username?.split("#")[0]],
     ["google", user?.google?.email],
     ["email", user?.email?.address],
   ];
   return pairs.filter(([, label]) => !!label).map(([domain, label]) => ({ domain, label: label as string }));
+}
+
+/**
+ * The domain this deployment attests an account into. A platform mounted at its own DNS name takes
+ * `x.com`; an email takes the domain that issued the address, so `tim@peeramid.xyz` lands in
+ * `peeramid.xyz`. A deployment that predates the DNS namespace still answers to the flat name.
+ *
+ * A DNS domain nobody has deployed yet is still the answer: the relay mounts it when the account is
+ * attested, so nobody with an ordinary mail host is turned away. Nothing comes back only when the
+ * account has no domain at all — a platform this build does not know.
+ */
+export function domainFor(account: ConnectedAccount, domains: readonly string[]): string | undefined {
+  return domainsFor(account, domains)[0];
+}
+
+/**
+ * Every domain a record for this account could live in, best first. A person who attested before the DNS
+ * namespace existed has a record in the flat domain, and a row that only looked at `x.com` would call
+ * them unattested while the rest of the page shows the account.
+ */
+export function domainsFor(account: ConnectedAccount, domains: readonly string[]): string[] {
+  const dns = account.domain === "email" ? emailHost(account.label) : PLATFORM_DNS_NAMES[account.domain];
+  const ordered = [
+    ...(dns && domains.includes(dns) ? [dns] : []),
+    ...(domains.includes(account.domain) ? [account.domain] : []),
+    ...(dns ? [dns] : []),
+  ];
+  return [...new Set(ordered)];
+}
+
+function emailHost(address: string): string | undefined {
+  const at = address.lastIndexOf("@");
+  return at === -1 ? undefined : address.slice(at + 1).toLowerCase();
 }

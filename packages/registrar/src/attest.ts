@@ -1,12 +1,13 @@
 import { hmac } from "@noble/hashes/hmac";
 import { sha256 } from "@noble/hashes/sha256";
 import { concatBytes } from "@noble/hashes/utils";
-import { hexToBytes, keccak256, stringToBytes, zeroHash, type Hex } from "viem";
+import { bytesToHex, hexToBytes, keccak256, stringToBytes, zeroHash, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import {
   deriveViewCode,
   maskId,
   maskName,
+  padId,
   registerNameTypes,
   toBytes32,
   viewCodeCommitment,
@@ -14,13 +15,17 @@ import {
 } from "@peeramid-labs/multipass-client";
 import {
   hasLinkedWallet,
+  isDnsName,
   parseLinkedAccounts,
+  pickAccountFor,
   pickPlatformAccount,
   PLATFORM_DOMAIN_NAMES,
+  type PlatformAccount,
 } from "./accounts.js";
 import { eciesEncrypt } from "./ecies.js";
+import { PRIVATE_GROUPINGS, PUBLIC_GROUPINGS } from "./namespace.js";
 import { intentDomain, recoverIntentSigner } from "./intent.js";
-import { candidateOf, inviteDomain, recoverInviteSigner, ZERO_ADDRESS } from "./invite.js";
+import { candidateOf, inviteDomain, meetsInvite, recoverInviteSigner, ZERO_ADDRESS } from "./invite.js";
 import { verifyEs256Jwt } from "./jwt.js";
 import type { AttestEnv, AttestRequest, AttestResult, OnchainState, RegistrarSecrets } from "./types.js";
 
@@ -30,14 +35,17 @@ const HANDLE_RE = /^[a-z0-9-]{1,31}$/;
 export const DEFAULT_NAME_DOMAIN_PREFIXES: readonly string[] = ["~"];
 
 /**
- * Labels a person may not claim in a name domain, because something else already answers there. Every
- * platform domain has its own instance under the root, so `x.<root>` is the namespace holding
- * `alice.x.<root>`: if a person took the handle `x`, their name and that namespace would be the same
- * name. `www` and `com` are reserved for the grouping namespaces a deployment may add later.
+ * Labels a person may not claim in a name domain, because something else already answers there. The
+ * grouping levels are mounted at the root — `www` holds the platforms, the at-sign level holds the mail
+ * domains, and each has a private mirror — so those four are the ones a person can never be called.
+ *
+ * The flat platform names are still here for a deployment that predates the DNS namespace, where `x`
+ * is an instance under the root rather than a level under `www`.
  */
 export const RESERVED_HANDLES: readonly string[] = [
   ...PLATFORM_DOMAIN_NAMES,
-  "www",
+  ...PUBLIC_GROUPINGS,
+  ...PRIVATE_GROUPINGS,
   "com",
   "org",
   "net",
@@ -59,6 +67,31 @@ export function isNameDomain(
 
 function isSupported(domain: string, env: AttestEnv): boolean {
   return isNameDomain(domain, env) || (env.platformDomains ?? PLATFORM_DOMAIN_NAMES).includes(domain);
+}
+
+/** Mask a platform id, hashing one too long to be stored verbatim so uniqueness survives. */
+function maskedId(subject: string, viewCode: Hex): Hex {
+  if (stringToBytes(subject).length <= 31) return maskId(subject, viewCode);
+  const pad = hexToBytes(padId(viewCode));
+  const id = hexToBytes(idToBytes32(subject));
+  return bytesToHex(id.map((b, i) => b ^ (pad[i] as number)));
+}
+
+/**
+ * What to store as the record's name: a Multipass name is a left-aligned bytes32, so 31 bytes is the
+ * whole budget. The handle as the platform writes it comes first, then the label it takes in its
+ * namespace, and a longer one is cut — a record that says something is better than a refusal, and for
+ * a masked record none of it is readable anyway.
+ */
+export function storable(username: string, label?: string): string {
+  const fits = (v: string) => stringToBytes(v).length <= 31;
+  if (fits(username)) return username;
+  if (label && fits(label)) return label;
+  // Shorten by characters rather than bytes: cutting UTF-8 mid-character would store a broken one, and
+  // this runs where `TextDecoder` does not exist.
+  let cut = username;
+  while (cut.length > 0 && !fits(cut)) cut = cut.slice(0, -1);
+  return cut;
 }
 
 /** Fit a platform id into bytes32: verbatim when it fits, keccak otherwise (never throws) */
@@ -94,60 +127,64 @@ export async function verifyPublicLeg(
 }
 
 /**
- * A vouch domain belongs to its candidate: only someone they invited may write a statement there.
- * The invitation is signed by the wallet that holds the candidate's name, which the caller reads on
- * chain, so nothing here trusts the browser.
+ * Did the candidate ask for this reference.
+ *
+ * Anyone may write one: standing comes from who signs it, not from whether the subject allowed it, and
+ * a rule that only invited people may speak would make a reference worth less, not more. What the
+ * candidate asked for is still a fact about the reference, so it is reported and never enforced.
+ *
+ * The invitation counts only when the wallet holding the candidate's name signed it, which the caller
+ * reads on chain — anyone can sign an "invitation" from themselves.
  */
-export async function verifyInvite(req: AttestRequest, onchain: OnchainState, env: AttestEnv): Promise<void> {
+export async function solicitedBy(
+  req: AttestRequest,
+  onchain: OnchainState,
+  env: AttestEnv
+): Promise<boolean> {
   const prefixes = env.nameDomainPrefixes ?? DEFAULT_NAME_DOMAIN_PREFIXES;
   const candidate = candidateOf(req.intent.domain, prefixes);
-  if (candidate === undefined) return;
-  if (env.requireInvite === false) return;
-
-  // The candidate invites a voucher once. Afterwards that voucher owns their own statement there and
-  // can update or withdraw it without asking again — otherwise a withdrawal would need permission
-  // from the person being vouched for.
-  if (onchain.exists) return;
-
-  // An onboarded organisation issues letters without being invited: a university writes to a graduate
-  // who has never heard of this product, and the graduate claims the handle later. The organisation is
-  // accountable because the letter carries its own name, and only the operator onboards one.
-  if (onchain.issuerOrg) return;
-
+  if (candidate === undefined) return false;
   const invite = req.invite;
-  if (!invite) throw new Error(`invite: ${req.intent.domain} needs the candidate's invitation`);
-  if (invite.handle !== candidate) throw new Error("invite: for a different candidate");
-  if (invite.exp <= BigInt(env.now)) throw new Error("invite: expired");
+  if (!invite) return false;
+  if (invite.handle !== candidate) return false;
+  if (invite.exp <= BigInt(env.now)) return false;
   if (
     invite.voucher.toLowerCase() !== ZERO_ADDRESS &&
     invite.voucher.toLowerCase() !== req.intent.wallet.toLowerCase()
   ) {
-    throw new Error("invite: issued to a different wallet");
+    return false;
   }
   const candidateWallet = onchain.candidateWallet;
-  if (!candidateWallet || candidateWallet.toLowerCase() === ZERO_ADDRESS) {
-    throw new Error(`invite: ${candidate} holds no live name to invite from`);
-  }
+  if (!candidateWallet || candidateWallet.toLowerCase() === ZERO_ADDRESS) return false;
+  // What the candidate asked the writer to show. Unmet is not solicited: the invitation was for
+  // someone who could show it, and this writer is not that person.
+  if (!meetsInvite(invite, onchain.writerDomains ?? [])) return false;
   const signer = await recoverInviteSigner(
-    { handle: invite.handle, voucher: invite.voucher, exp: invite.exp },
+    { handle: invite.handle, voucher: invite.voucher, exp: invite.exp, requires: invite.requires },
     invite.signature,
     inviteDomain(env.chainId, env.multipass)
   );
-  if (signer.toLowerCase() !== candidateWallet.toLowerCase()) {
-    throw new Error("invite: not signed by the candidate");
-  }
+  return signer.toLowerCase() === candidateWallet.toLowerCase();
 }
 
 /**
- * Confidential leg (B.4 `confidentialLeg`): identity token, secrets, preimages.
- * Everything here is local computation; nothing leaves except the signed
- * record and, if opted in, the view code encrypted to the user.
+ * A deployment that wants the closed behaviour keeps it behind `requireInvite`. The default is open:
+ * see `solicitedBy`.
  */
-/**
- * Sign a record as the domain registrar. `attestConfidential` derives its record from a person's
- * identity token; an organisation has no such token — it is a wallet an operator onboarded — so the
- * fields are given directly and only the signing is shared.
- */
+export async function verifyInvite(req: AttestRequest, onchain: OnchainState, env: AttestEnv): Promise<void> {
+  if (env.requireInvite !== true) return;
+  const prefixes = env.nameDomainPrefixes ?? DEFAULT_NAME_DOMAIN_PREFIXES;
+  const candidate = candidateOf(req.intent.domain, prefixes);
+  if (candidate === undefined) return;
+
+  // A voucher who already holds a record there may update or withdraw it without asking again.
+  if (onchain.exists) return;
+  if (onchain.issuerOrg) return;
+  if (!(await solicitedBy(req, onchain, env))) {
+    throw new Error(`invite: ${req.intent.domain} needs the candidate's invitation`);
+  }
+}
+
 export async function signRecord(
   record: RegisterMessage,
   registrarKey: Hex,
@@ -187,20 +224,31 @@ export async function attestConfidential(
     const reserved = env.reservedHandles ?? RESERVED_HANDLES;
     // A vouch domain is the candidate's own namespace, so a voucher there may be called anything.
     if (candidateOf(intent.domain, env.nameDomainPrefixes ?? DEFAULT_NAME_DOMAIN_PREFIXES) === undefined) {
-      if (reserved.includes(intent.handle)) throw new Error(`intent: "${intent.handle}" is a reserved handle`);
+      if (reserved.includes(intent.handle))
+        throw new Error(`intent: "${intent.handle}" is a reserved handle`);
     }
     name = toBytes32(intent.handle);
     id = keccak256(stringToBytes(claims.sub));
     payload = intent.payload;
   } else {
-    const acct = pickPlatformAccount(linked, intent.domain);
+    // A DNS domain is a namespace, so the record is named by the label it takes there: `alice_x` in
+    // `x.com`, `tim` in `peeramid.xyz`. A flat domain keeps the whole handle, as its records already do.
+    const dnsDomain = isDnsName(intent.domain);
+    const acct: PlatformAccount & { label?: string } = dnsDomain
+      ? pickAccountFor(linked, intent.domain)
+      : pickPlatformAccount(linked, intent.domain);
+    // A masked record carries the handle exactly as the platform writes it, because nothing about it
+    // reaches the chain: the name is a one-time pad, and only a view code opens it. The label rule is
+    // for public records, which are read as a name.
     if (intent.optIn) {
       viewCode = deriveViewCode(secrets.viewcodeKey, intent.domain, acct.subject);
-      name = maskName(acct.username, viewCode);
-      id = maskId(acct.subject, viewCode);
+      name = maskName(storable(acct.username, acct.label), viewCode);
+      // A platform id longer than a name can hold is hashed first, so two long ids can never collide
+      // into one record; the mask is the same either way.
+      id = maskedId(acct.subject, viewCode);
       payload = viewCodeCommitment(viewCode);
     } else {
-      name = toBytes32(acct.username);
+      name = toBytes32(storable(acct.label ?? acct.username, acct.label));
       id = idToBytes32(acct.subject);
       payload = zeroHash;
     }

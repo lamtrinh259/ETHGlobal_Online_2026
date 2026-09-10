@@ -94,7 +94,13 @@ const wireSchema = z.object({
   idToken: z.string(),
   signature: hex,
   invite: z
-    .object({ handle: z.string(), voucher: hex, exp: z.string().regex(/^\d+$/), signature: hex })
+    .object({
+      handle: z.string(),
+      voucher: hex,
+      exp: z.string().regex(/^\d+$/),
+      requires: z.array(z.string()).max(8).default([]),
+      signature: hex,
+    })
     .optional(),
   intent: z.object({
     wallet: hex,
@@ -120,6 +126,8 @@ export function parseRequest(input: Uint8Array): AttestRequest {
             handle: w.invite.handle,
             voucher: w.invite.voucher as Address,
             exp: BigInt(w.invite.exp),
+            // An invitation made before requirements existed asked for nothing, which is what it meant.
+            requires: w.invite.requires ?? [],
             signature: w.invite.signature as Hex,
           },
         }
@@ -345,14 +353,17 @@ const discloseSchema = z.object({
   holder: hex,
   grant: z.object({
     name: z.string(),
-    domain: z.string(),
+    domains: z.array(z.string()).min(1).max(16),
     audience: hex,
+    audienceName: z.string().max(255).default(""),
     exp: z.string().regex(/^\d+$/),
-    boxHash: hex,
-    box: z.object({ ephemeralPubkey: hex, nonce: hex, ciphertext: hex }),
+    boxesHash: hex,
+    boxes: z.array(z.object({ ephemeralPubkey: hex, nonce: hex, ciphertext: hex })).min(1).max(16),
     signature: hex,
   }),
   reader: hex.optional(),
+  /** A name the caller has already proved the reader holds, for a grant addressed to a person or branch */
+  readerName: z.string().max(255).optional(),
 });
 
 /**
@@ -366,23 +377,33 @@ export const onDisclose = async (runtime: TeeRuntime<Config>, payload: HTTPPaylo
   const input = discloseSchema.parse(JSON.parse(bytesToString(payload.input)));
   const grant = {
     name: input.grant.name,
-    domain: input.grant.domain,
+    domains: input.grant.domains,
     audience: input.grant.audience as Address,
+    audienceName: input.grant.audienceName,
     exp: BigInt(input.grant.exp),
-    boxHash: input.grant.boxHash as Hex,
-    box: {
-      ephemeralPubkey: input.grant.box.ephemeralPubkey as Hex,
-      nonce: input.grant.box.nonce as Hex,
-      ciphertext: input.grant.box.ciphertext as Hex,
-    },
+    boxesHash: input.grant.boxesHash as Hex,
+    boxes: input.grant.boxes.map((b) => ({
+      ephemeralPubkey: b.ephemeralPubkey as Hex,
+      nonce: b.nonce as Hex,
+      ciphertext: b.ciphertext as Hex,
+    })),
     signature: input.grant.signature as Hex,
   };
-  if (grant.name !== input.name || grant.domain !== input.domain) {
+  // One grant can name several accounts; this call is about exactly one of them.
+  const at = grant.domains.indexOf(input.domain);
+  if (grant.name !== input.name || at === -1) {
     throw new Error("disclosure: grant is for a different record");
   }
 
   const signer = await recoverDiscloseSigner(
-    { name: grant.name, domain: grant.domain, audience: grant.audience, exp: grant.exp, boxHash: grant.boxHash },
+    {
+      name: grant.name,
+      domains: grant.domains,
+      audience: grant.audience,
+      audienceName: grant.audienceName,
+      exp: grant.exp,
+      boxesHash: grant.boxesHash,
+    },
     grant.signature,
     discloseDomain(config.chainId, config.multipass as Address)
   );
@@ -391,10 +412,16 @@ export const onDisclose = async (runtime: TeeRuntime<Config>, payload: HTTPPaylo
     now: Math.floor(runtime.now().getTime() / 1000),
     signer,
   });
-  checkAudience(grant, input.reader as Address | undefined);
+  // The caller resolved this name on chain before handing it over; a claim is never evidence.
+  checkAudience(grant, {
+    reader: input.reader as Address | undefined,
+    readerName: input.readerName,
+  });
 
   const registrarKey = runtime.getSecret({ id: config.secretIds.registrarKey }).result().value as Hex;
-  const viewCode = bytesToHex(eciesDecrypt(registrarKey, grant.box));
+  // The box at this account's own position: the grant names its accounts in one order and carries
+  // their ciphertexts in the same one.
+  const viewCode = bytesToHex(eciesDecrypt(registrarKey, grant.boxes[at]));
   const packed = input.packed as Hex;
   if (packed.length !== 194) throw new Error("disclosure: not a linked-account record");
   const disclosed = decodeRecord(

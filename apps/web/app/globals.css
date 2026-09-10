@@ -682,6 +682,10 @@ textarea:focus {
   border-color: var(--flame);
   color: var(--flame);
 }
+/* Pending waits on something outside this deployment, so it reads as quiet rather than as next. */
+.dash-pending {
+  opacity: 0.72;
+}
 .dash-step h2 {
   margin: 2px 0 4px;
   font-size: 16px;
@@ -705,10 +709,69 @@ textarea:focus {
 .acct .acct-who {
   font-weight: 600;
 }
+/* The identity column takes the slack and wraps inside itself; without `min-width: 0` a long ENS name
+   refuses to shrink and pushes the state and the actions out of the row. */
+.acct .acct-id {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1 1 12ch;
+}
+.acct .acct-id strong {
+  font-weight: 600;
+}
+.acct .acct-id small {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+}
 .acct .acct-state {
   margin-left: auto;
   font-size: 12px;
   color: var(--text-secondary);
+  /* Each control is its own item, so a link never runs straight into the text before it. */
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-sm);
+}
+
+/* One word of state, set apart from the identity beside it rather than run into it. */
+.badge {
+  flex: none;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+.badge-private {
+  color: var(--consensus, #2f855a);
+  border-color: currentColor;
+}
+.badge-public {
+  color: var(--text-secondary);
+}
+
+.p-icon {
+  flex: none;
+  width: 20px;
+  height: 20px;
+}
+/* Any domain can be attested, so most will never have a brand mark. */
+.p-mono {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: var(--border);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
 }
 .acct .acct-on {
   color: var(--consensus);
@@ -852,4 +915,193 @@ details.advanced[open] > summary {
   font: inherit;
   text-decoration: underline;
   cursor: pointer;
+}
+
+/* The avatar slot keeps its size before a picture exists, so the preview does not jump when one lands. */
+.ens-avatar-empty {
+  display: inline-block;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--border);
+}
+
+/* The profile as a page: a picture you change in place, then the name and the line under it. */
+.me-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-md);
+  margin: var(--sp-sm) 0 var(--sp-md);
+}
+.me-head-text {
+  min-width: 0;
+}
+.me-head-text h3 {
+  margin: 0 0 2px;
+  overflow-wrap: anywhere;
+}
+.me-head-text p {
+  margin: 0 0 2px;
+}
+.me-avatar {
+  position: relative;
+  flex: none;
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  overflow: hidden;
+  cursor: pointer;
+  display: block;
+}
+.me-avatar img,
+.me-avatar-empty {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  border-radius: 50%;
+  display: block;
+  background: var(--border);
+}
+/* The file input covers the picture, so the picture itself is the control. */
+.me-avatar input[type="file"] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.me-avatar-edit {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 4px 0;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.55);
+}
+.me-avatar-url input {
+  font-size: 12px;
+}
+
+/* A reference nobody asked for is still a reference; the note is a caution, not a dismissal. */
+.badge-unsolicited {
+  margin-left: 6px;
+  color: var(--warning, #a16207);
+  border-color: currentColor;
+}
+
+/* The score at the top of a profile: one number, and what is still worth doing beside it. */
+.score-card {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-lg, 20px);
+  flex-wrap: wrap;
+}
+.score-ring {
+  flex: none;
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  /* The filled arc is the score itself, so the picture cannot disagree with the number. */
+  background: conic-gradient(var(--consensus, #2f855a) calc(var(--pct) * 1%), var(--border) 0);
+  position: relative;
+}
+.score-ring::after {
+  content: "";
+  position: absolute;
+  inset: 8px;
+  border-radius: 50%;
+  background: var(--card, #fff);
+}
+.score-ring strong,
+.score-ring small {
+  position: relative;
+  z-index: 1;
+}
+.score-ring strong {
+  font-size: 26px;
+  line-height: 1;
+}
+.score-ring small {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+.score-parts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+  flex: 1 1 16ch;
+  min-width: 0;
+}
+.score-parts li {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-sm, 8px);
+}
+a.score-part-label {
+  color: inherit;
+  text-decoration: none;
+}
+a.score-part-label:hover strong {
+  text-decoration: underline;
+}
+.score-part-label {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.score-part-label small {
+  font-size: 11px;
+}
+.score-part-worth {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.score-parts li.done {
+  color: var(--consensus, #2f855a);
+}
+.score-parts li.todo .score-part-label strong {
+  font-weight: 600;
+}
+
+/* One card for the person: who they are, how far they have got, and the accounts behind it. */
+.profile-header .me-head {
+  margin-bottom: var(--sp-sm, 8px);
+}
+.profile-header .me-head-text h2 {
+  margin: 0 0 2px;
+  overflow-wrap: anywhere;
+}
+.profile-header .score-card {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: none;
+}
+.me-avatar-img {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex: none;
+}
+.profile-header .me-avatar-empty {
+  width: 72px;
+  height: 72px;
+}
+.profile-accounts {
+  border-top: 1px solid var(--border);
+  margin-top: var(--sp-md, 16px);
+  padding-top: var(--sp-sm, 8px);
+}
+.profile-accounts h3 {
+  margin-top: 0;
 }

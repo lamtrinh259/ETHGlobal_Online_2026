@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import build from "@/lib/build-info.json";
 import { Preflight } from "./Preflight";
 import { ThemeToggle } from "./ThemeToggle";
 import { WhoAmI } from "./WhoAmI";
@@ -15,6 +16,7 @@ const NAV = [
   { href: "/me", label: "My profile" },
   { href: "/vouch", label: "Vouch" },
   { href: "/verify", label: "Verify" },
+  { href: "/names", label: "Names" },
 ];
 
 /** A production page pointed at a loopback API cannot work: NEXT_PUBLIC_API_URL was missing at build time. */
@@ -138,8 +140,8 @@ export function AppShell({ children }: { children: ReactNode }) {
             </>
           )}
           <p className="sh-note muted">
-            {buildStamp(process.env.NEXT_PUBLIC_BUILD_SHA, process.env.NEXT_PUBLIC_BUILD_TIME)} · every record
-            is permanent · this is not identity verification
+            {buildStamp(build.sha, build.builtAt)} · every record is permanent · this is not identity
+            verification
           </p>
         </div>
       </aside>

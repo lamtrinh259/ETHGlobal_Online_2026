@@ -61,6 +61,8 @@ contract DeployLocal is Script {
         vm.serializeAddress(json, "permissionedResolver", address(inner));
         vm.serializeAddress(json, "ethRegistry", address(eth));
         vm.serializeAddress(json, "factory", address(factory));
+        // One factory here is new enough to carry the namespace, so it is both.
+        vm.serializeAddress(json, "namespaceFactory", address(factory));
         vm.serializeAddress(json, "bridge", address(bridge));
         vm.serializeAddress(json, "reporter", address(reporter));
         vm.serializeAddress(json, "registry", address(registry));

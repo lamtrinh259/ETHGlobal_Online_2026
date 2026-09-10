@@ -17,7 +17,17 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { MultipassAbi, fromBytes32, toBytes32 } from "@peeramid-labs/multipass-client";
-import { PLATFORM_DOMAIN_NAMES, type OnchainState, type RegisterMessage } from "@ketsuban/registrar";
+import {
+  answerDomain,
+  answerSlug,
+  groupingFor,
+  isDnsName,
+  PLATFORM_DOMAIN_NAMES,
+  platformOf,
+  type OnchainState,
+  type RegisterMessage,
+} from "@ketsuban/registrar";
+import groupingRegistry from "@ketsuban/contracts/GroupingRegistry" with { type: "json" };
 import { bridgeAbi, factoryAbi, registryAbi, resolverAbi, universalResolverAbi } from "./abi.js";
 import { RpcSource } from "./logs.js";
 import { Indexer, type IndexStatus, type IndexedRecord } from "./indexer.js";
@@ -27,6 +37,8 @@ import type { Config } from "./config.js";
 /** One Multipass record as seen in Registered/Renewed logs, with its current liveness */
 export type ListedRecord = {
   name: string;
+  /** The name as the chain holds it; a masked name does not survive being decoded */
+  rawName?: Hex;
   id: Hex;
   wallet: Address;
   payload: Hex;
@@ -41,6 +53,10 @@ export type Instance = {
   resolver: Address;
   parentName: string;
   parentLabel: string;
+  /** Where a masked record in this domain is named, when the deployment has a private branch */
+  maskedParentName?: string;
+  /** The resolver that answers there */
+  maskedResolver?: Address;
 };
 
 /** DNS-encode a name for ENSIP-10 `resolve(bytes,bytes)` */
@@ -61,6 +77,7 @@ export class Chain {
   readonly indexer: Indexer;
   readonly walletClient: WalletClient;
   readonly relayer: Address;
+  private mounts?: { at: number; value: Instance[] };
 
   constructor(readonly config: Config) {
     const transport = http(config.RPC_URL);
@@ -92,29 +109,77 @@ export class Chain {
     return { exists, nonce: record.nonce, id: record.id, wallet: record.wallet };
   }
 
+  /**
+   * Every mount this deployment has. A deployment can run two factories: the one that made the root
+   * instance, and a later one carrying the DNS namespace, which the first is too old to build. The
+   * later factory wins for a domain both know, and only it answers about private mirrors.
+   */
   async instances(): Promise<Instance[]> {
+    // Reading the mounts costs two calls per domain, and every page asks. They change when something
+    // is provisioned, which is when this is cleared, so a short reuse is free correctness.
+    const fresh = this.mounts && Date.now() - this.mounts.at < this.config.MOUNT_CACHE_SECONDS * 1000;
+    if (fresh && this.mounts) return this.mounts.value;
+    const factories = [this.config.FACTORY, this.config.NAMESPACE_FACTORY].filter((a): a is Address => !!a);
+    const found = new Map<string, Instance>();
+    for (const factory of factories) {
+      for (const instance of await this.instancesOf(factory)) found.set(instance.domain, instance);
+    }
+    const value = [...found.values()];
+    this.mounts = { at: Date.now(), value };
+    return value;
+  }
+
+  /** Forget the cached mounts: something was just provisioned and the next read must see it. */
+  private mountsChanged(): void {
+    this.mounts = undefined;
+  }
+
+  private async instancesOf(factory: Address): Promise<Instance[]> {
     const domains = await this.publicClient.readContract({
-      address: this.config.FACTORY,
+      address: factory,
       abi: factoryAbi,
       functionName: "domains",
     });
     return Promise.all(
       domains.map(async (d) => {
-        const i = await this.publicClient.readContract({
-          address: this.config.FACTORY,
-          abi: factoryAbi,
-          functionName: "instance",
-          args: [d],
-        });
+        const [i, masked] = await Promise.all([
+          this.publicClient.readContract({
+            address: factory,
+            abi: factoryAbi,
+            functionName: "instance",
+            args: [d],
+          }),
+          this.publicClient
+            .readContract({ address: factory, abi: factoryAbi, functionName: "mirror", args: [d] })
+            .catch(() => undefined),
+        ]);
         return {
           domain: fromBytes32(d),
           registry: i.registry,
           resolver: i.resolver,
           parentName: i.parentName,
           parentLabel: i.parentLabel,
+          ...(masked && masked.registry !== zeroAddress
+            ? { maskedParentName: masked.parentName, maskedResolver: masked.resolver }
+            : {}),
         };
       })
     );
+  }
+
+  /**
+   * Who owns a `.eth` label on the ENSv2 registry the bridge checks. `linkOwnName` reverts with
+   * `NotNameOwner` for anyone else, and a name registered on a different deployment is simply not here,
+   * so the answer is worth having before a wallet is asked to sign.
+   */
+  async ethLabelOwner(label: string): Promise<Address | undefined> {
+    if (!this.config.ETH_REGISTRY) return undefined;
+    return (await this.publicClient.readContract({
+      address: this.config.ETH_REGISTRY,
+      abi: registryAbi,
+      functionName: "findOwner",
+      args: [label],
+    })) as Address;
   }
 
   /**
@@ -193,22 +258,75 @@ export class Chain {
    * Needs the relayer to own Multipass, the factory and the root registry.
    */
   async ensureVouchInstance(handle: string): Promise<{ domain: string; created: boolean }> {
-    const domain = `${this.config.VOUCH_PREFIX}${handle}`;
-    const domainB = toBytes32(domain);
-    const exists = await this.publicClient.readContract({
-      address: this.config.FACTORY,
-      abi: factoryAbi,
-      functionName: "isInstance",
-      args: [domainB],
-    });
-    if (exists) return { domain, created: false };
-    const { REGISTRY, PERMISSIONED_RESOLVER, REGISTRAR_ADDRESS } = this.config;
-    if (!REGISTRY || !PERMISSIONED_RESOLVER || !REGISTRAR_ADDRESS)
+    const { REGISTRY } = this.config;
+    if (!REGISTRY)
       throw new Error("vouch instances need REGISTRY, PERMISSIONED_RESOLVER and REGISTRAR_ADDRESS");
     const rootParent = (await this.instances()).find(
       (i) => i.registry.toLowerCase() === REGISTRY.toLowerCase()
     )?.parentName;
     if (!rootParent) throw new Error("root registry is not a known instance");
+    return this.ensureChildInstance({
+      domain: `${this.config.VOUCH_PREFIX}${handle}`,
+      label: handle,
+      parentRegistry: REGISTRY,
+      parentName: rootParent,
+    });
+  }
+
+  /**
+   * The namespace everyone who gave one answer shares.
+   *
+   * Multipass keys a record by its domain, so "everyone who said `dictator`" is a domain of its own,
+   * mounted beneath the question it answers: `dictator.kju-is.<root>`. Two people answering the same
+   * thing are then two records in one domain rather than two claims on one name.
+   */
+  async ensureAnswerInstance(
+    question: string,
+    answer: string
+  ): Promise<{ domain: string; created: boolean }> {
+    const slug = answerSlug(answer);
+    const domain = answerDomain(question, answer);
+    if (!slug || !domain) throw new Error(`"${answer}" cannot be an answer namespace: it has no label`);
+    const parent = (await this.instances()).find((i) => i.domain === question);
+    if (!parent) throw new Error(`no instance called "${question}" to hang an answer under`);
+    return this.ensureChildInstance({
+      domain,
+      label: slug,
+      parentRegistry: parent.registry,
+      parentName: parent.parentName,
+    });
+  }
+
+  /**
+   * Create one instance beneath another, and point the parent registry at it.
+   *
+   * Shared by every namespace that hangs off a name rather than a DNS path — a candidate's vouch
+   * domain and an answer's — because when those were written twice they drifted, and the difference
+   * only showed up as a revert on someone else's write.
+   */
+  private async ensureChildInstance(opts: {
+    domain: string;
+    label: string;
+    parentRegistry: Address;
+    parentName: string;
+  }): Promise<{ domain: string; created: boolean }> {
+    const { domain, label, parentRegistry, parentName } = opts;
+    const domainB = toBytes32(domain);
+    // The bridge grants text-record roles by consulting its own factory. A namespace built by a newer
+    // factory would be invisible there, so these belong in the bridge's.
+    const factory = this.config.FACTORY;
+    const known = await this.publicClient.readContract({
+      address: factory,
+      abi: factoryAbi,
+      functionName: "isInstance",
+      args: [domainB],
+    });
+    if (known) return { domain, created: false };
+
+    const { PERMISSIONED_RESOLVER, REGISTRAR_ADDRESS } = this.config;
+    if (!PERMISSIONED_RESOLVER || !REGISTRAR_ADDRESS)
+      throw new Error("child instances need REGISTRY, PERMISSIONED_RESOLVER and REGISTRAR_ADDRESS");
+
     const w = { chain: this.walletClient.chain, account: this.walletClient.account! };
     const mpState = await this.publicClient.readContract({
       address: this.config.MULTIPASS,
@@ -241,14 +359,14 @@ export class Chain {
     await this.wait(
       await this.walletClient.writeContract({
         ...w,
-        address: this.config.FACTORY,
+        address: factory,
         abi: factoryAbi,
         functionName: "create",
-        args: [domainB, REGISTRY, handle, `${handle}.${rootParent}`, PERMISSIONED_RESOLVER],
+        args: [domainB, parentRegistry, label, `${label}.${parentName}`, PERMISSIONED_RESOLVER],
       })
     );
     const inst = await this.publicClient.readContract({
-      address: this.config.FACTORY,
+      address: factory,
       abi: factoryAbi,
       functionName: "instance",
       args: [domainB],
@@ -256,13 +374,180 @@ export class Chain {
     await this.wait(
       await this.walletClient.writeContract({
         ...w,
-        address: REGISTRY,
+        address: parentRegistry,
         abi: registryAbi,
         functionName: "setSubregistry",
-        args: [handle, inst.registry],
+        args: [label, inst.registry],
       })
     );
+    this.mountsChanged();
     return { domain, created: true };
+  }
+
+  /**
+   * Mount a DNS domain that nobody has deployed yet: the grouping levels it needs, its instance in the
+   * open branch, and its mirror in the private one. A person with an address at a mail host nobody
+   * anticipated should not be told to come back later, so the relay builds the namespace on demand, the
+   * same way it provisions a candidate's vouch instance.
+   *
+   * Idempotent and safe to call for a domain that already exists: every step checks first.
+   */
+  async ensureNamespace(domain: string): Promise<{ domain: string; created: boolean; parentName: string }> {
+    const factory = this.config.NAMESPACE_FACTORY;
+    const { REGISTRY, PERMISSIONED_RESOLVER, REGISTRAR_ADDRESS } = this.config;
+    if (!factory || !REGISTRY || !PERMISSIONED_RESOLVER || !REGISTRAR_ADDRESS)
+      throw new Error(
+        "a namespace needs NAMESPACE_FACTORY, REGISTRY, PERMISSIONED_RESOLVER and REGISTRAR_ADDRESS"
+      );
+    if (!isDnsName(domain)) throw new Error(`"${domain}" is not a DNS name`);
+    const domainB = toBytes32(domain);
+    const existing = await this.publicClient.readContract({
+      address: factory,
+      abi: factoryAbi,
+      functionName: "instance",
+      args: [domainB],
+    });
+    if (existing.registry !== zeroAddress) return { domain, created: false, parentName: existing.parentName };
+
+    const root = (await this.instances()).find((i) => i.registry.toLowerCase() === REGISTRY.toLowerCase());
+    if (!root) throw new Error("root registry is not a known instance");
+    const group = groupingFor(platformOf(domain) ?? "email");
+    const labels = domain.toLowerCase().split(".");
+    const leaf = labels[labels.length - 1] as string;
+
+    await this.ensureDomainOnMultipass(domainB, REGISTRAR_ADDRESS);
+    const open = await this.walkLevels(REGISTRY, [group.open, ...labels.slice(0, -1)]);
+    // The mount's own name includes its label: an account under `x.com` reads `<handle>.com.x.www.<root>`.
+    const parentName = [...[...labels].reverse(), group.open, root.parentName].join(".");
+    await this.write({
+      address: factory,
+      abi: factoryAbi,
+      functionName: "create",
+      args: [domainB, open, leaf, parentName, PERMISSIONED_RESOLVER, 1],
+    });
+    const instance = await this.publicClient.readContract({
+      address: factory,
+      abi: factoryAbi,
+      functionName: "instance",
+      args: [domainB],
+    });
+    await this.mount(open, leaf, instance.registry);
+
+    // The private branch names a masked account after the person holding it, so it reads the root
+    // domain for the label and this domain for the account.
+    const masked = await this.walkLevels(REGISTRY, [group.masked, ...labels.slice(0, -1)]);
+    const maskedName = [...[...labels].reverse(), group.masked, root.parentName].join(".");
+    await this.write({
+      address: factory,
+      abi: factoryAbi,
+      functionName: "createMirror",
+      args: [domainB, toBytes32(root.domain), masked, leaf, maskedName, PERMISSIONED_RESOLVER],
+    });
+    const mirror = await this.publicClient.readContract({
+      address: factory,
+      abi: factoryAbi,
+      functionName: "mirror",
+      args: [domainB],
+    });
+    await this.mount(masked, leaf, mirror.registry);
+    this.mountsChanged();
+    return { domain, created: true, parentName };
+  }
+
+  /** Initialise and activate a Multipass domain that has never been used. */
+  private async ensureDomainOnMultipass(domainB: Hex, registrar: Address): Promise<void> {
+    const state = await this.publicClient.readContract({
+      address: this.config.MULTIPASS,
+      abi: MultipassAbi,
+      functionName: "getDomainState",
+      args: [domainB],
+    });
+    if (state.name === zeroHash) {
+      await this.write({
+        address: this.config.MULTIPASS,
+        abi: MultipassAbi,
+        functionName: "initializeDomain",
+        args: [registrar, 0n, 0n, domainB, 0n, 0n],
+      });
+    }
+    if (!state.isActive) {
+      await this.write({
+        address: this.config.MULTIPASS,
+        abi: MultipassAbi,
+        functionName: "activateDomain",
+        args: [domainB],
+      });
+    }
+  }
+
+  /**
+   * Walk down a chain of grouping levels from `parent`, deploying the ones that are missing. Returns the
+   * registry the instance itself mounts under.
+   */
+  private async walkLevels(parent: Address, labels: string[]): Promise<Address> {
+    let at = parent;
+    for (const label of labels) {
+      const found = await this.publicClient.readContract({
+        address: at,
+        abi: registryAbi,
+        functionName: "getSubregistry",
+        args: [label],
+      });
+      if (found !== zeroAddress) {
+        at = found;
+        continue;
+      }
+      const hash = await this.walletClient.deployContract({
+        chain: this.walletClient.chain,
+        account: this.walletClient.account!,
+        abi: groupingRegistry.abi,
+        bytecode: groupingRegistry.bytecode as Hex,
+        args: [at, label, this.walletClient.account!.address],
+      });
+      const receipt = await this.wait(hash);
+      const level = receipt.contractAddress;
+      if (!level) throw new Error(`level "${label}": no contract address in receipt`);
+      await this.mount(at, label, level);
+      at = level;
+    }
+    return at;
+  }
+
+  private async mount(parent: Address, label: string, child: Address): Promise<void> {
+    await this.write({
+      address: parent,
+      abi: registryAbi,
+      functionName: "setSubregistry",
+      args: [label, child],
+    });
+  }
+
+  /** One owner transaction, waited for: provisioning is a sequence and a dropped step leaves a gap. */
+  private async write(call: Record<string, unknown>): Promise<void> {
+    await this.wait(
+      await this.walletClient.writeContract({
+        chain: this.walletClient.chain,
+        account: this.walletClient.account!,
+        ...call,
+      } as Parameters<typeof this.walletClient.writeContract>[0])
+    );
+  }
+
+  /**
+   * The name a wallet has set as its primary in ENS's own reverse namespace, if any. This is the answer a
+   * wallet or explorer shows beside an address, and it is not ours to write: the holder sets it. Empty
+   * means nobody set one, which is why this deployment also answers reverse lookups from the record.
+   */
+  async primaryName(address: Address): Promise<string | null> {
+    if (!this.config.UNIVERSAL_RESOLVER) return null;
+    const [name] = await this.publicClient.readContract({
+      address: this.config.UNIVERSAL_RESOLVER,
+      abi: universalResolverAbi,
+      functionName: "reverse",
+      // 60 is the coin type for Ethereum, as ENSIP-9 numbers them.
+      args: [address, 60n],
+    });
+    return name || null;
   }
 
   /** Whether `handle` is taken in `domain`, and by which wallet */
@@ -332,6 +617,15 @@ export class Chain {
     if (!deployed(bridgeCode)) warnings.push(`BRIDGE ${this.config.BRIDGE} has no code`);
     if (!deployed(multipassCode)) warnings.push(`MULTIPASS ${this.config.MULTIPASS} has no code`);
     if (!deployed(factoryCode)) warnings.push(`FACTORY ${this.config.FACTORY} has no code`);
+    // Without it, a domain nobody deployed cannot be mounted on demand and the person is turned away.
+    // Pointed at nothing is worse than unset: every page that lists the mounts fails instead.
+    const namespaceFactory = this.config.NAMESPACE_FACTORY;
+    const namespaceCode = namespaceFactory
+      ? await this.publicClient.getCode({ address: namespaceFactory })
+      : undefined;
+    if (!namespaceFactory)
+      warnings.push("NAMESPACE_FACTORY is unset: a domain nobody deployed yet cannot be mounted");
+    else if (!deployed(namespaceCode)) warnings.push(`NAMESPACE_FACTORY ${namespaceFactory} has no code`);
 
     // solc puts every external selector in the dispatch table, so its absence from the bytecode means
     // the deployed contract simply does not have that function.
@@ -344,8 +638,12 @@ export class Chain {
     for (const fn of missing) warnings.push(`BRIDGE has no ${fn}(): it predates this build`);
 
     // Platform domains matter as much as name domains: Multipass reverts with `invalidDomain` on an
-    // uninitialised one, and the user only finds out after signing.
-    const wanted = [...this.config.NAME_DOMAINS, ...PLATFORM_DOMAIN_NAMES];
+    // uninitialised one, and the user only finds out after signing. Every mount this deployment has is
+    // a domain someone can be asked to sign for, so all of them are checked, not a fixed list.
+    const mounted = (await this.instances().catch(() => []))
+      .map((i) => i.domain)
+      .filter((d) => !d.startsWith(this.config.VOUCH_PREFIX));
+    const wanted = [...new Set([...this.config.NAME_DOMAINS, ...PLATFORM_DOMAIN_NAMES, ...mounted])];
     const domains = await Promise.all(
       wanted.map(async (domain) => {
         const d = await this.publicClient.readContract({
@@ -415,6 +713,9 @@ export class Chain {
       bridge: { address: this.config.BRIDGE, deployed: deployed(bridgeCode), missing },
       multipass: { address: this.config.MULTIPASS, deployed: deployed(multipassCode), domains },
       factory: { address: this.config.FACTORY, deployed: deployed(factoryCode), instances },
+      namespaceFactory: namespaceFactory
+        ? { address: namespaceFactory, deployed: deployed(namespaceCode) }
+        : null,
       registrar: { signsAs: configuredRegistrar ?? null, onchain: onchainRegistrars },
       relayer: { address: this.relayer, balance: relayerBalance.toString() },
       warnings,
@@ -508,6 +809,7 @@ export class Chain {
     await this.indexer
       .catchUp(receipt.blockNumber)
       .catch((err) => console.error(`index catch-up failed · ${err.message}`));
+    return receipt;
   }
 
   /**
@@ -624,12 +926,16 @@ export type ChainReader = Pick<
   | "indexStatus"
   | "preflight"
   | "domainReady"
+  | "ethLabelOwner"
+  | "primaryName"
+  | "ensureNamespace"
 >;
 
 function toListed(r: IndexedRecord): ListedRecord & { domain: string } {
   return {
     domain: r.domain,
     name: r.name,
+    rawName: r.rawName,
     id: r.id,
     wallet: r.wallet,
     payload: r.payload,
@@ -655,6 +961,8 @@ export type Preflight = {
     }[];
   };
   factory: { address: Address; deployed: boolean; instances: string[] };
+  /** The later factory carrying the DNS namespace, when this deployment has one */
+  namespaceFactory: { address: Address; deployed: boolean } | null;
   registrar: { signsAs: Address | null; onchain: Address[] };
   relayer: { address: Address; balance: string };
   warnings: string[];

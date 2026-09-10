@@ -6,6 +6,9 @@
 # Keys below are anvil's well-known dev keys; never reuse them anywhere real.
 name: ketsuban-e2e
 
+volumes:
+  api-data:
+
 networks:
   ketsuban_e2e:
     name: ketsuban_e2e
@@ -29,6 +32,10 @@ services:
 
   deploy:
     image: ghcr.io/foundry-rs/foundry:latest
+    # The image runs as its own user, and the repo is mounted from the host: without this it cannot write
+    # the build cache or `deployments/local.json`, which is how this failed on a CI runner but not on a
+    # developer's machine.
+    user: root
     networks: [ketsuban_e2e]
     depends_on:
       anvil: { condition: service_healthy }
@@ -39,12 +46,17 @@ services:
       PRIVATE_KEY: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
       INSTANCE_DOMAIN: ${INSTANCE_DOMAIN:-kju-is}
       INSTANCE_PARENT: ${INSTANCE_PARENT:-kju-is.eth}
+      # The DNS namespace the app attests into: a platform is its own name, an email is its mail host.
+      WWW_NAMES: x.com,github.com,google.com,discord.com,linkedin.com,t.me
+      AT_NAMES: ${E2E_MAIL_DOMAINS:-example.com}
     entrypoint: ["sh", "-c"]
     command:
       - >
         export REGISTRAR=$$(cast wallet address --private-key 0x000000000000000000000000000000000000000000000000000000000000b0b0) &&
         forge script script/DeployLocal.s.sol --rpc-url http://anvil:8545 --broadcast --skip-simulation -vv
         && test -f deployments/local.json
+        && DEPLOYMENT_FILE=deployments/local.json
+        forge script script/AddNamespace.s.sol --rpc-url http://anvil:8545 --broadcast --skip-simulation -vv
 
   api:
     build:
@@ -57,6 +69,7 @@ services:
       - "127.0.0.1:${E2E_API_PORT:-18787}:8787"
     volumes:
       - ../../packages/contracts/deployments:/deployments:ro
+      - api-data:/data
     environment:
       PORT: "8787"
       RPC_URL: http://anvil:8545
@@ -77,4 +90,5 @@ services:
       # anvil starts empty, so the index reads from block 0 and polls fast enough for the test loop
       INDEX_POLL_SECONDS: "1"
       RPC_LOG_WINDOW: "5000"
-      DATA_DIR: ""
+      # Real storage, because a grant that does not survive a restart is the bug this stack should catch.
+      DATA_DIR: /data

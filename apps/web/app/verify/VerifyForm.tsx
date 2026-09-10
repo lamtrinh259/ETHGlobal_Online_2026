@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { describePolicy, lookupTarget, POLICY_PRESETS, policyToQuery, presetPolicy } from "@/lib/profile";
+import { questionTitle } from "@/lib/questions";
 
 /** Verifier policy picker → /p/<handle>?answers=&minLinks=&humanity= */
 export function VerifyForm({ subjectDomains }: { subjectDomains: string[] }) {
@@ -12,8 +13,9 @@ export function VerifyForm({ subjectDomains }: { subjectDomains: string[] }) {
   const [minLinks, setMinLinks] = useState(1);
   const [minVouches, setMinVouches] = useState(3);
   const [humanity, setHumanity] = useState(false);
+  const [onlySolicited, setOnlySolicited] = useState(false);
   const [preset, setPreset] = useState<string | undefined>("hiring");
-  const policy = { requiredAnswers: answers, minLinks, requireHumanity: humanity, minVouches };
+  const policy = { requiredAnswers: answers, minLinks, requireHumanity: humanity, minVouches, onlySolicited };
   const custom =
     <T,>(set: (v: T) => void) =>
     (v: T) => {
@@ -28,6 +30,7 @@ export function VerifyForm({ subjectDomains }: { subjectDomains: string[] }) {
     setMinLinks(pol.minLinks);
     setMinVouches(pol.minVouches);
     setHumanity(pol.requireHumanity);
+    setOnlySolicited(!!pol.onlySolicited);
     setPreset(id);
   }
   const target = lookupTarget(handle, policyToQuery(policy, preset));
@@ -82,7 +85,7 @@ export function VerifyForm({ subjectDomains }: { subjectDomains: string[] }) {
                 )(e.target.checked)
               }
             />{" "}
-            require an answer for <code>{d}</code>
+            require an answer to <em>{questionTitle(d)}</em>
           </label>
         ))}
         <label>
@@ -110,6 +113,16 @@ export function VerifyForm({ subjectDomains }: { subjectDomains: string[] }) {
         <label>
           <input type="checkbox" checked={humanity} onChange={(e) => custom(setHumanity)(e.target.checked)} />{" "}
           require a humanity attestation
+        </label>
+        {/* Anyone may refer anyone, so a verifier who only trusts invited references has to say so. */}
+        <label>
+          <input
+            type="checkbox"
+            checked={onlySolicited}
+            onChange={(e) => custom(setOnlySolicited)(e.target.checked)}
+            data-testid="only-solicited"
+          />{" "}
+          count only references the candidate asked for
         </label>
         <p className="muted" data-testid="policy-summary">
           {describePolicy(policy)}

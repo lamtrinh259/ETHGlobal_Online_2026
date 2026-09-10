@@ -24,6 +24,8 @@ export type AttestResult = z.infer<typeof attestResultSchema>;
 export const verifySchema = z.object({
   name: z.string(),
   instance: z.object({ domain: z.string(), parentName: z.string() }),
+  /** Which half of the namespace this name lives in: the open one, or the private mirror */
+  branch: z.enum(["open", "private"]).optional(),
   status: z.enum(["active", "inactive"]),
   wallet: z.string().nullable(),
   answer: z.string().nullable(),
@@ -33,6 +35,8 @@ export const verifySchema = z.object({
     z.object({
       domain: z.string(),
       optedIn: z.boolean(),
+      /** The name this account answers at, which anyone can check in their own ENS client */
+      ensName: z.string().nullable().optional(),
       commitment: z.string().optional(),
       disclosed: z.object({ handle: z.string(), platformId: z.string() }).optional(),
     })
@@ -58,16 +62,26 @@ export const vouchesSchema = z.object({
     z.object({
       voucher: z.string(),
       voucherName: z.string().nullable(),
+      /** The reference's own name, in the candidate's namespace */
+      ensName: z.string().nullable().optional(),
       wallet: z.string(),
       statement: z.string(),
       validUntil: z.string(),
       nonce: z.string(),
       live: z.boolean(),
+      /** Whether the candidate asked for this reference; anyone may write one either way */
+      solicited: z.boolean().default(false),
+      invite: z
+        .object({ handle: z.string(), voucher: z.string(), exp: z.string(), signature: z.string() })
+        .nullable()
+        .default(null),
       standing: z
         .object({ claimed: z.boolean(), given: z.number(), received: z.number() })
         .nullable()
         .optional(),
       letter: z.string().nullable().optional(),
+      /** Set when the letter is kept off chain: the hash the record names, so a reader can check it */
+      letterHash: z.string().nullable().optional(),
     })
   ),
   warning: z.string(),
@@ -87,10 +101,29 @@ export const contractsSchema = z.object({
       resolver: address,
       parentName: z.string(),
       parentLabel: z.string(),
+      /** Where a masked record in this domain is named, when the deployment has a private branch */
+      maskedParentName: z.string().optional(),
     })
   ),
   bridge: address,
   permissionedResolver: address.nullable(),
+  ethRegistry: address.nullable().optional(),
+  ethRegistrar: address.nullable().optional(),
+  paymentToken: address.nullable().optional(),
+});
+
+export const explainSchema = z.object({
+  name: z.string(),
+  says: z.string(),
+  kind: z.enum(["person", "account", "private", "reference", "unknown"]),
+  domain: z.string().optional(),
+  label: z.string().optional(),
+});
+
+export const ethLabelSchema = z.object({
+  label: z.string(),
+  registry: address,
+  owner: address.nullable(),
 });
 export type Contracts = z.infer<typeof contractsSchema>;
 
@@ -129,10 +162,64 @@ export const disclosedSchema = z.object({
 });
 export type Disclosed = z.infer<typeof disclosedSchema>;
 
+/** What a name is sharing right now: enough to say who can read what, never the grant itself. */
+/** A person whose handle looks like what was typed, with the references that say who they are. */
+export const findSchema = z.object({
+  q: z.string(),
+  matches: z.array(
+    z.object({
+      handle: z.string(),
+      wallet: z.string().optional(),
+      claimed: z.boolean(),
+      given: z.number(),
+      received: z.number(),
+    })
+  ),
+});
+export type Found = z.infer<typeof findSchema>;
+export type Match = Found["matches"][number];
+
+/** Who holds a platform account here, or why they cannot be found. */
+export const whoSchema = z.object({
+  found: z.boolean(),
+  domain: z.string(),
+  handle: z.string(),
+  wallet: z.string().optional(),
+  candidate: z.string().nullable().optional(),
+  note: z.string().optional(),
+  standing: z.object({ claimed: z.boolean(), given: z.number(), received: z.number() }).nullable().optional(),
+});
+export type Who = z.infer<typeof whoSchema>;
+
+export const grantsSchema = z.object({
+  name: z.string(),
+  grants: z.array(
+    z.object({
+      id: hex,
+      domains: z.array(z.string()),
+      audience: address,
+      audienceName: z.string(),
+      expiresAt: z.string(),
+    })
+  ),
+});
+export type Grants = z.infer<typeof grantsSchema>;
+export type Grant = Grants["grants"][number];
+
 export const reverseSchema = z.object({
   address: z.string(),
   name: z.string().nullable(),
-  names: z.array(z.object({ domain: z.string(), name: z.string(), resolver: z.string() })),
+  names: z.array(
+    z.object({
+      domain: z.string(),
+      name: z.string(),
+      resolver: z.string(),
+      /** Their own name, an account in the open, or an account named in the private branch */
+      kind: z.enum(["name", "account", "private"]).optional(),
+    })
+  ),
+  /** What ENS itself answers for the address: set by its holder, never by this service */
+  primary: z.string().nullable().optional(),
   note: z.string(),
 });
 export type ReverseRead = z.infer<typeof reverseSchema>;
@@ -285,24 +372,123 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
       return contractsSchema.parse(await readJson(await call(`${base}/v1/instances`)));
     },
 
+    /** What a name would claim here, whether or not anything resolves at it. */
+    async explain(name: string): Promise<z.infer<typeof explainSchema>> {
+      return explainSchema.parse(
+        await readJson(await call(`${base}/v1/explain/${encodeURIComponent(name)}`))
+      );
+    },
+
+    /** Who owns a `.eth` label on the registry the bridge checks; `null` owner means nobody here does. */
+    async ethLabel(label: string): Promise<z.infer<typeof ethLabelSchema>> {
+      return ethLabelSchema.parse(await readJson(await call(`${base}/v1/eth-label/${label}`)));
+    },
+
+    /** Keep a picture and get the URL an `avatar` record can hold; the bytes decide what is stored. */
+    async uploadAvatar(file: File): Promise<{ id: string; url: string }> {
+      const body = new FormData();
+      body.set("file", file);
+      const res = await call(`${base}/v1/avatar`, { method: "POST", body });
+      return (await readJson(res)) as { id: string; url: string };
+    },
+
     /** The key a view code is encrypted to, so only the enclave can open a disclosure. */
     async enclaveKey(): Promise<{ address: Address; publicKey: Hex }> {
       return enclaveKeySchema.parse(await readJson(await call(`${base}/v1/enclave-key`)));
     },
 
     /** Hand the attester a candidate-signed permission to read one masked account. */
-    async disclose(wire: object): Promise<{ ok: true; expiresAt: string }> {
+    async disclose(wire: object): Promise<{ ok: true; id: Hex; domains: string[]; expiresAt: string }> {
       const res = await call(`${base}/v1/disclose`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(wire),
       });
-      return (await readJson(res)) as { ok: true; expiresAt: string };
+      return (await readJson(res)) as { ok: true; id: Hex; domains: string[]; expiresAt: string };
+    },
+
+    /**
+     * Keep a letter too long for a text record, and get the pointer one can hold. The hash is what
+     * goes on chain, so whoever reads the letter can check it is the one the record names.
+     */
+    async storeLetter(text: string): Promise<{ hash: string; ref: string; bytes: number }> {
+      const res = await call(`${base}/v1/letter`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      return (await readJson(res)) as { hash: string; ref: string; bytes: number };
+    },
+
+    /** The signed invitation a short code stands for; checked the same as one that arrived in full. */
+    async invite(code: string): Promise<{ code: string; invite: Record<string, unknown> }> {
+      return (await readJson(await call(`${base}/v1/invite/${encodeURIComponent(code)}`))) as {
+        code: string;
+        invite: Record<string, unknown>;
+      };
+    },
+
+    /** Keep a signed invitation and get the short code that stands for it. */
+    async storeInvite(wire: object): Promise<{ code: string }> {
+      const res = await call(`${base}/v1/invite`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(wire),
+      });
+      return (await readJson(res)) as { code: string };
+    },
+
+    /** What people published under one instance name: the answers, and what the name says it is for. */
+    async instance(domain: string): Promise<{
+      domain: string;
+      parentName: string;
+      description: string | null;
+      answers: { handle: string; ensName: string; answer: string; validUntil: string }[];
+    }> {
+      return (await readJson(await call(`${base}/v1/instance/${encodeURIComponent(domain)}`))) as {
+        domain: string;
+        parentName: string;
+        description: string | null;
+        answers: { handle: string; ensName: string; answer: string; validUntil: string }[];
+      };
+    },
+
+    /** People whose handle looks like this, most-referenced first: which `bob` did you mean. */
+    async find(q: string): Promise<Found> {
+      return findSchema.parse(await readJson(await call(`${base}/v1/find?q=${encodeURIComponent(q)}`)));
+    },
+
+    /** Who holds a platform account here; a private account cannot be found and says so. */
+    async who(domain: string, handle: string, viewCode?: string): Promise<Who> {
+      const q = new URLSearchParams({ domain, handle });
+      // Only someone the candidate gave the code to can find a private account; it is the permission.
+      if (viewCode) q.set("viewCode", viewCode);
+      return whoSchema.parse(await readJson(await call(`${base}/v1/who?${q.toString()}`)));
+    },
+
+    /** Live permissions on a name, so its holder can see who can read which account. */
+    async disclosures(name: string): Promise<Grants> {
+      return grantsSchema.parse(
+        await readJson(await call(`${base}/v1/disclosures/${encodeURIComponent(name)}`))
+      );
+    },
+
+    /** Take one back; the wire carries the holder's signature over a dated revocation. */
+    async revoke(wire: object): Promise<{ ok: true; id: string; domains: string[] }> {
+      const res = await call(`${base}/v1/revoke`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(wire),
+      });
+      return (await readJson(res)) as { ok: true; id: string; domains: string[] };
     },
 
     /** Read a masked account the candidate allowed; `reader` must match a grant addressed to one wallet. */
-    async disclosed(name: string, domain: string, reader?: string): Promise<Disclosed> {
-      const q = reader ? `?reader=${reader}` : "";
+    async disclosed(name: string, domain: string, reader?: string, as?: string): Promise<Disclosed> {
+      const parts = [reader ? `reader=${reader}` : "", as ? `as=${encodeURIComponent(as)}` : ""].filter(
+        Boolean
+      );
+      const q = parts.length ? `?${parts.join("&")}` : "";
       return disclosedSchema.parse(
         await readJson(
           await call(`${base}/v1/disclose/${encodeURIComponent(name)}/${encodeURIComponent(domain)}${q}`)

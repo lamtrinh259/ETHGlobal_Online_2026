@@ -1,9 +1,18 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import type { Address, Hex } from "viem";
 import { createApi, type Api, type AttestResult, type Verification } from "./api";
-import { linkOwnName, writeProfileText, type ProfileKey, type Signer } from "./chain";
+import {
+  commitEthName,
+  linkOwnName,
+  registerEthName,
+  writeProfileText,
+  type EthNameParams,
+  type ProfileKey,
+  type Signer,
+} from "./chain";
 import type { WebConfig } from "./config";
 
 /** One client per config; the hooks below are the only place components touch the API. */
@@ -71,7 +80,76 @@ export function useDeliver(api: Api, wallet: Address | undefined, domain: string
   });
 }
 
-/** Contract addresses the wallet writes to directly (cached: they never change for a deployment). */
+/** Who owns a `.eth` label on the ENSv2 registry, so the form can say what will happen before it happens. */
+export function useEthLabel(api: Api, label: string) {
+  return useQuery({
+    queryKey: ["eth-label", label],
+    queryFn: () => api.ethLabel(label),
+    enabled: /^[a-z0-9-]{3,63}$/.test(label),
+    staleTime: 30_000,
+    retry: false,
+  });
+}
+
+/**
+ * Get a `.eth` name on a test deployment. The registrar mints only to whoever calls it, and the names it
+ * mints do not transfer, so this has to be the person's own wallet: pay, commit, wait, register.
+ */
+export function useClaimEthName(onDone: () => void) {
+  const [waitingUntil, setWaitingUntil] = useState<number>();
+  const mutation = useMutation({
+    mutationFn: async ({ signer, params }: { signer: Signer; params: EthNameParams }) => {
+      const { readyAt } = await commitEthName(signer, params);
+      setWaitingUntil(readyAt * 1000);
+      const left = readyAt * 1000 - Date.now();
+      if (left > 0) await new Promise((r) => setTimeout(r, left));
+      setWaitingUntil(undefined);
+      return registerEthName(signer, params);
+    },
+    onSuccess: onDone,
+    onError: () => setWaitingUntil(undefined),
+  });
+  return { ...mutation, waitingUntil };
+}
+
+/** Permissions live on a name right now — the answer to "who can read my private accounts". */
+export function useDisclosures(api: Api, name: string | undefined) {
+  return useQuery({
+    queryKey: ["disclosures", name],
+    queryFn: () => api.disclosures(name as string),
+    enabled: !!name,
+  });
+}
+
+/** Take a permission back; the list refreshes so the page shows what is true after it. */
+export function useRevoke(api: Api, name: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (wire: object) => api.revoke(wire),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["disclosures", name] }),
+  });
+}
+
+/** Which person did you mean: handles like this one, most-referenced first. */
+export function useFind(api: Api, q: string) {
+  return useQuery({
+    queryKey: ["find", q],
+    queryFn: () => api.find(q),
+    enabled: q.trim().length >= 2,
+    staleTime: 10_000,
+  });
+}
+
+/** Who holds a platform account here; only accounts attested in the open can be found. */
+export function useWho(api: Api, domain: string, handle: string, viewCode?: string) {
+  return useQuery({
+    queryKey: ["who", domain, handle, viewCode ?? ""],
+    queryFn: () => api.who(domain, handle, viewCode),
+    enabled: !!domain && handle.trim().length >= 2,
+    staleTime: 10_000,
+  });
+}
+
 export function useContracts(api: Api) {
   return useQuery({ queryKey: ["contracts"], queryFn: () => api.contracts(), staleTime: Infinity });
 }

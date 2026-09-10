@@ -14,7 +14,18 @@ import {LibLabel} from "./libraries/LibLabel.sol";
 ///         Subregistries let an instance nest others (e.g. a subject namespace under a root); they
 ///         are set by the owner, typically the factory operator, and never derived from records.
 contract AttestationRegistry is IRegistry, Ownable {
+    /// @notice Which records this mount answers for. A platform's public branch under `www` names
+    ///         accounts by their handle, so it must stay silent about an account someone chose to mask:
+    ///         that one is a one-time pad over the handle, and it is represented, by the person's own
+    ///         name, in `MaskedMirrorRegistry`. A masked record carries a view-code commitment as its
+    ///         payload. `Any` is for a name domain, where the payload is the person's answer.
+    enum Visibility {
+        Any,
+        Public
+    }
+
     IMultipass public immutable MP;
+    Visibility public immutable VISIBILITY;
     bytes32 public immutable DOMAIN;
     address public immutable RESOLVER;
     IRegistry public immutable PARENT;
@@ -27,9 +38,11 @@ contract AttestationRegistry is IRegistry, Ownable {
         address resolver,
         IRegistry parent,
         string memory parentLabel,
-        address owner
+        address owner,
+        Visibility visibility
     ) Ownable(owner) {
         MP = mp;
+        VISIBILITY = visibility;
         DOMAIN = domain;
         RESOLVER = resolver;
         PARENT = parent;
@@ -54,7 +67,9 @@ contract AttestationRegistry is IRegistry, Ownable {
         if (!fits) return address(0);
         (bool ok, LibMultipass.Record memory r) =
             MP.resolveRecord(LibMultipass.NameQuery(DOMAIN, address(0), name, bytes32(0), bytes32(0)));
-        return (ok && r.validUntil > block.timestamp) ? RESOLVER : address(0);
+        if (!ok || r.validUntil <= block.timestamp) return address(0);
+        if (VISIBILITY == Visibility.Public && r.payload != bytes32(0)) return address(0);
+        return RESOLVER;
     }
 
     /// @inheritdoc IRegistry

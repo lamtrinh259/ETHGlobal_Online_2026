@@ -1,0 +1,121 @@
+import { isDnsName } from "./accounts.js";
+
+/**
+ * The grouping levels a deployment reserves at its root. A platform account lands under `www` and an
+ * email under `@`, because an address is not a handle and the two should not share a namespace. Each
+ * has a private mirror holding the accounts someone chose to keep behind a view code.
+ */
+export const PUBLIC_GROUPINGS = ["www", "@"] as const;
+export const PRIVATE_GROUPINGS = ["private-www", "private@"] as const;
+
+export type Grouping = { open: string; masked: string };
+
+export function groupingFor(domain: string): Grouping {
+  return domain === "email" ? { open: "@", masked: "private@" } : { open: "www", masked: "private-www" };
+}
+
+/**
+ * The registries a DNS name mounts through, outermost first: `x.com` under `www` is `www` → `x` → `com`,
+ * and the instance itself is the last one. First label first, so a service that hands out subdomains
+ * keeps them apart — `tenant.acme.com` is its own chain rather than a level inside `acme.com`.
+ */
+export function mountPath(dns: string, grouping: string): string[] {
+  return [grouping, ...dns.toLowerCase().split(".")];
+}
+
+/**
+ * The ENS name an attested account answers at, or nothing when it cannot have one. A public account is
+ * named by the account (`alice_x.com.x.www.<root>`); a masked one by the person who holds it
+ * (`alice.com.x.private-www.<root>`), because the stored name is a one-time pad over the handle.
+ */
+export function ensNameFor(at: {
+  root: string;
+  /** Multipass domain the record lives in, which decides the grouping level */
+  domain: string;
+  dns: string | undefined;
+  label: string | undefined;
+  optIn: boolean;
+}): string | undefined {
+  if (!at.dns || !at.label || !isDnsName(at.dns)) return undefined;
+  const group = groupingFor(at.domain);
+  const path = mountPath(at.dns, at.optIn ? group.masked : group.open);
+  return [at.label, ...path.reverse(), at.root].join(".");
+}
+
+/** A mount as the factory records it: enough to say what a name under it means. */
+export type Mount = { domain: string; parentName: string; maskedParentName?: string };
+
+export type NameClaim = {
+  /** What this name says, in a sentence */
+  says: string;
+  /** The part of the namespace it belongs to, when it belongs to one */
+  kind: "person" | "account" | "private" | "reference" | "unknown";
+  /** The domain it lives in, for an account */
+  domain?: string;
+  /** The label that varies: a person's handle, an account's handle */
+  label?: string;
+};
+
+/**
+ * What a name would claim, read from the mounts rather than from its shape. A reader pasting a name
+ * deserves an answer even when nothing resolves there: "nobody holds this" and "this could never mean
+ * anything here" are different facts, and only the mounts can tell them apart.
+ */
+export function explainName(
+  input: string,
+  mounts: readonly Mount[],
+  nameDomains: readonly string[]
+): NameClaim {
+  const name = input.trim().toLowerCase().replace(/\.$/, "");
+  const root = mounts.find((i) => nameDomains.includes(i.domain));
+  if (!name || !root) return { says: "", kind: "unknown" };
+
+  const under = (parent: string) => {
+    const suffix = `.${parent.toLowerCase()}`;
+    if (!name.endsWith(suffix)) return undefined;
+    const rest = name.slice(0, -suffix.length);
+    return rest && !rest.includes(".") ? rest : undefined;
+  };
+
+  for (const mount of mounts) {
+    const open = under(mount.parentName);
+    if (open && !nameDomains.includes(mount.domain)) {
+      return {
+        says: `${open} is an account at ${mount.domain}, attested in the open by whoever holds it.`,
+        kind: "account",
+        domain: mount.domain,
+        label: open,
+      };
+    }
+    const masked = mount.maskedParentName ? under(mount.maskedParentName) : undefined;
+    if (masked) {
+      return {
+        says: `The person called ${masked} holds an account at ${mount.domain}. Which account stays behind a view code.`,
+        kind: "private",
+        domain: mount.domain,
+        label: masked,
+      };
+    }
+  }
+
+  const person = under(root.parentName);
+  if (person) return { says: `${person} is a person's name here.`, kind: "person", label: person };
+
+  // `<voucher>.<candidate>.<root>`: a reference lives in the candidate's own namespace.
+  const suffix = `.${root.parentName.toLowerCase()}`;
+  if (name.endsWith(suffix)) {
+    const rest = name.slice(0, -suffix.length).split(".");
+    if (rest.length === 2)
+      return {
+        // Two labels under the root is the shape of a reference whoever holds them: only a lookup can
+        // say whether that candidate exists.
+        says: `A reference written for ${rest[1]} by ${rest[0]}, in ${rest[1]}'s own namespace — if ${rest[1]} holds that name.`,
+        kind: "reference",
+        label: rest[0],
+      };
+  }
+  return {
+    says: `Nothing in this deployment answers for ${name}. It ends outside every namespace it holds.`,
+    kind: "unknown",
+  };
+}

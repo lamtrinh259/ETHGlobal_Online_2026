@@ -9,16 +9,27 @@ export {
   RESERVED_HANDLES,
 } from "./attest.js";
 export { INTENT_TYPES, intentDomain, recoverIntentSigner, signIntent } from "./intent.js";
-export { signRecord } from "./attest.js";
+export { signRecord, solicitedBy, storable, verifyInvite } from "./attest.js";
+export { ANSWER_SEPARATOR, answerDomain, answerOf, answerSlug } from "./answers.js";
 export {
   checkAudience,
   checkDisclosure,
+  checkRevocation,
   DISCLOSE_TYPES,
   discloseDomain,
+  domainsKey,
+  grantId,
   hashBox,
+  hashBoxes,
+  matchesAudienceName,
   recoverDiscloseSigner,
+  recoverRevokeSigner,
+  REVOKE_TYPES,
+  REVOKE_WINDOW,
   signDisclosure,
+  signRevocation,
   type Disclosure,
+  type Revocation,
   type SignedDisclosure,
 } from "./disclose.js";
 export {
@@ -27,6 +38,7 @@ export {
   encodeInvite,
   INVITE_TYPES,
   inviteDomain,
+  meetsInvite,
   recoverInviteSigner,
   signInvite,
   WITHDRAWN,
@@ -44,4 +56,23 @@ export {
   toPrivyType,
 } from "./accounts.js";
 export { eciesEncrypt, eciesDecrypt } from "./ecies.js";
+export {
+  dnsNameFor,
+  isDnsName,
+  labelFor,
+  pickAccountFor,
+  platformOf,
+  PLATFORM_DNS_NAMES,
+} from "./accounts.js";
+export {
+  ensNameFor,
+  explainName,
+  groupingFor,
+  mountPath,
+  PRIVATE_GROUPINGS,
+  PUBLIC_GROUPINGS,
+  type Grouping,
+  type Mount,
+  type NameClaim,
+} from "./namespace.js";
 export { base64urlDecode, base64urlEncode } from "./base64url.js";

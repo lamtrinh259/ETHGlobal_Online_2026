@@ -87,13 +87,18 @@ test("the header carries the identity, not the forms", async ({ page }) => {
   await expect(page.locator("main")).not.toContainText("signed in as");
 });
 
-test("a vouch page with no invitation says so instead of offering the form", async ({ page }) => {
+test("a vouch page opens for anyone, invitation or not, and a bad token is not a wall", async ({ page }) => {
+  // Referring is non-permissioned: an invitation is evidence the candidate asked, never permission,
+  // so neither its absence nor a malformed one turns the page into a refusal.
   await page.goto("/vouch/alice");
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Vouch for");
   // Behind the sign-in gate there is no form either way; the steps still explain the journey.
   await expect(page.locator(".journey li")).toHaveCount(3);
+  await expect(page.locator("body")).not.toContainText("You need alice's invitation");
+
   await page.goto("/vouch/alice?invite=not-a-real-token");
   await expect(page.locator(".journey li")).toHaveCount(3);
+  await expect(page.locator("body")).not.toContainText("You need alice's invitation");
 });
 
 test("a domain that cannot be written disables the publish button with the reason", async ({ page }) => {
@@ -115,3 +120,34 @@ test("a domain that cannot be written disables the publish button with the reaso
   await expect(page.getByTestId("signin")).toBeVisible({ timeout: 20000 });
   await expect(page.getByTestId("publish")).toHaveCount(0);
 });
+
+test("the names page explains the namespace, and degrades when the API is unreachable", async ({ page }) => {
+  await page.goto("/names");
+  await expect(page.getByRole("heading", { name: "Names", level: 1 })).toBeVisible();
+  // Without an API there are no mounts to describe, and the page says so rather than inventing shapes.
+  await expect(page.locator("main [role=alert]")).toHaveText(/no mounts to describe/);
+  await expect(page.getByRole("link", { name: /Check a name/ })).toBeVisible();
+});
+
+test("a reference link carrying a popular ask renders, rather than failing on the server", async ({
+  page,
+}) => {
+  // This is the shape that broke: the page is a server component and reads the ask from the URL, so
+  // a helper living in a "use client" module made the whole route fail to render. Unit tests cannot
+  // see that boundary; only a real build can.
+  const errors: string[] = [];
+  page.on("response", (r) => {
+    if (r.status() >= 500) errors.push(`${r.status()} ${r.url()}`);
+  });
+
+  await page.goto("/vouch/alice?ask=kju-is");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Vouch for");
+  // An ask nobody offers is not an error either: the writer gets the plain form.
+  await page.goto("/vouch/alice?ask=not-an-ask");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Vouch for");
+  expect(errors).toEqual([]);
+});
+
+// A journey for the multi-account reveal would need a live API: `/v/<name>` fetches on the server, so
+// Playwright's route interception never sees it, and without a card the panels are not reached at all.
+// That path is covered by the unit tests for the page and by the docker e2e for the endpoints.

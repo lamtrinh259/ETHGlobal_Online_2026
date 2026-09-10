@@ -6,8 +6,10 @@
   "main": "dist/main.js",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "bun test",
-    "simulate": "cd .. && cre workflow simulate attest --target staging-settings --non-interactive --trigger-index 0 --http-payload ./attest/fixtures/request.json"
+    "test": "PATH=\"$HOME/.bun/bin:$PATH\" bun test",
+    "simulate": "cd .. && PATH=\"$HOME/.bun/bin:$HOME/.cre/bin:$PATH\" cre workflow simulate attest --target local-settings --non-interactive --trigger-index 0 --http-payload ./attest/fixtures/request.json",
+    "simulate:dns": "cd .. && PATH=\"$HOME/.bun/bin:$HOME/.cre/bin:$PATH\" cre workflow simulate attest --target local-settings --non-interactive --trigger-index 0 --http-payload ./attest/fixtures/dns.json",
+    "fixtures": "PATH=\"$HOME/.bun/bin:$PATH\" bun run scripts/make-fixture.ts dns && PATH=\"$HOME/.bun/bin:$PATH\" bun run scripts/make-fixture.ts dns-private && PATH=\"$HOME/.bun/bin:$PATH\" bun run scripts/make-fixture.ts platform"
   },
   "dependencies": {
     "@ketsuban/registrar": "workspace:*",

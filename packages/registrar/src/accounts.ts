@@ -13,6 +13,63 @@ export const PLATFORM_DOMAINS: Readonly<Record<string, string>> = {
 
 export const PLATFORM_DOMAIN_NAMES: readonly string[] = Object.keys(PLATFORM_DOMAINS);
 
+/**
+ * The DNS name each platform actually is. A record under `x` collides with a person called `x` and
+ * says nothing about which service; `x.com` says both. These become the ENS namespace an account
+ * resolves in: `<handle>.x.com.www.<root>`.
+ *
+ * Email has no single name here: the address carries its own domain, which is the point of `dnsNameFor`.
+ */
+export const PLATFORM_DNS_NAMES: Readonly<Record<string, string>> = {
+  x: "x.com",
+  telegram: "t.me",
+  discord: "discord.com",
+  github: "github.com",
+  google: "google.com",
+  linkedin: "linkedin.com",
+  apple: "apple.com",
+  instagram: "instagram.com",
+  tiktok: "tiktok.com",
+  spotify: "spotify.com",
+  twitch: "twitch.tv",
+  line: "line.me",
+  farcaster: "farcaster.xyz",
+};
+
+/** Is this a DNS name a namespace can be built from: labels of `[a-z0-9-]`, at least two of them. */
+export function isDnsName(value: string): boolean {
+  const labels = value.toLowerCase().split(".");
+  return labels.length >= 2 && labels.every((l) => /^[a-z0-9-]{1,63}$/.test(l));
+}
+
+/**
+ * Where an account's name belongs: a platform's own DNS name, or for an email the domain it was issued
+ * by. Returns nothing when the account cannot name a namespace — an email with no domain, a platform
+ * this deployment does not map.
+ */
+export function dnsNameFor(domain: string, account: { username?: string }): string | undefined {
+  if (domain === "email") {
+    const at = (account.username ?? "").lastIndexOf("@");
+    const host = at === -1 ? "" : account.username!.slice(at + 1).toLowerCase();
+    return isDnsName(host) ? host : undefined;
+  }
+  return PLATFORM_DNS_NAMES[domain];
+}
+
+/**
+ * The label an account takes inside that namespace: a handle, or an email's local part. A discriminator
+ * is not part of the handle — Discord writes `peersky#0` for an account that has none — so it comes off.
+ *
+ * Nothing comes back when what is left cannot be an ENS label. That is not a refusal: the record is
+ * still written under the handle itself, it simply has no name to be read by.
+ */
+export function labelFor(domain: string, account: { username?: string }): string | undefined {
+  const [handle = ""] = (account.username ?? "").split("#");
+  const [local = ""] = handle.split("@");
+  const label = (domain === "email" ? local : handle).toLowerCase();
+  return /^[a-z0-9_-]{1,63}$/.test(label) ? label : undefined;
+}
+
 export function toPrivyType(domain: string): string {
   const t = PLATFORM_DOMAINS[domain];
   if (!t) throw new Error(`accounts: unknown platform domain "${domain}"`);
@@ -31,6 +88,18 @@ export function hasLinkedWallet(linked: LinkedAccount[], wallet: string): boolea
   return linked.some(
     (a) => a.type === "wallet" && typeof a.address === "string" && a.address.toLowerCase() === w
   );
+}
+
+/**
+ * The platform a domain stands for. A DNS name that is a platform's own is that platform; any other DNS
+ * name is an email domain, because nobody could enumerate every mail host. A bare word is a flat domain
+ * from a deployment that predates the DNS namespace.
+ */
+export function platformOf(domain: string): string | undefined {
+  const named = Object.entries(PLATFORM_DNS_NAMES).find(([, dns]) => dns === domain);
+  if (named) return named[0];
+  if (isDnsName(domain)) return "email";
+  return PLATFORM_DOMAINS[domain] ? domain : undefined;
 }
 
 export type PlatformAccount = { subject: string; username: string };
@@ -66,4 +135,26 @@ export function pickPlatformAccount(linked: LinkedAccount[], domain: string): Pl
   if (!subject) throw new Error(`accounts: ${type} account has no subject`);
   if (!username) throw new Error(`accounts: ${type} account has no handle`);
   return { subject: String(subject), username };
+}
+
+/**
+ * The account a domain asks for, with the label it takes inside that domain's namespace. An email domain
+ * only accepts an address issued by it, so `gmail.com` never holds a record for an address at
+ * `peeramid.xyz`, and the label is what is left once the domain is taken off.
+ */
+export function pickAccountFor(
+  linked: LinkedAccount[],
+  domain: string
+): PlatformAccount & { label?: string } {
+  const platform = platformOf(domain);
+  if (!platform) throw new Error(`accounts: unknown domain "${domain}"`);
+  const acct = pickPlatformAccount(linked, platform);
+  const dns = dnsNameFor(platform, acct);
+  if (isDnsName(domain) && dns !== domain) {
+    throw new Error(`accounts: ${acct.username} is not an account at ${domain}`);
+  }
+  // A handle that cannot be a label still gets a record: it is proof of control either way, and only
+  // the ENS name is lost. Refusing here would turn an ordinary Discord handle into a dead end.
+  const label = labelFor(platform, acct);
+  return label ? { ...acct, label } : acct;
 }

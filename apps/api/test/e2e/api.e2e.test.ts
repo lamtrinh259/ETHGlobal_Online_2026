@@ -7,6 +7,7 @@
  * `DeployLocal.s.sol` into anvil and starts the API image against it. The full loop is exercised: intent → attest (node registrar) → delivery →
  * bridge.verify on chain → name resolves through the ENS shim → verify endpoint.
  */
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { beforeAll, describe, expect, it } from "vitest";
 import {
@@ -14,6 +15,7 @@ import {
   createPublicClient,
   createWalletClient,
   http,
+  hexToBytes,
   namehash,
   parseAbi,
   zeroAddress,
@@ -29,9 +31,16 @@ import {
   signedInvite,
   toWire,
 } from "@ketsuban/registrar/testing";
-import { eciesDecrypt } from "@ketsuban/registrar";
-import { decodeRecord, MultipassAbi, toBytes32 } from "@peeramid-labs/multipass-client";
-import { APP_ID, PRIVY_SEED } from "./global-setup.js";
+import {
+  discloseDomain,
+  eciesDecrypt,
+  eciesEncrypt,
+  hashBoxes,
+  signDisclosure,
+  signRevocation,
+} from "@ketsuban/registrar";
+import { decodeRecord, fromBytes32, MultipassAbi, toBytes32 } from "@peeramid-labs/multipass-client";
+import { APP_ID, PRIVY_SEED, restartApi } from "./global-setup.js";
 
 const API = process.env.E2E_API_URL ?? `http://127.0.0.1:${process.env.E2E_API_PORT ?? "18787"}`;
 const RPC = process.env.E2E_RPC_URL ?? `http://127.0.0.1:${process.env.E2E_ANVIL_PORT ?? "18545"}`;
@@ -90,29 +99,35 @@ describe("api e2e", () => {
     expect(p.registrar.onchain).toEqual([p.registrar.signsAs]);
     expect(BigInt(p.relayer.balance)).toBeGreaterThan(0n);
     expect(p.factory.instances).toContain(deployment.instanceDomain);
-    // Every domain the attester may be asked for, platform domains included: an uninitialised one
-    // reverts with `invalidDomain` only after the user has signed.
-    expect(p.multipass.domains.map((d: { domain: string }) => d.domain)).toEqual([
-      deployment.instanceDomain,
-      "x",
-      "telegram",
-      "discord",
-      "github",
-      "google",
-      "linkedin",
-      "email",
-    ]);
+    // Every domain the attester may be asked for, mounts included: an uninitialised one reverts with
+    // `invalidDomain` only after the user has signed.
+    const checked = p.multipass.domains.map((d: { domain: string }) => d.domain);
+    for (const domain of [deployment.instanceDomain, "x", "telegram", "email", "x.com", "t.me"]) {
+      expect(checked).toContain(domain);
+    }
+    expect(
+      p.multipass.domains.every((d: { initialised: boolean; active: boolean }) => d.initialised && d.active)
+    ).toBe(true);
     expect(
       p.multipass.domains.every((d: { initialised: boolean; active: boolean }) => d.initialised && d.active)
     ).toBe(true);
   });
 
-  it("lists the deployed instance", async () => {
+  it("lists the root instance and the platform namespace mounted under it", async () => {
     const { instances } = await (await fetch(`${API}/v1/instances`)).json();
-    expect(instances).toHaveLength(1);
     expect(instances[0]).toMatchObject({
       domain: deployment.instanceDomain,
       parentName: deployment.instanceParent,
+    });
+    // Each platform is mounted at the DNS name it is, first label first: `x.com` lives at `com.x.www`.
+    const byDomain = new Map(instances.map((i: { domain: string; parentName: string }) => [i.domain, i]));
+    expect(byDomain.get("x.com")).toMatchObject({
+      parentName: `com.x.www.${deployment.instanceParent}`,
+    });
+    expect(byDomain.get("t.me")).toMatchObject({ parentName: `me.t.www.${deployment.instanceParent}` });
+    // A mail host is grouped apart, under the at-sign level.
+    expect(byDomain.get("example.com")).toMatchObject({
+      parentName: `com.example.@.${deployment.instanceParent}`,
     });
   });
 
@@ -216,11 +231,405 @@ describe("api e2e", () => {
 
     const name = `alice.${deployment.instanceParent}`;
     const masked = await (await fetch(`${API}/v1/verify/${name}?links=x`)).json();
-    expect(masked.links).toEqual([{ domain: "x", optedIn: true, commitment: attested.record.payload }]);
+    // The flat mount has no private branch, so a masked account there has no name to offer.
+    expect(masked.links).toEqual([
+      { domain: "x", optedIn: true, ensName: null, commitment: attested.record.payload },
+    ]);
 
     const disclosed = await (await fetch(`${API}/v1/verify/${name}?links=x&viewCode=${viewCode}`)).json();
     expect(disclosed.links[0].disclosed).toEqual({ handle: "alice", platformId: "1234567890123456789" });
     expect(disclosed.evidence).toContain("x_account_control");
+  });
+
+  it("shares a masked account with one reader, lists it, and takes it back", async () => {
+    // The whole permission loop against a real chain: only the enclave key can open the grant, only the
+    // wallet that holds the record can sign one, and revoking makes the account masked again.
+    const now = Math.floor(Date.now() / 1000);
+    // Alice already has an `x` record from an earlier test; renewing it takes the next nonce, and the
+    // renewal carries a fresh view code, which is the one this grant is for.
+    const { next } = await (await fetch(`${API}/v1/nonce?wallet=${user.account.address}&domain=x`)).json();
+    const intent = baseIntent(user.account, now, {
+      domain: "x",
+      optIn: true,
+      nonce: BigInt(next),
+      exp: BigInt(now + 3600),
+    });
+    const idToken = privy.mint({ sub: user.did, linked: user.linked, now });
+    const req = toWire(await signedAttestRequest(user.account, intent, idToken, 31337, deployment.multipass));
+    const attested = await (
+      await fetch(`${API}/v1/attest`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(req),
+      })
+    ).json();
+    expect(attested.error).toBeUndefined();
+    const viewCode = bytesToHex(eciesDecrypt(USER_KEY, attested.viewCode));
+    await fetch(`${API}/v1/cre/delivery`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-delivery-token": "e2e-delivery-token-0123456789" },
+      body: JSON.stringify(attested),
+    });
+
+    const name = `alice.${deployment.instanceParent}`;
+    const reader = privateKeyToAccount(`0x${"b0".repeat(32)}` as Hex);
+    const { publicKey } = await (await fetch(`${API}/v1/enclave-key`)).json();
+
+    // The view code travels encrypted to the enclave: the service that stores this cannot read it.
+    const box = eciesEncrypt(publicKey, hexToBytes(viewCode as Hex), new Uint8Array(32).fill(11));
+    const disclosure = {
+      name,
+      domains: ["x"],
+      audience: reader.address,
+      audienceName: "",
+      exp: BigInt(now + 3600),
+      boxesHash: hashBoxes([box]),
+    };
+    const grant = await (
+      await fetch(`${API}/v1/disclose`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          ...disclosure,
+          exp: disclosure.exp.toString(),
+          boxes: [box],
+          signature: await signDisclosure(
+            user.account,
+            disclosure,
+            discloseDomain(31337, deployment.multipass)
+          ),
+        }),
+      })
+    ).json();
+    expect(grant.ok).toBe(true);
+    const grantId = grant.id;
+
+    const opened = await (await fetch(`${API}/v1/disclose/${name}/x?reader=${reader.address}`)).json();
+    expect(opened.disclosed).toEqual({ handle: "alice", platformId: "1234567890123456789" });
+    // Addressed to one wallet: anyone else asking gets nothing, grant or no grant.
+    expect((await fetch(`${API}/v1/disclose/${name}/x`)).status).toBe(403);
+
+    const listed = await (await fetch(`${API}/v1/disclosures/${name}`)).json();
+    expect(listed.grants).toContainEqual({
+      id: grantId,
+      domains: ["x"],
+      audience: reader.address,
+      audienceName: "",
+      expiresAt: new Date((now + 3600) * 1000).toISOString(),
+    });
+
+    // A stranger cannot close someone else's account: the chain says who holds the record.
+    const stranger = await fetch(`${API}/v1/revoke`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        name,
+        grantId,
+        at: now.toString(),
+        signature: await signRevocation(
+          reader,
+          { name, grantId, at: BigInt(now) },
+          discloseDomain(31337, deployment.multipass)
+        ),
+      }),
+    });
+    expect(stranger.status).toBe(422);
+    expect((await fetch(`${API}/v1/disclose/${name}/x?reader=${reader.address}`)).status).toBe(200);
+
+    const at = Math.floor(Date.now() / 1000);
+    const revoked = await fetch(`${API}/v1/revoke`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        name,
+        grantId,
+        at: at.toString(),
+        signature: await signRevocation(
+          user.account,
+          { name, grantId, at: BigInt(at) },
+          discloseDomain(31337, deployment.multipass)
+        ),
+      }),
+    });
+    expect(revoked.status).toBe(200);
+    // Masked again: the reader who could open it a moment ago now gets the same answer as a stranger.
+    expect((await fetch(`${API}/v1/disclose/${name}/x?reader=${reader.address}`)).status).toBe(404);
+    expect((await (await fetch(`${API}/v1/disclosures/${name}`)).json()).grants).toEqual([]);
+  });
+
+  it("keeps a letter by its hash, serves it back, and still has it after a restart", async () => {
+    // The letter is the part that cannot fit on chain. What goes on chain is the hash, so the copy a
+    // reader is handed is checkable — and the copy has to outlive a deploy or the reference points at
+    // nothing.
+    const letter = "Alice ran infrastructure at Acme for three years. ".repeat(40);
+    const kept = await (
+      await fetch(`${API}/v1/letter`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ text: letter }),
+      })
+    ).json();
+    expect(kept.ref).toBe(`sha256:${kept.hash}`);
+
+    const read = await (await fetch(`${API}/v1/letter/${kept.hash}`)).json();
+    expect(read.text).toBe(letter);
+    // The hash is the whole point: anyone can check what they were given is what the record names.
+    expect(createHash("sha256").update(letter).digest("hex")).toBe(kept.hash);
+
+    await restartApi(API);
+    expect((await (await fetch(`${API}/v1/letter/${kept.hash}`)).json()).text).toBe(letter);
+  });
+
+  it("keeps a share across a restart, because a redeploy must not revoke anybody", async () => {
+    // The failure this guards against cost a live deployment its permissions: writes went to a
+    // directory the service could not keep, everything looked fine, and the grants were gone at the
+    // next deploy. Storage says it is durable — this proves it, with a grant of its own.
+    const storage = (await (await fetch(`${API}/healthz`)).json()).config.storage;
+    expect(storage).toMatchObject({ durable: true, writable: true, lastError: null });
+
+    const now = Math.floor(Date.now() / 1000);
+    const { next } = await (await fetch(`${API}/v1/nonce?wallet=${user.account.address}&domain=x`)).json();
+    const intent = baseIntent(user.account, now, {
+      domain: "x",
+      optIn: true,
+      nonce: BigInt(next),
+      exp: BigInt(now + 3600),
+    });
+    const idToken = privy.mint({ sub: user.did, linked: user.linked, now });
+    const req = toWire(await signedAttestRequest(user.account, intent, idToken, 31337, deployment.multipass));
+    const attested = await (
+      await fetch(`${API}/v1/attest`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(req),
+      })
+    ).json();
+    expect(attested.error).toBeUndefined();
+    const viewCode = bytesToHex(eciesDecrypt(USER_KEY, attested.viewCode));
+    await fetch(`${API}/v1/cre/delivery`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-delivery-token": "e2e-delivery-token-0123456789" },
+      body: JSON.stringify(attested),
+    });
+
+    const name = `alice.${deployment.instanceParent}`;
+    const { publicKey } = await (await fetch(`${API}/v1/enclave-key`)).json();
+    const box = eciesEncrypt(publicKey, hexToBytes(viewCode as Hex), new Uint8Array(32).fill(21));
+    const disclosure = {
+      name,
+      domains: ["x"],
+      audience: zeroAddress as Hex,
+      audienceName: "",
+      exp: BigInt(now + 3600),
+      boxesHash: hashBoxes([box]),
+    };
+    const grant = await (
+      await fetch(`${API}/v1/disclose`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          ...disclosure,
+          exp: disclosure.exp.toString(),
+          boxes: [box],
+          signature: await signDisclosure(
+            user.account,
+            disclosure,
+            discloseDomain(31337, deployment.multipass)
+          ),
+        }),
+      })
+    ).json();
+    expect(grant.ok).toBe(true);
+
+    await restartApi(API);
+
+    // Same grant, same id, still readable: nothing about a restart is a revocation.
+    const after = await (await fetch(`${API}/v1/disclosures/${name}`)).json();
+    expect(after.grants.map((g: { id: string }) => g.id)).toContain(grant.id);
+    expect((await fetch(`${API}/v1/disclose/${name}/x`)).status).toBe(200);
+  });
+
+  it("attests an account into the DNS domain it belongs to, and names it there", async () => {
+    // The platform namespace this deployment mounts: `x.com` under `www`, so the account reads as one.
+    const now = Math.floor(Date.now() / 1000);
+    const intent = baseIntent(user.account, now, { domain: "x.com", optIn: false, exp: BigInt(now + 3600) });
+    const idToken = privy.mint({ sub: user.did, linked: user.linked, now });
+    const req = toWire(await signedAttestRequest(user.account, intent, idToken, 31337, deployment.multipass));
+    const attested = await (
+      await fetch(`${API}/v1/attest`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(req),
+      })
+    ).json();
+    expect(attested.error).toBeUndefined();
+    expect(fromBytes32(attested.record.domainName)).toBe("x.com");
+    expect(fromBytes32(attested.record.name)).toBe("alice");
+
+    const delivered = await (
+      await fetch(`${API}/v1/cre/delivery`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-delivery-token": "e2e-delivery-token-0123456789" },
+        body: JSON.stringify(attested),
+      })
+    ).json();
+    expect(delivered.ok).toBe(true);
+
+    // The index reads its own write, so the account is named the moment the relay returns.
+    const dash = await (await fetch(`${API}/v1/wallet/${user.account.address}`)).json();
+    expect(dash.links.find((l: { domain: string }) => l.domain === "x.com")).toMatchObject({
+      name: "alice",
+      live: true,
+      ensName: `alice.com.x.www.${deployment.instanceParent}`,
+    });
+  });
+
+  it("names a private account after the person, and answers for it as the private branch", async () => {
+    // The account itself is a one-time pad on chain. The name says the holder of alice.<root> is on
+    // Telegram and stops there, which is the whole claim a verifier gets.
+    const now = Math.floor(Date.now() / 1000);
+    const intent = baseIntent(user.account, now, {
+      domain: "t.me",
+      optIn: true,
+      exp: BigInt(now + 3600),
+    });
+    const idToken = privy.mint({ sub: user.did, linked: user.linked, now });
+    const req = toWire(await signedAttestRequest(user.account, intent, idToken, 31337, deployment.multipass));
+    const attested = await (
+      await fetch(`${API}/v1/attest`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(req),
+      })
+    ).json();
+    expect(attested.error).toBeUndefined();
+    expect(attested.record.payload).not.toBe(`0x${"00".repeat(32)}`);
+
+    await (
+      await fetch(`${API}/v1/cre/delivery`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-delivery-token": "e2e-delivery-token-0123456789" },
+        body: JSON.stringify(attested),
+      })
+    ).json();
+
+    const dash = await (await fetch(`${API}/v1/wallet/${user.account.address}`)).json();
+    const link = dash.links.find((l: { domain: string }) => l.domain === "t.me");
+    const privateName = `alice.me.t.private-www.${deployment.instanceParent}`;
+    expect(link).toMatchObject({ optedIn: true, ensName: privateName });
+    // Nothing readable about the account is published: the stored name is the pad.
+    expect(link.name).toBe("");
+
+    const read = await (await fetch(`${API}/v1/verify/${privateName}`)).json();
+    expect(read).toMatchObject({ branch: "private", status: "active", wallet: user.account.address });
+    // The open branch has nothing to say about her: she never attested one there.
+    const open = await (await fetch(`${API}/v1/verify/alice.me.t.www.${deployment.instanceParent}`)).json();
+    expect(open.status).toBe("inactive");
+  });
+
+  it("mounts a namespace nobody deployed, on demand, for an ordinary mail host", async () => {
+    // `nowhere.test` is in no deploy list. A person with an address there attests, and the relay builds
+    // the levels, the instance and the mirror before handing back the signature.
+    const now = Math.floor(Date.now() / 1000);
+    const linked = [
+      { type: "wallet", address: user.account.address, chain_type: "ethereum" },
+      { type: "email", address: "alice@nowhere.test" },
+    ];
+    const idToken = privy.mint({ sub: user.did, linked, now });
+    const intent = baseIntent(user.account, now, {
+      domain: "nowhere.test",
+      optIn: false,
+      exp: BigInt(now + 3600),
+    });
+    const req = toWire(await signedAttestRequest(user.account, intent, idToken, 31337, deployment.multipass));
+    const attested = await (
+      await fetch(`${API}/v1/attest`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(req),
+      })
+    ).json();
+    expect(attested.error).toBeUndefined();
+    expect(fromBytes32(attested.record.name)).toBe("alice");
+
+    const { instances } = await (await fetch(`${API}/v1/instances`)).json();
+    const mounted = instances.find((i: { domain: string }) => i.domain === "nowhere.test");
+    expect(mounted).toMatchObject({
+      parentName: `test.nowhere.@.${deployment.instanceParent}`,
+      maskedParentName: `test.nowhere.private@.${deployment.instanceParent}`,
+    });
+
+    // And the record it was signed for goes through, which is the whole point of mounting first.
+    const delivered = await (
+      await fetch(`${API}/v1/cre/delivery`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-delivery-token": "e2e-delivery-token-0123456789" },
+        body: JSON.stringify(attested),
+      })
+    ).json();
+    expect(delivered.ok).toBe(true);
+  });
+
+  it("finds the person behind an account, and ranks people of a name by their references", async () => {
+    // The first step of referring someone, against a real chain: alice holds a name and a public `x`
+    // account, so both ways of looking for her have to arrive at the same person.
+    const found = await (await fetch(`${API}/v1/who?domain=x.com&handle=alice`)).json();
+    expect(found).toMatchObject({ found: true, wallet: user.account.address, candidate: "alice" });
+    expect(found.standing).toMatchObject({ claimed: true });
+
+    // An account nobody attested is simply absent — no guessing, no partial match.
+    const missing = await (await fetch(`${API}/v1/who?domain=x.com&handle=nobody-here`)).json();
+    expect(missing.found).toBe(false);
+
+    // And by name: every handle that looks like this, with the references each has received.
+    const search = await (await fetch(`${API}/v1/find?q=ali`)).json();
+    expect(search.matches.map((m: { handle: string }) => m.handle)).toContain("alice");
+    const alice = search.matches.find((m: { handle: string }) => m.handle === "alice");
+    expect(alice.received).toBeGreaterThanOrEqual(0);
+    expect(alice.claimed).toBe(true);
+  });
+
+  it("cannot find a private account without its view code, and finds it with one", async () => {
+    // The privacy claim, end to end: the chain holds a one-time pad, so the handle cannot be matched
+    // by anyone who was not given the code — and can be matched exactly by anyone who was.
+    const now = Math.floor(Date.now() / 1000);
+    const { next } = await (
+      await fetch(`${API}/v1/nonce?wallet=${user.account.address}&domain=telegram`)
+    ).json();
+    const intent = baseIntent(user.account, now, {
+      domain: "telegram",
+      optIn: true,
+      nonce: BigInt(next),
+      exp: BigInt(now + 3600),
+    });
+    const idToken = privy.mint({ sub: user.did, linked: user.linked, now });
+    const req = toWire(await signedAttestRequest(user.account, intent, idToken, 31337, deployment.multipass));
+    const attested = await (
+      await fetch(`${API}/v1/attest`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(req),
+      })
+    ).json();
+    expect(attested.error).toBeUndefined();
+    const viewCode = bytesToHex(eciesDecrypt(USER_KEY, attested.viewCode));
+    await fetch(`${API}/v1/cre/delivery`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-delivery-token": "e2e-delivery-token-0123456789" },
+      body: JSON.stringify(attested),
+    });
+
+    // As `fakeUser` writes it: the stored name is the username, not the person's root handle.
+    const handle = "alice_tg";
+    const blind = await (await fetch(`${API}/v1/who?domain=telegram&handle=${handle}`)).json();
+    expect(blind.found).toBe(false);
+    // Said plainly, because reporting "nobody" invites starting a second page for the same person.
+    expect(blind.note).toMatch(/private/i);
+
+    const withCode = await (
+      await fetch(`${API}/v1/who?domain=telegram&handle=${handle}&viewCode=${viewCode}`)
+    ).json();
+    expect(withCode).toMatchObject({ found: true, wallet: user.account.address });
   });
 
   it("provisions the candidate's vouch instance and lets a verified voucher write under it", async () => {
@@ -269,14 +678,14 @@ describe("api e2e", () => {
     });
     const bobToken = privy.mint({ sub: bob.did, linked: bob.linked, now });
 
-    // A statement needs the candidate's invitation: alice signs one, nobody else can.
+    // Anyone may write a statement: an invitation is evidence the candidate asked, never permission.
     const uninvited = toWire(
       await signedAttestRequest(bob.account, vouchIntent, bobToken, 31337, deployment.multipass)
     );
-    const refused = await post("/v1/attest", uninvited);
-    expect(refused.status).toBe(422);
-    expect((await refused.json()).error).toContain("needs the candidate's invitation");
+    expect((await post("/v1/attest", uninvited)).status).toBe(200);
 
+    // And an "invitation" bob signed for himself is worth nothing: only the wallet holding alice's
+    // name can say she asked, which this reads on chain.
     const forged = toWire(
       await signedAttestRequest(
         bob.account,
@@ -287,7 +696,7 @@ describe("api e2e", () => {
         await signedInvite(bob.account, "alice", now, 31337, deployment.multipass)
       )
     );
-    expect((await post("/v1/attest", forged)).status).toBe(422);
+    expect((await post("/v1/attest", forged)).status).toBe(200);
 
     const vouch = toWire(
       await signedAttestRequest(
@@ -308,19 +717,32 @@ describe("api e2e", () => {
     const delivered = await (await post("/v1/cre/delivery", attested, tok)).json();
     expect(delivered.ok).toBe(true);
 
+    // Alice's own invitation counts, so this reference is reported as one she asked for, and the
+    // signature travels with it for a verifier to check.
+    const listed = await (await fetch(`${API}/v1/vouches/alice`)).json();
+    const written = listed.vouches.find((v: { voucher: string }) => v.voucher === "bob");
+    expect(written.solicited).toBe(true);
+    expect(written.invite).toMatchObject({ handle: "alice" });
+
     // The index must answer for a record this service wrote a moment ago, with no poll in between.
     const health = await (await fetch(`${API}/healthz`)).json();
     expect(health.index).toMatchObject({ synced: true });
     const aw = await (await fetch(`${API}/v1/wallet/${user.account.address}`)).json();
     const bw = await (await fetch(`${API}/v1/wallet/${bob.account.address}`)).json();
-    console.log(
-      "DEBUG idx",
-      JSON.stringify(health.index),
-      "alice",
-      JSON.stringify({ n: aw.names, l: aw.links, g: aw.given }),
-      "bob",
-      JSON.stringify({ n: bw.names, l: bw.links, g: bw.given })
-    );
+    // Each wallet's dashboard, as the profile page reads it: the name held, the accounts attested and
+    // where each is named, and the references written.
+    expect(aw.names).toMatchObject([
+      { domain: "kju-is", name: "alice", live: true, ensName: `alice.${deployment.instanceParent}` },
+    ]);
+    const byDomain = new Map(aw.links.map((l: { domain: string }) => [l.domain, l]));
+    expect(byDomain.get("x")).toMatchObject({ optedIn: true, ensName: null, nameless: "private" });
+    expect(byDomain.get("x.com")).toMatchObject({
+      name: "alice",
+      ensName: `alice.com.x.www.${deployment.instanceParent}`,
+    });
+    expect(bw.given).toMatchObject([
+      { candidate: "alice", live: true, ensName: `bob.alice.${deployment.instanceParent}` },
+    ]);
     const vouches = await (await fetch(`${API}/v1/vouches/alice`)).json();
     expect(vouches.vouches).toHaveLength(1);
     expect(vouches.vouches[0]).toMatchObject({
@@ -543,6 +965,55 @@ describe("api e2e", () => {
    * else is in place — no invitation, no candidate name, no vouch instance — so if any of that is
    * really required, this fails.
    */
+  it("lets an ordinary person refer someone who has claimed nothing, and marks it unsolicited", async () => {
+    // The headline of the open model, end to end: no invitation, no organisation, and a subject who
+    // holds no name. The relay builds their vouch instance from the signed record, and the reference
+    // waits there for whoever claims the handle.
+    const now = Math.floor(Date.now() / 1000);
+    const REFERRER_KEY = "0x00000000000000000000000000000000000000000000000000000000000000cc" as const;
+    const referrer = fakeUser(REFERRER_KEY, "dave");
+    const post = (path: string, body: unknown, headers: Record<string, string> = {}) =>
+      fetch(`${API}${path}`, {
+        method: "POST",
+        headers: { "content-type": "application/json", ...headers },
+        body: JSON.stringify(body),
+      });
+
+    // Nobody holds "erin", so no invitation exists and none can.
+    expect((await (await fetch(`${API}/v1/name/${deployment.instanceDomain}/erin`)).json()).live).toBe(false);
+
+    const wire = toWire(
+      await signedAttestRequest(
+        referrer.account,
+        baseIntent(referrer.account, now, {
+          domain: "~erin",
+          handle: "dave",
+          payload: toBytes32("worked together 2020-23"),
+          exp: BigInt(now + 3600),
+        }),
+        privy.mint({ sub: referrer.did, linked: referrer.linked, now }),
+        31337,
+        deployment.multipass
+      )
+    );
+    const attested = await (await post("/v1/attest", wire)).json();
+    expect(attested.error).toBeUndefined();
+    const delivered = await (
+      await post("/v1/cre/delivery", attested, { "x-delivery-token": "e2e-delivery-token-0123456789" })
+    ).json();
+    expect(delivered.error ?? "").toBe("");
+    expect(delivered).toMatchObject({ ok: true });
+
+    // The reference stands, and says plainly that erin never asked for it.
+    const listed = await (await fetch(`${API}/v1/vouches/erin`)).json();
+    const written = listed.vouches.find((v: { voucher: string }) => v.voucher === "dave");
+    expect(written).toMatchObject({ statement: "worked together 2020-23", live: true, solicited: false });
+
+    // And erin is now findable as someone with a reference waiting, though she has claimed nothing.
+    const standing = await (await fetch(`${API}/v1/standing/erin`)).json();
+    expect(standing).toMatchObject({ claimed: false, received: 1 });
+  });
+
   it("lets an onboarded organisation write a letter before the person exists", async () => {
     const now = Math.floor(Date.now() / 1000);
     const ORG_KEY = "0x00000000000000000000000000000000000000000000000000000000000000aa" as const;

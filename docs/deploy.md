@@ -89,7 +89,8 @@ Sepolia addresses and placeholders for the secrets:
 | Variable | Value |
 |---|---|
 | `RPC_URL`, `CHAIN_ID` | Sepolia RPC, `11155111` |
-| `MULTIPASS`, `BRIDGE`, `FACTORY` | from `deployments/11155111.json` |
+| `MULTIPASS`, `BRIDGE`, `FACTORY`, `REGISTRY`, `PERMISSIONED_RESOLVER`, `UNIVERSAL_RESOLVER`, `NAMESPACE_FACTORY`, `ETH_REGISTRY`, `ETH_REGISTRAR`, `PAYMENT_TOKEN` | **optional**: the build fills every one from the deployment it ships for that chain id. Set one only to point at a different deployment |
+| `NAMESPACE_FACTORY` | `0x01c9c5cA5f9179b9Cce18Bb4b8542B448aCb6a59` — the factory holding the DNS namespace, without which platform accounts have no name |
 | `RELAYER_KEY` | funded relayer EOA (Privy server wallet later) |
 | `PRIVY_APP_ID`, `PRIVY_VERIFICATION_KEY_JWK` | app id, P-256 JWK from the JWKS endpoint |
 | `NAME_DOMAINS` | comma-separated instance domains |
@@ -179,3 +180,86 @@ under this deployment, so text records and aliases here are not safe against who
 Multipass ownership and the registrar are on the current operator, so records themselves cannot be
 forged. Fixing it means a fresh resolver proxy and fresh instances, which changes every instance
 address; until then treat this deployment as a demo.
+
+## The DNS namespace
+
+Sepolia carries two factories. The original one made the root instance and the flat platform mounts;
+`0x01c9c5cA5f9179b9Cce18Bb4b8542B448aCb6a59` carries the DNS namespace described in
+[namespace.md](namespace.md), because the first predates `createMirror` and cannot build it. The bridge
+keeps using the original and skips quietly for domains it does not know, so records written into the new
+instances go through unchanged. The API reads both, and the later one wins for a domain both know.
+
+Adding a platform or a mail host later is one re-runnable command:
+
+```bash
+DEPLOYMENT_FILE=deployments/11155111.json FACTORY=0x01c9c5cA5f9179b9Cce18Bb4b8542B448aCb6a59 \
+REGISTRAR=0x8583AD4a0F59Ba45C7E201318C6F774F31f7bbC8 PRIVATE_KEY=$OPERATOR_KEY \
+WWW_NAMES=reddit.com AT_NAMES=proton.me \
+forge script script/AddNamespace.s.sol --rpc-url $SEPOLIA_RPC --broadcast
+```
+
+Deployed so far: `x.com`, `github.com`, `google.com`, `discord.com`, `linkedin.com`, `t.me` under `www`,
+and `gmail.com`, `peeramid.xyz` under the at-sign level, each with its private mirror. The whole set cost
+about 0.054 ETH. Every domain's registrar is `0x8583AD4a0F59Ba45C7E201318C6F774F31f7bbC8`, so the API
+signs for them only once its `REGISTRAR_KEY` is the key deriving that address.
+
+## Reading a deployment from outside
+
+`GET /healthz` reports what the process is pointed at: every contract address it holds, the name domains,
+the deploy block, which secrets are set (never their values), and which optional variables are missing.
+The RPC URL is deliberately absent because it carries an API key.
+
+```bash
+curl -s $API/healthz | jq .config
+```
+
+Most deployment problems are one variable naming the wrong contract, and this is how to see that without
+shell access to the container. `GET /v1/preflight` goes further and checks the chain agrees.
+
+## Getting a test `.eth`
+
+`linkOwnName` only accepts a label the caller owns on the ENSv2 registry, which on a test deployment
+nobody does. The dashboard offers to register one, from the person's own wallet: mint the mock payment
+token, approve it, commit, wait, register. `/v1/instances` publishes `ethRegistrar` and `paymentToken`
+so the browser can do it, and the registration itself never touches the relay.
+
+Three details the ENSv2 Sepolia registrar does not document, each found the hard way:
+
+- `register` reverts with **no reason at all** when both the subregistry and the resolver are zero, so a
+  resolver is always passed.
+- It mints **only to its caller**: `register(..., owner, ...)` with an owner other than `msg.sender`
+  reverts, again with no data.
+- The minted name **does not transfer** — `safeTransferFrom` on the registry reverts — so a relay cannot
+  register on someone's behalf and hand it over. That is why this is a wallet flow rather than an API.
+
+A deployment made before the resolver learned to answer for its own children only should be rebuilt:
+`script/SetRootResolver.s.sol` repairs the fallback, and re-running `script/DeployFactory.s.sol` plus
+`script/AddNamespace.s.sol` against the new factory replaces the instances and mirrors with ones that
+carry the check themselves. The grouping levels are reused, so only the mounts change.
+
+## Persistent storage (Coolify)
+
+The API keeps grants, gas top-ups and avatars under `DATA_DIR`, which the image sets to `/data`.
+Without a volume there, every permission and picture is lost on the next deployment.
+
+In Coolify, under **Persistent storage**, choose **Volume mount**:
+
+| Field | Value |
+| --- | --- |
+| Type | Volume mount |
+| Name | anything, e.g. `ketsuban-api-data` |
+| Destination path | `/data` |
+
+Not a *host* mount: a host directory is created root-owned and the service runs as `node`, so writes
+fail with `EACCES`. The image creates `/data` owned by `node` precisely so a named volume inherits that
+ownership.
+
+Confirm after deploying:
+
+```bash
+curl -s https://<api-host>/healthz | jq .config.storage
+# { "dataDir": "/data", "durable": true, "writable": true, "lastError": null }
+```
+
+`writable: false` means the mount is missing or owned by another user; the container log says the same
+at boot, and `/v1/preflight` carries it as a warning.

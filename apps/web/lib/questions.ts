@@ -5,3 +5,8 @@ export function questionFor(domain: string): string {
   };
   return known[domain] ?? `Your answer for ${domain} (a few words, permanent)`;
 }
+
+/** The same question with nothing appended: a heading, not a form label. */
+export function questionTitle(domain: string): string {
+  return questionFor(domain).replace(/\s*\([^)]*\)\s*$/, "");
+}

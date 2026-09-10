@@ -1,4 +1,5 @@
-import { mkdtempSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -26,8 +27,9 @@ import {
   discloseDomain,
   eciesDecrypt,
   eciesEncrypt,
-  hashBox,
+  hashBoxes,
   signDisclosure,
+  signRevocation,
   type RegisterMessage,
 } from "@ketsuban/registrar";
 import {
@@ -62,6 +64,9 @@ const baseEnv = {
   REGISTRAR_KEY: "0x000000000000000000000000000000000000000000000000000000000000b0b0",
   VIEWCODE_KEY: "0x1111111111111111111111111111111111111111111111111111111111111111",
   DELIVERY_TOKEN: "0123456789abcdef0123456789abcdef",
+  // Keep the persistent stores in memory: the default is the container's `/data`, and a test that logs
+  // `EACCES: mkdir '/data'` reads like a failure while asserting the opposite.
+  DATA_DIR: "",
 };
 
 const instance: Instance = {
@@ -70,6 +75,24 @@ const instance: Instance = {
   resolver: "0x8e80FFe6Dc044F4A766Afd6e5a8732Fe0977A493",
   parentName: "kju-is.eth",
   parentLabel: "kju-is",
+};
+
+/** The platform this deployment mounts, which is what makes `x` writable at all. */
+const xInstance: Instance = {
+  ...instance,
+  domain: "x",
+  parentName: "x.kju-is.eth",
+  parentLabel: "x",
+};
+
+/** The same platform mounted at its DNS name, with the private branch the mirror gives it. */
+const xComInstance: Instance = {
+  ...instance,
+  domain: "x.com",
+  parentName: "com.x.www.kju-is.eth",
+  parentLabel: "com",
+  maskedParentName: "com.x.private-www.kju-is.eth",
+  maskedResolver: "0x2222222222222222222222222222222222222222" as const,
 };
 
 /** A provisioned vouch instance for alice, as the relay creates it. */
@@ -85,6 +108,8 @@ type State = {
   records: Record<string, { exists: boolean; nonce: bigint; id: Hex; wallet: Address }>;
   texts: Record<string, string>;
   addr: Address;
+  /** What a particular name resolves to, when the test needs two names to answer differently */
+  addrByName: Record<string, Address>;
   data: Record<string, Hex>;
   listed: Record<string, ListedRecord[]>;
   instancesCreated: string[];
@@ -97,6 +122,8 @@ type State = {
   preflight: Preflight;
   ready: Record<string, { initialised: boolean; active: boolean; registrarOk: boolean }>;
   reverse: Record<string, string>;
+  /** What ENS itself answers for the address, which only its holder can set */
+  primary: string | null;
 };
 
 function fakeChain(state: Partial<State> = {}) {
@@ -104,14 +131,16 @@ function fakeChain(state: Partial<State> = {}) {
     records: {},
     texts: {},
     addr: zeroAddress,
+    addrByName: {},
     data: {},
     listed: {},
     instancesCreated: [],
     byWallet: [],
     names: {},
     reverse: {},
+    primary: null,
     ready: {},
-    instances: [instance],
+    instances: [instance, xInstance],
     preflight: {
       ok: true,
       bridge: { address: baseEnv.BRIDGE as Address, deployed: true, missing: [] },
@@ -123,6 +152,7 @@ function fakeChain(state: Partial<State> = {}) {
         ],
       },
       factory: { address: baseEnv.FACTORY as Address, deployed: true, instances: ["kju-is"] },
+      namespaceFactory: null,
       registrar: { signsAs: registrar.address, onchain: [registrar.address] },
       relayer: { address: registrar.address, balance: "1000000000000000000" },
       warnings: [],
@@ -156,7 +186,7 @@ function fakeChain(state: Partial<State> = {}) {
     resolveText: vi.fn(
       async (_r: Address, name: string, key: string) => s.texts[`${name}/${key}`] ?? s.texts[key] ?? ""
     ),
-    resolveAddr: vi.fn(async () => s.addr),
+    resolveAddr: vi.fn(async (_resolver: Address, name: string) => s.addrByName[name] ?? s.addr),
     reverseName: vi.fn(async (_r: Address, wallet: Address) => s.reverse[wallet.toLowerCase()] ?? ""),
     resolveUniversal: vi.fn(async (name: string, keys: string[]) => {
       if (s.universal instanceof Error) throw s.universal;
@@ -177,6 +207,7 @@ function fakeChain(state: Partial<State> = {}) {
         s.names[`${domain}/${handle}`] ?? { taken: false, wallet: null, live: false }
     ),
     listRecordsByWallet: vi.fn(async () => s.byWallet),
+    primaryName: vi.fn(async () => s.primary),
     recordFor: vi.fn(async (wallet: Address, domain: string) =>
       s.byWallet.find((r) => r.domain === domain && r.wallet.toLowerCase() === wallet.toLowerCase())
     ),
@@ -316,7 +347,7 @@ describe("GET /healthz", () => {
     const { chain } = fakeChain();
     const res = await app(chain).request("/healthz");
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    expect(await res.json()).toMatchObject({
       ok: true,
       relayer: chain.relayer,
       chainId: 31337,
@@ -324,14 +355,45 @@ describe("GET /healthz", () => {
     });
   });
 
+  it("reports the addresses it was configured with, and which secrets are set", async () => {
+    // Half of every deployment problem is an environment variable pointing at the wrong contract, so
+    // the health endpoint says what this process is actually using. Values of secrets never appear.
+    const { chain } = fakeChain();
+    const body = await (
+      await app(chain, { ...baseEnv, NAMESPACE_FACTORY: baseEnv.FACTORY, ETH_REGISTRY: baseEnv.BRIDGE })
+    )
+      .request("/healthz")
+      .then((r) => r.json());
+
+    expect(body.config).toMatchObject({
+      chainId: 31337,
+      multipass: baseEnv.MULTIPASS,
+      bridge: baseEnv.BRIDGE,
+      factory: baseEnv.FACTORY,
+      namespaceFactory: baseEnv.FACTORY,
+      ethRegistry: baseEnv.BRIDGE,
+      nameDomains: ["kju-is", "uni"],
+    });
+    expect(body.config.secrets).toMatchObject({ registrarKey: true, viewcodeKey: true, relayerKey: true });
+    // What is not set is as useful as what is, and no value is ever echoed.
+    expect(body.config.missing).toContain("UNIVERSAL_RESOLVER");
+    expect(JSON.stringify(body)).not.toContain(baseEnv.RELAYER_KEY);
+    expect(JSON.stringify(body)).not.toContain("rpcUrl");
+  });
+
   it("GET /v1/instances lists instances with the contracts a wallet writes to", async () => {
     const { chain } = fakeChain();
     const res = await app(chain).request("/v1/instances");
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
-      instances: [instance],
+      instances: [instance, xInstance],
       bridge: baseEnv.BRIDGE,
       permissionedResolver: null,
+      // The registry the bridge checks for "bring your own .eth"; null when none is configured.
+      ethRegistry: null,
+      // The browser registers a name itself: the registrar mints only to its caller.
+      ethRegistrar: null,
+      paymentToken: null,
     });
     const withResolver = createApp({
       config: loadConfig({ ...baseEnv, PERMISSIONED_RESOLVER: baseEnv.FACTORY }),
@@ -566,6 +628,7 @@ describe("GET /v1/verify/:name", () => {
     expect(body).toEqual({
       name: "nobody.kju-is.eth",
       instance: { domain: "kju-is", parentName: "kju-is.eth" },
+      branch: "open",
       status: "inactive",
       wallet: null,
       answer: null,
@@ -632,10 +695,13 @@ describe("GET /v1/verify/:name", () => {
       {
         domain: "x",
         optedIn: true,
+        // The flat mount has no private branch, so a masked account there has no name to offer.
+        ensName: null,
         commitment: masked.payload,
         disclosed: { handle: "alice_x", platformId: "42" },
       },
-      { domain: "telegram", optedIn: false },
+      // Telegram is not mounted in this deployment, so there is no name to check either.
+      { domain: "telegram", optedIn: false, ensName: null },
     ]);
     expect(body.evidence).toEqual([
       "wallet_binding",
@@ -668,16 +734,28 @@ describe("GET /v1/verify/:name", () => {
     const body = await (
       await app(chain).request(`/v1/verify/alice.kju-is.eth?links=x&viewCode=${keccak256("0x03")}`)
     ).json();
-    expect(body.links).toEqual([{ domain: "x", optedIn: true, commitment: viewCodeCommitment(viewCode) }]);
+    expect(body.links).toEqual([
+      { domain: "x", optedIn: true, ensName: null, commitment: viewCodeCommitment(viewCode) },
+    ]);
   });
 });
 
 describe("locate", () => {
   it("matches the longest known parent and rejects nested labels", () => {
-    expect(locate("alice.kju-is.eth", [instance])).toEqual({ handle: "alice", instance });
+    expect(locate("alice.kju-is.eth", [instance])).toEqual({
+      handle: "alice",
+      instance,
+      resolver: instance.resolver,
+    });
     expect(locate("a.b.kju-is.eth", [instance])).toBeUndefined();
     expect(locate("kju-is.eth", [instance])).toBeUndefined();
     expect(locate("x.other.eth", [instance])).toBeUndefined();
+    // A private-branch name belongs to the mirror, which answers as the person.
+    expect(locate(`alice.${xComInstance.maskedParentName}`, [instance, xComInstance])).toMatchObject({
+      handle: "alice",
+      resolver: xComInstance.maskedResolver,
+      masked: true,
+    });
   });
 });
 
@@ -731,22 +809,33 @@ describe("GET /v1/vouches/:handle", () => {
         {
           voucher: "bob",
           voucherName: "bob.kju-is.eth",
+          // The reference is a name of its own, in the candidate's namespace.
+          ensName: "bob.alice.kju-is.eth",
           wallet: user.account.address,
           statement: "worked together 2019-22",
           validUntil: "2027-01-15T08:00:00.000Z",
           nonce: "1",
           live: true,
+          // Nobody invited these in this fixture: anyone may refer anyone, and the card says which
+          // references the candidate actually asked for.
+          solicited: false,
+          invite: null,
+          letterHash: null,
           standing: { claimed: true, given: 2, received: 2 },
           letter: "Bob managed the platform team at Acme while Alice led infra.",
         },
         {
           voucher: "carol",
           voucherName: "carol.kju-is.eth",
+          ensName: "carol.alice.kju-is.eth",
           wallet: zeroAddress,
           statement: "revoked",
           validUntil: "2023-11-14T22:13:20.000Z",
           nonce: "2",
           live: false,
+          solicited: false,
+          invite: null,
+          letterHash: null,
           standing: null,
           letter: null,
         },
@@ -758,6 +847,373 @@ describe("GET /v1/vouches/:handle", () => {
     expect(chain.nameStatus).not.toHaveBeenCalledWith("kju-is", "carol");
     expect((await app(chain).request("/v1/vouches/Not%20Valid")).status).toBe(400);
     expect((await (await app(chain).request("/v1/vouches/nobody")).json()).vouches).toEqual([]);
+  });
+});
+
+describe("an address written with the wrong casing", () => {
+  it("is normalised rather than carried until viem refuses it", async () => {
+    // EIP-55 casing is a checksum. An address pasted from a explorer in lower case, or mis-cased in a
+    // deployment file, is still the same address — but viem rejects it at the call, which surfaces as
+    // a 502 from a read rather than as a configuration error anyone can act on.
+    const lower = "0x4a1817d13e9cf196f471725176355c1234b63c70";
+    const { chain } = fakeChain();
+    const a = createApp({
+      config: loadConfig({ ...baseEnv, UNIVERSAL_RESOLVER: lower }),
+      chain,
+      now: () => NOW,
+    });
+    const health = await (await a.request("/healthz")).json();
+    expect(health.config.universalResolver).toBe("0x4A1817d13E9cF196f471725176355C1234b63C70");
+  });
+
+  it("still refuses something that is not an address at all", () => {
+    expect(() => loadConfig({ ...baseEnv, UNIVERSAL_RESOLVER: "0xnope" })).toThrow();
+  });
+});
+
+describe("an invitation behind a short code", () => {
+  const wire = async (over: object = {}) => {
+    const invite = await signedInvite(user.account, "alice", NOW, 31337, baseEnv.MULTIPASS as Hex, over);
+    return { ...invite, exp: invite.exp.toString() };
+  };
+  const post = (app: ReturnType<typeof createApp>, body: object) =>
+    app.request("/v1/invite", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+  it("hands back a code short enough to read out, and gives the invitation back for it", async () => {
+    // A base64 invitation makes a link nobody can paste into a message without it wrapping.
+    const dir = mkdtempSync(join(tmpdir(), "ketsuban-invites-"));
+    // Only the wallet holding the name can invite on its behalf, so the fixture has to hold it.
+    const { chain } = fakeChain({
+      names: { "kju-is/alice": { taken: true, wallet: user.account.address, live: true } },
+    });
+    const a = createApp({ config: loadConfig({ ...baseEnv, DATA_DIR: dir }), chain, now: () => NOW });
+
+    const res = await post(a, await wire());
+    const made = await res.json();
+    expect(made.error ?? "").toBe("");
+    expect(made.code).toMatch(/^[0-9a-z]{8}$/);
+
+    const back = await (await a.request(`/v1/invite/${made.code}`)).json();
+    expect(back.invite).toMatchObject({ handle: "alice", requires: [] });
+    // The signature comes back untouched: the code is a shortcut, never a substitute for it.
+    expect(back.invite.signature).toBe((await wire()).signature);
+  });
+
+  it("keeps what the candidate asked the writer to show", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "ketsuban-invites-req-"));
+    const { chain } = fakeChain({
+      names: { "kju-is/alice": { taken: true, wallet: user.account.address, live: true } },
+    });
+    const a = createApp({ config: loadConfig({ ...baseEnv, DATA_DIR: dir }), chain, now: () => NOW });
+    const made = await (await post(a, await wire({ requires: ["mit.edu", "linkedin.com"] }))).json();
+    const back = await (await a.request(`/v1/invite/${made.code}`)).json();
+    expect(back.invite.requires).toEqual(["mit.edu", "linkedin.com"]);
+  });
+
+  it("refuses an invitation nobody signed, so a code always stands for something real", async () => {
+    const { chain } = fakeChain();
+    const a = app(chain);
+    expect((await post(a, { handle: "alice", voucher: zeroAddress, exp: "1", requires: [] })).status).toBe(
+      400
+    );
+  });
+
+  it("says a code it does not hold is unknown, rather than answering with nothing", async () => {
+    const { chain } = fakeChain();
+    expect((await app(chain).request("/v1/invite/zzzzzzzz")).status).toBe(404);
+  });
+});
+
+describe("a letter too long to sit on chain", () => {
+  const long = "Alice ran infrastructure at Acme for three years. ".repeat(30);
+  const post = (app: ReturnType<typeof createApp>, body: object) =>
+    app.request("/v1/letter", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+  it("keeps the text by its own hash, and hands back the pointer a record can hold", async () => {
+    // A name holds 31 bytes and a text record costs gas by the byte. The letter lives here; what goes
+    // on chain is the hash of it, which is what makes the copy checkable rather than trusted.
+    const dir = mkdtempSync(join(tmpdir(), "ketsuban-letters-"));
+    const { chain } = fakeChain();
+    const a = createApp({ config: loadConfig({ ...baseEnv, DATA_DIR: dir }), chain, now: () => NOW });
+
+    const stored = await (await post(a, { text: long })).json();
+    expect(stored.ref).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(stored.hash).toBe(stored.ref.slice("sha256:".length));
+
+    const read = await (await a.request(`/v1/letter/${stored.hash}`)).json();
+    expect(read.text).toBe(long);
+    // Anyone can check the copy they were given is the one the record names.
+    expect(createHash("sha256").update(long).digest("hex")).toBe(stored.hash);
+  });
+
+  it("stores one copy of the same letter, however many times it is written", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "ketsuban-letters-same-"));
+    const { chain } = fakeChain();
+    const a = createApp({ config: loadConfig({ ...baseEnv, DATA_DIR: dir }), chain, now: () => NOW });
+    const one = await (await post(a, { text: long })).json();
+    const two = await (await post(a, { text: long })).json();
+    expect(one.hash).toBe(two.hash);
+  });
+
+  it("refuses an empty letter and one nobody could be asked to read", async () => {
+    const { chain } = fakeChain();
+    const a = app(chain);
+    expect((await post(a, { text: "" })).status).toBe(400);
+    expect((await post(a, { text: "x".repeat(20_001) })).status).toBe(413);
+  });
+
+  it("stops taking letters before an unauthenticated caller can fill the disk", async () => {
+    // Nothing gates this endpoint, and the same directory holds the grants and the avatars. Without a
+    // ceiling, anyone could take the whole deployment down by writing letters nobody asked for.
+    const dir = mkdtempSync(join(tmpdir(), "ketsuban-letters-full-"));
+    const { chain } = fakeChain();
+    const a = createApp({
+      config: loadConfig({ ...baseEnv, DATA_DIR: dir, LETTER_STORE_BYTES: "4000" }),
+      chain,
+      now: () => NOW,
+    });
+
+    // Each letter is distinct, so content-addressing cannot dedupe the pressure away.
+    for (let i = 0; i < 2; i++) {
+      expect((await post(a, { text: `${i} ${"x".repeat(1_500)}` })).status).toBe(200);
+    }
+    const full = await post(a, { text: `over ${"y".repeat(1_500)}` });
+    expect(full.status).toBe(507);
+    expect((await full.json()).error).toMatch(/full/i);
+
+    // A letter already held is still readable: the ceiling refuses new writes, it does not lose old ones.
+    const first = createHash("sha256")
+      .update(`0 ${"x".repeat(1_500)}`)
+      .digest("hex");
+    expect((await a.request(`/v1/letter/${first}`)).status).toBe(200);
+  });
+
+  it("says a letter it does not hold is missing, rather than answering with nothing", async () => {
+    const { chain } = fakeChain();
+    const missing = await app(chain).request(`/v1/letter/${"ab".repeat(32)}`);
+    expect(missing.status).toBe(404);
+  });
+
+  it("resolves the pointer on a reference, and says the copy matches the hash on chain", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "ketsuban-letters-vouch-"));
+    const { chain } = fakeChain({
+      listed: {
+        "~alice": [
+          {
+            name: "bob",
+            id: toBytes32("b"),
+            wallet: user.account.address,
+            payload: toBytes32("worked together"),
+            validUntil: 1_800_000_000n,
+            nonce: 1n,
+            live: true,
+          },
+        ],
+      },
+      instances: [instance, vouchInstance],
+      // The key the fake resolver answers on: `<name>/<key>`.
+      texts: {
+        "bob.alice.kju-is.eth/description": `sha256:${createHash("sha256").update(long).digest("hex")}`,
+      },
+    });
+    const a = createApp({ config: loadConfig({ ...baseEnv, DATA_DIR: dir }), chain, now: () => NOW });
+    await post(a, { text: long });
+
+    const listed = await (await a.request("/v1/vouches/alice")).json();
+    const bob = listed.vouches.find((v: { voucher: string }) => v.voucher === "bob");
+    expect(bob.letter).toBe(long);
+    expect(bob.letterHash).toBe(createHash("sha256").update(long).digest("hex"));
+  });
+});
+
+describe("GET /v1/instance/:domain — what people said under one name", () => {
+  const answer = (name: string, payload: string) => ({
+    name,
+    id: toBytes32(name),
+    wallet: user.account.address,
+    payload: toBytes32(payload),
+    validUntil: 1_800_000_000n,
+    nonce: 1n,
+    live: true,
+  });
+
+  it("lists the answers published under it, which is what the name is for", async () => {
+    // `kju-is.ketsuban.eth` is not an unclaimed person: it is where answers about one are published.
+    // Reporting "no record" there hides every answer anyone wrote.
+    const { chain } = fakeChain({
+      listed: { "kju-is": [answer("alice", "terrible dictator"), answer("bob", "no comment")] },
+      texts: { "kju-is.eth/description": "Answering tests affiliation with North Korean operators." },
+    });
+    const body = await (await app(chain).request("/v1/instance/kju-is")).json();
+    expect(body).toMatchObject({ domain: "kju-is", parentName: "kju-is.eth" });
+    expect(body.answers).toHaveLength(2);
+    expect(body.answers[0]).toMatchObject({
+      handle: "alice",
+      answer: "terrible dictator",
+      ensName: "alice.kju-is.eth",
+    });
+    // The purpose is published on the name itself, so it travels with the answers.
+    expect(body.description).toMatch(/North Korean/);
+  });
+
+  it("says an instance nobody mounted is not here, rather than answering with an empty list", async () => {
+    const { chain } = fakeChain();
+    expect((await app(chain).request("/v1/instance/nowhere")).status).toBe(404);
+  });
+
+  it("leaves out an answer that has lapsed, because it no longer says anything", async () => {
+    const { chain } = fakeChain({
+      listed: { "kju-is": [{ ...answer("alice", "terrible dictator"), live: false }] },
+    });
+    const body = await (await app(chain).request("/v1/instance/kju-is")).json();
+    expect(body.answers).toEqual([]);
+  });
+});
+
+describe("GET /v1/who — finding a person by an account", () => {
+  const bobOnX = {
+    name: "bob",
+    id: toBytes32("bx"),
+    wallet: user.account.address,
+    payload: zeroHash,
+    validUntil: 1_800_000_000n,
+    nonce: 1n,
+    live: true,
+  };
+
+  it("finds whoever attested an account publicly, and names their page", async () => {
+    const { chain } = fakeChain({
+      listed: { "x.com": [bobOnX] },
+      byWallet: [{ ...bobOnX, domain: "kju-is", name: "bobby" }],
+    });
+    const found = await (await app(chain).request("/v1/who?domain=x.com&handle=bob")).json();
+    expect(found).toMatchObject({
+      found: true,
+      domain: "x.com",
+      handle: "bob",
+      wallet: user.account.address,
+      // The person, not the account: a reference is written for whoever holds the account.
+      candidate: "bobby",
+    });
+  });
+
+  it("cannot find someone who attested privately, and says why rather than saying nobody", async () => {
+    // A masked record stores a one-time pad, so searching by handle cannot match it. Reporting this as
+    // "not found" would invite writing a second page for a person who already has one.
+    const masked = { ...bobOnX, name: maskName("bob", `0x${"5a".repeat(32)}`), payload: toBytes32("c") };
+    const { chain } = fakeChain({ listed: { "x.com": [masked] } });
+    const res = await (await app(chain).request("/v1/who?domain=x.com&handle=bob")).json();
+    expect(res.found).toBe(false);
+    expect(res.note).toMatch(/private/i);
+  });
+
+  it("finds a private account for whoever holds its view code", async () => {
+    // A view code is 32 bytes the candidate chose to hand over, so holding it is the permission. With
+    // it the masked name can be computed and matched exactly — no scanning, and nothing to guess.
+    const viewCode = `0x${"5a".repeat(32)}` as Hex;
+    // The chain holds the pad; the index also decodes it, which is lossy — so a lookup matches on the
+    // raw bytes, and the fixture has to carry them the way a real record does.
+    const masked = {
+      ...bobOnX,
+      name: "\ufffd\ufffd garbled",
+      rawName: maskName("bob", viewCode),
+      payload: viewCodeCommitment(viewCode),
+    };
+    const { chain } = fakeChain({
+      listed: { "x.com": [masked] },
+      byWallet: [{ ...bobOnX, domain: "kju-is", name: "bobby" }],
+    });
+    const a = app(chain);
+
+    const found = await (await a.request(`/v1/who?domain=x.com&handle=bob&viewCode=${viewCode}`)).json();
+    expect(found).toMatchObject({ found: true, candidate: "bobby" });
+
+    // The wrong code computes a different mask and matches nothing: the code is the whole gate.
+    const wrong = await (
+      await a.request(`/v1/who?domain=x.com&handle=bob&viewCode=0x${"11".repeat(32)}`)
+    ).json();
+    expect(wrong.found).toBe(false);
+    // And without one, the same account is unfindable, as it must be.
+    expect((await (await a.request("/v1/who?domain=x.com&handle=bob")).json()).found).toBe(false);
+  });
+
+  it("refuses a view code that is not one", async () => {
+    const { chain } = fakeChain({ listed: { "x.com": [] } });
+    expect((await app(chain).request("/v1/who?domain=x.com&handle=bob&viewCode=nope")).status).toBe(400);
+  });
+
+  it("says nothing was found for an account nobody has attested", async () => {
+    const { chain } = fakeChain({ listed: { "x.com": [] } });
+    const res = await (await app(chain).request("/v1/who?domain=x.com&handle=nobody")).json();
+    expect(res).toMatchObject({ found: false, domain: "x.com", handle: "nobody" });
+  });
+
+  it("refuses a search that names no account", async () => {
+    const { chain } = fakeChain();
+    expect((await app(chain).request("/v1/who?domain=x.com")).status).toBe(400);
+  });
+});
+
+describe("GET /v1/find — telling two people of the same name apart", () => {
+  const person = (name: string) => ({
+    name,
+    id: toBytes32(name),
+    wallet: user.account.address,
+    payload: zeroHash,
+    validUntil: 1_800_000_000n,
+    nonce: 1n,
+    live: true,
+  });
+  const vouch = (voucher: string) => ({ ...person(voucher), id: toBytes32(`v-${voucher}`) });
+
+  it("ranks people of a similar name by how many references they have received", async () => {
+    // Nothing enforces which `bob` is the real one. The one people have actually vouched for is the
+    // one they mean, and that becomes truer over time rather than being decided up front.
+    const { chain } = fakeChain({
+      listed: {
+        "kju-is": [person("bob"), person("bobby"), person("bob-the-second")],
+        "~bob": [vouch("carol")],
+        "~bobby": [vouch("carol"), vouch("dave"), vouch("erin")],
+        "~bob-the-second": [],
+      },
+      names: {
+        "kju-is/bob": { taken: true, wallet: user.account.address, live: true },
+        "kju-is/bobby": { taken: true, wallet: user.account.address, live: true },
+        "kju-is/bob-the-second": { taken: true, wallet: user.account.address, live: true },
+      },
+    });
+    const found = await (await app(chain).request("/v1/find?q=bob")).json();
+    expect(found.matches.map((m: { handle: string }) => m.handle)).toEqual([
+      "bobby",
+      "bob",
+      "bob-the-second",
+    ]);
+    expect(found.matches[0]).toMatchObject({ handle: "bobby", received: 3 });
+  });
+
+  it("matches on what was typed, not on everything in the domain", async () => {
+    const { chain } = fakeChain({ listed: { "kju-is": [person("bob"), person("carol")] } });
+    const found = await (await app(chain).request("/v1/find?q=car")).json();
+    expect(found.matches.map((m: { handle: string }) => m.handle)).toEqual(["carol"]);
+  });
+
+  it("answers with nothing to pick rather than an error when the name is new", async () => {
+    const { chain } = fakeChain({ listed: { "kju-is": [person("bob")] } });
+    const found = await (await app(chain).request("/v1/find?q=zebedee")).json();
+    expect(found).toEqual({ q: "zebedee", matches: [] });
+  });
+
+  it("refuses a search too short to mean anything", async () => {
+    const { chain } = fakeChain();
+    expect((await app(chain).request("/v1/find?q=a")).status).toBe(400);
   });
 });
 
@@ -773,7 +1229,8 @@ describe("POST /v1/attest — vouch invitations", () => {
   /** Alice holds her name, so her wallet is the one that may invite vouchers. */
   const aliceHolds = { names: { "kju-is/alice": { taken: true, wallet: user.account.address, live: true } } };
 
-  it("refuses a statement with no invitation and accepts one the candidate signed", async () => {
+  it("takes a statement from anyone, and remembers which ones the candidate asked for", async () => {
+    // Non-permissioned: a reference nobody asked for is still a reference, and it says so.
     const { chain } = fakeChain(aliceHolds);
     const a = app(chain);
     const idToken = privy.mint({ sub: user.did, linked: user.linked, now: NOW });
@@ -781,9 +1238,9 @@ describe("POST /v1/attest — vouch invitations", () => {
     const bare = toWire(
       await signedAttestRequest(user.account, vouchIntent(NOW), idToken, 31337, baseEnv.MULTIPASS as Hex)
     );
-    const refused = await post(a, "/v1/attest", bare);
-    expect(refused.status).toBe(422);
-    expect((await refused.json()).error).toContain("needs the candidate's invitation");
+    const uninvited = await post(a, "/v1/attest", bare);
+    expect(uninvited.status).toBe(200);
+    expect((await uninvited.json()).record.domainName).toBe(toBytes32("~alice"));
 
     const invited = toWire(
       await signedAttestRequest(
@@ -830,7 +1287,39 @@ describe("POST /v1/attest — vouch invitations", () => {
     expect(chain.readOnchain).toHaveBeenCalledWith(user.account.address, "org");
   });
 
-  it("refuses an invitation signed by someone who does not hold the candidate's name", async () => {
+  it("marks a reference the candidate invited, and carries the invitation for a reader to check", async () => {
+    const written = {
+      name: "bob",
+      id: toBytes32("b"),
+      wallet: user.account.address,
+      payload: toBytes32("worked together 2019-22"),
+      validUntil: 1_800_000_000n,
+      nonce: 1n,
+      live: true,
+    };
+    const { chain } = fakeChain({ ...aliceHolds, listed: { "~alice": [written] } });
+    const a = app(chain);
+    const invite = await signedInvite(user.account, "alice", NOW, 31337, baseEnv.MULTIPASS as Hex);
+    const wire = toWire(
+      await signedAttestRequest(
+        user.account,
+        { ...vouchIntent(NOW), handle: "bob" },
+        privy.mint({ sub: user.did, linked: user.linked, now: NOW }),
+        31337,
+        baseEnv.MULTIPASS as Hex,
+        invite
+      )
+    );
+    expect((await post(a, "/v1/attest", wire)).status).toBe(200);
+
+    const listed = await (await a.request("/v1/vouches/alice")).json();
+    const bob = listed.vouches.find((v: { voucher: string }) => v.voucher === "bob");
+    expect(bob.solicited).toBe(true);
+    // The signature travels with it: a verifier recovers the signer themselves rather than trusting us.
+    expect(bob.invite).toMatchObject({ handle: "alice", signature: invite.signature });
+  });
+
+  it("does not count an invitation signed by someone who does not hold the candidate's name", async () => {
     const { chain } = fakeChain(aliceHolds);
     const idToken = privy.mint({ sub: user.did, linked: user.linked, now: NOW });
     const wire = toWire(
@@ -843,15 +1332,18 @@ describe("POST /v1/attest — vouch invitations", () => {
         await signedInvite(registrar, "alice", NOW, 31337, baseEnv.MULTIPASS as Hex)
       )
     );
+    // Anyone can sign an "invitation" from themselves; only the wallet holding alice's name counts.
+    // The reference is still written — it simply does not get to claim she asked for it.
     const res = await post(app(chain), "/v1/attest", wire);
-    expect(res.status).toBe(422);
-    expect((await res.json()).error).toBe("invite: not signed by the candidate");
+    expect(res.status).toBe(200);
+    const listed = await (await app(chain).request("/v1/vouches/alice")).json();
+    expect(listed.vouches.every((v: { solicited: boolean }) => !v.solicited)).toBe(true);
   });
 
-  it("a deployment may switch invitations off", async () => {
+  it("a deployment may switch invitations back on", async () => {
     const { chain } = fakeChain(aliceHolds);
     const open = createApp({
-      config: loadConfig({ ...baseEnv, REQUIRE_INVITE: "false" }),
+      config: loadConfig({ ...baseEnv, REQUIRE_INVITE: "true" }),
       chain,
       now: () => NOW,
     });
@@ -864,7 +1356,10 @@ describe("POST /v1/attest — vouch invitations", () => {
         baseEnv.MULTIPASS as Hex
       )
     );
-    expect((await post(open, "/v1/attest", wire)).status).toBe(200);
+    // Closed again: the uninvited are refused, as a deployment that asked for that expects.
+    const refused = await post(open, "/v1/attest", wire);
+    expect(refused.status).toBe(422);
+    expect((await refused.json()).error).toContain("needs the candidate's invitation");
   });
 });
 
@@ -918,13 +1413,14 @@ describe("POST /v1/submit", () => {
     expect(state.instancesCreated).toEqual(["nobody"]);
     expect(submitted).toHaveLength(1);
 
-    // A record in a domain that already has an instance provisions nothing.
-    const known = fakeChain();
-    await post(app(known.chain), "/v1/submit", {
+    // A name claimed in the root domain provisions that person's own vouch instance, so somebody can
+    // refer them straight away rather than only after the first reference arranges it.
+    const claimed = fakeChain();
+    await post(app(claimed.chain), "/v1/submit", {
       record: { ...record, domainName: toBytes32("kju-is") },
       signature: "0xabc",
     });
-    expect(known.state.instancesCreated).toEqual([]);
+    expect(claimed.state.instancesCreated).toEqual(["acme-university"]);
   });
 
   it("relays a registrar-signed record with no token, and reports a chain failure", async () => {
@@ -1012,6 +1508,40 @@ describe("POST /v1/org", () => {
   });
 });
 
+describe("the two ways a signed record is delivered", () => {
+  const rootRecord = () => ({
+    record: {
+      name: toBytes32("alice"),
+      id: toBytes32("a"),
+      domainName: toBytes32("kju-is"),
+      validUntil: String(NOW + 3600),
+      nonce: "1",
+      wallet: user.account.address,
+      payload: zeroHash,
+    },
+    signature: `0x${"11".repeat(65)}` as Hex,
+  });
+
+  it("provisions the same things whichever route delivered the record", async () => {
+    // The browser posts to /v1/submit and the enclave to /v1/cre/delivery. They write the same record,
+    // so anything one of them arranges the other has to arrange too — a claim that provisions a vouch
+    // instance on one path and not the other is a person nobody can refer until someone else tries.
+    const browser = fakeChain();
+    expect((await post(app(browser.chain), "/v1/submit", rootRecord())).status).toBe(200);
+
+    const enclave = fakeChain();
+    const viaEnclave = await app(enclave.chain).request("/v1/cre/delivery", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-delivery-token": baseEnv.DELIVERY_TOKEN as string },
+      body: JSON.stringify(rootRecord()),
+    });
+    expect(viaEnclave.status).toBe(200);
+
+    expect(browser.chain.ensureVouchInstance).toHaveBeenCalledWith("alice");
+    expect(enclave.chain.ensureVouchInstance).toHaveBeenCalledWith("alice");
+  });
+});
+
 describe("POST /v1/provision", () => {
   it("provisions the vouch instance for a live handle, is idempotent, and refuses the rest", async () => {
     const { chain, state } = fakeChain({
@@ -1062,6 +1592,7 @@ describe("GET /v1/preflight", () => {
         bridge: { address: baseEnv.BRIDGE as Address, deployed: true, missing: ["verify"] },
         multipass: { address: baseEnv.MULTIPASS as Address, deployed: true, domains: [] },
         factory: { address: baseEnv.FACTORY as Address, deployed: false, instances: [] },
+        namespaceFactory: null,
         registrar: { signsAs: registrar.address, onchain: [] },
         relayer: { address: registrar.address, balance: "0" },
         warnings: ["BRIDGE has no verify(): it predates this build"],
@@ -1069,7 +1600,8 @@ describe("GET /v1/preflight", () => {
     });
     const bad = await app(broken.chain).request("/v1/preflight");
     expect(bad.status).toBe(503);
-    expect((await bad.json()).warnings).toEqual(["BRIDGE has no verify(): it predates this build"]);
+    // The chain's own warnings come first; this deployment keeps nothing on disk, which is its own.
+    expect((await bad.json()).warnings[0]).toBe("BRIDGE has no verify(): it predates this build");
 
     const thrown = fakeChain();
     thrown.chain.preflight = vi.fn(async () => {
@@ -1144,7 +1676,7 @@ describe("disclosing a masked account", () => {
   const aliceName = "alice.kju-is.eth";
 
   /** A masked x record for alice, exactly as the attester writes one. */
-  function maskedChain() {
+  function maskedChain(addrByName: Record<string, Address> = {}) {
     const viewCode = `0x${"5a".repeat(32)}` as Hex;
     const record = {
       name: maskName("alice_x", viewCode),
@@ -1154,19 +1686,29 @@ describe("disclosing a masked account", () => {
     const packed = `0x${record.name.slice(2)}${record.id.slice(2)}${record.payload.slice(2)}` as Hex;
     const { chain } = fakeChain({
       addr: user.account.address,
+      addrByName,
       data: { [`ketsuban:link:x`]: packed },
     });
     return { chain, viewCode };
   }
 
-  async function grantFor(viewCode: Hex, over: Partial<{ audience: Address; exp: bigint }> = {}) {
-    const box = eciesEncrypt(ENCLAVE.publicKey, hexToBytes(viewCode), new Uint8Array(32).fill(3));
+  async function grantFor(
+    viewCode: Hex,
+    over: Partial<{ audience: Address; exp: bigint; domains: string[]; audienceName: string }> = {}
+  ) {
+    const domains = over.domains ?? ["x"];
+    // A fresh seed per box, as the browser does: two grants of the same account are two permissions,
+    // and a fixed seed would give them one id and make the second replace the first.
+    const boxes = domains.map(() =>
+      eciesEncrypt(ENCLAVE.publicKey, hexToBytes(viewCode), crypto.getRandomValues(new Uint8Array(32)))
+    );
     const disclosure = {
       name: aliceName,
-      domain: "x",
+      domains,
       audience: (over.audience ?? zeroAddress) as Address,
+      audienceName: over.audienceName ?? "",
       exp: over.exp ?? BigInt(NOW + 3600),
-      boxHash: hashBox(box),
+      boxesHash: hashBoxes(boxes),
     };
     const signature = await signDisclosure(
       user.account,
@@ -1176,10 +1718,253 @@ describe("disclosing a masked account", () => {
     return {
       ...disclosure,
       exp: disclosure.exp.toString(),
-      box,
+      boxes,
       signature,
     };
   }
+
+  async function revokeFor(over: Partial<{ at: bigint; signer: typeof user.account; grantId: Hex }> = {}) {
+    const revocation = {
+      name: aliceName,
+      grantId: over.grantId ?? (`0x${"00".repeat(32)}` as Hex),
+      at: over.at ?? BigInt(NOW),
+    };
+    const signature = await signRevocation(
+      over.signer ?? user.account,
+      revocation,
+      discloseDomain(31337, baseEnv.MULTIPASS as Hex)
+    );
+    return { ...revocation, at: revocation.at.toString(), signature };
+  }
+
+  it("shares several accounts under one signature, and lists each of them", async () => {
+    // Sharing three accounts is one decision: the reader gets one link either way, so the holder
+    // should not be asked to sign once per account.
+    const { chain, viewCode } = maskedChain();
+    const a = app(chain);
+    const stored = await post(a, "/v1/disclose", await grantFor(viewCode, { domains: ["discord.com", "x"] }));
+    expect(stored.status).toBe(200);
+    expect((await stored.json()).domains).toEqual(["discord.com", "x"]);
+
+    // One signature is one permission: it lists as one row naming both accounts, not as two.
+    const listed = await (await a.request(`/v1/disclosures/${aliceName}`)).json();
+    expect(listed.grants).toHaveLength(1);
+    expect(listed.grants[0].domains).toEqual(["discord.com", "x"]);
+    // Each account is reachable on its own: the reader asks about one, not about the selection.
+    expect((await a.request(`/v1/disclose/${aliceName}/x`)).status).toBe(200);
+  });
+
+  it("shares one account with two people without either share replacing the other", async () => {
+    // Two grants can name the same account. Keyed by account, the second would have overwritten the
+    // first, and the first reader would have lost access without anyone revoking anything.
+    const { chain, viewCode } = maskedChain();
+    const a = app(chain);
+    const bob = registrar.address;
+    const carol = user.account.address;
+    await post(a, "/v1/disclose", await grantFor(viewCode, { audience: bob }));
+    await post(a, "/v1/disclose", await grantFor(viewCode, { audience: carol }));
+
+    const listed = await (await a.request(`/v1/disclosures/${aliceName}`)).json();
+    expect(listed.grants).toHaveLength(2);
+    expect((await a.request(`/v1/disclose/${aliceName}/x?reader=${bob}`)).status).toBe(200);
+    expect((await a.request(`/v1/disclose/${aliceName}/x?reader=${carol}`)).status).toBe(200);
+
+    // Taking one back leaves the other standing: they were always separate permissions.
+    const first = listed.grants.find((g: { audience: string }) => g.audience === bob);
+    expect((await post(a, "/v1/revoke", await revokeFor({ grantId: first.id }))).status).toBe(200);
+    expect((await a.request(`/v1/disclose/${aliceName}/x?reader=${bob}`)).status).toBe(403);
+    expect((await a.request(`/v1/disclose/${aliceName}/x?reader=${carol}`)).status).toBe(200);
+  });
+
+  it("takes back the whole grant, because that is what was handed over", async () => {
+    // One link opened both accounts, so stopping that share stops both. Revoking half of a link the
+    // reader already holds would be a permission nobody granted.
+    const { chain, viewCode } = maskedChain();
+    const a = app(chain);
+    const wire = await grantFor(viewCode, { domains: ["discord.com", "x"] });
+    const { id } = await (await post(a, "/v1/disclose", wire)).json();
+
+    expect((await post(a, "/v1/revoke", await revokeFor({ grantId: id }))).status).toBe(200);
+    expect((await a.request(`/v1/disclose/${aliceName}/x`)).status).toBe(404);
+    expect((await a.request(`/v1/disclose/${aliceName}/discord.com`)).status).toBe(404);
+    expect((await (await a.request(`/v1/disclosures/${aliceName}`)).json()).grants).toEqual([]);
+  });
+
+  it("opens for whoever holds a name in the branch, and never on the reader's say-so", async () => {
+    // "Whoever at acme.com" is a group the holder cannot enumerate. The reader names a name they hold;
+    // this service resolves it on chain and refuses if it does not answer with their wallet.
+    const reader = registrar.address;
+    // Everyone in the `x` branch, which is a group alice cannot enumerate and never has to.
+    const inBranch = "bob.x.kju-is.eth";
+    const outsideBranch = "bob.kju-is.eth";
+    const { chain, viewCode } = maskedChain({ [inBranch]: reader, [outsideBranch]: reader });
+    const a = app(chain);
+    await post(a, "/v1/disclose", await grantFor(viewCode, { audienceName: "*.x.kju-is.eth" }));
+    const opened = await a.request(`/v1/disclose/${aliceName}/x?reader=${reader}&as=${inBranch}`);
+    expect(opened.status).toBe(200);
+    expect((await opened.json()).disclosed.handle).toBe("alice_x");
+
+    // Claiming a name is not holding it: the wallet the name resolves to has to be the caller's.
+    const impostor = await a.request(
+      `/v1/disclose/${aliceName}/x?reader=${user.account.address}&as=${inBranch}`
+    );
+    expect(impostor.status).toBe(403);
+    // And a name outside the branch is refused even when the caller really does hold it.
+    const outside = await a.request(`/v1/disclose/${aliceName}/x?reader=${reader}&as=${outsideBranch}`);
+    expect(outside.status).toBe(403);
+    // A reader who names nothing gets nothing, whatever their wallet.
+    expect((await a.request(`/v1/disclose/${aliceName}/x?reader=${reader}`)).status).toBe(403);
+  });
+
+  it("says on /healthz whether a share would survive a restart", async () => {
+    // Without DATA_DIR the grants live in memory only, so a redeploy silently drops every permission
+    // the holder made. That is worth saying out loud rather than discovering after the fact.
+    const { chain } = maskedChain();
+    const memory = await (await app(chain).request("/healthz")).json();
+    expect(memory.config.storage).toEqual({
+      dataDir: null,
+      durable: false,
+      writable: false,
+      lastError: null,
+    });
+
+    const dir = mkdtempSync(join(tmpdir(), "ketsuban-durable-"));
+    const onDisk = createApp({ config: loadConfig({ ...baseEnv, DATA_DIR: dir }), chain, now: () => NOW });
+    expect((await (await onDisk.request("/healthz")).json()).config.storage).toEqual({
+      dataDir: dir,
+      durable: true,
+      writable: true,
+      lastError: null,
+    });
+  });
+
+  it("warns in preflight when a share would not survive a restart, where the app will show it", async () => {
+    const { chain } = maskedChain();
+    const p = await (await app(chain).request("/v1/preflight")).json();
+    expect(p.warnings.join(" ")).toMatch(/DATA_DIR/);
+  });
+
+  it("reports a store it cannot write to, rather than losing shares quietly at the next restart", async () => {
+    // DATA_DIR pointing somewhere with no volume behind it: writes fail, everything looks fine until
+    // the service restarts, and every permission anyone granted is gone.
+    const file = join(mkdtempSync(join(tmpdir(), "ketsuban-unwritable-")), "a-file");
+    writeFileSync(file, "not a directory");
+    const { chain, viewCode } = maskedChain();
+    const a = createApp({
+      config: loadConfig({ ...baseEnv, DATA_DIR: join(file, "nope") }),
+      chain,
+      now: () => NOW,
+    });
+
+    await post(a, "/v1/disclose", await grantFor(viewCode));
+    const storage = (await (await a.request("/healthz")).json()).config.storage;
+    expect(storage.writable).toBe(false);
+    expect(storage.lastError).toMatch(/ENOTDIR|ENOENT|EACCES/);
+  });
+
+  it("drops a stored grant it cannot read, rather than losing the whole list to it", async () => {
+    // A grant written by an older build has no `domains`. Reviving it anyway put an unusable entry in
+    // the list, and every share the holder could see went with it.
+    const dir = mkdtempSync(join(tmpdir(), "ketsuban-stale-"));
+    const { chain, viewCode } = maskedChain();
+    const boot = () =>
+      createApp({ config: loadConfig({ ...baseEnv, DATA_DIR: dir }), chain, now: () => NOW });
+    const { id } = await (await post(boot(), "/v1/disclose", await grantFor(viewCode))).json();
+
+    const file = join(dir, "disclosures.json");
+    const saved = JSON.parse(readFileSync(file, "utf8"));
+    saved[`${aliceName}:legacy`] = {
+      name: aliceName,
+      domain: "x",
+      audience: zeroAddress,
+      exp: String(NOW + 3600),
+      boxHash: `0x${"aa".repeat(32)}`,
+      box: { ephemeralPubkey: "0x00", nonce: "0x00", ciphertext: "0x00" },
+      signature: "0x01",
+    };
+    writeFileSync(file, JSON.stringify(saved));
+
+    const after = boot();
+    const listed = await (await after.request(`/v1/disclosures/${aliceName}`)).json();
+    expect(listed.grants).toHaveLength(1);
+    expect(listed.grants[0].id).toBe(id);
+    // And the account it covers still opens: one unreadable row must not break the read either.
+    expect((await after.request(`/v1/disclose/${aliceName}/x`)).status).toBe(200);
+  });
+
+  it("lists what a name has shared, so the holder can see who can read it", async () => {
+    const { chain, viewCode } = maskedChain();
+    const a = app(chain);
+
+    // Nothing shared yet is an answer, not an error: the dashboard renders an empty list.
+    const none = await (await a.request(`/v1/disclosures/${aliceName}`)).json();
+    expect(none).toEqual({ name: aliceName, grants: [] });
+
+    await post(a, "/v1/disclose", await grantFor(viewCode, { audience: registrar.address }));
+    const listed = await (await a.request(`/v1/disclosures/${aliceName}`)).json();
+    expect(listed.grants).toHaveLength(1);
+    expect(listed.grants[0]).toMatchObject({
+      domains: ["x"],
+      audience: registrar.address,
+      audienceName: "",
+      expiresAt: new Date((NOW + 3600) * 1000).toISOString(),
+    });
+    // The listing must never carry the ciphertext or the signature: it is a summary, not the grant.
+    expect(JSON.stringify(listed)).not.toContain("ciphertext");
+    expect(JSON.stringify(listed)).not.toContain("signature");
+  });
+
+  it("drops a grant that has expired from the listing rather than showing dead permissions", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "ketsuban-revoke-"));
+    const { chain, viewCode } = maskedChain();
+    const at = (t: number) =>
+      createApp({ config: loadConfig({ ...baseEnv, DATA_DIR: dir }), chain, now: () => t });
+
+    await post(at(NOW), "/v1/disclose", await grantFor(viewCode, { exp: BigInt(NOW + 10) }));
+    expect((await (await at(NOW).request(`/v1/disclosures/${aliceName}`)).json()).grants).toHaveLength(1);
+
+    // Same stored grant, a clock past its expiry: the permission is gone as far as anyone can tell.
+    const later = at(NOW + 11);
+    expect((await (await later.request(`/v1/disclosures/${aliceName}`)).json()).grants).toEqual([]);
+    expect((await later.request(`/v1/disclose/${aliceName}/x`)).status).toBe(403);
+  });
+
+  it("takes a permission back when the holder signs for it, and refuses anyone else", async () => {
+    const { chain, viewCode } = maskedChain();
+    const a = app(chain);
+    const { id } = await (await post(a, "/v1/disclose", await grantFor(viewCode))).json();
+    expect((await a.request(`/v1/disclose/${aliceName}/x`)).status).toBe(200);
+
+    // A stranger cannot close someone else's account, and the grant keeps working after they try.
+    const stranger = await post(a, "/v1/revoke", await revokeFor({ grantId: id, signer: registrar }));
+    expect(stranger.status).toBe(422);
+    expect((await stranger.json()).error).toMatch(/holds the record/);
+    expect((await a.request(`/v1/disclose/${aliceName}/x`)).status).toBe(200);
+
+    const ok = await post(a, "/v1/revoke", await revokeFor({ grantId: id }));
+    expect(ok.status).toBe(200);
+    expect(await ok.json()).toEqual({ ok: true, name: aliceName, id, domains: ["x"] });
+    // The reader gets the same answer as someone who was never given anything.
+    expect((await a.request(`/v1/disclose/${aliceName}/x`)).status).toBe(404);
+    expect((await (await a.request(`/v1/disclosures/${aliceName}`)).json()).grants).toEqual([]);
+  });
+
+  it("refuses a stale revocation, so an old signature cannot undo a later share", async () => {
+    const { chain, viewCode } = maskedChain();
+    const a = app(chain);
+    const { id } = await (await post(a, "/v1/disclose", await grantFor(viewCode))).json();
+
+    const stale = await post(a, "/v1/revoke", await revokeFor({ grantId: id, at: BigInt(NOW - 3600) }));
+    expect(stale.status).toBe(422);
+    expect((await stale.json()).error).toMatch(/too old/);
+    expect((await a.request(`/v1/disclose/${aliceName}/x`)).status).toBe(200);
+  });
+
+  it("says so plainly when there is nothing to revoke", async () => {
+    const { chain } = maskedChain();
+    const gone = await post(app(chain), "/v1/revoke", await revokeFor());
+    expect(gone.status).toBe(404);
+  });
 
   it("publishes the key a candidate encrypts to", async () => {
     const { chain } = fakeChain();
@@ -1260,7 +2045,7 @@ describe("disclosing a masked account", () => {
 describe("GET /v1/ens/:name", () => {
   const ensApp = (chain: ChainReader) =>
     createApp({
-      config: loadConfig({ ...baseEnv, UNIVERSAL_RESOLVER: "0x4a1817d13E9cF196f471725176355c1234b63c70" }),
+      config: loadConfig({ ...baseEnv, UNIVERSAL_RESOLVER: "0x4A1817d13E9cF196f471725176355C1234b63C70" }),
       chain,
       now: () => NOW,
     });
@@ -1276,7 +2061,7 @@ describe("GET /v1/ens/:name", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
       name: "alice.kju-is.eth",
-      universalResolver: "0x4a1817d13E9cF196f471725176355c1234b63c70",
+      universalResolver: "0x4A1817d13E9cF196f471725176355C1234b63C70",
       resolver: "0x178ff1589Be8Af3B19426Aa1d2Bd07cd178E215e",
       addr: user.account.address,
       texts: { "ketsuban:answer": "terrible dictator", avatar: "ipfs://x" },
@@ -1407,7 +2192,9 @@ describe("GET /v1/reverse/:address", () => {
     const { chain } = fakeChain({ reverse: { [user.account.address.toLowerCase()]: "alice.kju-is.eth" } });
     const body = await (await app(chain).request(`/v1/reverse/${user.account.address}`)).json();
     expect(body.name).toBe("alice.kju-is.eth");
-    expect(body.names).toEqual([{ domain: "kju-is", name: "alice.kju-is.eth", resolver: instance.resolver }]);
+    expect(body.names).toEqual([
+      { domain: "kju-is", name: "alice.kju-is.eth", resolver: instance.resolver, kind: "name" },
+    ]);
     expect(body.note).toContain("not from a reverse registry");
     expect(chain.reverseName).toHaveBeenCalledWith(instance.resolver, user.account.address);
 
@@ -1418,7 +2205,306 @@ describe("GET /v1/reverse/:address", () => {
   });
 });
 
+describe("a domain nobody deployed yet", () => {
+  it("mounts the namespace once the attester agrees the account belongs to it", async () => {
+    // Nobody can enumerate every mail host, so the relay builds one on demand rather than telling a
+    // person with an ordinary address to come back later.
+    const { chain } = fakeChain({
+      ready: { "example.com": { initialised: false, active: false, registrarOk: true } },
+    });
+    chain.ensureNamespace = vi.fn(async (domain: string) => ({
+      domain,
+      created: true,
+      parentName: "com.example.@.kju-is.eth",
+    }));
+    const env2 = { ...baseEnv, NAMESPACE_FACTORY: baseEnv.FACTORY };
+    const res = await app(chain, env2).request("/v1/attest", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(await wireRequest({ domain: "example.com" })),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(fromBytes32(body.record.domainName)).toBe("example.com");
+    // Named by the label it takes inside that namespace, not by the whole address.
+    expect(fromBytes32(body.record.name)).toBe("alice");
+    expect(chain.ensureNamespace).toHaveBeenCalledWith("example.com");
+  });
+
+  it("does not spend for a request the attester refuses", async () => {
+    // The address belongs to example.com, so gmail.com must neither sign nor mount.
+    const { chain } = fakeChain({
+      ready: { "gmail.com": { initialised: false, active: false, registrarOk: true } },
+    });
+    chain.ensureNamespace = vi.fn(async (domain: string) => ({ domain, created: true, parentName: "x" }));
+    const res = await app(chain, { ...baseEnv, NAMESPACE_FACTORY: baseEnv.FACTORY }).request("/v1/attest", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(await wireRequest({ domain: "gmail.com" })),
+    });
+    expect(res.status).toBe(422);
+    expect((await res.json()).error).toContain("not an account at gmail.com");
+    expect(chain.ensureNamespace).not.toHaveBeenCalled();
+  });
+
+  it("says what failed when the mount does not go through, rather than handing back a dead signature", async () => {
+    const { chain } = fakeChain({
+      ready: { "example.com": { initialised: false, active: false, registrarOk: true } },
+    });
+    chain.ensureNamespace = vi.fn(async () => {
+      throw new Error("relayer out of gas");
+    });
+    const res = await app(chain, { ...baseEnv, NAMESPACE_FACTORY: baseEnv.FACTORY }).request("/v1/attest", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(await wireRequest({ domain: "example.com" })),
+    });
+    expect(res.status).toBe(503);
+    expect((await res.json()).error).toContain("could not mount");
+  });
+
+  it("still refuses a domain no account could belong to", async () => {
+    const { chain } = fakeChain({
+      ready: { myspace: { initialised: false, active: false, registrarOk: true } },
+    });
+    const res = await app(chain).request("/v1/attest", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(await wireRequest({ domain: "myspace" })),
+    });
+    expect(res.status).toBe(503);
+    expect((await res.json()).error).toContain("not initialised");
+  });
+});
+
+describe("a name in the private branch", () => {
+  it("is answered by the mirror, which knows only that the person has an account there", async () => {
+    // `alice.com.x.private-www.<root>` is the person's name in the private branch: it resolves to her
+    // wallet and her own records, and says nothing about which account she holds.
+    const { chain } = fakeChain({
+      instances: [instance, xComInstance],
+      addr: user.account.address,
+      texts: { "ketsuban:answer": "terrible dictator" },
+    });
+    const name = `alice.${xComInstance.maskedParentName}`;
+    const body = await (await app(chain).request(`/v1/verify/${name}`)).json();
+    expect(body.status).toBe("active");
+    expect(body.branch).toBe("private");
+    expect(body.wallet).toBe(user.account.address);
+    expect(body.answer).toBe("terrible dictator");
+    // Read through the mirror's resolver, not the platform's open one.
+    expect(chain.resolveAddr).toHaveBeenCalledWith(xComInstance.maskedResolver, name);
+  });
+
+  it("is not answered where the deployment has no private branch", async () => {
+    const { chain } = fakeChain({ instances: [instance, xInstance], addr: user.account.address });
+    const res = await app(chain).request("/v1/verify/alice.com.x.private-www.kju-is.eth");
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("a domain the chain already has", () => {
+  it("is attested without mounting anything, even where the deployment cannot mount", async () => {
+    // `discord.com` is live on Multipass. A deployment missing one address for mounting must not turn
+    // that into a refusal: the record is writable exactly as it is.
+    const { chain } = fakeChain({ instances: [instance, xInstance] });
+    chain.ensureNamespace = vi.fn(async () => {
+      throw new Error("a namespace needs NAMESPACE_FACTORY, REGISTRY, PERMISSIONED_RESOLVER");
+    });
+    const res = await app(chain, { ...baseEnv, NAMESPACE_FACTORY: baseEnv.FACTORY }).request("/v1/attest", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(await wireRequest({ domain: "example.com" })),
+    });
+    expect(res.status).toBe(200);
+    expect(chain.ensureNamespace).not.toHaveBeenCalled();
+  });
+});
+
+describe("what a verifier is shown without asking", () => {
+  it("looks for the accounts this deployment mounts, so nobody has to guess a domain list", async () => {
+    const { chain } = fakeChain({ instances: [instance, xComInstance], addr: user.account.address });
+    await app(chain).request(`/v1/verify/alice.${instance.parentName}`);
+    const asked = (chain.resolveData as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[2]);
+    expect(asked).toContain("ketsuban:link:x.com");
+    // The flat names stay in the list: records written before the namespace existed still count.
+    expect(asked).toContain("ketsuban:link:x");
+    // A name domain, the org and a vouch instance are not accounts and are never asked for.
+    expect(asked).not.toContain("ketsuban:link:kju-is");
+  });
+
+  it("names the evidence after the platform, not after the mount", async () => {
+    const { chain } = fakeChain({
+      instances: [instance, xComInstance],
+      addr: user.account.address,
+      data: {
+        "ketsuban:link:x.com": `0x${toBytes32("alice_x").slice(2)}${toBytes32("1").slice(2)}${zeroHash.slice(2)}`,
+      },
+    });
+    const body = await (await app(chain).request(`/v1/verify/alice.${instance.parentName}`)).json();
+    expect(body.branch).toBe("open");
+    expect(body.evidence).toContain("x_account_control");
+    // A name the verifier can check for themselves, in any ENS client.
+    expect(body.links).toContainEqual({
+      domain: "x.com",
+      optedIn: false,
+      ensName: "alice_x.com.x.www.kju-is.eth",
+    });
+  });
+
+  it("names a masked account after the person, so even a private link is checkable", async () => {
+    const masked = `0x${toBytes32("x").slice(2)}${toBytes32("1").slice(2)}${toBytes32("commit").slice(2)}`;
+    const { chain } = fakeChain({
+      instances: [instance, xComInstance],
+      addr: user.account.address,
+      data: { "ketsuban:link:x.com": masked },
+    });
+    const body = await (await app(chain).request(`/v1/verify/alice.${instance.parentName}`)).json();
+    expect(body.links[0]).toMatchObject({
+      domain: "x.com",
+      optedIn: true,
+      ensName: "alice.com.x.private-www.kju-is.eth",
+    });
+    // The account's own name is never published: only the person's.
+    expect(body.links[0].disclosed).toBeUndefined();
+  });
+});
+
+describe("GET /v1/eth-label/:label", () => {
+  it("says who owns the label on the registry the bridge checks", async () => {
+    // `linkOwnName` reverts with NotNameOwner for anyone else, and a name held on another ENS
+    // deployment is simply not here. Both answers are worth having before a wallet signs.
+    const { chain } = fakeChain();
+    chain.ethLabelOwner = vi.fn(async (label: string) =>
+      label === "alice" ? user.account.address : zeroAddress
+    );
+    const app2 = app(chain, { ...baseEnv, ETH_REGISTRY: baseEnv.BRIDGE });
+
+    const mine = await (await app2.request("/v1/eth-label/alice")).json();
+    expect(mine).toEqual({ label: "alice", registry: baseEnv.BRIDGE, owner: user.account.address });
+
+    const nobody = await (await app2.request("/v1/eth-label/test-account-123456")).json();
+    expect(nobody.owner).toBeNull();
+
+    expect((await app2.request("/v1/eth-label/not a label")).status).toBe(400);
+  });
+
+  it("says so when no registry is configured, instead of pretending nobody owns it", async () => {
+    const { chain } = fakeChain();
+    const res = await app(chain).request("/v1/eth-label/alice");
+    expect(res.status).toBe(501);
+  });
+});
+
+describe("GET /v1/reverse: what ENS itself says", () => {
+  it("reports the holder's own primary name, and that nobody here writes it", async () => {
+    // A wallet's primary name is set by its holder in ENS's reverse namespace. This deployment answers
+    // reverse lookups from the record regardless, so the two are worth telling apart.
+    const { chain } = fakeChain({
+      reverse: { [user.account.address.toLowerCase()]: "alice.kju-is.eth" },
+      primary: "alice.eth",
+    });
+    const body = await (await app(chain).request(`/v1/reverse/${user.account.address}`)).json();
+    expect(body.primary).toBe("alice.eth");
+    expect(body.name).toBe("alice.kju-is.eth");
+
+    const unset = fakeChain({ reverse: { [user.account.address.toLowerCase()]: "alice.kju-is.eth" } });
+    const without = await (await app(unset.chain).request(`/v1/reverse/${user.account.address}`)).json();
+    expect(without.primary).toBeNull();
+    expect(without.name).toBe("alice.kju-is.eth");
+  });
+});
+
+describe("GET /v1/reverse: the accounts are names too", () => {
+  it("lists what a wallet answers to, its own name and every account it attested", async () => {
+    // The dashboard and reverse resolution must agree: same records, same names, one rule.
+    const record = (domain: string, name: string, payload: string) => ({
+      domain,
+      name,
+      id: toBytes32(name),
+      wallet: user.account.address,
+      payload: toBytes32(payload),
+      validUntil: 1_800_000_000n,
+      nonce: 1n,
+      live: true,
+    });
+    const { chain } = fakeChain({
+      instances: [instance, xComInstance],
+      reverse: { [user.account.address.toLowerCase()]: "alice.kju-is.eth" },
+      byWallet: [
+        record("kju-is", "alice", "hi"),
+        record("x.com", "alice_x", ""),
+        record("x.com", "\u009f\u00c2", "commitment"),
+      ],
+    });
+    const body = await (await app(chain).request(`/v1/reverse/${user.account.address}`)).json();
+    expect(body.name).toBe("alice.kju-is.eth");
+    expect(body.names.map((n: { name: string; kind: string }) => [n.kind, n.name])).toEqual([
+      ["name", "alice.kju-is.eth"],
+      ["account", "alice_x.com.x.www.kju-is.eth"],
+      // The masked one is named after the person, and answered by the mirror.
+      ["private", "alice.com.x.private-www.kju-is.eth"],
+    ]);
+    expect(body.names[2].resolver).toBe(xComInstance.maskedResolver);
+  });
+});
+
 describe("GET /v1/wallet/:address", () => {
+  it("names a masked account after the person who holds it", async () => {
+    // The account's own name is a one-time pad over the handle, so the private branch names the person:
+    // the row says an account exists on X and never which one.
+    const masked = {
+      domain: "x.com",
+      name: "\u009f\u00c2\u00ab",
+      id: toBytes32("masked"),
+      wallet: user.account.address,
+      payload: toBytes32("commitment"),
+      validUntil: 1_800_000_000n,
+      nonce: 1n,
+      live: true,
+    };
+    const held = {
+      ...masked,
+      domain: "kju-is",
+      name: "alice",
+      id: toBytes32("alice"),
+      payload: toBytes32("hi"),
+    };
+    const { chain } = fakeChain({
+      instances: [instance, xComInstance],
+      byWallet: [held, masked],
+    });
+    const body = await (await app(chain).request(`/v1/wallet/${user.account.address}`)).json();
+    expect(body.links).toHaveLength(1);
+    expect(body.links[0]).toMatchObject({
+      domain: "x.com",
+      optedIn: true,
+      ensName: "alice.com.x.private-www.kju-is.eth",
+      nameless: null,
+    });
+  });
+
+  it("says a masked account is private when nothing names it", async () => {
+    // No private branch deployed, or no name held: the row must not invent one.
+    const { chain } = fakeChain({
+      instances: [instance, xInstance],
+      byWallet: [
+        {
+          domain: "x",
+          name: "\u009f",
+          id: toBytes32("masked"),
+          wallet: user.account.address,
+          payload: toBytes32("commitment"),
+          validUntil: 1_800_000_000n,
+          nonce: 1n,
+          live: true,
+        },
+      ],
+    });
+    const body = await (await app(chain).request(`/v1/wallet/${user.account.address}`)).json();
+    expect(body.links[0]).toMatchObject({ ensName: null, nameless: "private" });
+  });
+
   it("splits a wallet's records into names, links and references given", async () => {
     const rec = (
       domain: string,
@@ -1463,7 +2549,8 @@ describe("GET /v1/wallet/:address", () => {
         nonce: "1",
         live: true,
         optedIn: false,
-        ensName: null,
+        // The platform is mounted, so the account has a name to be read by.
+        ensName: "alice_x.x.kju-is.eth",
         nameless: null,
       },
     ]);
@@ -1737,5 +2824,163 @@ describe("POST /v1/gas", () => {
     expect((await res.json()).error).toMatch(/live name/);
     expect(state.sent).toEqual([]);
     expect(nameless.state.sent).toEqual([]);
+  });
+});
+
+describe("a deployment this build already knows", () => {
+  it("fills the addresses an operator did not set, without overriding the ones they did", async () => {
+    // Half of every deployment problem has been one address missing from an environment. The chain id
+    // is enough to know them: this build ships the deployment it was built against.
+    const { loadConfig } = await import("../../src/config.js");
+    const minimal = loadConfig({
+      RPC_URL: "https://rpc.example",
+      CHAIN_ID: "11155111",
+      RELAYER_KEY: baseEnv.RELAYER_KEY,
+      PRIVY_APP_ID: baseEnv.PRIVY_APP_ID,
+      PRIVY_VERIFICATION_KEY_JWK: baseEnv.PRIVY_VERIFICATION_KEY_JWK,
+      NAME_DOMAINS: "ketsuban",
+    });
+    expect(minimal.MULTIPASS).toBe("0x418F82fd0014a4CA402F145978bfaF0555a9cA06");
+    expect(minimal.PERMISSIONED_RESOLVER).toBe("0x4E2d9783cEFF2ed72CD77C14206b29fe246b24F7");
+    expect(minimal.NAMESPACE_FACTORY).toBeTruthy();
+    expect(minimal.ETH_REGISTRAR).toBeTruthy();
+
+    // What the operator sets still wins: a fork or a fresh deployment is theirs to name.
+    const overridden = loadConfig({
+      RPC_URL: "https://rpc.example",
+      CHAIN_ID: "11155111",
+      MULTIPASS: baseEnv.MULTIPASS,
+      RELAYER_KEY: baseEnv.RELAYER_KEY,
+      PRIVY_APP_ID: baseEnv.PRIVY_APP_ID,
+      PRIVY_VERIFICATION_KEY_JWK: baseEnv.PRIVY_VERIFICATION_KEY_JWK,
+      NAME_DOMAINS: "ketsuban",
+    });
+    expect(overridden.MULTIPASS).toBe(baseEnv.MULTIPASS);
+  });
+
+  it("says what is missing on a chain it ships nothing for", () => {
+    expect(() =>
+      loadConfig({ RPC_URL: "https://rpc.example", CHAIN_ID: "999999", RELAYER_KEY: baseEnv.RELAYER_KEY })
+    ).toThrow();
+  });
+});
+
+describe("GET /v1/explain/:name", () => {
+  it("says what a name would claim, by the same rule the app shows", async () => {
+    const { chain } = fakeChain({ instances: [instance, xComInstance] });
+    const ask = async (name: string) => (await app(chain).request(`/v1/explain/${name}`)).json();
+
+    expect(await ask("alice_x.com.x.www.kju-is.eth")).toMatchObject({
+      kind: "account",
+      domain: "x.com",
+      label: "alice_x",
+    });
+    expect(await ask("alice.com.x.private-www.kju-is.eth")).toMatchObject({ kind: "private" });
+    expect(await ask("alice.kju-is.eth")).toMatchObject({ kind: "person" });
+    expect(await ask("bob.alice.kju-is.eth")).toMatchObject({ kind: "reference" });
+    // An agent must be able to tell this from a name nobody happens to hold.
+    expect(await ask("alice.example.com")).toMatchObject({ kind: "unknown" });
+  });
+});
+
+describe("an empty setting means what it says", () => {
+  it("keeps nothing on disk when DATA_DIR is empty, rather than falling back to the container's path", () => {
+    // The merge with a known deployment used to drop every empty value, which silently turned "keep
+    // nothing" into "/data" — a path a test or a local run cannot write.
+    expect(loadConfig({ ...baseEnv, DATA_DIR: "" }).DATA_DIR).toBe("");
+    expect(loadConfig({ ...baseEnv, DATA_DIR: "/tmp/x" }).DATA_DIR).toBe("/tmp/x");
+    // An address is different: an empty value never blanks one the deployment supplied.
+    const filled = loadConfig({ ...baseEnv, CHAIN_ID: "11155111", MULTIPASS: "" });
+    expect(filled.MULTIPASS).toBe("0x418F82fd0014a4CA402F145978bfaF0555a9cA06");
+  });
+});
+
+describe("the avatar a profile points at", () => {
+  const png = () => {
+    // A one-pixel PNG: the magic number is what the service trusts, never the name or the header.
+    const bytes = Buffer.from(
+      "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000a49444154789c6360000002000100ffff03000006000557bfabd40000000049454e44ae426082",
+      "hex"
+    );
+    return new File([bytes], "me.png", { type: "image/png" });
+  };
+  const upload = (app: ReturnType<typeof createApp>, file: File) => {
+    const body = new FormData();
+    body.set("file", file);
+    return app.request("/v1/avatar", { method: "POST", body });
+  };
+
+  it("keeps a picture and serves it back at the URL a text record can hold", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "ketsuban-avatar-"));
+    const { chain } = fakeChain();
+    const a = createApp({ config: loadConfig({ ...baseEnv, DATA_DIR: dir }), chain, now: () => NOW });
+
+    const stored = await upload(a, png());
+    expect(stored.status).toBe(200);
+    const { url } = await stored.json();
+    // An absolute URL, because the record is read by ENS clients that never saw this app.
+    expect(url).toMatch(/^https?:\/\/.+\/v1\/avatar\/[0-9a-f]{64}\.png$/);
+
+    const served = await a.request(new URL(url).pathname);
+    expect(served.status).toBe(200);
+    expect(served.headers.get("content-type")).toBe("image/png");
+    // A picture is not a document: it must never be sniffed into one.
+    expect(served.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(Buffer.from(await served.arrayBuffer()).length).toBeGreaterThan(60);
+  });
+
+  it("names a picture by its own bytes, so the same one is stored once", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "ketsuban-avatar-dedupe-"));
+    const { chain } = fakeChain();
+    const a = createApp({ config: loadConfig({ ...baseEnv, DATA_DIR: dir }), chain, now: () => NOW });
+    const one = await (await upload(a, png())).json();
+    const two = await (await upload(a, png())).json();
+    expect(one.url).toBe(two.url);
+  });
+
+  it("refuses anything that is not a picture, whatever it calls itself", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "ketsuban-avatar-bad-"));
+    const { chain } = fakeChain();
+    const a = createApp({ config: loadConfig({ ...baseEnv, DATA_DIR: dir }), chain, now: () => NOW });
+
+    // An HTML page announcing itself as a PNG is the upload that matters: served back under a name a
+    // browser trusts, it would run as a page on this origin.
+    const html = new File([Buffer.from("<script>alert(1)</script>")], "me.png", { type: "image/png" });
+    const refused = await upload(a, html);
+    expect(refused.status).toBe(415);
+    expect((await refused.json()).error).toMatch(/picture/i);
+  });
+
+  it("refuses a picture too large to be an avatar", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "ketsuban-avatar-big-"));
+    const { chain } = fakeChain();
+    const a = createApp({ config: loadConfig({ ...baseEnv, DATA_DIR: dir }), chain, now: () => NOW });
+    const huge = new File([Buffer.alloc(2_000_001, 1)], "me.png", { type: "image/png" });
+    expect((await upload(a, huge)).status).toBe(413);
+  });
+
+  it("says the picture could not be kept, rather than failing with no reason at all", async () => {
+    // DATA_DIR set to a path with no volume behind it: the directory cannot be made, and an unhandled
+    // throw here is a 500 with nothing in it for whoever has to fix the deployment.
+    const file = join(mkdtempSync(join(tmpdir(), "ketsuban-avatar-ro-")), "a-file");
+    writeFileSync(file, "not a directory");
+    const { chain } = fakeChain();
+    const a = createApp({
+      config: loadConfig({ ...baseEnv, DATA_DIR: join(file, "nope") }),
+      chain,
+      now: () => NOW,
+    });
+    const refused = await upload(a, png());
+    expect(refused.status).toBe(503);
+    expect((await refused.json()).error).toMatch(/DATA_DIR/);
+  });
+
+  it("says so plainly when there is nowhere to keep it", async () => {
+    // Without DATA_DIR the picture would vanish on the next restart and the record would dangle.
+    const { chain } = fakeChain();
+    const a = createApp({ config: loadConfig({ ...baseEnv, DATA_DIR: "" }), chain, now: () => NOW });
+    const refused = await upload(a, png());
+    expect(refused.status).toBe(501);
+    expect((await refused.json()).error).toMatch(/DATA_DIR/);
   });
 });

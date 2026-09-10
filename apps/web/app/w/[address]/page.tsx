@@ -39,6 +39,8 @@ export default async function WalletPage({ params }: Params) {
   } catch (e) {
     error = (e as Error).message;
   }
+  // What ENS itself answers for this address, which its holder sets and nothing here can.
+  const ens = await api.reverse(address).catch(() => undefined);
 
   const names = read?.names ?? [];
   const live = names.filter((n) => n.live);
@@ -52,6 +54,21 @@ export default async function WalletPage({ params }: Params) {
         <p>
           <code>{address}</code>
         </p>
+        {ens && (
+          <p className="muted" data-testid="wallet-primary">
+            {ens.primary ? (
+              <>
+                ENS answers <code>{ens.primary}</code> for this address, because its holder set that as their
+                primary name.
+              </>
+            ) : (
+              <>
+                ENS answers nothing for this address: its holder has set no primary name. The names below come
+                from the records themselves.
+              </>
+            )}
+          </p>
+        )}
       </section>
 
       {error && (
@@ -95,6 +112,15 @@ export default async function WalletPage({ params }: Params) {
                   <span className="acct-who">{l.domain}</span>
                   <span className="acct-state">
                     {l.optedIn ? "masked — needs a view code to read" : `public: ${l.name}`}
+                    {/* The name it answers at, so a reader can check it without this page. */}
+                    {l.ensName && (
+                      <>
+                        {" · "}
+                        <Link href={`/v/${l.ensName}`}>
+                          <code>{l.ensName}</code>
+                        </Link>
+                      </>
+                    )}
                   </span>
                 </li>
               ))}

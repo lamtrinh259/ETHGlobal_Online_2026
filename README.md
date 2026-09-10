@@ -1,5 +1,7 @@
 # Ketsuban
 
+[![ci](https://github.com/lamtrinh259/ETHGlobal_Online_2026/actions/workflows/ci.yml/badge.svg)](https://github.com/lamtrinh259/ETHGlobal_Online_2026/actions/workflows/ci.yml)
+
 Non-deletable, human-verified references. A reference is a Multipass record whose registrar signature is produced
 inside a Chainlink CRE enclave from a Privy identity token and a wallet-signed intent; ENSv2 makes every record a
 name (`<handle>.<instance>.eth`) that any wallet or agent can resolve without integrating with us.
@@ -8,7 +10,34 @@ Any subject can be an instance — a question, a university cohort, an organisat
 argument, never a source artifact.
 
 Start with [docs/demo.md](docs/demo.md): the live Sepolia deployment, checkable with `curl` and with
-`cast` against the ENSv2 UniversalResolver.
+`cast` against the ENSv2 UniversalResolver. [docs/namespace.md](docs/namespace.md) explains what every
+name means and why a platform is mounted at its own DNS name, and
+[docs/troubleshooting.md](docs/troubleshooting.md) is what to read when something is wrong.
+
+Four claims worth checking, each without asking this service:
+
+| Claim | How to check it |
+|---|---|
+| A platform is the DNS name it is | `demo.com.x.www.ketsuban.eth` resolves; `nobody.com.x.www.ketsuban.eth` and `foo.demo.com.x.www.ketsuban.eth` do not |
+| A private account is named after the person, never itself | `<name>.com.discord.private-www.ketsuban.eth` answers only while both records are live, and says nothing about which account |
+| Profile fields are role-gated on chain | `setText(avatar)` from the holder is allowed; the same key from anyone else, and any other key from the holder, is refused by the resolver |
+| The signature is made in an enclave | `pnpm --filter @ketsuban/cre-attest simulate:dns` signs a record for `x.com` inside the TEE simulator |
+
+The app's own [/names](https://ketsuban.peeramid.xyz/names) page builds the same list from the mounts on
+chain, so it never drifts from what is deployed.
+
+## Checks
+
+The packages generate what the apps import — the registrar's types, and the errors ABI the contracts dump
+— so `pnpm --filter "./packages/**" run build` comes first in a fresh checkout. It is not an install hook
+on purpose: the container build installs before it copies any source, and a hook there fails with nothing
+to compile.
+
+`pnpm -w lint && pnpm -w typecheck && pnpm -w test` is the gate: every package runs its own tests, with
+coverage thresholds where the language has them. `pnpm --filter @ketsuban/api test:e2e` is the slow one —
+anvil, the contracts deployed from this source, and the API image, driven from outside. Both run on every
+push through `.github/workflows/ci.yml`, and the e2e needs no secrets: the identity issuer is faked from a
+seed.
 
 ## Packages
 

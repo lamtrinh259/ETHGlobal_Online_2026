@@ -45,14 +45,9 @@ contract AttestationReporter is IReceiver {
      */
     function onReport(bytes calldata metadata, bytes calldata report) external {
         if (msg.sender != FORWARDER) revert UnauthorizedForwarder(msg.sender);
-        (LibMultipass.Record memory rec, bytes memory registrarSig) =
-            abi.decode(report, (LibMultipass.Record, bytes));
+        (LibMultipass.Record memory rec, bytes memory registrarSig) = abi.decode(report, (LibMultipass.Record, bytes));
         LibMultipass.NameQuery memory query = LibMultipass.NameQuery({
-            domainName: rec.domainName,
-            wallet: address(0),
-            name: bytes32(0),
-            id: rec.id,
-            targetDomain: bytes32(0)
+            domainName: rec.domainName, wallet: address(0), name: bytes32(0), id: rec.id, targetDomain: bytes32(0)
         });
         (bool exists,) = MP.resolveRecord(query);
         LibMultipass.Domain memory domain = MP.getDomainState(rec.domainName);

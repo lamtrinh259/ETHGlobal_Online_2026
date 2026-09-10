@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import type { Address } from "viem";
 import { AttestFlow, type Published } from "@/app/AttestFlow";
+import { InviteTerms } from "./InviteTerms";
 import { LetterForm } from "./LetterForm";
 import { useWebConfig } from "@/app/providers";
 import { fmtUtc } from "@/app/ui";
@@ -13,6 +14,7 @@ import type { SignedInvite } from "@ketsuban/registrar";
 import type { Signer } from "@/lib/chain";
 import { WITHDRAWN } from "@ketsuban/registrar";
 import { VOUCH_PREFIX, voucherProgress, vouchSteps } from "@/lib/journey";
+import type { Ask } from "@/lib/asks";
 
 type Stage = "signin" | "onboarding" | "statement" | "done";
 
@@ -26,10 +28,13 @@ export function VouchFlow({
   candidate,
   invite,
   withdraw,
+  ask,
 }: {
   candidate: string;
   invite?: SignedInvite;
   withdraw?: boolean;
+  /** The reference the writer came to give, when they picked one from the popular asks */
+  ask?: Ask;
 }) {
   const config = useWebConfig();
   const root = config.instances[0];
@@ -40,7 +45,8 @@ export function VouchFlow({
   const wallet = embedded?.address as Address | undefined;
   const getSigner = async (): Promise<Signer> => {
     if (!embedded) throw new Error("no wallet");
-    await embedded.switchChain(config.chainId);
+    // A browser wallet can refuse this; the write path asks again and says which network to pick.
+    await embedded.switchChain(config.chainId).catch(() => undefined);
     return {
       provider: await embedded.getEthereumProvider(),
       account: embedded.address as Address,
@@ -83,7 +89,11 @@ export function VouchFlow({
 
       {loading && <p className="muted">loading…</p>}
 
-      {!loading && stage === "signin" && <AttestFlow fixedDomain="x" title="Sign in to begin" hideForm />}
+      {/* Signing in writes nothing, so the gate stands in the root name domain rather than a platform
+          this deployment may not even hold. */}
+      {!loading && stage === "signin" && (
+        <AttestFlow fixedDomain={root?.domain ?? ""} title="Sign in to begin" hideForm />
+      )}
 
       {!loading && stage === "onboarding" && (
         <section className="card" data-testid="onboarding-gate">
@@ -137,57 +147,49 @@ export function VouchFlow({
         !invite &&
         !onChain.existing &&
         !onChain.org && (
-          <section className="card" data-testid="no-invite">
-            <h2>You need {candidate}&apos;s invitation</h2>
-            <p>
-              A vouch domain belongs to its candidate: only someone they invited can write a statement there.
-              Ask {candidate} for their invite link and open it — the rest of this page is unchanged.
-            </p>
-            <p className="muted">
-              They make one from their dashboard in two clicks. It costs them nothing and needs no gas.
-            </p>
-            <p className="muted">
-              An onboarded organisation is the exception: a university or employer issuing a letter writes
-              without an invitation, because its own name is on the letter and only the operator onboards one.
-              If that is you, publishing below will work.
-            </p>
-          </section>
+          <p className="muted" data-testid="unsolicited-notice">
+            {candidate} did not ask for this one, so it will be marked <strong>unsolicited</strong>. That is a
+            note on the reference, not a barrier: anyone may refer anyone, and what the reference is worth
+            comes from who signs it. If they did invite you, open their link and this says so instead.
+          </p>
         )}
 
-      {!loading &&
-        stage === "statement" &&
-        root &&
-        !withdraw &&
-        (invite || onChain.existing || onChain.org) && (
-          <>
-            <p className="muted" data-testid="statement-intro">
-              A few words is what the name itself carries; the full letter comes next, as a text record. It
-              lands as{" "}
-              <code>
-                {handle ?? "<you>"}.{candidate}.{root.parentName}
-              </code>
-              , signed by your wallet, permanent.
-              {!handle &&
-                " The name you pick here is how this reference is signed; reuse it and your history adds up."}
+      {!loading && stage === "statement" && root && !withdraw && (
+        <>
+          <p className="muted" data-testid="statement-intro">
+            A few words is what the name itself carries; the full letter comes next, as a text record. It
+            lands as{" "}
+            <code>
+              {handle ?? "<you>"}.{candidate}.{root.parentName}
+            </code>
+            , signed by your wallet, permanent.
+            {!handle &&
+              " The name you pick here is how this reference is signed; reuse it and your history adds up."}
+          </p>
+          {onChain.existing && (
+            <p className="warning" data-testid="existing-statement">
+              You already vouched for {candidate}: “{onChain.existing.statement}” (valid until{" "}
+              {fmtUtc(onChain.existing.validUntil)}). Publishing again supersedes it — the old statement stays
+              in the history as revoked.
             </p>
-            {onChain.existing && (
-              <p className="warning" data-testid="existing-statement">
-                You already vouched for {candidate}: “{onChain.existing.statement}” (valid until{" "}
-                {fmtUtc(onChain.existing.validUntil)}). Publishing again supersedes it — the old statement
-                stays in the history as revoked.
-              </p>
-            )}
-            <AttestFlow
-              fixedDomain={vouchDomain}
-              fixedHandle={handle}
-              invite={invite}
-              title={onChain.existing ? "Update your reference" : "Write your reference"}
-              answerLabel="A few words about them, permanent"
-              answerPlaceholder="CTO at Acme 2019-22"
-              onPublished={setPublished}
-            />
-          </>
-        )}
+          )}
+          {/* What the candidate asked of the writer, before they sign rather than after. */}
+          <InviteTerms
+            candidate={candidate}
+            requires={invite?.requires ?? []}
+            attested={(dash.data?.links ?? []).filter((l) => l.live).map((l) => l.domain)}
+          />
+          <AttestFlow
+            fixedDomain={vouchDomain}
+            fixedHandle={handle}
+            invite={invite}
+            title={onChain.existing ? "Update your reference" : "Write your reference"}
+            answerLabel="A few words about them, permanent"
+            answerPlaceholder="CTO at Acme 2019-22"
+            onPublished={setPublished}
+          />
+        </>
+      )}
 
       {stage === "done" && published?.name && (
         <LetterForm api={api} candidate={candidate} name={published.name} getSigner={getSigner} />

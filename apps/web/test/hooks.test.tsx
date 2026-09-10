@@ -22,10 +22,19 @@ import {
 } from "@/lib/hooks";
 import * as chain from "@/lib/chain";
 
+const claim = { readyAt: 0, commits: 0, registers: 0 };
 vi.mock("@/lib/chain", async (orig) => ({
   ...(await orig<typeof chain>()),
   writeProfileText: vi.fn(async () => "0xhash1"),
   linkOwnName: vi.fn(async () => "0xhash2"),
+  commitEthName: vi.fn(async () => {
+    claim.commits += 1;
+    return { readyAt: claim.readyAt };
+  }),
+  registerEthName: vi.fn(async () => {
+    claim.registers += 1;
+    return "0xhash3";
+  }),
 }));
 import { loadWebConfig } from "@/lib/config";
 
@@ -49,6 +58,30 @@ function fakeApi(): Api {
   return {
     nonce: vi.fn(async () => ({ exists: nonce > 1n, next: nonce, ready: true, reason: null })),
     attest: vi.fn(async () => result),
+    uploadAvatar: vi.fn(async () => ({ id: "a.png", url: "https://api.test/v1/avatar/a.png" })),
+    find: vi.fn(async (q: string) => ({ q, matches: [] })),
+    storeInvite: vi.fn(async () => ({ code: "abcd1234" })),
+    instance: vi.fn(async (domain: string) => ({
+      domain,
+      parentName: `${domain}.ketsuban.eth`,
+      description: null,
+      answers: [],
+    })),
+    invite: vi.fn(async (code: string) => ({ code, invite: {} })),
+    storeLetter: vi.fn(async (text: string) => ({
+      hash: "a".repeat(64),
+      ref: `sha256:${"a".repeat(64)}`,
+      bytes: text.length,
+    })),
+    who: vi.fn(async (domain: string, handle: string) => ({ found: false, domain, handle })),
+    disclosures: vi.fn(async (name: string) => ({ name, grants: [] })),
+    revoke: vi.fn(async () => ({ ok: true as const, id: `0x${"11".repeat(32)}`, domains: ["x"] })),
+    explain: vi.fn(async (name: string) => ({ name, says: "", kind: "unknown" as const })),
+    ethLabel: vi.fn(async (label: string) => ({
+      label,
+      registry: WALLET,
+      owner: label === "alice" ? WALLET : null,
+    })),
     deliver: vi.fn(async () => {
       nonce += 1n;
       return { ok: true as const, txHash: `0x${"ab".repeat(32)}` as `0x${string}` };
@@ -81,7 +114,12 @@ function fakeApi(): Api {
     gas: vi.fn(async () => ({ hash: "0xhash3" as Hex, amount: "1" })),
     contracts: vi.fn(async () => ({ instances: [], bridge: WALLET, permissionedResolver: WALLET })),
     enclaveKey: vi.fn(async () => ({ address: WALLET, publicKey: `0x04${"11".repeat(64)}` as Hex })),
-    disclose: vi.fn(async () => ({ ok: true as const, expiresAt: "2027-01-01T00:00:00.000Z" })),
+    disclose: vi.fn(async () => ({
+      ok: true as const,
+      id: `0x${"11".repeat(32)}` as `0x${string}`,
+      domains: ["x"],
+      expiresAt: "2027-01-01T00:00:00.000Z",
+    })),
     disclosed: vi.fn(async (name: string, domain: string) => ({
       name,
       domain,
@@ -258,6 +296,71 @@ describe("hooks", () => {
     link.result.current.mutate({ signer, bridge: WALLET, domain: "ketsuban", label: "alice" });
     await waitFor(() => expect(link.result.current.data).toBe("0xhash2"));
     expect(chain.linkOwnName).toHaveBeenCalledWith(signer, WALLET, "ketsuban", "alice");
+  });
+
+  it("useEthLabel only asks about a label that could be a name", async () => {
+    // A lookup for every keystroke would ask about "a" and "al"; the registrar's own minimum is three.
+    const { useEthLabel } = await import("@/lib/hooks");
+    const client = fakeApi();
+    const { result: hook, rerender } = renderHook(
+      ({ label }: { label: string }) => useEthLabel(client, label),
+      {
+        wrapper: wrapper(),
+        initialProps: { label: "ab" },
+      }
+    );
+    expect(client.ethLabel).not.toHaveBeenCalled();
+    rerender({ label: "alice" });
+    await waitFor(() => expect(hook.current.data?.label).toBe("alice"));
+    expect(client.ethLabel).toHaveBeenCalledWith("alice");
+  });
+
+  it("useClaimEthName waits out the registrar's window, then registers", async () => {
+    // The registrar makes this two signatures a minute apart; the hook shows the wait rather than
+    // appearing to hang, and registers only once it has passed.
+    const { useClaimEthName } = await import("@/lib/hooks");
+    claim.commits = 0;
+    claim.registers = 0;
+    claim.readyAt = Math.floor(Date.now() / 1000) + 2;
+    const done = vi.fn();
+    const { result: hook } = renderHook(() => useClaimEthName(done), { wrapper: wrapper() });
+    const params = {
+      registrar: WALLET,
+      token: WALLET,
+      resolver: WALLET,
+      label: "alice-test",
+      owner: WALLET,
+      duration: 1n,
+    };
+    hook.current.mutate({ signer: {} as never, params });
+
+    await waitFor(() => expect(hook.current.waitingUntil).toBeTruthy(), { timeout: 2000 });
+    expect(claim.registers).toBe(0);
+    await waitFor(() => expect(done).toHaveBeenCalled(), { timeout: 6000 });
+    expect(claim.commits).toBe(1);
+    expect(claim.registers).toBe(1);
+    expect(hook.current.waitingUntil).toBeUndefined();
+  });
+
+  it("useClaimEthName stops showing a wait when the wallet refuses", async () => {
+    const { useClaimEthName } = await import("@/lib/hooks");
+    const chainMod = await import("@/lib/chain");
+    vi.mocked(chainMod.registerEthName).mockRejectedValueOnce(new Error("user rejected"));
+    claim.readyAt = 0;
+    const { result: hook } = renderHook(() => useClaimEthName(vi.fn()), { wrapper: wrapper() });
+    hook.current.mutate({
+      signer: {} as never,
+      params: {
+        registrar: WALLET,
+        token: WALLET,
+        resolver: WALLET,
+        label: "alice-test",
+        owner: WALLET,
+        duration: 1n,
+      },
+    });
+    await waitFor(() => expect(hook.current.error?.message).toBe("user rejected"));
+    expect(hook.current.waitingUntil).toBeUndefined();
   });
 
   it("apiFor builds a client from config", () => {

@@ -22,8 +22,20 @@ export function LetterForm({ api, candidate, name, getSigner, initial }: Props) 
   const contracts = useContracts(api);
   const write = useLetterWrite(candidate);
   const [letter, setLetter] = useState(initial ?? "");
+  const keep = async (text: string) => {
+    setKeeping(true);
+    try {
+      return await api.storeLetter(text);
+    } finally {
+      setKeeping(false);
+    }
+  };
   const resolver = contracts.data?.permissionedResolver as Address | null | undefined;
-  const over = letter.length > LETTER_MAX;
+  const [keeping, setKeeping] = useState(false);
+  const [failed, setFailed] = useState<string>();
+  // A text record costs gas by the byte, so a long letter goes to the attester and only its hash goes
+  // on chain. Short letters stay on the record, where nothing but the chain has to survive.
+  const byHash = new TextEncoder().encode(letter).length > LETTER_MAX;
 
   return (
     <section className="card" data-testid="letter-form">
@@ -42,12 +54,19 @@ export function LetterForm({ api, candidate, name, getSigner, initial }: Props) 
           placeholder={`I worked with ${candidate} at Acme from 2019 to 2022. They ran the platform team…`}
           aria-label="letter"
         />
-        <small className={over ? "error" : "muted"} data-testid="letter-count">
-          {letter.length}/{LETTER_MAX} characters
-          {over ? " — trim it, a longer record costs more to write" : ""}
+        <small className="muted" data-testid="letter-count">
+          {new TextEncoder().encode(letter).length} bytes ·{" "}
+          {byHash
+            ? "too long for the record, so the letter is kept by its hash and the hash goes on chain — anyone can check the copy they are given against it, but the text lives here rather than on chain"
+            : "short enough to go on the record itself, where it is as permanent as the name"}
         </small>
       </label>
       {resolver === null && <p className="error">This deployment has no permissioned resolver configured.</p>}
+      {failed && (
+        <p className="error" role="alert">
+          {failed}
+        </p>
+      )}
       {write.error && (
         <p className="error" role="alert">
           {write.error.message}
@@ -60,14 +79,28 @@ export function LetterForm({ api, candidate, name, getSigner, initial }: Props) 
       )}
       <button
         className="primary"
-        disabled={!letter.trim() || over || !resolver || write.isPending}
+        disabled={!letter.trim() || !resolver || write.isPending || keeping}
         onClick={async () => {
           if (!resolver) return;
-          write.mutate({ signer: await getSigner(), resolver, name, letter: letter.trim() });
+          setFailed(undefined);
+          const text = letter.trim();
+          try {
+            // Keep it first: a record pointing at a letter nobody kept would be worse than no record.
+            const onChain = byHash ? (await keep(text)).ref : text;
+            write.mutate({ signer: await getSigner(), resolver, name, letter: onChain });
+          } catch (e) {
+            setFailed((e as Error).message);
+          }
         }}
         data-testid="letter-save"
       >
-        {write.isPending ? "writing…" : initial ? "Replace the letter" : "Sign and add the letter"}
+        {keeping
+          ? "keeping the letter…"
+          : write.isPending
+            ? "writing…"
+            : initial
+              ? "Replace the letter"
+              : "Sign and add the letter"}
       </button>
     </section>
   );

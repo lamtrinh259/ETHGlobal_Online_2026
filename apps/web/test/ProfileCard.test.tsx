@@ -16,17 +16,24 @@ const profile: Profile = {
       expiresAt: "2026-10-08T09:14:22.000Z",
     },
   ],
-  links: [{ domain: "x", optedIn: true, commitment: "0x01" }],
+  links: [
+    { domain: "x", optedIn: true, commitment: "0x01" },
+    { domain: "x.com", optedIn: false, ensName: "alice_x.com.x.www.ketsuban.eth" },
+    { domain: "discord.com", optedIn: true, ensName: "alice.com.discord.private-www.ketsuban.eth" },
+  ],
   humanity: null,
   vouches: [
     {
       voucher: "bob",
       voucherName: "bob.ketsuban.eth",
+      ensName: "bob.alice.ketsuban.eth",
       wallet: "0x1",
       statement: "worked together 2019-22",
       validUntil: "2027-01-01T00:00:00.000Z",
       nonce: "1",
       live: true,
+      solicited: true,
+      invite: null,
       standing: { claimed: true, given: 4, received: 2 },
       letter: "Bob ran the platform team at Acme while Alice led infra.",
     },
@@ -38,6 +45,8 @@ const profile: Profile = {
       validUntil: "2025-01-01T00:00:00.000Z",
       nonce: "1",
       live: false,
+      solicited: true,
+      invite: null,
     },
   ],
   checks: [
@@ -49,6 +58,65 @@ const profile: Profile = {
 };
 
 describe("ProfileCard", () => {
+  it("shows the name each account answers at, public or private", () => {
+    render(<ProfileCard p={profile} rootParent="ketsuban.eth" />);
+    const links = screen.getByTestId("links");
+    // The account in the open, and the private one named after the person: both checkable elsewhere.
+    expect(links).toHaveTextContent("alice_x.com.x.www.ketsuban.eth");
+    expect(links).toHaveTextContent("alice.com.discord.private-www.ketsuban.eth");
+    expect(links).toHaveTextContent("verified, masked");
+  });
+
+  it("shows each reference as the name it is, linked to its own page", () => {
+    render(<ProfileCard p={profile} rootParent="ketsuban.eth" />);
+    const vouches = screen.getByTestId("vouches");
+    // A reference is a name in the candidate's namespace, readable without this page.
+    expect(vouches).toHaveTextContent("bob.alice.ketsuban.eth");
+    expect(screen.getByRole("link", { name: "bob.alice.ketsuban.eth" })).toHaveAttribute(
+      "href",
+      "/v/bob.alice.ketsuban.eth"
+    );
+  });
+
+  it("says a long letter is checkable against the hash the record names", () => {
+    const vouches = [
+      { ...profile.vouches[0], voucher: "bob", letter: "the full letter", letterHash: "ab".repeat(32) },
+    ];
+    render(<ProfileCard p={{ ...profile, vouches }} rootParent="ketsuban.eth" />);
+    expect(screen.getByTestId("vouch-bob")).toHaveTextContent("the full letter");
+    // The hash is the reason to believe the text: it is on chain, the text is not.
+    expect(screen.getByTestId("letter-hash-bob")).toHaveTextContent(/ab/);
+  });
+
+  it("says a letter is missing rather than pretending the reference has none", () => {
+    // The hash is permanent; the text is only as durable as whoever kept it. Silence here would read
+    // as "no letter written", which is a different claim entirely.
+    const vouches = [{ ...profile.vouches[0], voucher: "bob", letter: null, letterHash: "cd".repeat(32) }];
+    render(<ProfileCard p={{ ...profile, vouches }} rootParent="ketsuban.eth" />);
+    expect(screen.getByTestId("vouch-bob")).toHaveTextContent(/letter.*not|cannot be shown|missing/i);
+  });
+
+  it("marks a reference nobody asked for, without hiding it", () => {
+    // Anyone may refer anyone, so a reader needs to know which references the subject asked for. It is
+    // a note on the reference, not a reason to leave it out.
+    const vouches = [
+      { ...profile.vouches[0], voucher: "bob", solicited: true },
+      { ...profile.vouches[0], voucher: "mallory", solicited: false },
+    ];
+    render(<ProfileCard p={{ ...profile, vouches }} rootParent="ketsuban.eth" />);
+    expect(screen.getByTestId("vouch-mallory")).toHaveTextContent(/unsolicited/i);
+    expect(screen.getByTestId("vouch-bob")).not.toHaveTextContent(/unsolicited/i);
+  });
+
+  it("says what each answer answers, not the domain it happens to live in", () => {
+    // A verifier reading "kju-is" learns nothing: an answer without its question cannot be judged.
+    render(<ProfileCard p={profile} rootParent="ketsuban.eth" />);
+    const answers = screen.getByTestId("answers");
+    expect(answers).toHaveTextContent("What do you think of Kim Jong Un?");
+    // The name it lives at stays readable — that is what makes the answer checkable without this page.
+    expect(answers).toHaveTextContent("alice.kju-is.ketsuban.eth");
+  });
+
   it("renders checks with marks, answers, masked links and the warning", () => {
     render(
       <ProfileCard
@@ -110,7 +178,7 @@ describe("ProfileCard", () => {
       />
     );
     expect(screen.getByTestId("policy-line")).toHaveTextContent(
-      "Policy: answers for kju-is · ≥1 linked account · ≥2 live references · humanity attested"
+      "Policy: answers for What do you think of Kim Jong Un? · ≥1 linked account · ≥2 live references · humanity attested"
     );
     expect(screen.getByTestId("links")).toHaveTextContent("@alice_x");
     expect(screen.getByTestId("disclosed")).toHaveTextContent("disclosed to you by the candidate");

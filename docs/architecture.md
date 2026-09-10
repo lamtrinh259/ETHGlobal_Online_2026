@@ -15,6 +15,8 @@ flowchart LR
     M[Multipass<br/>attestation store]
     F[AttestationFactory]
     R[AttestationRegistry<br/>IRegistry per instance]
+    G[GroupingRegistry<br/>a level, holds no records]
+    K[MaskedMirrorRegistry<br/>the private branch]
     S[AttestationResolver<br/>ENSIP-10 shim per instance]
     B[AttestationBridge<br/>singleton]
     I[PermissionedResolver<br/>stock ENSv2]
@@ -29,8 +31,12 @@ flowchart LR
   B -- register --> M
   B -- authorizeTextRoles / setAlias --> I
   F -- create --> R & S
+  F -- createMirror --> K
   E -- getSubregistry(label) --> R
+  R -- getSubregistry(www) --> G
+  G -- getSubregistry(label) --> R
   R -- getResolver(handle) --> S
+  K -- getResolver(person) --> S
   S -- ketsuban:* --> M
   S -- other keys --> I
 ```
@@ -41,7 +47,21 @@ One Multipass domain ↔ one ENS parent name. `AttestationFactory.create(domain,
 deploys the registry/resolver pair and records it; the bridge finds instances by `record.domainName`. Instances nest
 through `AttestationRegistry.setSubregistry`.
 
-Global, shared by every instance: platform domains (`x`, `telegram`, …), `humanity`, `org`, the stock
+A domain can have a second mount: `createMirror` deploys a `MaskedMirrorRegistry` for the private branch,
+which answers a **person's** label and checks two records — a live name in the root domain, and a live
+masked record in the platform domain. The open instance refuses masked records, so the two never answer
+for each other. A `GroupingRegistry` is a level with no records of its own, shared by every account at
+that DNS name.
+
+Each resolver answers for names exactly one label under its own parent. The Universal Resolver falls back
+to the nearest ancestor resolver, so without that check every instance would be a wildcard for everything
+beneath it — `script/SetRootResolver.s.sol` repairs a live deployment, because every fallback ends at the
+resolver the `.eth` registry names.
+
+Platforms are mounted at their own DNS names under grouping levels — `x.com` at `com.x.www.<root>`, a
+mail host under the at-sign level, both mirrored for masked records. See [the namespace](namespace.md).
+
+Global, shared by every instance: platform domains (`x.com`, `t.me`, …), `humanity`, `org`, the stock
 PermissionedResolver, the bridge, the factory, the CRE workflow, the API.
 
 ## Record lifecycle

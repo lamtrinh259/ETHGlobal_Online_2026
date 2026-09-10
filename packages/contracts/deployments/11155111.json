@@ -6,24 +6,89 @@
   "childRegistry": "0xA976CB21597c555F92e7A5de2dAAF06A3c0D63F7",
   "childResolver": "0x24d0F1dc28D9d05342C2c2ceA459C3f0Dffb18D8",
   "creForwarder": "0xF8344CFd5c43616a4366C34E3EEE75af79a74482",
+  "ethRegistrar": "0xa88553f454b77203b0d036a05c894d555eaaa2cc",
   "ethRegistry": "0xBDC85dD5b15D7ecb354cd7cb6f2c50b4f2c4F0E2",
   "factory": "0xc0281d75974155fE8513F623de726F040c4bcC51",
   "instanceDomain": "ketsuban",
   "instanceParent": "ketsuban.eth",
   "multipass": "0x418F82fd0014a4CA402F145978bfaF0555a9cA06",
+  "namespace": {
+    "discord.com": {
+      "maskedParentName": "com.discord.private-www.ketsuban.eth",
+      "maskedRegistry": "0x15fCcD536b5d515f9405b106E7508c71575b4140",
+      "maskedResolver": "0x8ec94F51C01A5289604297bA19574364678E4fD3",
+      "parentName": "com.discord.www.ketsuban.eth",
+      "registry": "0xFd6436692Dc52ed44B35Ceae8d432604c915B096",
+      "resolver": "0xdc8Aec383F43977ec8D9bEC1014C5c67ce91fA07"
+    },
+    "github.com": {
+      "maskedParentName": "com.github.private-www.ketsuban.eth",
+      "maskedRegistry": "0x8188b04671aE5534b247d7ebeC8E56885e3A9B97",
+      "maskedResolver": "0xe8f0403f01EE0D6F39c55023014CA833b8a115fE",
+      "parentName": "com.github.www.ketsuban.eth",
+      "registry": "0x38060F7B35486C4F7C8de1758d2C91f84843d5Ac",
+      "resolver": "0x983Ab545d4f851318D9C3C39acE5ad1844b6c824"
+    },
+    "gmail.com": {
+      "maskedParentName": "com.gmail.private@.ketsuban.eth",
+      "maskedRegistry": "0x5316ea869D5F1Dc4C9d18Fb7C9a4Dad890d5E82F",
+      "maskedResolver": "0xac20fC32336edAcD11DC790F300d57E1edd20E25",
+      "parentName": "com.gmail.@.ketsuban.eth",
+      "registry": "0x3541201C4FA762Aa5026cF002407501FA9DBBeC3",
+      "resolver": "0xcb8161eb43F61b6394642c30b5b69ABFdE3cCE3f"
+    },
+    "google.com": {
+      "maskedParentName": "com.google.private-www.ketsuban.eth",
+      "maskedRegistry": "0xF086914A11893A50a7F29553E7eEA668541Aa440",
+      "maskedResolver": "0x60dC4Cd8a647f19A9154FA0Dc6BB2b2Ea3e3B134",
+      "parentName": "com.google.www.ketsuban.eth",
+      "registry": "0xacbBc3393fA854977C30B42E1D0D276Ad492FBBE",
+      "resolver": "0xC22DD8903275eAc19A968C76cA61B1E590bAbb47"
+    },
+    "linkedin.com": {
+      "maskedParentName": "com.linkedin.private-www.ketsuban.eth",
+      "maskedRegistry": "0x1c7C029fdd9fe137268F6D4Ab69485ec30FEB808",
+      "maskedResolver": "0x4123A252E9A1EA663bE52d32b8823257B01d219C",
+      "parentName": "com.linkedin.www.ketsuban.eth",
+      "registry": "0x4a1E40e86DD2f501522B4454abC1Cdd7bCd34d7B",
+      "resolver": "0x3560ccbE0C854c8DF1A798677d59FD65d3a6E390"
+    },
+    "peeramid.xyz": {
+      "maskedParentName": "xyz.peeramid.private@.ketsuban.eth",
+      "maskedRegistry": "0x1aB00f72cC46dd8903d5B0581d70aa0eA79d4B9e",
+      "maskedResolver": "0x30C498D07aC8F76cfC207F99c7dF013fA4C9813f",
+      "parentName": "xyz.peeramid.@.ketsuban.eth",
+      "registry": "0xb3ABB4135dE16E78Fe53fC5827Bfd9058EdE1fD6",
+      "resolver": "0x0eD155f23eD4Fad7f5796fE42113255F44A02dFc"
+    },
+    "t.me": {
+      "maskedParentName": "me.t.private-www.ketsuban.eth",
+      "maskedRegistry": "0x793E1D246c9429759680C21D59746017ADEF2e69",
+      "maskedResolver": "0x179c4c346C9ef69E4819a95a4f350D59b8A2Ca78",
+      "parentName": "me.t.www.ketsuban.eth",
+      "registry": "0x959aDF834D2C1FdD876743b40c058EC96B4DeFE5",
+      "resolver": "0x3Ac88937535374f72fCc242b2dEFE787C9D9638f"
+    },
+    "x.com": {
+      "maskedParentName": "com.x.private-www.ketsuban.eth",
+      "maskedRegistry": "0xafe6cE56cAA6EB716261F2115F620DCaeA66A431",
+      "maskedResolver": "0xBD89947cBD86fb992be433675EA2a02693BF2e5B",
+      "parentName": "com.x.www.ketsuban.eth",
+      "registry": "0x5FD37107CAe5C4981420F505b2Ce57ED8D4209Dc",
+      "resolver": "0x4b3e0eaE64b843537BFE49e9344fd2eb75c97A59"
+    }
+  },
+  "namespaceFactory": "0x01c9c5cA5f9179b9Cce18Bb4b8542B448aCb6a59",
+  "paymentToken": "0x768f42455a2d082e23ceef7d51e5787c82d67a39",
   "permissionedResolver": "0x4E2d9783cEFF2ed72CD77C14206b29fe246b24F7",
   "platformInstances": {
-    "x": {
-      "registry": "0xef364C83e090Cc0c108688A52a1fb9D8370C9E83",
-      "resolver": "0xab077B49c61D5AB686D982F501BE06Eb21DF98Cf"
-    },
-    "telegram": {
-      "registry": "0xa8832cD715C7AF8f7A7Ea83e3783E497b8490fdA",
-      "resolver": "0x83314918287AD8EDF9Ed40191524DD347FCFeF0f"
-    },
     "discord": {
       "registry": "0x7d36AFBea41f2a6d9D3eceb956D37e7E5AE47e0D",
       "resolver": "0xe11972d6CD3E98e134166bbFF44dCEbb2c2BbBDC"
+    },
+    "email": {
+      "registry": "0x74251190aB2cE7852D2f358f197c146ac64675da",
+      "resolver": "0xd584cC5dc1477C8f06ec0d9E4B441EE700DCbf6B"
     },
     "github": {
       "registry": "0x5cBa4C1e56931eF47e42656E466419d46f2A5Ec3",
@@ -37,13 +102,18 @@
       "registry": "0x441ea32D909906f98821141eC1e0c03258836959",
       "resolver": "0xd3012973d54C4a96741a84928C5F28a61C8f390D"
     },
-    "email": {
-      "registry": "0x74251190aB2cE7852D2f358f197c146ac64675da",
-      "resolver": "0xd584cC5dc1477C8f06ec0d9E4B441EE700DCbf6B"
+    "telegram": {
+      "registry": "0xa8832cD715C7AF8f7A7Ea83e3783E497b8490fdA",
+      "resolver": "0x83314918287AD8EDF9Ed40191524DD347FCFeF0f"
+    },
+    "x": {
+      "registry": "0xef364C83e090Cc0c108688A52a1fb9D8370C9E83",
+      "resolver": "0xab077B49c61D5AB686D982F501BE06Eb21DF98Cf"
     }
   },
   "registry": "0x254D9c7601BD8fa6b6FA7f5A42c860d184E053A7",
   "reporter": "0x4888d736a196c49CAf404FD626eB9CBbf175b140",
   "resolver": "0x178ff1589Be8Af3B19426Aa1d2Bd07cd178E215e",
-  "universalResolver": "0x4a1817d13E9cF196f471725176355c1234b63c70"
+  "rootResolver": "0xdb29a8091a89c90bA5Fec97Cb291766eE44B1cA6",
+  "universalResolver": "0x4A1817d13E9cF196f471725176355C1234b63C70"
 }

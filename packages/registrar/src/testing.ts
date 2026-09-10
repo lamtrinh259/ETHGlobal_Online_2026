@@ -116,6 +116,7 @@ export async function signedInvite(
     handle,
     voucher: ZERO_ADDRESS,
     exp: BigInt(now + 7 * 24 * 3600),
+    requires: [],
     ...over,
   };
   const signature = await signInvite(candidate, invite, inviteDomain(chainId, multipass as `0x${string}`));

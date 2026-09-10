@@ -6,9 +6,19 @@ Relay and verification service. One container, env-configured, health-checked on
 |---|---|
 | `POST /v1/cre/delivery` | CRE external delivery: `{ record, signature, viewCode? }` → `AttestationBridge.verify` → `{ ok, txHash }`. Guarded by `x-delivery-token` when `DELIVERY_TOKEN` is set. |
 | `POST /v1/attest` | Node registrar fallback (same input/output as the enclave). Enabled only when `REGISTRAR_KEY` and `VIEWCODE_KEY` are set. |
-| `GET /v1/verify/:name` | Machine-readable verification read through the ENS resolver: status, wallet, answer, expiry, humanity, links (`?links=x,telegram`, `?viewCode=` to disclose opted-in links), `profile` (the user's `avatar`/`description`/`url`/`email` text records on the stock resolver), evidence, warning. |
-| `GET /v1/preflight` | What the configured addresses actually are on chain: code present, which bridge functions the deployed bytecode has, and each name domain's active flag, registrar and fees. 503 with reasons when something is off. |
-| `GET /v1/instances` | Instances known to the factory, plus `bridge` and `permissionedResolver` addresses for direct wallet writes. |
+| `GET /v1/verify/:name` | Machine-readable verification read through the ENS resolver: status, wallet, answer, expiry, humanity, links (`?links=` defaults to every mount this deployment holds, `?viewCode=` discloses opted-in links), each link's own `ensName`, `profile` (the user's `avatar`/`description`/`url`/`email` text records on the stock resolver), evidence, warning, and `branch` — `private` when the name read is the mirror one, which claims only that the person holds an account in that domain. |
+| `GET /v1/preflight` | What the configured addresses actually are on chain, both factories included: code present, which bridge functions the deployed bytecode has, and each name domain's active flag, registrar and fees. 503 with reasons when something is off. |
+| `GET /v1/instances` | Every mount this deployment holds, from both factories, each with `parentName` and — where a private branch exists — `maskedParentName`. Plus `bridge`, `permissionedResolver`, `ethRegistry`, `ethRegistrar` and `paymentToken` for what a wallet does itself. |
+| `GET /v1/explain/:name` | What a name would claim here, whether or not anything resolves at it: `kind` is `person`, `account`, `private`, `reference` or `unknown`, so an agent can tell a name nobody holds from one this deployment could never answer. Same function the app reads. |
+| `GET /v1/eth-label/:label` | Who owns a `.eth` label on the registry the bridge checks, so a page can say that before someone pays for a `NotNameOwner` revert. `owner: null` means nobody here holds it. |
+
+`GET /healthz` also reports `config`: every contract address this process is using, which secrets are set
+(never their values), and which optional variables are missing. Addresses need not be configured at all —
+the build carries the deployment it was made against, and an explicit variable still wins.
+
+A DNS domain nobody has mounted is built while the first account there is attested: `/v1/attest` verifies
+the request first, then deploys the grouping levels, the instance and the private mirror, so a person with
+an ordinary mail host is never turned away.
 
 CORS: `CORS_ORIGINS` (comma list, default `*`) — set it to the web app origin in production.
 | `GET /v1/nonce?wallet=&domain=` | On-chain state for a wallet in a domain; `next` is the nonce to sign into the intent. Also `ready` and `reason`: whether a record in that domain can be written at all (initialised, active, and this attester is its registrar), so the browser learns before the wallet signs. |
@@ -21,14 +31,16 @@ CORS: `CORS_ORIGINS` (comma list, default `*`) — set it to the web app origin 
 | `GET /v1/enclave-key` | The registrar's public key: what a candidate encrypts a view code to, so only the enclave can open it. |
 | `POST /v1/disclose` | A candidate's signed permission to read one masked account, carrying the view code encrypted to that key. Refused unless the wallet holding the record signed it, it is unexpired, and the signature binds to that exact ciphertext. |
 | `GET /v1/disclose/:name/:domain` | Opens it: the enclave decrypts the view code, decodes the record, and answers the handle. `?reader=` must match a grant addressed to one wallet. |
-| `GET /v1/reverse/:address` | What an address is called, read from its Multipass record through the instance resolver. No reverse registry is involved, which is why it works today; a third-party client reaches the same answer once ENS's reverse namespace points here. |
+| `GET /v1/reverse/:address` | Every name an address answers to: its own, each account attested in the open, and each private account named after the holder — `kind` says which. Read from Multipass records through the instance resolvers, so no reverse registry is involved. |
 | `GET /v1/standing/:handle` | Live references a handle's wallet gave and it received; `/v1/vouches` carries it per live voucher. |
 | `GET /v1/wallet/:address` | A wallet's names, linked-account records, references given, and `org` when it holds a live record in `ORG_DOMAIN` (its dashboard). |
 | `GET /v1/profile/:handle` | The whole candidate in one read: every instance name with its verification, the references written for them, and the candidate's standing. Facts only; grading against a policy is the reader's job. |
 | `GET /v1/vouches/:handle` | Every reference written under the candidate: records in the `~<handle>` vouch domain (Registered/Renewed logs from `DEPLOY_BLOCK`, current state per id, liveness), each live one with the voucher's standing and the long-form `letter` they wrote as a `description` text record. |
 
 A statement in a vouch domain (`~alice`) is refused unless the request carries an invitation signed by
-the wallet that holds `alice` in the root name domain (`REQUIRE_INVITE`, on by default). Two wallets
+the wallet that holds `alice` in the root name domain (`REQUIRE_INVITE`, off by default: anyone may
+refer anyone, and a reference the candidate never asked for is reported as `solicited: false` rather
+than refused). Two wallets
 need no invitation: one that already holds a record there, so it can update or withdraw its own
 statement, and a holder of a record in `ORG_DOMAIN` (default `org`) — an onboarded organisation issuing
 a letter to someone who has not claimed their handle yet. The attest
@@ -132,3 +144,9 @@ pnpm test:e2e    # docker: anvil + DeployLocal.s.sol + api image, full loop from
 The e2e stack is project `ketsuban-e2e` on network `ketsuban_e2e` (`E2E_SUBNET`, default `10.211.7.0/24`) with loopback-only
 ports `E2E_ANVIL_PORT` (18545) and `E2E_API_PORT` (18787), so it never collides with other compose projects on the
 same machine.
+
+## A note for anyone adding tests here
+
+Stand in for "unwritable" with a directory beneath a regular file, which gives `ENOTDIR` at once on any
+system. A path under `/proc` looks equivalent and is not: on Linux that `mkdir` never returns, so the suite
+passes on a developer's machine and hangs forever on a runner.

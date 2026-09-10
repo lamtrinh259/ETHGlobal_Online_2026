@@ -12,7 +12,7 @@ import type { Address, Hex } from "viem";
 import type { SignedInvite } from "@ketsuban/registrar";
 import { PLATFORM_DOMAIN_NAMES } from "@ketsuban/registrar";
 import { fromBytes32 } from "@peeramid-labs/multipass-client";
-import { apiFor, useAttest, useDeliver, useNameStatus, useNonce } from "@/lib/hooks";
+import { apiFor, useAttest, useContracts, useDeliver, useNameStatus, useNonce } from "@/lib/hooks";
 import { isNameDomainFor, parentNameFor } from "@/lib/journey";
 import { buildIntent, intentTypedData, toWire } from "@/lib/intent";
 import { loadOrCreateViewKey, openViewCode, saveViewCode } from "@/lib/keys";
@@ -74,7 +74,14 @@ export function AttestFlow({
   const { linkTwitter, linkTelegram, linkGithub, linkDiscord, linkGoogle } = useLinkAccount();
   const api = useMemo(() => apiFor(config), [config]);
 
-  const platforms = domainOptions?.length ? domainOptions : [...PLATFORM_DOMAIN_NAMES];
+  // What this deployment can actually attest into, which is a DNS name wherever the namespace is
+  // deployed. The flat list is the fallback for a deployment that has no platform instances at all.
+  const deployed = config.instances.map((i) => i.domain).filter((d) => !config.nameDomains.includes(d));
+  const platforms = domainOptions?.length
+    ? domainOptions
+    : deployed.length
+      ? deployed
+      : [...PLATFORM_DOMAIN_NAMES];
   const [domain, setDomain] = useState(
     fixedDomain ?? (platformsOnly ? platforms[0] : config.instances[0]?.domain) ?? ""
   );
@@ -98,7 +105,10 @@ export function AttestFlow({
     return () => clearTimeout(t);
   }, [handle]);
   const nameStatus = useNameStatus(api, domain, debounced, isNameDomain && !fixedHandle);
+  // A name holds 31 bytes, which is not 31 characters: an accented letter costs two, an emoji four.
+  // Counting characters would promise room that is not there.
   const answerBytes = new TextEncoder().encode(answer).length;
+  const answerChars = [...answer].length;
   // The root name is just a name: answers belong to the subject instances under it, and statements to a
   // candidate's vouch domain. Asking for one while claiming would write it nowhere anyone reads.
   const wantsAnswer = isNameDomain && domain !== config.instances[0]?.domain;
@@ -110,6 +120,11 @@ export function AttestFlow({
   const reserved = nameStatus.data?.handle === debounced && !!nameStatus.data?.reserved;
   const attest = useAttest(api);
   const deliver = useDeliver(api, wallet, domain);
+  // Nobody has attested an account in this domain here yet, so publishing also builds its namespace:
+  // a few deployments, a minute of waiting, and worth saying before the button is pressed.
+  const contracts = useContracts(api);
+  const mounting =
+    !!contracts.data && domain.includes(".") && !contracts.data.instances.some((i) => i.domain === domain);
 
   useEffect(() => {
     if (isNameDomain) setOptIn(false);
@@ -276,7 +291,11 @@ export function AttestFlow({
                   aria-label="answer"
                 />
                 <small className={answerBytes > 31 ? "error" : "muted"} data-testid="answer-bytes">
-                  {answerBytes}/31 characters used{answerBytes > 31 ? " — too long to fit in the name" : ""}
+                  {answerBytes}/31 bytes used
+                  {answerChars !== answerBytes
+                    ? ` · ${answerChars} characters, some cost more than one byte`
+                    : ""}
+                  {answerBytes > 31 ? " — too long to fit in the name" : ""}
                 </small>
               </label>
             )}
@@ -306,6 +325,12 @@ export function AttestFlow({
           previous stays visible in the history — that is how a statement is revoked.
         </p>
       )}
+      {!settled && mounting && (
+        <p className="muted" data-testid="mounting-note">
+          You are the first to attest an account at <code>{domain}</code> here, so publishing also creates its
+          place in the namespace — the same signature, about a minute longer.
+        </p>
+      )}
       {!settled && (
         <button
           className="primary"
@@ -313,7 +338,13 @@ export function AttestFlow({
           disabled={busy || takenByOther || reserved || answerBytes > 31 || nonce.data?.ready === false}
           data-testid="publish"
         >
-          {step ? `${step}…` : nonce.data?.exists ? "Sign & update" : "Sign & publish"}
+          {step === "attesting" && mounting
+            ? "creating the namespace…"
+            : step
+              ? `${step}…`
+              : nonce.data?.exists
+                ? "Sign & update"
+                : "Sign & publish"}
         </button>
       )}
 

@@ -1,3 +1,4 @@
+import { getAddress } from "viem";
 import { z } from "zod";
 
 const schema = z.object({
@@ -6,7 +7,13 @@ const schema = z.object({
   apiUrl: z.string().url(),
   attestUrl: z.string().url(),
   chainId: z.coerce.number().int().positive(),
-  multipass: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
+  // EIP-55 casing is a checksum, and viem refuses an address whose casing does not match its own. An
+  // address pasted in lower case from an explorer is the same address; normalising here keeps that
+  // from surfacing much later as a transaction that will not build.
+  multipass: z
+    .string()
+    .regex(/^0x[0-9a-fA-F]{40}$/)
+    .transform((v) => getAddress(v)),
   nameDomains: z.array(z.string().min(1)).min(1),
   parentNames: z.array(z.string().min(1)).min(1),
 });
