@@ -14,6 +14,7 @@ import type { SignedInvite } from "@ketsuban/registrar";
 import type { Signer } from "@/lib/chain";
 import { WITHDRAWN } from "@ketsuban/registrar";
 import { VOUCH_PREFIX, voucherProgress, vouchSteps } from "@/lib/journey";
+import { OpenToCandidate } from "./OpenToCandidate";
 import type { Ask } from "@/lib/asks";
 
 type Stage = "signin" | "onboarding" | "statement" | "done";
@@ -196,6 +197,18 @@ export function VouchFlow({
             onPublished={setPublished}
           />
         </>
+      )}
+
+      {/* A masked writer hands over a reference nobody can attribute. The view code is in this browser
+          now, and they may never come back, so the offer is made here rather than filed for later. */}
+      {stage === "done" && published && handle && root && (
+        <OpenToCandidate
+          api={api}
+          candidate={candidate}
+          rootParent={root.parentName}
+          voucherName={`${handle}.${root.parentName}`}
+          links={dash.data?.links ?? []}
+        />
       )}
 
       {stage === "done" && published?.name && (
