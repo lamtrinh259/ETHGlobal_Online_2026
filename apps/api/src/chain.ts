@@ -569,8 +569,14 @@ export class Chain {
     if (!deployed(multipassCode)) warnings.push(`MULTIPASS ${this.config.MULTIPASS} has no code`);
     if (!deployed(factoryCode)) warnings.push(`FACTORY ${this.config.FACTORY} has no code`);
     // Without it, a domain nobody deployed cannot be mounted on demand and the person is turned away.
-    if (!this.config.NAMESPACE_FACTORY)
+    // Pointed at nothing is worse than unset: every page that lists the mounts fails instead.
+    const namespaceFactory = this.config.NAMESPACE_FACTORY;
+    const namespaceCode = namespaceFactory
+      ? await this.publicClient.getCode({ address: namespaceFactory })
+      : undefined;
+    if (!namespaceFactory)
       warnings.push("NAMESPACE_FACTORY is unset: a domain nobody deployed yet cannot be mounted");
+    else if (!deployed(namespaceCode)) warnings.push(`NAMESPACE_FACTORY ${namespaceFactory} has no code`);
 
     // solc puts every external selector in the dispatch table, so its absence from the bytecode means
     // the deployed contract simply does not have that function.
@@ -658,6 +664,9 @@ export class Chain {
       bridge: { address: this.config.BRIDGE, deployed: deployed(bridgeCode), missing },
       multipass: { address: this.config.MULTIPASS, deployed: deployed(multipassCode), domains },
       factory: { address: this.config.FACTORY, deployed: deployed(factoryCode), instances },
+      namespaceFactory: namespaceFactory
+        ? { address: namespaceFactory, deployed: deployed(namespaceCode) }
+        : null,
       registrar: { signsAs: configuredRegistrar ?? null, onchain: onchainRegistrars },
       relayer: { address: this.relayer, balance: relayerBalance.toString() },
       warnings,
@@ -902,6 +911,8 @@ export type Preflight = {
     }[];
   };
   factory: { address: Address; deployed: boolean; instances: string[] };
+  /** The later factory carrying the DNS namespace, when this deployment has one */
+  namespaceFactory: { address: Address; deployed: boolean } | null;
   registrar: { signsAs: Address | null; onchain: Address[] };
   relayer: { address: Address; balance: string };
   warnings: string[];
