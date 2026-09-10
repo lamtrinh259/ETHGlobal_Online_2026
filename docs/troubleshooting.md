@@ -65,6 +65,14 @@ the index. Lower it and restart; the snapshot in `DATA_DIR` resumes from where i
 Never stand in for "unwritable" with a path under `/proc`: `mkdir` there never returns on Linux. Use a
 directory beneath a regular file, which fails with `ENOTDIR` immediately everywhere.
 
+## Writing a letter answers 507
+
+The letter store is full. Nothing gates `/v1/letter` — a reference can be written by anyone, so the
+letter behind it can be too — which means the store needs a ceiling or a stranger could fill the disk
+and take the grants and avatars down with it. Raise `LETTER_STORE_BYTES` (default 25MB) or free space.
+
+Letters already held keep working: the ceiling refuses new writes, it never drops old ones.
+
 ## Uploading a picture answers 503, and shares vanish after a restart
 
 Both are the same fault: `DATA_DIR` is set but the service cannot write there — a path with no volume
