@@ -93,3 +93,40 @@ cd .. && cre workflow simulate attest --target local-settings --non-interactive 
 
 The simulator prints the signed record; the relay submits it. Deployment needs Confidential Workflows
 beta access; simulation does not.
+
+## Deploying it to a live deployment
+
+The order matters, and one step fails silently if it is wrong.
+
+**1. Ask for deployment access.** `cre account access`. A browser step, and the only one nobody else
+can do for you. The simulator prints this prompt itself once a run succeeds.
+
+**2. Give the enclave the registrar key Multipass already accepts.** This is the step that fails
+quietly. Multipass verifies the *registrar's signature* on a record, not the address that submitted
+it, so the enclave must sign with the key the domains were initialised with. Read it off the chain
+rather than assuming:
+
+```bash
+curl -s $API/v1/preflight | jq '.registrar.signsAs, [.multipass.domains[].registrar] | unique'
+```
+
+Both must be the same single address, and `SECRET_REGISTRAR_KEY` uploaded to CRE must derive to it.
+Sign with any other key and every attestation reverts at `register`, after the person has already
+signed — which looks like a broken product rather than a misconfigured secret.
+
+`SECRET_VIEWCODE_KEY` must equal the API's for the same reason in reverse: view codes already handed
+out were derived from it, and a new one leaves every masked account unreadable to the people who were
+given permission to read it.
+
+**3. Deploy.** `cre workflow deploy attest --target production-settings`. `config.production.json`
+already carries this deployment's Multipass, Privy app and name domains; `reporter` is the
+`AttestationReporter`, and `deliveryUrl` is deliberately empty, because the DON write is the path that
+removes our relayer key from attestation altogether.
+
+**4. Point the browser at the trigger.** `NEXT_PUBLIC_ATTEST_URL=<the trigger URL>`, as a **build
+arg** — it is inlined at `next build`, so a runtime variable never reaches the bundle.
+
+**5. Check the claim turned on.** The web decides whether to promise an enclave by comparing that URL's
+origin against the API's (`isConfidential`), so the sign flow and the landing page begin saying the
+identity token is read inside the enclave. If they still say the attester signs on its own node, step
+4 did not take effect and the claim is correctly absent.

@@ -12,7 +12,7 @@
  */
 import { baseIntent, fakePrivy, fakeUser, signedAttestRequest, toWire } from "@ketsuban/registrar/testing";
 import { toBytes32, type Hex } from "@peeramid-labs/multipass-client";
-import { writeFileSync, readFileSync } from "node:fs";
+import { mkdirSync, writeFileSync, readFileSync } from "node:fs";
 
 const ALICE_KEY = "0x000000000000000000000000000000000000000000000000000000000000a11c" as const;
 const BOB_KEY = "0x000000000000000000000000000000000000000000000000000000000000b0bb" as const;
@@ -43,6 +43,8 @@ const intent = baseIntent(user.account, now, {
 const idToken = privy.mint({ sub: user.did, linked: user.linked, now, ttlSeconds: 7 * 86400 });
 const req = await signedAttestRequest(user.account, intent, idToken, cfg.chainId, cfg.multipass as Hex);
 
+// Gitignored, so a clean clone has no directory to write into and the failure is a bare ENOENT.
+mkdirSync(new URL("../fixtures/", import.meta.url), { recursive: true });
 const wire = JSON.stringify(toWire(req), null, 2) + "\n";
 writeFileSync(new URL(`../fixtures/${mode}.json`, import.meta.url), wire);
 if (mode === "platform") writeFileSync(new URL("../fixtures/request.json", import.meta.url), wire);
