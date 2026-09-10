@@ -1150,7 +1150,8 @@ describe("GET /v1/preflight", () => {
     });
     const bad = await app(broken.chain).request("/v1/preflight");
     expect(bad.status).toBe(503);
-    expect((await bad.json()).warnings).toEqual(["BRIDGE has no verify(): it predates this build"]);
+    // The chain's own warnings come first; this deployment keeps nothing on disk, which is its own.
+    expect((await bad.json()).warnings[0]).toBe("BRIDGE has no verify(): it predates this build");
 
     const thrown = fakeChain();
     thrown.chain.preflight = vi.fn(async () => {
@@ -1370,14 +1371,45 @@ describe("disclosing a masked account", () => {
     // the holder made. That is worth saying out loud rather than discovering after the fact.
     const { chain } = maskedChain();
     const memory = await (await app(chain).request("/healthz")).json();
-    expect(memory.config.storage).toEqual({ dataDir: null, durable: false });
+    expect(memory.config.storage).toEqual({
+      dataDir: null,
+      durable: false,
+      writable: false,
+      lastError: null,
+    });
 
     const dir = mkdtempSync(join(tmpdir(), "ketsuban-durable-"));
     const onDisk = createApp({ config: loadConfig({ ...baseEnv, DATA_DIR: dir }), chain, now: () => NOW });
     expect((await (await onDisk.request("/healthz")).json()).config.storage).toEqual({
       dataDir: dir,
       durable: true,
+      writable: true,
+      lastError: null,
     });
+  });
+
+  it("warns in preflight when a share would not survive a restart, where the app will show it", async () => {
+    const { chain } = maskedChain();
+    const p = await (await app(chain).request("/v1/preflight")).json();
+    expect(p.warnings.join(" ")).toMatch(/DATA_DIR/);
+  });
+
+  it("reports a store it cannot write to, rather than losing shares quietly at the next restart", async () => {
+    // DATA_DIR pointing somewhere with no volume behind it: writes fail, everything looks fine until
+    // the service restarts, and every permission anyone granted is gone.
+    const file = join(mkdtempSync(join(tmpdir(), "ketsuban-unwritable-")), "a-file");
+    writeFileSync(file, "not a directory");
+    const { chain, viewCode } = maskedChain();
+    const a = createApp({
+      config: loadConfig({ ...baseEnv, DATA_DIR: join(file, "nope") }),
+      chain,
+      now: () => NOW,
+    });
+
+    await post(a, "/v1/disclose", await grantFor(viewCode));
+    const storage = (await (await a.request("/healthz")).json()).config.storage;
+    expect(storage.writable).toBe(false);
+    expect(storage.lastError).toMatch(/ENOTDIR|ENOENT|EACCES/);
   });
 
   it("drops a stored grant it cannot read, rather than losing the whole list to it", async () => {
@@ -2475,6 +2507,22 @@ describe("the avatar a profile points at", () => {
     const a = createApp({ config: loadConfig({ ...baseEnv, DATA_DIR: dir }), chain, now: () => NOW });
     const huge = new File([Buffer.alloc(2_000_001, 1)], "me.png", { type: "image/png" });
     expect((await upload(a, huge)).status).toBe(413);
+  });
+
+  it("says the picture could not be kept, rather than failing with no reason at all", async () => {
+    // DATA_DIR set to a path with no volume behind it: the directory cannot be made, and an unhandled
+    // throw here is a 500 with nothing in it for whoever has to fix the deployment.
+    const file = join(mkdtempSync(join(tmpdir(), "ketsuban-avatar-ro-")), "a-file");
+    writeFileSync(file, "not a directory");
+    const { chain } = fakeChain();
+    const a = createApp({
+      config: loadConfig({ ...baseEnv, DATA_DIR: join(file, "nope") }),
+      chain,
+      now: () => NOW,
+    });
+    const refused = await upload(a, png());
+    expect(refused.status).toBe(503);
+    expect((await refused.json()).error).toMatch(/DATA_DIR/);
   });
 
   it("says so plainly when there is nowhere to keep it", async () => {

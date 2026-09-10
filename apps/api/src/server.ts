@@ -2,6 +2,7 @@ import { serve } from "@hono/node-server";
 import { createApp } from "./app.js";
 import { Chain } from "./chain.js";
 import { startIndexer } from "./indexer.js";
+import { probeStorage } from "./store.js";
 import { explainConfigError, loadConfig } from "./config.js";
 
 let config;
@@ -15,6 +16,21 @@ try {
 const chain = new Chain(config);
 const app = createApp({ config, chain });
 const index = startIndexer(chain.indexer, config.INDEX_POLL_SECONDS);
+
+// Storage fails quietly: a DATA_DIR with no volume behind it takes every write and loses it at the
+// next restart. Ask once, at boot, before anyone has granted a permission that will not be there.
+const storage = probeStorage(config.DATA_DIR || undefined);
+if (!storage.durable) {
+  console.error(
+    "storage · DATA_DIR is not set: permissions, gas top-ups and avatars are kept in memory and lost on restart"
+  );
+} else if (!storage.writable) {
+  console.error(
+    `storage · DATA_DIR (${config.DATA_DIR}) cannot be written · ${storage.lastError} · nothing kept here survives a restart`
+  );
+} else {
+  console.log(JSON.stringify({ msg: "storage ok", dataDir: config.DATA_DIR }));
+}
 
 // Say it once, at boot: a deployment pointed at the wrong contract should not wait for a user to
 // sign something before it complains.

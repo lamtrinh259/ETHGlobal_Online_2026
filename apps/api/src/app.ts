@@ -321,8 +321,9 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
       deployBlock: String(config.DEPLOY_BLOCK),
       privyAppId: config.PRIVY_APP_ID,
       // Grants and gas top-ups are the state this service owns. Without a directory they are held in
-      // memory, and a redeploy takes every permission with it.
-      storage: { dataDir: config.DATA_DIR || null, durable: !!config.DATA_DIR },
+      // memory, and a redeploy takes every permission with it; with one that cannot be written, the
+      // same thing happens while everything still looks fine.
+      storage: { dataDir: config.DATA_DIR || null, ...grantStore.health() },
       secrets: {
         relayerKey: !!config.RELAYER_KEY,
         registrarKey: !!config.REGISTRAR_KEY,
@@ -380,8 +381,17 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
     if (!picture) return c.json({ error: "that is not a picture this service can serve" }, 415);
 
     const id = `${createHash("sha256").update(bytes).digest("hex")}.${picture.ext}`;
-    mkdirSync(avatarDir(), { recursive: true });
-    writeFileSync(join(avatarDir(), id), bytes);
+    try {
+      mkdirSync(avatarDir(), { recursive: true });
+      writeFileSync(join(avatarDir(), id), bytes);
+    } catch (e) {
+      // A DATA_DIR with no volume behind it fails here first, and an unhandled throw says nothing to
+      // whoever has to fix the deployment.
+      return c.json(
+        { error: `DATA_DIR (${config.DATA_DIR}) cannot be written: ${(e as Error).message}` },
+        503
+      );
+    }
     return c.json({ id, url: new URL(`/v1/avatar/${id}`, c.req.url).toString() });
   });
 
@@ -419,7 +429,19 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
   app.get("/v1/preflight", async (c) => {
     try {
       const p = await chain.preflight();
-      return c.json(p, p.ok ? 200 : 503);
+      // Storage is not on chain, but a deployment that cannot keep a permission is misconfigured in
+      // exactly the way this endpoint exists to report.
+      const store = grantStore.health();
+      const warnings = [
+        ...p.warnings,
+        ...(store.durable
+          ? []
+          : ["DATA_DIR is not set: permissions and gas top-ups are kept in memory and lost on restart"]),
+        ...(store.durable && !store.writable
+          ? [`DATA_DIR cannot be written (${store.lastError}): nothing kept here survives a restart`]
+          : []),
+      ];
+      return c.json({ ...p, warnings }, p.ok ? 200 : 503);
     } catch (e) {
       return c.json({ ok: false, warnings: [(e as Error).message] }, 502);
     }

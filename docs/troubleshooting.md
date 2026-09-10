@@ -65,6 +65,25 @@ the index. Lower it and restart; the snapshot in `DATA_DIR` resumes from where i
 Never stand in for "unwritable" with a path under `/proc`: `mkdir` there never returns on Linux. Use a
 directory beneath a regular file, which fails with `ENOTDIR` immediately everywhere.
 
+## Uploading a picture answers 503, and shares vanish after a restart
+
+Both are the same fault: `DATA_DIR` is set but the service cannot write there — a path with no volume
+behind it, or one owned by another user. Writes to the grant store fail the same way, and because that
+failure only meant a log line, everything looked fine until the next restart.
+
+The service now says so in three places:
+
+```bash
+# at boot, in the container log
+storage · DATA_DIR (/data) cannot be written · EACCES: permission denied · nothing kept here survives a restart
+
+curl -s $API/healthz | jq .config.storage      # { "durable": true, "writable": false, "lastError": "…" }
+curl -s $API/v1/preflight | jq .warnings       # the same, where the app shows it
+```
+
+Mount a volume at `DATA_DIR` and make sure the container's user can write to it. Until then, an upload
+answers 503 naming the directory, rather than a 500 naming nothing.
+
 ## The picture on my profile is gone, or will not upload
 
 Pictures are kept under `DATA_DIR` and served back at `/v1/avatar/<hash>.<ext>`, because an ENS text
