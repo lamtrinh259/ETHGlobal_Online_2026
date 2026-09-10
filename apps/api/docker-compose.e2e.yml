@@ -6,6 +6,9 @@
 # Keys below are anvil's well-known dev keys; never reuse them anywhere real.
 name: ketsuban-e2e
 
+volumes:
+  api-data:
+
 networks:
   ketsuban_e2e:
     name: ketsuban_e2e
@@ -66,6 +69,7 @@ services:
       - "127.0.0.1:${E2E_API_PORT:-18787}:8787"
     volumes:
       - ../../packages/contracts/deployments:/deployments:ro
+      - api-data:/data
     environment:
       PORT: "8787"
       RPC_URL: http://anvil:8545
@@ -86,4 +90,5 @@ services:
       # anvil starts empty, so the index reads from block 0 and polls fast enough for the test loop
       INDEX_POLL_SECONDS: "1"
       RPC_LOG_WINDOW: "5000"
-      DATA_DIR: ""
+      # Real storage, because a grant that does not survive a restart is the bug this stack should catch.
+      DATA_DIR: /data

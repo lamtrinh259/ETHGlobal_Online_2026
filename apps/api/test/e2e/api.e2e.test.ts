@@ -39,7 +39,7 @@ import {
   signRevocation,
 } from "@ketsuban/registrar";
 import { decodeRecord, fromBytes32, MultipassAbi, toBytes32 } from "@peeramid-labs/multipass-client";
-import { APP_ID, PRIVY_SEED } from "./global-setup.js";
+import { APP_ID, PRIVY_SEED, restartApi } from "./global-setup.js";
 
 const API = process.env.E2E_API_URL ?? `http://127.0.0.1:${process.env.E2E_API_PORT ?? "18787"}`;
 const RPC = process.env.E2E_RPC_URL ?? `http://127.0.0.1:${process.env.E2E_ANVIL_PORT ?? "18545"}`;
@@ -354,6 +354,75 @@ describe("api e2e", () => {
     // Masked again: the reader who could open it a moment ago now gets the same answer as a stranger.
     expect((await fetch(`${API}/v1/disclose/${name}/x?reader=${reader.address}`)).status).toBe(404);
     expect((await (await fetch(`${API}/v1/disclosures/${name}`)).json()).grants).toEqual([]);
+  });
+
+  it("keeps a share across a restart, because a redeploy must not revoke anybody", async () => {
+    // The failure this guards against cost a live deployment its permissions: writes went to a
+    // directory the service could not keep, everything looked fine, and the grants were gone at the
+    // next deploy. Storage says it is durable — this proves it, with a grant of its own.
+    const storage = (await (await fetch(`${API}/healthz`)).json()).config.storage;
+    expect(storage).toMatchObject({ durable: true, writable: true, lastError: null });
+
+    const now = Math.floor(Date.now() / 1000);
+    const { next } = await (await fetch(`${API}/v1/nonce?wallet=${user.account.address}&domain=x`)).json();
+    const intent = baseIntent(user.account, now, {
+      domain: "x",
+      optIn: true,
+      nonce: BigInt(next),
+      exp: BigInt(now + 3600),
+    });
+    const idToken = privy.mint({ sub: user.did, linked: user.linked, now });
+    const req = toWire(await signedAttestRequest(user.account, intent, idToken, 31337, deployment.multipass));
+    const attested = await (
+      await fetch(`${API}/v1/attest`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(req),
+      })
+    ).json();
+    expect(attested.error).toBeUndefined();
+    const viewCode = bytesToHex(eciesDecrypt(USER_KEY, attested.viewCode));
+    await fetch(`${API}/v1/cre/delivery`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-delivery-token": "e2e-delivery-token-0123456789" },
+      body: JSON.stringify(attested),
+    });
+
+    const name = `alice.${deployment.instanceParent}`;
+    const { publicKey } = await (await fetch(`${API}/v1/enclave-key`)).json();
+    const box = eciesEncrypt(publicKey, hexToBytes(viewCode as Hex), new Uint8Array(32).fill(21));
+    const disclosure = {
+      name,
+      domains: ["x"],
+      audience: zeroAddress as Hex,
+      audienceName: "",
+      exp: BigInt(now + 3600),
+      boxesHash: hashBoxes([box]),
+    };
+    const grant = await (
+      await fetch(`${API}/v1/disclose`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          ...disclosure,
+          exp: disclosure.exp.toString(),
+          boxes: [box],
+          signature: await signDisclosure(
+            user.account,
+            disclosure,
+            discloseDomain(31337, deployment.multipass)
+          ),
+        }),
+      })
+    ).json();
+    expect(grant.ok).toBe(true);
+
+    await restartApi(API);
+
+    // Same grant, same id, still readable: nothing about a restart is a revocation.
+    const after = await (await fetch(`${API}/v1/disclosures/${name}`)).json();
+    expect(after.grants.map((g: { id: string }) => g.id)).toContain(grant.id);
+    expect((await fetch(`${API}/v1/disclose/${name}/x`)).status).toBe(200);
   });
 
   it("attests an account into the DNS domain it belongs to, and names it there", async () => {

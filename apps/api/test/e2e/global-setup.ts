@@ -23,6 +23,26 @@ export async function setup() {
   execSync(`${COMPOSE} up -d --build --wait`, { stdio: "inherit", env: env() });
 }
 
+/**
+ * Restart the API container and wait until it is serving again, as a redeploy would.
+ *
+ * Compose reports the container started before the process inside it is listening, so readiness is
+ * asked of the service itself rather than of docker.
+ */
+export async function restartApi(url: string): Promise<void> {
+  execSync(`${COMPOSE} restart api`, { stdio: "inherit", env: env() });
+  const deadline = Date.now() + 60_000;
+  for (;;) {
+    try {
+      if ((await fetch(`${url}/healthz`)).ok) return;
+    } catch {
+      // not listening yet
+    }
+    if (Date.now() > deadline) throw new Error("api did not come back after a restart");
+    await new Promise((r) => setTimeout(r, 500));
+  }
+}
+
 export async function teardown() {
   if (process.env.E2E_SKIP_COMPOSE === "1" || process.env.E2E_KEEP === "1") return;
   execSync(`${COMPOSE} down -v`, { stdio: "inherit", env: env() });
