@@ -79,6 +79,39 @@ export function dnsEncode(name: string): Hex {
 }
 
 /** Everything the API reads from or writes to the chain, behind one object so tests can fake it */
+/**
+ * Whether a signature this service makes will be accepted at all.
+ *
+ * A record is signed over an EIP-712 domain built from configuration, and Multipass checks it against
+ * the one it was deployed with. Disagree on a character of the name or the version and every
+ * attestation reverts at `register` — after the person has already signed, which reads as a broken
+ * product rather than as a wrong setting. The contract publishes its own domain, so this is a question
+ * with an answer rather than an assumption.
+ */
+export function eip712Warnings(
+  config: Pick<Config, "MULTIPASS" | "MULTIPASS_EIP712_NAME" | "MULTIPASS_EIP712_VERSION" | "CHAIN_ID">,
+  onchain: [Hex, string, string, bigint, Address, Hex, bigint[]]
+): string[] {
+  const [, name, version, chainId, verifyingContract] = onchain;
+  const out: string[] = [];
+  if (name !== config.MULTIPASS_EIP712_NAME || version !== config.MULTIPASS_EIP712_VERSION) {
+    out.push(
+      `MULTIPASS_EIP712_NAME/VERSION is "${config.MULTIPASS_EIP712_NAME}"/"${config.MULTIPASS_EIP712_VERSION}" ` +
+        `but the contract signs as "${name}"/"${version}": every record this service signs would be rejected`
+    );
+  }
+  if (
+    chainId !== BigInt(config.CHAIN_ID) ||
+    verifyingContract.toLowerCase() !== config.MULTIPASS.toLowerCase()
+  ) {
+    out.push(
+      `Multipass signs for chain ${chainId} at ${verifyingContract}, not chain ${config.CHAIN_ID} at ` +
+        `${config.MULTIPASS}: every record this service signs would be rejected`
+    );
+  }
+  return out;
+}
+
 export class Chain {
   readonly publicClient: PublicClient;
   readonly indexer: Indexer;
@@ -648,6 +681,18 @@ export class Chain {
     if (!deployed(bridgeCode)) warnings.push(`BRIDGE ${this.config.BRIDGE} has no code`);
     if (!deployed(multipassCode)) warnings.push(`MULTIPASS ${this.config.MULTIPASS} has no code`);
     if (!deployed(factoryCode)) warnings.push(`FACTORY ${this.config.FACTORY} has no code`);
+    // Whether a signature this service makes will be accepted at all; see `eip712Warnings`.
+    try {
+      const domain = (await this.publicClient.readContract({
+        address: this.config.MULTIPASS,
+        abi: MultipassAbi,
+        functionName: "eip712Domain",
+      })) as [Hex, string, string, bigint, Address, Hex, bigint[]];
+      warnings.push(...eip712Warnings(this.config, domain));
+    } catch {
+      // An older Multipass may not publish its domain; that is not a fault, only an unanswered question.
+    }
+
     // Without it, a domain nobody deployed cannot be mounted on demand and the person is turned away.
     // Pointed at nothing is worse than unset: every page that lists the mounts fails instead.
     const namespaceFactory = this.config.NAMESPACE_FACTORY;

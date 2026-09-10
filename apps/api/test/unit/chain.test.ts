@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { zeroAddress, zeroHash, type Address } from "viem";
 import { toBytes32 } from "@peeramid-labs/multipass-client";
-import { Chain } from "../../src/chain.js";
+import { Chain, eip712Warnings } from "../../src/chain.js";
 import { loadConfig } from "../../src/config.js";
 
 const config = loadConfig({
@@ -359,5 +359,51 @@ describe("relaying a signed record", () => {
     const writes = relaying(chain, true);
     await chain.submit(record, "0x99");
     expect(writes).toEqual([{ address: config.MULTIPASS, functionName: "renewRecord", value: 3n }]);
+  });
+});
+
+/**
+ * Whether a signature this service makes will be accepted at all.
+ *
+ * A record is signed over an EIP-712 domain built from configuration, and Multipass checks it against
+ * the one it was deployed with. Disagree on a character of the name or the version and every
+ * attestation reverts at `register` — after the person has already signed, which reads as a broken
+ * product rather than as a wrong setting.
+ */
+describe("the signing domain read off the chain", () => {
+  const healthy: Parameters<typeof eip712Warnings>[1] = [
+    "0x0f",
+    "MultipassDNS",
+    "1.0.0",
+    31337n,
+    config.MULTIPASS,
+    zeroHash,
+    [],
+  ];
+
+  it("says nothing when the contract signs the way this service does", () => {
+    expect(eip712Warnings(config, healthy)).toEqual([]);
+  });
+
+  it("names the mismatch when the version drifted, and what it costs", () => {
+    const drifted = [...healthy] as typeof healthy;
+    drifted[2] = "2.0.0";
+    const [said] = eip712Warnings(config, drifted);
+    expect(said).toMatch(/"1.0.0" but the contract signs as .*"2.0.0"/);
+    expect(said).toMatch(/would be rejected/);
+  });
+
+  it("names it when the contract signs for another chain", () => {
+    const elsewhere = [...healthy] as typeof healthy;
+    elsewhere[3] = 1n;
+    expect(eip712Warnings(config, elsewhere)[0]).toMatch(/signs for chain 1 /);
+  });
+
+  it("names it when the contract signs for another address", () => {
+    // The verifying contract is part of the digest, so a Multipass moved to a new address rejects
+    // every signature made for the old one, whatever the name and version say.
+    const moved = [...healthy] as typeof healthy;
+    moved[4] = "0x000000000000000000000000000000000000dEaD";
+    expect(eip712Warnings(config, moved)[0]).toMatch(/at 0x000000000000000000000000000000000000dEaD/);
   });
 });
