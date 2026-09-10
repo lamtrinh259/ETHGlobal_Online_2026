@@ -236,3 +236,30 @@ A deployment made before the resolver learned to answer for its own children onl
 `script/SetRootResolver.s.sol` repairs the fallback, and re-running `script/DeployFactory.s.sol` plus
 `script/AddNamespace.s.sol` against the new factory replaces the instances and mirrors with ones that
 carry the check themselves. The grouping levels are reused, so only the mounts change.
+
+## Persistent storage (Coolify)
+
+The API keeps grants, gas top-ups and avatars under `DATA_DIR`, which the image sets to `/data`.
+Without a volume there, every permission and picture is lost on the next deployment.
+
+In Coolify, under **Persistent storage**, choose **Volume mount**:
+
+| Field | Value |
+| --- | --- |
+| Type | Volume mount |
+| Name | anything, e.g. `ketsuban-api-data` |
+| Destination path | `/data` |
+
+Not a *host* mount: a host directory is created root-owned and the service runs as `node`, so writes
+fail with `EACCES`. The image creates `/data` owned by `node` precisely so a named volume inherits that
+ownership.
+
+Confirm after deploying:
+
+```bash
+curl -s https://<api-host>/healthz | jq .config.storage
+# { "dataDir": "/data", "durable": true, "writable": true, "lastError": null }
+```
+
+`writable: false` means the mount is missing or owned by another user; the container log says the same
+at boot, and `/v1/preflight` carries it as a warning.
