@@ -71,8 +71,8 @@ export function OnChain({ api, wallet, dash }: Props) {
           </p>
           {reverse.data.primary ? (
             <p className="muted" data-testid="primary-name">
-              Wallets that ask ENS directly show <code>{reverse.data.primary}</code>, because that is what
-              you set as your primary name. Nothing here can change it.
+              Wallets that ask ENS directly show <code>{reverse.data.primary}</code>, because that is what you
+              set as your primary name. Nothing here can change it.
             </p>
           ) : (
             <p className="muted" data-testid="primary-name">
