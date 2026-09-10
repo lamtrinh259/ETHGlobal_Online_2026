@@ -189,33 +189,29 @@ export function Dashboard() {
         </section>
       )}
 
-      {/* Kept once everything is answered: an answer lapses, and a section that vanishes when you are
-          done gives you nowhere to renew it from. */}
-      {subjectRows.length > 0 && (
-        <Step
-          anchor="recommended"
-          title="Suggested"
-          state={answered.length === subjectRows.length ? "done" : "now"}
-        >
-          <Recommended
-            rows={subjectRows.map((r) => ({
-              domain: r.domain,
-              ensName: r.ensName,
-              answer: r.live?.payload ?? "",
-              validUntil: r.live?.validUntil ?? null,
-            }))}
-            onAnswer={(domain) =>
-              setPublishing({
-                domain,
-                title: questionTitle(domain),
-                answer: questionFor(domain),
-              })
-            }
-          />
-        </Step>
-      )}
-
       <Step anchor="refer" title="References given" state={d.given.length > 0 ? "done" : "now"}>
+        {/* What to answer and who to refer are both references you give, so they read as one thing. */}
+        {subjectRows.length > 0 && (
+          <>
+            <h3>Suggested</h3>
+            <Recommended
+              rows={subjectRows.map((r) => ({
+                domain: r.domain,
+                ensName: r.ensName,
+                answer: r.live?.payload ?? "",
+                validUntil: r.live?.validUntil ?? null,
+              }))}
+              onAnswer={(domain) =>
+                setPublishing({
+                  domain,
+                  title: questionTitle(domain),
+                  answer: questionFor(domain),
+                })
+              }
+            />
+          </>
+        )}
+
         <ReferSomeone
           api={api}
           onGo={(who, ask) => router.push(`/vouch/${who}${ask ? `?ask=${encodeURIComponent(ask.id)}` : ""}`)}
