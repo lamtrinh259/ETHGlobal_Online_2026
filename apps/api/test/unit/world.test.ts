@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { stringToBytes, type Hex } from "viem";
 import {
+  hashSignal,
   hashToField,
   rpSignatureMessage,
   signRequest,
@@ -42,7 +43,7 @@ const proofFor = (signal: string, over: Record<string, unknown> = {}) => ({
   responses: [
     {
       identifier: "orb",
-      signal_hash: hashToField(stringToBytes(signal)),
+      signal_hash: hashSignal(signal),
       proof: "0x1a2b3c",
       merkle_root: "0x0abc123",
       nullifier: "0x2bf8406809dcefb1486dadc96c0a897db9bab002053054cf64272db512c6fbd8",
@@ -336,7 +337,7 @@ describe("which credential this deployment accepts", () => {
     });
   const proofOf = (identifier: string) =>
     proofFor("0xreader", {
-      responses: [{ identifier, signal_hash: hashToField(stringToBytes("0xreader")) }],
+      responses: [{ identifier, signal_hash: hashSignal("0xreader") }],
     });
 
   it("accepts anything World verified when nothing is pinned", async () => {
@@ -374,7 +375,7 @@ describe("the signal a proof is bound to", () => {
       },
     ],
   });
-  const padded = hashToField(stringToBytes("0xreader"));
+  const padded = hashSignal("0xreader");
 
   it("accepts the hash written without its leading zero byte", async () => {
     // `0x00ab…` and `0xab…` are one hash; only one of them is what viem would have printed.
@@ -390,7 +391,7 @@ describe("the signal a proof is bound to", () => {
 
   it("still refuses a hash of something else", async () => {
     const proof = proofFor("0xreader", {
-      responses: [{ identifier: "orb", signal_hash: hashToField(stringToBytes("0xsomebody-else")) }],
+      responses: [{ identifier: "orb", signal_hash: hashSignal("0xsomebody-else") }],
     });
     await expect(verifyHumanProof(world, proof, "0xreader", verified)).rejects.toThrow(
       "not bound to 0xreader"
@@ -400,5 +401,35 @@ describe("the signal a proof is bound to", () => {
   it("says what the proof carried, so a rejection can be diagnosed from the page", async () => {
     const proof = proofFor("0xreader", { responses: [{ identifier: "orb", signal_hash: "0xdead" }] });
     await expect(verifyHumanProof(world, proof, "0xreader", verified)).rejects.toThrow("0xdead");
+  });
+});
+
+/**
+ * How IDKit hashes a signal, which is not simply the text of it: a signal that reads as hex is hashed
+ * as the bytes it spells, anything else as UTF-8. Binding proofs to a wallet address means every real
+ * signal takes the first path, and hashing its 42 characters instead produced a different field
+ * element — so every sound proof was refused as "not bound to" the wallet that made it.
+ *
+ * The vectors below were taken from `hashSignal` in @worldcoin/idkit-core, run against the installed
+ * package rather than read off its source.
+ */
+describe("hashing a signal the way IDKit does", () => {
+  it("hashes a wallet address as its bytes, not as its characters", () => {
+    const wallet = "0xd70b5e8a232bf67f64658cbddebe32e1443894a0";
+    expect(hashSignal(wallet)).toBe("0x00317da9a52ff6749c7af8425e896227b1d976846024b85f6ac77ce1373fbd8c");
+    // What hashing the text gives, which is what this used to compare against and never matched.
+    expect(hashToField(stringToBytes(wallet))).not.toBe(hashSignal(wallet));
+  });
+
+  it("hashes anything that is not hex as text", () => {
+    expect(hashSignal("not-hex-at-all")).toBe(
+      "0x00e3036ba039ea77e075986775a25b21e1d60d425910408c9877d9583c0a21a0"
+    );
+    expect(hashSignal("not-hex-at-all")).toBe(hashToField(stringToBytes("not-hex-at-all")));
+  });
+
+  it("treats a 0x prefix that is not valid hex as text, as IDKit does", () => {
+    expect(hashSignal("0xzz")).toBe("0x0022f0db6c04d10db4e23c81595b5fcd404665abd6a272e33aa29e9bf350f200");
+    expect(hashSignal("0xzz")).toBe(hashToField(stringToBytes("0xzz")));
   });
 });

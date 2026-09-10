@@ -1,4 +1,4 @@
-import { concatHex, keccak256, numberToHex, stringToBytes, type Hex } from "viem";
+import { concatHex, hexToBytes, keccak256, numberToHex, stringToBytes, type Hex } from "viem";
 import { signMessage } from "viem/accounts";
 
 /**
@@ -58,6 +58,20 @@ export function worldFrom(c: {
  */
 export function hashToField(input: Uint8Array): Hex {
   return numberToHex(BigInt(keccak256(input)) >> 8n, { size: 32 });
+}
+
+/**
+ * The bytes IDKit hashes for a signal, which is not simply the text of it.
+ *
+ * A signal that reads as hex is hashed as the bytes it spells; anything else is hashed as UTF-8 text.
+ * The wallet this app binds proofs to is hex, so hashing its 42 characters gives a different field
+ * element from the 20 bytes IDKit hashed, and every sound proof fails the binding check. Mirrored from
+ * `hashSignal` in @worldcoin/idkit-core rather than guessed.
+ */
+export function hashSignal(signal: string): Hex {
+  const body = signal.startsWith("0x") ? signal.slice(2) : "";
+  const isHex = body.length > 0 && body.length % 2 === 0 && /^[0-9a-fA-F]+$/.test(body);
+  return hashToField(isHex ? hexToBytes(`0x${body}`) : stringToBytes(signal));
 }
 
 /**
@@ -166,7 +180,7 @@ export async function verifyHumanProof(
     throw new Error(`world: proof is for action "${String(result.action)}", not "${world.action}"`);
   }
   const responses: IdkitResponse[] = Array.isArray(result.responses) ? result.responses : [];
-  const expected = hashToField(stringToBytes(signal));
+  const expected = hashSignal(signal);
   for (const r of responses) {
     // Compared as a number, not as text. `hash_to_field` always leaves a leading zero byte, and a hex
     // string carrying that value may or may not keep it — `0x00ab…` and `0xab…` are one hash. The same

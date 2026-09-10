@@ -44,7 +44,7 @@ import {
   viewCodeCommitment,
 } from "@peeramid-labs/multipass-client";
 import { createApp, locate, WARNING } from "../../src/app.js";
-import { hashToField, rpSignatureMessage, type Fetch } from "../../src/world.js";
+import { hashSignal, rpSignatureMessage, type Fetch } from "../../src/world.js";
 import type { ChainReader, Instance, ListedRecord, Preflight } from "../../src/chain.js";
 import { explainConfigError, loadConfig } from "../../src/config.js";
 
@@ -3215,7 +3215,8 @@ describe("the humanity check", () => {
     responses: [
       {
         identifier: "orb",
-        signal_hash: hashToField(stringToBytes(signal)),
+        // Hashed the way IDKit hashes it: a wallet reads as hex, so it is the bytes, not the text.
+        signal_hash: hashSignal(signal),
         proof: "0x1a2b",
         merkle_root: "0x0abc",
         nullifier: NULLIFIER,
