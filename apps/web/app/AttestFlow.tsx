@@ -138,7 +138,16 @@ export function AttestFlow({
   }, [isNameDomain]);
 
   const busy = signing || attest.isPending || deliver.isPending;
-  const error = signError ?? attest.error?.message ?? deliver.error?.message;
+  const raw = signError ?? attest.error?.message ?? deliver.error?.message;
+  /*
+   * The attester refuses a nonce the chain has already used, and says so in its own terms. Somebody
+   * reaches that message by publishing twice — most often because the first attempt timed out here and
+   * landed anyway — and "nonce not increasing" tells them nothing about what to do. What happened is
+   * that their record exists.
+   */
+  const error = raw?.includes("nonce not increasing")
+    ? "This is already published — the earlier attempt reached the chain even if this page did not hear back. Reload to see it, and publish again only if you want to replace it."
+    : raw;
   const step = signing
     ? "signing"
     : attest.isPending

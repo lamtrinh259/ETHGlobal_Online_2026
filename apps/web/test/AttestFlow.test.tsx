@@ -39,6 +39,7 @@ const state = {
   freshNonce: { exists: false, next: 1n, ready: true, reason: null } as
     { exists: boolean; next: bigint; ready: boolean; reason: string | null } | undefined,
   wire: undefined as { intent?: { nonce?: string } } | undefined,
+  attestError: undefined as Error | undefined,
 };
 
 vi.mock("@/lib/hooks", () => ({
@@ -52,7 +53,7 @@ vi.mock("@/lib/hooks", () => ({
   useNameStatus: () => ({ data: undefined }),
   useAttest: () => ({
     data: state.attestData,
-    error: undefined,
+    error: state.attestError,
     isPending: false,
     reset: vi.fn(),
     mutateAsync: vi.fn(async (wire: { intent?: { nonce?: string } }) => {
@@ -110,6 +111,7 @@ beforeEach(() => {
   state.cachedNonce = { exists: false, next: 1n, ready: true, reason: null };
   state.freshNonce = { exists: false, next: 1n, ready: true, reason: null };
   state.wire = undefined;
+  state.attestError = undefined;
 });
 
 describe("AttestFlow fields", () => {
@@ -226,5 +228,27 @@ describe("the nonce an intent carries", () => {
       expect(screen.getByRole("alert")).toHaveTextContent("could not read the on-chain nonce")
     );
     expect(state.wire).toBeUndefined();
+  });
+});
+
+/**
+ * "nonce not increasing" is the attester's own term for a record that already exists. Somebody reaches
+ * it by publishing twice — usually because the first attempt timed out in the browser and landed
+ * anyway — and the phrase says nothing about what happened or what to do next.
+ */
+describe("what a refused republish says", () => {
+  it("says the record already exists, rather than naming the field that refused it", async () => {
+    state.attestError = new Error("intent: nonce not increasing");
+    render(<AttestFlow fixedDomain="~alice" fixedHandle="peersky" />);
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("already published");
+    expect(alert).toHaveTextContent("Reload to see it");
+    expect(alert).not.toHaveTextContent("nonce");
+  });
+
+  it("passes any other refusal through in the attester's own words", async () => {
+    state.attestError = new Error("intent: expired");
+    render(<AttestFlow fixedDomain="~alice" fixedHandle="peersky" />);
+    expect(screen.getByRole("alert")).toHaveTextContent("intent: expired");
   });
 });
