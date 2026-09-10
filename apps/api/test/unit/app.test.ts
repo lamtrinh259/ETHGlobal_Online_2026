@@ -358,6 +358,30 @@ describe("GET /healthz", () => {
     });
   });
 
+  /**
+   * Which commit is serving. Without it, "is my fix deployed?" is answered by poking the service and
+   * inferring from how it behaves, at exactly the moment somebody is already unsure what they are
+   * looking at.
+   */
+  it("says which commit it is, or says plainly that nothing told it", async () => {
+    const { chain } = fakeChain();
+    const before = process.env.SOURCE_COMMIT;
+    try {
+      delete process.env.SOURCE_COMMIT;
+      const none = await (await app(chain).request("/healthz")).json();
+      expect(none.commit).toBe("");
+      expect(none.commitFrom).toBe("none");
+
+      process.env.SOURCE_COMMIT = "e791cbef1883e7d8acb0b9d3bd3f5c57f3c0dacd";
+      const named = await (await app(chain).request("/healthz")).json();
+      expect(named.commit).toBe("e791cbe");
+      expect(named.commitFrom).toBe("SOURCE_COMMIT");
+    } finally {
+      if (before === undefined) delete process.env.SOURCE_COMMIT;
+      else process.env.SOURCE_COMMIT = before;
+    }
+  });
+
   it("reports the addresses it was configured with, and which secrets are set", async () => {
     // Half of every deployment problem is an environment variable pointing at the wrong contract, so
     // the health endpoint says what this process is actually using. Values of secrets never appear.

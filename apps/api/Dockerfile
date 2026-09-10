@@ -17,6 +17,11 @@ RUN pnpm deploy --filter @ketsuban/api --prod /out
 
 FROM node:22-alpine
 ENV NODE_ENV=production PORT=8787 DATA_DIR=/data
+# Which commit this image is. Passed as a build arg it survives into the running container; a platform
+# that instead sets it in the environment at run time is read the same way, because /healthz asks the
+# environment rather than the build. Either way the service can say what it is.
+ARG SOURCE_COMMIT
+ENV SOURCE_COMMIT=$SOURCE_COMMIT
 WORKDIR /app
 COPY --from=build /out /app
 # Grants, gas top-ups and avatars live here. The directory has to exist in the image and be owned by

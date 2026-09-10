@@ -46,6 +46,7 @@ import type { ChainReader, Instance } from "./chain.js";
 import { explainRevert } from "./errors.js";
 import type { Config } from "./config.js";
 import { PersistentMap, PersistentSet } from "./store.js";
+import { commitFromEnv } from "./commit.js";
 import { signRequest, verifyHumanProof, worldFrom, type Fetch } from "./world.js";
 
 const hex = z.string().regex(/^0x[0-9a-fA-F]*$/);
@@ -469,11 +470,19 @@ export function createApp({
     }
   });
 
+  // Read once: the environment does not change under a running process, and a probe should not pay
+  // for the answer on every call.
+  const commit = commitFromEnv();
+
   app.get("/healthz", (c) =>
     c.json({
       ok: true,
       relayer: chain.relayer,
       chainId: config.CHAIN_ID,
+      // Which commit is serving. An empty sha with a named source says the platform passed one this
+      // build does not read; "none" says it passed none at all.
+      commit: commit.sha,
+      commitFrom: commit.from,
       index: chain.indexStatus(),
       config: configReport(),
     })
