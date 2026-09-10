@@ -24,7 +24,9 @@ export default async function Home() {
     subjects.map(async (s) => ({
       ...s,
       records: await api
-        .instance(s.domain)
+        // Two seconds, not the usual twenty: this is the first page anybody sees, and a description
+        // is worth having only if it costs nothing. A cold attester loses the flourish, not the door.
+        .instance(s.domain, { signal: AbortSignal.timeout(2_000) })
         .then((r) => r.records)
         .catch(() => undefined),
     }))

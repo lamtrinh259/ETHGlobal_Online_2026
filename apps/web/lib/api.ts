@@ -550,9 +550,16 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
     },
 
     /** What people published under one instance name: the answers, and what the name says it is for. */
-    async instance(domain: string): Promise<InstanceRead> {
+    /**
+     * `signal` is for a caller that would rather render without this than wait for it — the front page
+     * asks about every subject it offers, and a cold attester must not hold up the first thing anybody
+     * sees. The default timeout is the one a person waiting on a page they asked for would accept.
+     */
+    async instance(domain: string, opts: { signal?: AbortSignal } = {}): Promise<InstanceRead> {
       return instanceReadSchema.parse(
-        await readJson(await call(`${base}/v1/instance/${encodeURIComponent(domain)}`))
+        await readJson(
+          await call(`${base}/v1/instance/${encodeURIComponent(domain)}`, { signal: opts.signal })
+        )
       );
     },
 

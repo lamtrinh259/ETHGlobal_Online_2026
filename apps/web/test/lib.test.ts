@@ -730,3 +730,48 @@ describe("reading an instance", () => {
     expect(read.description).toBeNull();
   });
 });
+
+/**
+ * A caller that would rather render without something than wait for it.
+ *
+ * The front page asks about every subject it offers, and those reads are a flourish: the door works
+ * without them. A cold attester answering in twenty seconds would hold up the first thing anybody
+ * sees, for a description.
+ */
+describe("bounding a read the page can do without", () => {
+  it("uses the caller's signal instead of the default timeout", async () => {
+    const seen: (AbortSignal | undefined)[] = [];
+    const api = createApi("http://api.test", "http://api.test/v1/attest", (async (
+      _url: string,
+      init?: RequestInit
+    ) => {
+      seen.push(init?.signal ?? undefined);
+      return new Response(
+        JSON.stringify({ domain: "kju-is", parentName: "kju-is.eth", description: null, answers: [] }),
+        { status: 200 }
+      );
+    }) as never);
+
+    const mine = AbortSignal.timeout(50);
+    await api.instance("kju-is", { signal: mine });
+    expect(seen[0]).toBe(mine);
+  });
+
+  it("still has a default for a caller that gives none", async () => {
+    const seen: (AbortSignal | undefined)[] = [];
+    const api = createApi("http://api.test", "http://api.test/v1/attest", (async (
+      _url: string,
+      init?: RequestInit
+    ) => {
+      seen.push(init?.signal ?? undefined);
+      return new Response(
+        JSON.stringify({ domain: "kju-is", parentName: "kju-is.eth", description: null, answers: [] }),
+        { status: 200 }
+      );
+    }) as never);
+
+    await api.instance("kju-is");
+    // Not the caller's, but not nothing either: an unbounded read is how a page hangs.
+    expect(seen[0]).toBeInstanceOf(AbortSignal);
+  });
+});
