@@ -39,6 +39,16 @@ export function useVerification(api: Api, name: string, opts: { links?: string[]
   });
 }
 
+/** How hard a handle would be to fake; absent until there is a handle to ask about. */
+export function useSybil(api: Api, handle: string | undefined) {
+  return useQuery({
+    queryKey: ["sybil", handle],
+    queryFn: () => api.sybil(handle!),
+    enabled: !!handle,
+    staleTime: 10_000,
+  });
+}
+
 /** Is a handle free in a name domain? Enabled only for well-formed handles; the caller debounces. */
 export function useNameStatus(api: Api, domain: string, handle: string, enabled = true) {
   return useQuery({

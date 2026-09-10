@@ -4,6 +4,7 @@ import { EnsProof } from "@/app/EnsProof";
 import { InstanceAnswers } from "@/app/InstanceAnswers";
 import { Revealed } from "@/app/Revealed";
 import { VerifyCard } from "@/app/VerifyCard";
+import { SybilScore } from "@/app/SybilScore";
 import { VouchList } from "@/app/VouchList";
 import { createApi } from "@/lib/api";
 import { loadWebConfig } from "@/lib/config";
@@ -41,7 +42,7 @@ export default async function VerifyPage({ params, searchParams }: Params) {
       suffix && decoded.toLowerCase().endsWith(suffix) && !instanceOf
         ? decoded.slice(0, -suffix.length).toLowerCase()
         : null;
-    const [v, ens, claim, instance, received] = await Promise.all([
+    const [v, ens, claim, instance, received, sybil] = await Promise.all([
       api.verify(decoded, {
         links: links?.split(","),
         viewCode: viewCode as `0x${string}` | undefined,
@@ -55,12 +56,16 @@ export default async function VerifyPage({ params, searchParams }: Params) {
       // What others have said about this person. The page showed only what they said themselves,
       // which is the half a verifier came here least for.
       handle && /^[a-z0-9-]{1,30}$/.test(handle) ? api.vouches(handle).catch(() => null) : null,
+      // What the account cost to build. A verifier weighing the references above is owed it, and it is
+      // the one number here that cannot be raised by writing more of them.
+      handle && /^[a-z0-9-]{1,30}$/.test(handle) ? api.sybil(handle).catch(() => null) : null,
     ]);
     return (
       <>
         {/* An instance name is a page about a subject, not a person's record: leading with "no record"
             described the wrong thing. What it is comes first, and the answers under it follow. */}
         {instance ? <InstanceAnswers data={instance} texts={ens?.texts} /> : <VerifyCard v={v} />}
+        {sybil && <SybilScore s={sybil} />}
         {received && handle && (
           <section className="card" aria-label="references received">
             <VouchList vouches={received.vouches} handle={handle} />

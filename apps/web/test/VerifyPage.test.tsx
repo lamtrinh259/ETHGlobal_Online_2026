@@ -50,6 +50,22 @@ vi.mock("@/lib/api", async (orig) => ({
       vouches: state.vouches,
       warning: "This is not identity verification.",
     })),
+    sybil: vi.fn(async (handle: string) => ({
+      handle,
+      score: 30,
+      band: "weak" as const,
+      parts: [
+        {
+          id: "humanity",
+          label: "Proof of humanity",
+          weight: 30,
+          earned: 30,
+          why: "A nullifier is spent once.",
+          detail: "proved",
+        },
+      ],
+      warning: "not who holds it",
+    })),
     ens: vi.fn(async () => {
       throw new Error("off");
     }),
@@ -166,6 +182,7 @@ describe("/v/<name> with an opened account", () => {
       ens: vi.fn(async () => null),
       explain: vi.fn(async () => ({ name: "x", says: "alice is a person's name here.", kind: "person" })),
       vouches: vi.fn(async () => ({ handle: "alice", domain: "~alice", vouches: [], warning: "" })),
+      sybil: vi.fn(async () => ({ handle: "alice", score: 0, band: "weak", parts: [], warning: "" })),
     } as never);
     const page = await renderPage({});
     expect(page.container.querySelector("[data-testid=would-claim]")?.textContent).toContain(
@@ -225,5 +242,36 @@ describe("/v/<name> for a person", () => {
       })
     );
     expect(screen.getByLabelText("references received")).toHaveTextContent("none yet");
+  });
+});
+
+/**
+ * The references above are only worth what the account behind them cost to build. A verifier weighing
+ * them is owed the one number an attacker cannot raise by writing more of them.
+ */
+describe("how hard the name is to fake", () => {
+  it("is shown on a person's page, with the parts rather than a bare number", async () => {
+    state.vouches = [];
+    const { default: Page } = await import("@/app/v/[name]/page");
+    render(
+      await Page({
+        params: Promise.resolve({ name: "alice.ketsuban.eth" }),
+        searchParams: Promise.resolve({}),
+      })
+    );
+    expect(screen.getByTestId("sybil-score")).toHaveTextContent("30");
+    expect(screen.getByTestId("sybil-humanity")).toHaveTextContent("A nullifier is spent once");
+  });
+
+  it("is absent for a name that is not a person's, which has nothing to be faked", async () => {
+    const { default: Page } = await import("@/app/v/[name]/page");
+    render(
+      await Page({
+        // An account's own name in a platform namespace: the person is scored, not the account.
+        params: Promise.resolve({ name: "alice.com.x.www.ketsuban.eth" }),
+        searchParams: Promise.resolve({}),
+      })
+    );
+    expect(screen.queryByTestId("sybil")).toBeNull();
   });
 });
