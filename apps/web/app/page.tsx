@@ -33,7 +33,8 @@ export default function Home() {
           <span className="door-k">I was asked to vouch</span>
           <span className="door-t">Write a reference</span>
           <span className="door-d muted">
-            Prove you&apos;re a unique human, link your work account, sign two sentences. Permanent.
+            Link the account you worked from, write a title and a letter, sign. Permanent — withdrawable,
+            never deletable.
           </span>
         </Link>
         <Link href="/verify" className="door">
@@ -53,8 +54,13 @@ export default function Home() {
             phrase.
           </li>
           <li>
-            <strong>Sign one message.</strong> A Chainlink CRE enclave verifies your identity token and signs
-            the record as registrar — your linked-account details never leave it.
+            {/* What this deployment does, rather than what the design allows: it signs on its own node.
+                Saying "an enclave" on a page a verifier reads would be claiming a guarantee that is not
+                switched on here. */}
+            <strong>Sign one message.</strong> The attester checks your Privy identity token and signs the
+            record as registrar. Your account handles are masked or hashed before anything reaches the
+            chain. The same step is built to run inside a Chainlink CRE enclave, so the attester never sees
+            them either; this deployment signs on its own node.
           </li>
           <li>
             <strong>It becomes a name.</strong> The record lands in Multipass and resolves under ENSv2 for
