@@ -44,6 +44,13 @@ jobs:
       - name: web tests
         timeout-minutes: 8
         run: pnpm --filter @ketsuban/web test
+      # The browser journeys were written and then never run by CI, so a UI change could break them
+      # for days without anyone noticing.
+      - name: install browsers
+        run: pnpm --filter @ketsuban/web exec playwright install --with-deps chromium
+      - name: web journeys
+        timeout-minutes: 12
+        run: pnpm --filter @ketsuban/web run test:e2e
 
   e2e:
     runs-on: ubuntu-latest

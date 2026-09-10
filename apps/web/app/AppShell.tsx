@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import build from "@/lib/build-info.json";
 import { Preflight } from "./Preflight";
 import { ThemeToggle } from "./ThemeToggle";
 import { WhoAmI } from "./WhoAmI";
@@ -139,8 +140,8 @@ export function AppShell({ children }: { children: ReactNode }) {
             </>
           )}
           <p className="sh-note muted">
-            {buildStamp(process.env.NEXT_PUBLIC_BUILD_SHA, process.env.NEXT_PUBLIC_BUILD_TIME)} · every record
-            is permanent · this is not identity verification
+            {buildStamp(build.sha, build.builtAt)} · every record is permanent · this is not identity
+            verification
           </p>
         </div>
       </aside>
