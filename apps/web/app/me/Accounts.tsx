@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useLinkAccount, usePrivy } from "@privy-io/react-auth";
 import { AttestFlow } from "@/app/AttestFlow";
 import { PlatformIcon } from "@/app/PlatformIcon";
+import { PLATFORMS } from "@/app/PlatformPicker";
 import { Modal } from "@/app/Modal";
 import type { WalletDashboard } from "@/lib/api";
 import { connectedAccounts, domainsFor } from "@/lib/identity";
@@ -30,7 +31,7 @@ export function Accounts({ links, handle, awaiting, onPublished }: Props) {
   // lists only the name domains, which is not the same question.
   const contracts = useContracts(api);
   const { user } = usePrivy();
-  const { linkTwitter, linkTelegram, linkGithub, linkDiscord, linkGoogle } = useLinkAccount();
+  const link = useLinkAccount();
   const [attesting, setAttesting] = useState<string>();
   const [adding, setAdding] = useState(false);
   const domains = (contracts.data?.instances ?? []).map((i) => i.domain);
@@ -49,13 +50,26 @@ export function Accounts({ links, handle, awaiting, onPublished }: Props) {
     return { ...a, target: candidates[0], onChain, rename };
   });
 
-  const connectors = [
-    { label: "X", run: linkTwitter, domain: "x" },
-    { label: "GitHub", run: linkGithub, domain: "github" },
-    { label: "Telegram", run: linkTelegram, domain: "telegram" },
-    { label: "Discord", run: linkDiscord, domain: "discord" },
-    { label: "Google", run: linkGoogle, domain: "google" },
-  ].filter((c) => !connected.some((a) => a.domain === c.domain));
+  // One list for the whole app; a platform is offered here when Privy can actually link it, and the
+  // SDK's own method is what decides that rather than a subset written out by hand.
+  const linkers: Record<string, (() => void) | undefined> = {
+    x: link.linkTwitter,
+    google: link.linkGoogle,
+    github: link.linkGithub,
+    discord: link.linkDiscord,
+    telegram: link.linkTelegram,
+    linkedin: link.linkLinkedIn,
+    apple: link.linkApple,
+    instagram: link.linkInstagram,
+    tiktok: link.linkTiktok,
+    spotify: link.linkSpotify,
+    twitch: link.linkTwitch,
+    line: link.linkLine,
+    farcaster: link.linkFarcaster,
+  };
+  const connectors = PLATFORMS.filter((p) => linkers[p.id] && !connected.some((a) => a.domain === p.id)).map(
+    (p) => ({ label: p.label, run: linkers[p.id] as () => void, domain: p.id, dns: p.dns })
+  );
 
   return (
     <div id="link">
@@ -142,7 +156,7 @@ export function Accounts({ links, handle, awaiting, onPublished }: Props) {
           <ul className="acct" data-testid="connect-list">
             {connectors.map((c) => (
               <li key={c.domain}>
-                <PlatformIcon domain={c.domain} />
+                <PlatformIcon domain={c.dns} />
                 <span className="acct-id">
                   <strong>{c.label}</strong>
                 </span>

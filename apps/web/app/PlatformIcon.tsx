@@ -1,4 +1,17 @@
-import { siDiscord, siGithub, siGoogle, siTelegram, siX } from "simple-icons";
+import {
+  siApple,
+  siDiscord,
+  siFarcaster,
+  siGithub,
+  siGoogle,
+  siInstagram,
+  siLine,
+  siSpotify,
+  siTelegram,
+  siTiktok,
+  siTwitch,
+  siX,
+} from "simple-icons";
 
 /**
  * The brand mark for a platform, by the domain a record lives in. Both the DNS name (`github.com`) and
@@ -19,6 +32,22 @@ const BRANDS: Record<string, { title: string; hex: string; path: string }> = {
   "discord.com": siDiscord,
   google: siGoogle,
   "google.com": siGoogle,
+  apple: siApple,
+  "apple.com": siApple,
+  instagram: siInstagram,
+  "instagram.com": siInstagram,
+  tiktok: siTiktok,
+  "tiktok.com": siTiktok,
+  spotify: siSpotify,
+  "spotify.com": siSpotify,
+  twitch: siTwitch,
+  "twitch.tv": siTwitch,
+  line: siLine,
+  "line.me": siLine,
+  farcaster: siFarcaster,
+  "farcaster.xyz": siFarcaster,
+  // LinkedIn is not in simple-icons — the set drops brands on trademark request — so it takes the
+  // monogram, which is what that fallback is for.
 };
 
 export function PlatformIcon({ domain, size = 20 }: { domain: string; size?: number }) {

@@ -42,7 +42,7 @@ describe("inviting someone to refer you", () => {
 
   it("asks the writer for the accounts the candidate picked, and signs over them", async () => {
     render(<InviteLink api={api} handle="alice" />);
-    fireEvent.click(screen.getByTestId("require-linkedin.com"));
+    fireEvent.click(screen.getByTestId("platform-linkedin.com"));
     fireEvent.click(screen.getByTestId("make-invite"));
 
     await waitFor(() => expect(signed).toHaveLength(1));

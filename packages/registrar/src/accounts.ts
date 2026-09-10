@@ -27,6 +27,13 @@ export const PLATFORM_DNS_NAMES: Readonly<Record<string, string>> = {
   github: "github.com",
   google: "google.com",
   linkedin: "linkedin.com",
+  apple: "apple.com",
+  instagram: "instagram.com",
+  tiktok: "tiktok.com",
+  spotify: "spotify.com",
+  twitch: "twitch.tv",
+  line: "line.me",
+  farcaster: "farcaster.xyz",
 };
 
 /** Is this a DNS name a namespace can be built from: labels of `[a-z0-9-]`, at least two of them. */

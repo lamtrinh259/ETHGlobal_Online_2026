@@ -18,6 +18,20 @@ describe("platform icons", () => {
     expect(flat.querySelector("path")?.getAttribute("d")).toBe(dns.querySelector("path")?.getAttribute("d"));
   });
 
+  it("falls back to a monogram for a platform whose mark this set does not ship", () => {
+    // simple-icons drops brands on trademark request; LinkedIn is one. A missing mark must not be a
+    // missing icon.
+    render(<PlatformIcon domain="linkedin.com" />);
+    expect(screen.getByTestId("icon-linkedin.com")).toHaveTextContent("l");
+  });
+
+  it("draws the marks it does ship for every platform this app links", () => {
+    for (const dns of ["tiktok.com", "spotify.com", "twitch.tv", "farcaster.xyz", "apple.com"]) {
+      const { getByTestId } = render(<PlatformIcon domain={dns} />);
+      expect(getByTestId(`icon-${dns}`).querySelector("path")).not.toBeNull();
+    }
+  });
+
   it("falls back to a monogram for a mail host nobody has a brand for", () => {
     // Any domain can be attested, so most of them will never have an icon; a broken image is worse.
     render(<PlatformIcon domain="peeramid.xyz" />);

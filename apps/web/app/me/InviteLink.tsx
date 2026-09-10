@@ -7,6 +7,7 @@ import { ZERO_ADDRESS, type SignedInvite } from "@ketsuban/registrar";
 import { useWebConfig } from "@/app/providers";
 import { CopyButton } from "@/app/CopyButton";
 import type { Api } from "@/lib/api";
+import { PlatformPicker } from "@/app/PlatformPicker";
 import { inviteTypedData } from "@/lib/intent";
 
 const WEEK = 7 * 24 * 3600;
@@ -16,9 +17,6 @@ const WEEK = 7 * 24 * 3600;
  * candidate, so the enclave refuses a statement written there without one. Open by default — whoever
  * holds the link may write one reference — and valid for a week.
  */
-/** Accounts a candidate commonly wants seen before a reference counts as one they asked for. */
-const OFFERED = ["linkedin.com", "github.com", "x.com"] as const;
-
 export function InviteLink({ api, handle }: { api: Api; handle: string }) {
   const config = useWebConfig();
   const { wallets } = useWallets();
@@ -69,17 +67,11 @@ export function InviteLink({ api, handle }: { api: Api; handle: string }) {
         Anyone can refer you; an invite marks the ones you asked for. A signature, not a transaction — no gas,
         expires in seven days.
       </p>
-      <p className="row" role="group" aria-label="what the writer should have attested">
-        {OFFERED.map((d) => (
-          <button
-            key={d}
-            className={picked.includes(d) ? "primary" : ""}
-            onClick={() => setPicked((p) => (p.includes(d) ? p.filter((x) => x !== d) : [...p, d]))}
-            data-testid={`require-${d}`}
-          >
-            {d}
-          </button>
-        ))}
+      <PlatformPicker
+        selected={picked}
+        onToggle={(d) => setPicked((p) => (p.includes(d) ? p.filter((x) => x !== d) : [...p, d]))}
+      />
+      <p className="row">
         <input
           value={domain}
           onChange={(e) => setDomain(e.target.value)}

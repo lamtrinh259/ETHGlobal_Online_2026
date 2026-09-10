@@ -2,14 +2,10 @@
 
 import { useState } from "react";
 import type { Api } from "@/lib/api";
-import { PLATFORM_DNS_NAMES } from "@ketsuban/registrar";
 import { Modal } from "@/app/Modal";
-import { PlatformIcon } from "@/app/PlatformIcon";
+import { PlatformPicker } from "@/app/PlatformPicker";
 import type { Ask } from "@/lib/asks";
 import { useFind, useWho } from "@/lib/hooks";
-
-/** The platforms a person can be looked up by, named as their own DNS domain. */
-const PLATFORMS = ["x", "github", "telegram", "discord", "google"] as const;
 
 const label = (s: { received: number }) => `${s.received} reference${s.received === 1 ? "" : "s"} received`;
 
@@ -25,13 +21,13 @@ const label = (s: { received: number }) => `${s.received} reference${s.received 
 export function ReferSomeone({ api, onGo }: { api: Api; onGo: (handle: string, ask?: Ask) => void }) {
   const [picking, setPicking] = useState<{ ask?: Ask }>();
   const [how, setHow] = useState<"account" | "name">("account");
-  const [platform, setPlatform] = useState<string>(PLATFORMS[0]);
+  const [platform, setPlatform] = useState<string>("x.com");
   const [account, setAccount] = useState("");
   const [hasCode, setHasCode] = useState(false);
   const [viewCode, setViewCode] = useState("");
   const [query, setQuery] = useState("");
 
-  const dns = PLATFORM_DNS_NAMES[platform] ?? platform;
+  const dns = platform;
   const who = useWho(api, dns, account, hasCode ? viewCode.trim() : undefined);
   const found = useFind(api, query);
   const clean = query.trim().toLowerCase().replace(/^@/, "");
@@ -79,19 +75,7 @@ export function ReferSomeone({ api, onGo }: { api: Api; onGo: (handle: string, a
 
             {how === "account" && (
               <>
-                <p className="row">
-                  {PLATFORMS.map((p) => (
-                    <button
-                      key={p}
-                      className={platform === p ? "primary" : ""}
-                      onClick={() => setPlatform(p)}
-                      data-testid={`platform-${p}`}
-                      aria-label={p}
-                    >
-                      <PlatformIcon domain={PLATFORM_DNS_NAMES[p] ?? p} size={16} />
-                    </button>
-                  ))}
-                </p>
+                <PlatformPicker single selected={[dns]} onToggle={(d) => setPlatform(d)} />
                 <label>
                   Their handle on <code>{dns}</code>
                   <input
