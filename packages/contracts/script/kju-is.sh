@@ -9,16 +9,17 @@
 #   PERMISSIONED_RESOLVER=0x… ROOT=ketsuban.eth PRIVATE_KEY=$OPERATOR_KEY RPC=… ./script/kju-is.sh
 set -euo pipefail
 
-: "${PERMISSIONED_RESOLVER:?set PERMISSIONED_RESOLVER}"
 : "${PRIVATE_KEY:?set PRIVATE_KEY}"
 : "${RPC:?set RPC}"
 ROOT="${ROOT:-ketsuban.eth}"
 NAME="kju-is.${ROOT}"
 
+# The stock resolver's admin is not ours to write with, so the text lives on our own resolver, which
+# already answers for this label. RESOLVER is the AttestationResolver the root name points at.
+: "${RESOLVER:?set RESOLVER — cast call \$ETH_REGISTRY 'getResolver(string)(address)' ketsuban}"
 write() {
-  NAME="$NAME" KEY="$1" VALUE="$2" \
-  PERMISSIONED_RESOLVER="$PERMISSIONED_RESOLVER" PRIVATE_KEY="$PRIVATE_KEY" \
-  forge script script/SetInstanceText.s.sol --rpc-url "$RPC" --broadcast
+  cast send "$RESOLVER" "setAbout(string,string,string)" "kju-is" "$1" "$2" \
+    --private-key "$PRIVATE_KEY" --rpc-url "$RPC"
 }
 
 write description "Kim Jong Un, Supreme Leader of North Korea. The United States and allied governments attribute the Lazarus Group to the DPRK; its operators are known to seek engineering roles under assumed identities. Answering here is something a candidate can do freely and a DPRK-linked operator cannot, which is what makes the answer worth reading."

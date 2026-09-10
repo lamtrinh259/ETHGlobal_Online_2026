@@ -420,6 +420,17 @@
   },
   {
     "type": "error",
+    "name": "NotOwner",
+    "inputs": [
+      {
+        "name": "caller",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "OffsetOutOfBoundsError",
     "inputs": [
       {
