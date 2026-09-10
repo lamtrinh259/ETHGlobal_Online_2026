@@ -28,7 +28,33 @@ export type WorldConfig = {
   levels: string[];
 };
 
-/** What the config carries; absent unless every part of it is set. */
+/**
+ * Why this deployment cannot ask for a proof, when the parts are set but disagree.
+ *
+ * A staging app is a different app, not a mode of the production one: the QR a staging request builds
+ * points at the simulator, and a production app id will not answer for it whatever the environment
+ * says. Nothing at the World end reports the mismatch — the code simply points at the wrong place,
+ * which reads as the widget being broken.
+ *
+ * Reported rather than thrown. This is one optional feature of the service, and refusing to start over
+ * it takes every unrelated route down with it — which is what happened the first time it was written
+ * as a startup check.
+ */
+export function worldProblem(c: {
+  WORLD_APP_ID?: string;
+  WORLD_ENVIRONMENT: "production" | "staging";
+}): string | undefined {
+  if (!c.WORLD_APP_ID) return undefined;
+  const staging = c.WORLD_APP_ID.startsWith("app_staging_");
+  if (staging === (c.WORLD_ENVIRONMENT === "staging")) return undefined;
+  return (
+    `WORLD_APP_ID ${c.WORLD_APP_ID} is ${staging ? "a staging" : "a production"} app but ` +
+    `WORLD_ENVIRONMENT is "${c.WORLD_ENVIRONMENT}". A staging app id begins app_staging_, and the ` +
+    `environment has to match it. The humanity check is off until they agree.`
+  );
+}
+
+/** What the config carries; absent unless every part of it is set and consistent. */
 export function worldFrom(c: {
   WORLD_APP_ID?: string;
   WORLD_RP_ID?: string;
@@ -40,20 +66,7 @@ export function worldFrom(c: {
   WORLD_LEVELS: string[];
 }): WorldConfig | undefined {
   if (!c.WORLD_APP_ID || !c.WORLD_RP_ID || !c.WORLD_RP_SIGNING_KEY) return undefined;
-  /*
-   * A staging app is a different app, not a mode of the production one: the QR a staging request
-   * produces points at the simulator, and a production app id will not answer for it whatever the
-   * environment says. The two are set separately and there is nothing at the World end that reports
-   * the mismatch, so the QR simply points at the wrong place — which reads as the widget being broken.
-   */
-  const staging = c.WORLD_APP_ID.startsWith("app_staging_");
-  if (staging !== (c.WORLD_ENVIRONMENT === "staging")) {
-    throw new Error(
-      `world: WORLD_APP_ID ${c.WORLD_APP_ID} is ${staging ? "a staging" : "a production"} app but ` +
-        `WORLD_ENVIRONMENT is "${c.WORLD_ENVIRONMENT}". A staging app id begins app_staging_, and the ` +
-        `environment has to match it, or the widget offers a code the app cannot answer.`
-    );
-  }
+  if (worldProblem(c)) return undefined;
   return {
     appId: c.WORLD_APP_ID,
     rpId: c.WORLD_RP_ID,

@@ -7,6 +7,7 @@ import {
   signRequest,
   verifyHumanProof,
   worldFrom,
+  worldProblem,
   type WorldConfig,
 } from "../../src/world.js";
 
@@ -461,19 +462,31 @@ describe("staging and production are separate apps", () => {
     ).toBe("staging");
   });
 
-  it("refuses a production app pointed at staging, which is the pairing that looks like a broken widget", () => {
-    expect(() => worldFrom({ ...base, WORLD_APP_ID: "app_prod", WORLD_ENVIRONMENT: "staging" })).toThrow(
-      /begins app_staging_/
+  /**
+   * Off, not fatal. This is one optional feature of the service, and refusing to start over it takes
+   * every unrelated route down with it — which is what the first version of this check did.
+   */
+  it("turns the humanity check off rather than refusing to start", () => {
+    const mixed = { ...base, WORLD_APP_ID: "app_prod", WORLD_ENVIRONMENT: "staging" as const };
+    expect(() => worldFrom(mixed)).not.toThrow();
+    expect(worldFrom(mixed)).toBeUndefined();
+  });
+
+  it("says which way round it is, so a deployment can be fixed from the message", () => {
+    expect(worldProblem({ WORLD_APP_ID: "app_prod", WORLD_ENVIRONMENT: "staging" })).toContain(
+      "is a production app"
+    );
+    expect(worldProblem({ WORLD_APP_ID: "app_staging_abc", WORLD_ENVIRONMENT: "production" })).toContain(
+      "is a staging app"
     );
   });
 
-  it("refuses a staging app left in production", () => {
-    expect(() =>
-      worldFrom({ ...base, WORLD_APP_ID: "app_staging_abc", WORLD_ENVIRONMENT: "production" })
-    ).toThrow(/is a staging app/);
+  it("has nothing to say when the pair agrees, or when there is no app at all", () => {
+    expect(worldProblem({ WORLD_APP_ID: "app_prod", WORLD_ENVIRONMENT: "production" })).toBeUndefined();
+    expect(worldProblem({ WORLD_APP_ID: undefined, WORLD_ENVIRONMENT: "staging" })).toBeUndefined();
   });
 
-  it("is still simply absent when a part of it is unset, rather than an error", () => {
+  it("is still simply absent when a part of it is unset", () => {
     expect(worldFrom({ ...base, WORLD_APP_ID: undefined, WORLD_ENVIRONMENT: "staging" })).toBeUndefined();
   });
 });

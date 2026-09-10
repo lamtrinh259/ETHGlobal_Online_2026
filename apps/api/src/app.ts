@@ -46,7 +46,7 @@ import type { ChainReader, Instance } from "./chain.js";
 import { explainRevert } from "./errors.js";
 import type { Config } from "./config.js";
 import { PersistentMap, PersistentSet } from "./store.js";
-import { signRequest, verifyHumanProof, worldFrom, type Fetch } from "./world.js";
+import { signRequest, verifyHumanProof, worldFrom, worldProblem, type Fetch } from "./world.js";
 
 const hex = z.string().regex(/^0x[0-9a-fA-F]*$/);
 const decimal = z.string().regex(/^\d+$/);
@@ -495,6 +495,9 @@ export function createApp({
         ...(store.durable && !store.writable
           ? [`DATA_DIR cannot be written (${store.lastError}): nothing kept here survives a restart`]
           : []),
+        // A World app and environment that disagree leave the humanity check off with nothing said
+        // anywhere else; this is where a deployment learns why the CTA never appeared.
+        ...(worldProblem(config) ? [worldProblem(config)!] : []),
       ];
       return c.json({ ...p, warnings }, p.ok ? 200 : 503);
     } catch (e) {
