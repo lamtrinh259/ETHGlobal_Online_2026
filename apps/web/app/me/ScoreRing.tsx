@@ -1,0 +1,43 @@
+import type { ScorePart } from "@/lib/score";
+
+const ICONS: Record<ScorePart["id"], string> = {
+  references: "✍",
+  name: "◈",
+  accounts: "⛓",
+  profile: "☺",
+};
+
+/**
+ * How far the profile has got, at the top of the page. The parts are shown beside the number so it is
+ * never only a verdict: whatever is missing is the next thing to do, and says how much it is worth.
+ */
+export function ScoreRing({ score, parts }: { score: number; parts: ScorePart[] }) {
+  return (
+    <section className="card score-card">
+      <div
+        className="score-ring"
+        data-testid="score"
+        role="img"
+        aria-label={`Profile ${score} of 100`}
+        style={{ ["--pct" as string]: `${score}` }}
+      >
+        <strong>{score}</strong>
+        <small>/100</small>
+      </div>
+      <ul className="score-parts">
+        {parts.map((p) => (
+          <li key={p.id} className={p.done ? "done" : "todo"} data-testid={`part-${p.id}`}>
+            <span aria-hidden>{ICONS[p.id]}</span>
+            <span className="score-part-label">
+              <strong>{p.label}</strong>
+              <small className="muted">{p.hint}</small>
+            </span>
+            <span className="score-part-worth muted">
+              {p.earned}/{p.weight}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}

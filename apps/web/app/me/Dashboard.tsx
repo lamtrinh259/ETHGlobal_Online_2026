@@ -9,11 +9,13 @@ import { WITHDRAWN } from "@ketsuban/registrar";
 import { useWebConfig } from "@/app/providers";
 import { CopyButton } from "@/app/CopyButton";
 import { fmtUtc, short } from "@/app/ui";
-import { apiFor, useVouches, useWalletDashboard } from "@/lib/hooks";
+import { apiFor, useVerification, useVouches, useWalletDashboard } from "@/lib/hooks";
 import type { Signer } from "@/lib/chain";
 import { nameRows, needsAttention } from "@/lib/journey";
 import { vouchRequest } from "@/lib/profile";
 import { Step } from "@/app/Step";
+import { ScoreRing } from "./ScoreRing";
+import { profileScore } from "@/lib/score";
 import { AttestFlow } from "@/app/AttestFlow";
 import { Modal } from "@/app/Modal";
 import { questionFor, questionTitle } from "@/lib/questions";
@@ -65,6 +67,8 @@ export function Dashboard() {
   const [rootRow, ...subjectRows] = rows;
   const handle = rootRow?.live ? rootRow.ensName.split(".")[0] : undefined;
   const received = useVouches(api, handle);
+  const rootVerification = useVerification(api, rootRow?.live ? rootRow.ensName : "");
+  const rootProfile = rootVerification.data?.profile;
   const liveVouchers = (received.data?.vouches ?? [])
     .filter((v) => v.live && v.statement !== WITHDRAWN)
     .filter((v, i, all) => all.findIndex((o) => o.voucher === v.voucher) === i);
@@ -95,6 +99,17 @@ export function Dashboard() {
 
   const d = dash.data!;
   const attention = needsAttention(d, Date.now());
+  // One number at the top: what a verifier can check, weighted by how much they weigh it.
+  const scored = profileScore({
+    hasName: !!handle,
+    accounts: d.links.filter((l) => l.live).length,
+    profile: {
+      avatar: rootProfile?.avatar ?? "",
+      description: rootProfile?.description ?? "",
+      url: rootProfile?.url ?? "",
+    },
+    references: liveVouchers.length,
+  });
   const liveLinks = d.links.filter((l) => l.live);
   const answered = subjectRows.filter((r) => r.live?.payload);
   // The wait is over as soon as the record shows up, whichever domain it was for.
@@ -109,6 +124,8 @@ export function Dashboard() {
 
   return (
     <>
+      <ScoreRing score={scored.score} parts={scored.parts} />
+
       {attention.length > 0 && (
         <section className="card" data-testid="dash-attention">
           <h2>Needs attention</h2>
@@ -130,11 +147,7 @@ export function Dashboard() {
       {d.org && (
         <section className="card" data-testid="dash-org">
           <h2>Issuing as {d.org.label}</h2>
-          <p className="muted">
-            This wallet is an onboarded organisation, so it writes references without an invitation — for
-            graduates and former colleagues who have never claimed a name here. They find the letter waiting
-            when they do.
-          </p>
+          <p className="muted">Write references for people who have claimed nothing yet.</p>
           <p>
             <Link href="/vouch">Write a reference →</Link>
           </p>
@@ -143,8 +156,7 @@ export function Dashboard() {
 
       <Step n={1} title="Prove you are one real person" state="pending">
         <p className="muted" data-testid="humanity">
-          A short face scan through World, so one person cannot run ten accounts. Partner access is pending,
-          so this stays open and nothing below waits on it.
+          A face scan through World. Partner access pending — nothing below waits on it.
         </p>
       </Step>
 
@@ -170,7 +182,7 @@ export function Dashboard() {
       >
         {awaiting === root?.domain && !handle && (
           <p className="muted" data-testid="awaiting">
-            Published. Waiting for the record to reach the index — this page updates itself.{" "}
+            Published · waiting for the index.{" "}
             <button className="linkish" onClick={() => void dash.refetch()}>
               check now
             </button>
@@ -193,10 +205,7 @@ export function Dashboard() {
           </p>
         ) : (
           <>
-            <p className="muted">
-              A name is what references attach to. An organisation may already have written for a handle you
-              have not claimed — claim it and those letters attach to it.
-            </p>
+            <p className="muted">Claim yours and any waiting letters attach to it.</p>
             <button
               className="primary"
               onClick={() => setPublishing({ domain: root!.domain, title: "Claim your name" })}
@@ -305,7 +314,7 @@ export function Dashboard() {
             </details>
           </>
         ) : (
-          <p className="muted">References attach to a name, so step 3 comes first.</p>
+          <p className="muted">Claim a name first.</p>
         )}
 
         {d.given.length > 0 && (
@@ -362,10 +371,7 @@ export function Dashboard() {
 
         <section className="card" data-testid="dash-gas">
           <h3>Gas</h3>
-          <p className="muted">
-            Records are relayed for you. Writing an ENS record or claiming a name is a transaction you send
-            yourself, which is the only thing here that needs ether.
-          </p>
+          <p className="muted"></p>
           {wallet && <FundWallet api={api} wallet={wallet} balance={d.balance} topup={d.gasTopup} />}
         </section>
 

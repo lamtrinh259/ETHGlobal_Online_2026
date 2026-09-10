@@ -83,7 +83,7 @@ describe("bringing your own .eth", () => {
         topup={{ enabled: true, available: true, amount: "2000000000000000" }}
       />
     );
-    expect(screen.getByTestId("own-name-gas")).toHaveTextContent("needs a little ETH for gas");
+    expect(screen.getByTestId("own-name-gas")).toHaveTextContent("needs gas");
     // The same ways of funding a wallet as anywhere else: the relay's ether, Privy, or the address.
     expect(screen.getByTestId("get-gas")).toBeVisible();
     expect(screen.getByTestId("fund-privy")).toBeVisible();

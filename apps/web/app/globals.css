@@ -991,3 +991,76 @@ details.advanced[open] > summary {
   color: var(--warning, #a16207);
   border-color: currentColor;
 }
+
+/* The score at the top of a profile: one number, and what is still worth doing beside it. */
+.score-card {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-lg, 20px);
+  flex-wrap: wrap;
+}
+.score-ring {
+  flex: none;
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  /* The filled arc is the score itself, so the picture cannot disagree with the number. */
+  background: conic-gradient(var(--consensus, #2f855a) calc(var(--pct) * 1%), var(--border) 0);
+  position: relative;
+}
+.score-ring::after {
+  content: "";
+  position: absolute;
+  inset: 8px;
+  border-radius: 50%;
+  background: var(--card, #fff);
+}
+.score-ring strong,
+.score-ring small {
+  position: relative;
+  z-index: 1;
+}
+.score-ring strong {
+  font-size: 26px;
+  line-height: 1;
+}
+.score-ring small {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+.score-parts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+  flex: 1 1 16ch;
+  min-width: 0;
+}
+.score-parts li {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-sm, 8px);
+}
+.score-part-label {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.score-part-label small {
+  font-size: 11px;
+}
+.score-part-worth {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.score-parts li.done {
+  color: var(--consensus, #2f855a);
+}
+.score-parts li.todo .score-part-label strong {
+  font-weight: 600;
+}

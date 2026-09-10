@@ -51,8 +51,8 @@ export function InviteLink({ handle }: { handle: string }) {
   return (
     <>
       <p className="muted">
-        Only people you invite can write a reference for you. The invite is a signature, not a transaction: no
-        gas, and it expires in seven days.
+        Anyone can refer you; an invite marks the ones you asked for. A signature, not a transaction — no gas,
+        expires in seven days.
       </p>
       {link ? (
         <>

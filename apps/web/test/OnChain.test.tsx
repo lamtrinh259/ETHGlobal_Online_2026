@@ -66,7 +66,7 @@ describe("OnChain", () => {
   it("says what ENS itself answers, which only the holder can set", async () => {
     render(<OnChain api={api("alice.ketsuban.eth")} wallet={WALLET} dash={dash} />, { wrapper: wrapper() });
     await waitFor(() =>
-      expect(screen.getByTestId("primary-name")).toHaveTextContent("set no primary name in ENS")
+      expect(screen.getByTestId("primary-name")).toHaveTextContent("No primary name set in ENS")
     );
   });
 
@@ -78,7 +78,7 @@ describe("OnChain", () => {
     expect(names).toHaveTextContent("you are there, not which account");
     expect(names).toHaveTextContent("x, in the open");
     // Asked the other way round, the address answers to all of them.
-    await waitFor(() => expect(screen.getByTestId("reverse-names")).toHaveTextContent("finds 2 names"));
+    await waitFor(() => expect(screen.getByTestId("reverse-names")).toHaveTextContent("2 names"));
   });
 
   it("lists every readable name, says why a private account has none, and shows the reverse answer", async () => {
@@ -90,9 +90,11 @@ describe("OnChain", () => {
     // An expired record is not a name anyone can read.
     expect(names).not.toHaveTextContent("old.github.ketsuban.eth");
 
-    expect(screen.getByTestId("onchain-masked")).toHaveTextContent("google is attested but private");
+    expect(screen.getByTestId("onchain-masked")).toHaveTextContent("google attested privately");
 
-    await waitFor(() => expect(screen.getByTestId("reverse")).toHaveTextContent("gets alice.ketsuban.eth"));
+    await waitFor(() =>
+      expect(screen.getByTestId("reverse")).toHaveTextContent("resolves to alice.ketsuban.eth")
+    );
   });
 
   it("says plainly when an address answers to nothing", async () => {
@@ -100,6 +102,6 @@ describe("OnChain", () => {
       wrapper: wrapper(),
     });
     expect(screen.getByTestId("onchain")).toHaveTextContent("Nothing yet");
-    await waitFor(() => expect(screen.getByTestId("reverse")).toHaveTextContent("resolves to no name yet"));
+    await waitFor(() => expect(screen.getByTestId("reverse")).toHaveTextContent("No name yet"));
   });
 });

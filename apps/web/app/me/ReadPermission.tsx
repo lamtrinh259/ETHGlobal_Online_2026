@@ -162,19 +162,14 @@ export function ReadPermission({ api, links, name }: Props) {
   return (
     <section className="card" data-testid="read-permission">
       <h2>Share a private account</h2>
-      <p className="muted">
-        Each of these proves you control an account without saying which one. Sharing gives one reader the
-        code that unmasks it: the enclave opens it for them and answers there, so the handle is still never
-        published and this app never sees it either.
-      </p>
+      <p className="muted">Sharing lets one reader see which account.</p>
 
       <h3>Who can read these now</h3>
       {!live.data ? (
         <p className="muted">reading…</p>
       ) : live.data.grants.length === 0 ? (
         <p className="muted" data-testid="granted-none">
-          Nobody. Each account above stays masked until you share it, and every share can be taken back here
-          afterwards.
+          Nobody yet.
         </p>
       ) : (
         <ul className="acct" data-testid="granted-list">
@@ -227,10 +222,7 @@ export function ReadPermission({ api, links, name }: Props) {
 
       {adding && (
         <Modal title="Share a private account" onClose={() => setAdding(false)}>
-          <p className="muted">
-            Pick what to share, then say who may read it. It is one signature and one link, however many
-            accounts you pick.
-          </p>
+          <p className="muted">One signature, one link, however many accounts.</p>
           <ul className="acct" data-testid="pick-list">
             {masked.map((l) => (
               <li key={l.domain} data-testid={`pick-${l.domain}`}>

@@ -100,9 +100,7 @@ export function OwnName({ api, wallet, domain, parentLabel, handle, getSigner, b
       )}
       {broke && !held && (
         <div data-testid="own-name-gas">
-          <small className="muted">
-            This one is yours to send, so the wallet needs a little ETH for gas.
-          </small>
+          <small className="muted">Yours to send, so it needs gas.</small>
           {wallet && topup && <FundWallet api={api} wallet={wallet} balance={balance} topup={topup} />}
         </div>
       )}

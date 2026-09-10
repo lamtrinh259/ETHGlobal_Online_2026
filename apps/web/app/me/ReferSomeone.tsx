@@ -41,11 +41,7 @@ export function ReferSomeone({ api, onGo }: { api: Api; onGo: (handle: string, a
 
   return (
     <div data-testid="refer-someone">
-      <p className="muted">
-        Anyone can refer anyone here — you do not need their permission, and they do not need an account yet.
-        Say what connects you to them; if they have never claimed a handle, the reference waits and attaches
-        when they do.
-      </p>
+      <p className="muted">Anyone can refer anyone. No permission needed, no account needed.</p>
 
       <p>
         <button className="primary" onClick={() => open()} data-testid="refer-open">
@@ -78,7 +74,7 @@ export function ReferSomeone({ api, onGo }: { api: Api; onGo: (handle: string, a
           <div data-testid="refer-dialog">
             {picking.ask && (
               <p className="muted">
-                You are writing: <strong>{picking.ask.label}</strong>
+                Writing: <strong>{picking.ask.label}</strong>
               </p>
             )}
             <p className="row" role="group" aria-label="how you know them">
@@ -141,16 +137,13 @@ export function ReferSomeone({ api, onGo }: { api: Api; onGo: (handle: string, a
                       aria-label="view code"
                       data-testid="viewcode"
                     />
-                    <small className="muted">
-                      A private account cannot be searched — the chain holds a one-time pad, not the handle.
-                      With the code they gave you, the name can be worked out exactly.
-                    </small>
+                    <small className="muted">A private account is unsearchable without it.</small>
                   </label>
                 )}
 
                 <p className="muted" data-testid="who-result">
                   {account.trim().length < 2 ? (
-                    "An account identifies them exactly, which a name cannot."
+                    "An account identifies them exactly; a name does not."
                   ) : who.isFetching ? (
                     "looking…"
                   ) : who.data?.found && who.data.candidate ? (
@@ -168,10 +161,7 @@ export function ReferSomeone({ api, onGo }: { api: Api; onGo: (handle: string, a
                   ) : who.data?.note ? (
                     who.data.note
                   ) : (
-                    <>
-                      Nobody here holds that account. You can still refer them — pick a handle for their page
-                      under “I only know their name”, and they claim it later.
-                    </>
+                    <>Nobody holds that account here. Try their name instead.</>
                   )}
                 </p>
               </>
@@ -193,8 +183,7 @@ export function ReferSomeone({ api, onGo }: { api: Api; onGo: (handle: string, a
                 {found.data && found.data.matches.length > 0 && (
                   <>
                     <p className="muted">
-                      More than one person can be called this. The references each has received are the only
-                      evidence of which one people mean.
+                      Most referenced first — the only evidence of which one people mean.
                     </p>
                     <ul className="acct" data-testid="matches">
                       {found.data.matches.map((m) => (

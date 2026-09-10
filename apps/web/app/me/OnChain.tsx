@@ -31,9 +31,7 @@ export function OnChain({ api, wallet, dash }: Props) {
       <summary className="muted">How these appear on chain</summary>
 
       {names.length === 0 ? (
-        <p className="muted">
-          Nothing yet. Claim a name and attest an account, and both become readable here.
-        </p>
+        <p className="muted">Nothing yet.</p>
       ) : (
         <ul className="acct" data-testid="onchain-names">
           {names.map((n) => (
@@ -54,10 +52,7 @@ export function OnChain({ api, wallet, dash }: Props) {
 
       {masked.length > 0 && (
         <p className="muted" data-testid="onchain-masked">
-          {masked.map((l) => l.domain).join(", ")}{" "}
-          {masked.length === 1 ? "is attested but private" : "are attested but private"}, so no name is
-          published for {masked.length === 1 ? "it" : "them"}. The record proves you control the account; who
-          may read which one is your decision.
+          {masked.map((l) => l.domain).join(", ")} attested privately — no name published.
         </p>
       )}
 
@@ -65,31 +60,27 @@ export function OnChain({ api, wallet, dash }: Props) {
       {reverse.data?.name ? (
         <div data-testid="reverse">
           <p>
-            Anything resolving your address gets <code>{reverse.data.name}</code>. That answer comes from your
-            Multipass record through the instance resolver, so it needs no reverse registry and no account
-            here.
+            Your address resolves to <code>{reverse.data.name}</code> — from your record, needing no reverse
+            registry.
           </p>
           {reverse.data.primary ? (
             <p className="muted" data-testid="primary-name">
-              Wallets that ask ENS directly show <code>{reverse.data.primary}</code>, because that is what you
-              set as your primary name. Nothing here can change it.
+              Wallets asking ENS directly show <code>{reverse.data.primary}</code>, your primary name.
             </p>
           ) : (
             <p className="muted" data-testid="primary-name">
-              You have set no primary name in ENS, so a wallet showing one would have nothing to show. The
-              answer above comes from your record instead.
+              No primary name set in ENS; the answer above comes from your record.
             </p>
           )}
           {reverse.data.names.length > 1 && (
             <p className="muted" data-testid="reverse-names">
-              The same read finds {reverse.data.names.length} names for this address — the ones above —
-              because each is a record this wallet holds, not an entry someone made about it.
+              {reverse.data.names.length} names, each a record this wallet holds.
             </p>
           )}
         </div>
       ) : (
         <p className="muted" data-testid="reverse">
-          Your address resolves to no name yet; claiming one is what gives it an answer.
+          No name yet.
         </p>
       )}
     </details>

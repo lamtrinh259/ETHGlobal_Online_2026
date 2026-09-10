@@ -59,10 +59,7 @@ export function Accounts({ links, handle, awaiting, onPublished }: Props) {
 
   return (
     <div id="link">
-      <p className="muted">
-        A reference carries weight because you can show how you know the person. Attesting an account records
-        that you control one — masked, so the chain never says which.
-      </p>
+      <p className="muted">Attesting proves you control an account, without naming it.</p>
 
       {connected.length > 0 && (
         <ul className="acct" data-testid="accounts">
@@ -141,10 +138,7 @@ export function Accounts({ links, handle, awaiting, onPublished }: Props) {
           and read as part of it. */}
       {adding && (
         <Modal title="Connect an account" onClose={() => setAdding(false)}>
-          <p className="muted">
-            Connecting is between you and the platform. Attesting comes after, and records only that you
-            control the account — the handle itself stays masked unless you share it.
-          </p>
+          <p className="muted">Connect first; attesting comes after.</p>
           <ul className="acct" data-testid="connect-list">
             {connectors.map((c) => (
               <li key={c.domain}>

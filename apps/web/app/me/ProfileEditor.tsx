@@ -22,8 +22,8 @@ const LABELS: Record<(typeof PUBLIC_KEYS)[number], string> = {
 };
 
 const HINTS: Record<(typeof PUBLIC_KEYS)[number], string> = {
-  avatar: "A picture anyone reading your name will see",
-  description: "A line about you, shown wherever this name is read",
+  avatar: "Shown wherever your name is read",
+  description: "A line about you",
   url: "Somewhere of your own",
 };
 
@@ -93,14 +93,15 @@ export function ProfileEditor({ api, name, getSigner }: Props) {
   return (
     <div data-testid="profile-editor">
       <p className="muted">
-        This part is public and meant to be read. It is published as text records on <code>{name}</code>, so
-        any ENS client shows it — not only this app. Your accounts stay masked; nothing here reveals them.
+        Public. Published as text records on <code>{name}</code>, so any ENS client shows it.
       </p>
-      <p className="muted" data-testid="profile-roles">
-        Each of these keys is yours because the bridge granted your wallet a role for it, on this name, when
-        the record landed. The resolver enforces that: any other key on this name, and this name from any
-        other wallet, is refused on chain rather than by this page. Each changed field is one transaction.
-      </p>
+      <details data-testid="profile-roles">
+        <summary className="muted">Why you can write these</summary>
+        <small className="muted">
+          The bridge granted your wallet a role per key on this name; the resolver refuses anything else on
+          chain. One transaction per changed field.
+        </small>
+      </details>
       {/* Your page as anyone else reads it, with the picture changed in place rather than by URL. */}
       <div className="me-head" data-testid="profile-preview">
         <label className="me-avatar" title="Change your picture">
@@ -147,7 +148,7 @@ export function ProfileEditor({ api, name, getSigner }: Props) {
           <small className="muted">
             {HINTS[k]} ·{" "}
             <span data-testid={`role-${k}`}>
-              your wallet holds the role for <code>{k}</code> on this name
+              role held for <code>{k}</code>
             </span>
           </small>
         </label>
@@ -165,7 +166,7 @@ export function ProfileEditor({ api, name, getSigner }: Props) {
         <small className="muted">
           {HINTS.avatar} ·{" "}
           <span data-testid="role-avatar">
-            your wallet holds the role for <code>avatar</code> on this name
+            role held for <code>avatar</code>
           </span>
         </small>
       </label>
