@@ -22,6 +22,8 @@ write() {
     --private-key "$PRIVATE_KEY" --rpc-url "$RPC"
 }
 
+write name "Kim Jong Un"
+
 write description "Kim Jong Un, Supreme Leader of North Korea. The United States and allied governments attribute the Lazarus Group to the DPRK; its operators are known to seek engineering roles under assumed identities. Answering here is something a candidate can do freely and a DPRK-linked operator cannot, which is what makes the answer worth reading."
 
 write url "https://home.treasury.gov/news/press-releases/sm774"

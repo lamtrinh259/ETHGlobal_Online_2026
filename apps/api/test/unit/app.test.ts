@@ -1099,6 +1099,7 @@ describe("GET /v1/instance/:domain — what people said under one name", () => {
     const { chain } = fakeChain({
       // Keyed by the name, as the universal read answers it.
       texts: {
+        "kju-is.eth/name": "Kim Jong Un",
         "kju-is.eth/description": "Kim Jong Un, Supreme Leader of North Korea.",
         "kju-is.eth/url": "https://t.example",
       },
@@ -1107,6 +1108,8 @@ describe("GET /v1/instance/:domain — what people said under one name", () => {
     const body = await (await app(chain).request("/v1/instance/kju-is")).json();
     expect(body.records.description).toMatch(/Supreme Leader/);
     expect(body.records.url).toBe("https://t.example");
+    // A page titled `kju-is.ketsuban.eth` says what the name is, not who it is about.
+    expect(body.records.name).toBe("Kim Jong Un");
   });
 
   it("shows who the page is about, from the records the name itself holds", async () => {
@@ -1122,6 +1125,7 @@ describe("GET /v1/instance/:domain — what people said under one name", () => {
     });
     const body = await (await app(chain).request("/v1/instance/kju-is")).json();
     expect(body.records).toEqual({
+      name: "",
       description: "Supreme Leader of North Korea.",
       url: "https://en.wikipedia.org/wiki/Kim_Jong_Un",
       avatar: "https://example.test/kju.png",

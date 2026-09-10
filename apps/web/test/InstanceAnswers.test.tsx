@@ -93,3 +93,26 @@ describe("where the profile's text comes from", () => {
     expect(screen.getByTestId("instance-answers")).toHaveTextContent("Answering tests affiliation");
   });
 });
+
+describe("naming a page about a subject", () => {
+  it("leads with who it is about, keeping the ENS name as the smaller line", () => {
+    // `kju-is.ketsuban.eth` says what the name is, not who it is about. Both belong, in that order.
+    render(<InstanceAnswers data={{ ...data, records: { ...data.records!, name: "Kim Jong Un" } }} />);
+    const card = screen.getByTestId("instance-answers");
+    expect(card.querySelector("h2")).toHaveTextContent("Kim Jong Un");
+    expect(card).toHaveTextContent("kju-is.ketsuban.eth");
+  });
+
+  it("falls back to the ENS name when nobody has said who it is about", () => {
+    render(<InstanceAnswers data={data} />);
+    expect(screen.getByTestId("instance-answers").querySelector("h2")).toHaveTextContent(
+      "kju-is.ketsuban.eth"
+    );
+  });
+
+  it("shows a placeholder where there is no picture, so the page keeps its shape", () => {
+    // Without one the heading sat alone and the page read as broken rather than as unillustrated.
+    render(<InstanceAnswers data={data} />);
+    expect(screen.getByTestId("about-avatar")).toBeInTheDocument();
+  });
+});

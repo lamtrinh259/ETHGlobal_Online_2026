@@ -708,7 +708,9 @@ export function createApp({ config, chain, now = () => Math.floor(Date.now() / 1
 
     // Who the page is about, read from the name itself: a page for someone who has claimed nothing is
     // only worth reading if it says who they are, and that belongs on chain rather than in this app.
-    const keys = ["description", "url", "avatar"] as const;
+    // `name` is the standard display-name text record: a page titled `kju-is.<root>` says what the
+    // name is, not who it is about.
+    const keys = ["name", "description", "url", "avatar"] as const;
     const [records, ...texts] = await Promise.all([
       chain.listRecords(domain),
       ...keys.map((key) => chain.resolveText(instance.resolver, instance.parentName, key).catch(() => "")),
