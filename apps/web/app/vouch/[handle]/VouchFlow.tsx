@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import type { Address } from "viem";
 import { AttestFlow, type Published } from "@/app/AttestFlow";
+import { InviteTerms } from "./InviteTerms";
 import { LetterForm } from "./LetterForm";
 import { useWebConfig } from "@/app/providers";
 import { fmtUtc } from "@/app/ui";
@@ -172,6 +173,12 @@ export function VouchFlow({
               in the history as revoked.
             </p>
           )}
+          {/* What the candidate asked of the writer, before they sign rather than after. */}
+          <InviteTerms
+            candidate={candidate}
+            requires={invite?.requires ?? []}
+            attested={(dash.data?.links ?? []).filter((l) => l.live).map((l) => l.domain)}
+          />
           <AttestFlow
             fixedDomain={vouchDomain}
             fixedHandle={handle}
