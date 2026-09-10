@@ -531,9 +531,26 @@ describe("initWorkflow", () => {
     ).toEqual([[b64(REGISTERED_TOPIC)], [b64(toBytes32(config.nameDomains[0]))]]);
     expect(handlers[0].fn).toBe(onAttest);
     expect(handlers[0].requirements).toBeDefined();
-    const trigger = handlers[0].trigger as any;
-    expect(trigger.config.authorizedKeys).toHaveLength(1);
-    expect(trigger.config.authorizedKeys[0]).toMatchObject({ type: 1, publicKey: "0x1111111111111111111111111111111111111111" });
+
+    /*
+     * The two enclave triggers are authorized differently, and it matters which way round.
+     *
+     * An attestation proves who made it — a wallet signature over the intent, and an identity token
+     * listing that same wallet — and it is called straight from a browser, which can hold no key. So
+     * that trigger is open, and restricting it would lock out every person the product is for.
+     *
+     * A disclosure proves nothing of the kind: it names its reader in the request and the enclave
+     * cannot check that, so only a caller the deployment named may ask.
+     */
+    const attestTrigger = handlers[0].trigger as any;
+    expect(attestTrigger.config.authorizedKeys ?? []).toHaveLength(0);
+
+    const discloseTrigger = handlers[1].trigger as any;
+    expect(discloseTrigger.config.authorizedKeys).toHaveLength(1);
+    expect(discloseTrigger.config.authorizedKeys[0]).toMatchObject({
+      type: 1,
+      publicKey: "0x1111111111111111111111111111111111111111",
+    });
   });
 });
 

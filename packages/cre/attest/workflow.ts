@@ -489,14 +489,18 @@ export function initWorkflow(config: Config) {
   const registered = toEventSelector(getAbiItem({ abi: MultipassAbi, name: "Registered" }) as AbiEvent);
   const b64 = (hex: Hex) => bytesToBase64(hexToBytes(hex));
   return [
-    cre.handlerInTee(
-      http.trigger({
-        authorizedKeys: config.authorizedKeys.map((publicKey) => ({ type: "KEY_TYPE_ECDSA_EVM", publicKey })),
-      }),
-      onAttest,
-      [{ tee: "nitro", regions: ["us-west-2"] }]
-    ),
-    // The same enclave answers who a masked account belongs to, for whoever the candidate allowed.
+    /*
+     * Open, and self-authorizing. An attestation carries a wallet signature over the intent and an
+     * identity token that must list that same wallet, so there is nobody to authorize ahead of time:
+     * the request proves who made it. It is also called straight from a browser, which can hold no key
+     * — restricting this trigger would lock out every person the product is for.
+     */
+    cre.handlerInTee(http.trigger({}), onAttest, [{ tee: "nitro", regions: ["us-west-2"] }]),
+    /*
+     * Restricted, because it cannot authorize itself. This one answers who a masked account belongs to
+     * from a `reader` in the request that nothing here can verify, so the caller has to be somebody the
+     * deployment named — `authorizedKeys` is that list, and the handler refuses to run while it is empty.
+     */
     cre.handlerInTee(
       http.trigger({
         authorizedKeys: config.authorizedKeys.map((publicKey) => ({ type: "KEY_TYPE_ECDSA_EVM", publicKey })),
