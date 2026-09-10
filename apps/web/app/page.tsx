@@ -58,9 +58,9 @@ export default function Home() {
                 Saying "an enclave" on a page a verifier reads would be claiming a guarantee that is not
                 switched on here. */}
             <strong>Sign one message.</strong> The attester checks your Privy identity token and signs the
-            record as registrar. Your account handles are masked or hashed before anything reaches the
-            chain. The same step is built to run inside a Chainlink CRE enclave, so the attester never sees
-            them either; this deployment signs on its own node.
+            record as registrar. Your account handles are masked or hashed before anything reaches the chain.
+            The same step is built to run inside a Chainlink CRE enclave, so the attester never sees them
+            either; this deployment signs on its own node.
           </li>
           <li>
             <strong>It becomes a name.</strong> The record lands in Multipass and resolves under ENSv2 for

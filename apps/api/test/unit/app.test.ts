@@ -1244,6 +1244,41 @@ describe("GET /v1/instance/:domain — what people said under one name", () => {
     expect(body.records.name).toBe("Kim Jong Un");
   });
 
+  /**
+   * Which contract is asked, not merely what comes back.
+   *
+   * `instance.resolver` answers for the names *under* a mount — `alice.kju-is.<root>` — while the page
+   * is about the mount itself, whose texts live on whichever resolver the registry points at for that
+   * label. Asking the mount returned nothing for a name that resolves perfectly well in any ENS client,
+   * and no test saw it because the fake answered both the same way.
+   */
+  it("reads the mount's own texts through the registry, not through the mount", async () => {
+    const { chain } = fakeChain({ listed: { "kju-is": [] }, texts: { "kju-is.eth/name": "Kim Jong Un" } });
+    const body = await (await app(chain).request("/v1/instance/kju-is")).json();
+    expect(body.records.name).toBe("Kim Jong Un");
+    expect(chain.resolveUniversal).toHaveBeenCalledWith("kju-is.eth", [
+      "name",
+      "description",
+      "url",
+      "avatar",
+    ]);
+    // The mount's own resolver is never asked about the mount.
+    for (const call of (chain.resolveText as ReturnType<typeof vi.fn>).mock.calls) {
+      expect(call[1]).not.toBe("kju-is.eth");
+    }
+  });
+
+  it("falls back to the mount when no universal resolver is configured", async () => {
+    // A deployment without one still has a page to render, and the mount is the only thing left to ask.
+    const { chain } = fakeChain({
+      listed: { "kju-is": [] },
+      universal: new Error("UNIVERSAL_RESOLVER is not configured"),
+      texts: { "kju-is.eth/description": "Supreme Leader of North Korea." },
+    });
+    const body = await (await app(chain).request("/v1/instance/kju-is")).json();
+    expect(body.records.description).toBe("Supreme Leader of North Korea.");
+  });
+
   it("shows who the page is about, from the records the name itself holds", async () => {
     // A page created for someone who has claimed nothing is only worth reading if it says who they
     // are. That belongs on the name, where any ENS client reads it, not in this app.

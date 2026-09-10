@@ -744,12 +744,29 @@ export function createApp({
     // `name` is the standard display-name text record: a page titled `kju-is.<root>` says what the
     // name is, not who it is about.
     const keys = ["name", "description", "url", "avatar"] as const;
-    const [records, ...texts] = await Promise.all([
+    /*
+     * Read through the registry, not through the instance's own resolver.
+     *
+     * `instance.resolver` answers for the names *under* this mount — `alice.kju-is.<root>` — and the
+     * page is about the mount itself, whose texts live on whichever resolver the registry points at for
+     * that label. Asking the instance produced an empty record for a name that resolves perfectly well
+     * in any ENS client, which is the one place this app must not disagree with one.
+     */
+    const [records, about] = await Promise.all([
       chain.listRecords(domain),
-      ...keys.map((key) => chain.resolveText(instance.resolver, instance.parentName, key).catch(() => "")),
+      chain
+        .resolveUniversal(instance.parentName, [...keys])
+        .then((r) => r.texts)
+        .catch(async () => {
+          // No universal resolver configured: fall back to the mount's own, which answers for a
+          // deployment whose instance holds its own texts.
+          const texts = await Promise.all(
+            keys.map((key) => chain.resolveText(instance.resolver, instance.parentName, key).catch(() => ""))
+          );
+          return Object.fromEntries(keys.map((key, i) => [key, texts[i]])) as Record<string, string>;
+        }),
     ]);
-    const about = Object.fromEntries(keys.map((key, i) => [key, texts[i] as string]));
-    const description = about.description;
+    const description = about.description ?? "";
     return c.json({
       domain,
       parentName: instance.parentName,
