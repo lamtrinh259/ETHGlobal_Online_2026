@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import type { Api } from "@/lib/api";
 import Link from "next/link";
 import { PlatformPicker } from "@/app/PlatformPicker";
@@ -79,6 +80,7 @@ export function PersonSearch({
   const [viewCode, setViewCode] = useState("");
   const [query, setQuery] = useState("");
   const site = typeof window === "undefined" ? "" : window.location.origin;
+  const router = useRouter();
 
   const who = useWho(api, platform, account, hasCode ? viewCode.trim() : undefined);
   const found = useFind(api, query);
@@ -89,6 +91,38 @@ export function PersonSearch({
   const exact = /^[a-z0-9-]{1,31}$/.test(clean);
   const matches = found.data?.matches ?? [];
   const named = matches.some((m) => m.handle === clean);
+
+  /*
+   * The suggestions, reachable from the keyboard.
+   *
+   * A search box people type into is a box they expect to arrow down out of. Every option was a
+   * button, so the only way to reach the third one was to tab past the two above it and whatever
+   * else each row contained — and the pinned subject, the thing most readers came for, sat behind
+   * all of them.
+   */
+  const options: { key: string; go: () => void }[] = [
+    ...pinned.map((x) => ({ key: `pin:${x.href}`, go: () => router.push(x.href) })),
+    ...matches.map((m) => ({ key: `hit:${m.handle}`, go: () => onPick(m.handle) })),
+  ];
+  const [active, setActive] = useState(-1);
+  const at = active >= 0 && active < options.length ? active : -1;
+
+  function onKeyDown(e: React.KeyboardEvent) {
+    if (!options.length) return;
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      const step = e.key === "ArrowDown" ? 1 : -1;
+      // From nothing, down takes the first and up takes the last, which is where each one points.
+      setActive((i) =>
+        i < 0 ? (step > 0 ? 0 : options.length - 1) : (i + step + options.length) % options.length
+      );
+    } else if (e.key === "Enter" && at >= 0) {
+      e.preventDefault();
+      options[at].go();
+    } else if (e.key === "Escape") {
+      setActive(-1);
+    }
+  }
 
   return (
     <div data-testid="person-search">
@@ -126,10 +160,18 @@ export function PersonSearch({
               </select>
               <input
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  setActive(-1);
+                }}
+                onKeyDown={onKeyDown}
                 placeholder="a name, a handle, or a wallet address"
                 aria-label="their name"
                 autoFocus={autoFocus}
+                role="combobox"
+                aria-expanded={options.length > 0}
+                aria-controls="search-suggestions"
+                aria-activedescendant={at >= 0 ? options[at].key : undefined}
                 data-testid="name-query"
               />
               {query && (
@@ -158,9 +200,13 @@ export function PersonSearch({
           {!address && found.isFetching && <p className="muted">looking…</p>}
 
           {pinned.length > 0 && (
-            <ul className="acct" data-testid="pinned">
+            <ul className="acct" id="search-suggestions" data-testid="pinned">
               {pinned.map((x) => (
-                <li key={x.href}>
+                <li
+                  key={x.href}
+                  id={`pin:${x.href}`}
+                  className={options[at]?.key === `pin:${x.href}` ? "here" : undefined}
+                >
                   <span className="acct-id">
                     <strong>{x.label}</strong>
                     {x.note && <small className="muted">{x.note}</small>}
@@ -184,7 +230,12 @@ export function PersonSearch({
               </p>
               <ul className="acct" data-testid="matches">
                 {matches.map((m) => (
-                  <li key={m.handle} data-testid={`match-${m.handle}`}>
+                  <li
+                    key={m.handle}
+                    id={`hit:${m.handle}`}
+                    className={options[at]?.key === `hit:${m.handle}` ? "here" : undefined}
+                    data-testid={`match-${m.handle}`}
+                  >
                     <span className="acct-id">
                       <strong>{m.handle}</strong>
                       <small className="muted">

@@ -33,6 +33,8 @@ const api = {
   ),
 } as unknown as Api;
 
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+
 const { PersonSearch } = await import("@/app/PersonSearch");
 
 const show = (onPick = vi.fn()) => {
@@ -130,5 +132,39 @@ describe("finding the person you mean", () => {
     fireEvent.change(screen.getByTestId("name-query"), { target: { value: "bob" } });
     fireEvent.click(screen.getByTestId("clear-query"));
     expect((screen.getByTestId("name-query") as HTMLInputElement).value).toBe("");
+  });
+
+  it("is a box you can arrow down out of, and press enter in", async () => {
+    /*
+     * Every suggestion was a button, so reaching the third meant tabbing past the two above it and
+     * whatever each row contained. A box people type into is one they expect to arrow out of.
+     */
+    const onPick = show();
+    fireEvent.change(screen.getByTestId("name-query"), { target: { value: "bob" } });
+    await waitFor(() => expect(screen.getByTestId("match-bob")).toBeInTheDocument());
+
+    const box = screen.getByTestId("name-query");
+    fireEvent.keyDown(box, { key: "ArrowDown" });
+    expect(screen.getByTestId("match-bob").className).toContain("here");
+    // The box says which suggestion Enter would take, for a reader who cannot see the highlight.
+    expect(box).toHaveAttribute("aria-activedescendant", "hit:bob");
+
+    fireEvent.keyDown(box, { key: "ArrowDown" });
+    expect(screen.getByTestId("match-bobby").className).toContain("here");
+    fireEvent.keyDown(box, { key: "Enter" });
+    expect(onPick).toHaveBeenCalledWith("bobby");
+  });
+
+  it("wraps around, and escape lets go of the list", async () => {
+    show();
+    fireEvent.change(screen.getByTestId("name-query"), { target: { value: "bob" } });
+    await waitFor(() => expect(screen.getByTestId("match-bob")).toBeInTheDocument());
+    const box = screen.getByTestId("name-query");
+
+    fireEvent.keyDown(box, { key: "ArrowUp" });
+    expect(screen.getByTestId("match-bobby").className).toContain("here");
+    fireEvent.keyDown(box, { key: "Escape" });
+    expect(screen.getByTestId("match-bobby").className).not.toContain("here");
+    expect(box).not.toHaveAttribute("aria-activedescendant");
   });
 });
