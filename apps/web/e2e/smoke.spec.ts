@@ -57,8 +57,8 @@ test("the nav is a sidebar on a wide screen and a drawer on a narrow one", async
     await burger.click();
     await expect(side).not.toHaveAttribute("inert", "");
     await expect(page.getByRole("dialog", { name: "Menu" })).toBeVisible();
-    await side.getByRole("link", { name: "Verify" }).click();
-    await expect(page).toHaveURL(/\/verify$/);
+    await side.getByRole("link", { name: "Trust" }).click();
+    await expect(page).toHaveURL(/\/trust$/);
     // A route change closes it again.
     await expect(side).toHaveAttribute("inert", "");
     await burger.click();
@@ -67,7 +67,7 @@ test("the nav is a sidebar on a wide screen and a drawer on a narrow one", async
   } else {
     await expect(burger).toBeHidden();
     await expect(side).not.toHaveAttribute("inert", "");
-    await expect(side.getByRole("link", { name: "Verify" })).toBeVisible();
+    await expect(side.getByRole("link", { name: "Trust" })).toBeVisible();
   }
   await noOverflow(page);
 });

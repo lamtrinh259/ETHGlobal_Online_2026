@@ -30,6 +30,7 @@ export function FindPeople({
         onPick={(h) => router.push(`/p/${h}`)}
         onAddress={(a) => router.push(`/w/${a}`)}
         action="Open"
+        also={{ label: "Refer", onPick: (h) => router.push(`/vouch/${h}`) }}
         autoFocus
         big
         label="Who are you checking?"

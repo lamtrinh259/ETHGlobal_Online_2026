@@ -18,6 +18,18 @@ const ROOTS = (process.env.NEXT_PUBLIC_PARENT_NAMES ?? "")
   .filter(Boolean);
 
 export function middleware(req: NextRequest) {
+  /*
+   * Finding somebody, checking them and writing about them are one lookup, and were three pages of
+   * it. The index pages held nothing but the same search box, so they answer where it lives now.
+   * `/vouch/<handle>` is not one of them: that is the reference itself being written.
+   */
+  const path = req.nextUrl.pathname.replace(/\/$/, "");
+  if (path === "/verify" || path === "/vouch") {
+    const home = req.nextUrl.clone();
+    home.pathname = "/";
+    return NextResponse.redirect(home, 308);
+  }
+
   const name = decodeURIComponent(req.nextUrl.pathname.slice("/v/".length)).toLowerCase();
   // The first root is the one people are named under; the rest are subjects, whose own names are not.
   const root = ROOTS[0];
@@ -33,4 +45,4 @@ export function middleware(req: NextRequest) {
   return NextResponse.redirect(to, 308);
 }
 
-export const config = { matcher: "/v/:name*" };
+export const config = { matcher: ["/v/:name*", "/verify", "/vouch"] };

@@ -38,18 +38,16 @@ test("unknown routes get the not-found card", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Not here" })).toBeVisible();
 });
 
-test("verify form presets fill the policy and encode it into the reference page URL", async ({ page }) => {
-  await page.goto("/verify");
-  // Who first: the policy is asked about somebody, and is not on screen before there is one.
-  await expect(page.getByTestId("presets")).toHaveCount(0);
-  await page.getByTestId("name-query").fill("alice");
-  await page.getByTestId("pick-alice").click();
-  await expect(page.getByTestId("picked")).toContainText("alice");
+test("presets fill the policy and encode it into the candidate's URL", async ({ page }) => {
+  // The policy is about somebody, so it is asked on their page and folded away until wanted.
+  await page.goto("/p/alice");
+  await expect(page.getByTestId("presets")).toBeHidden();
+  await page.getByTestId("policy-editor").getByText("Your policy").click();
   await page.getByTestId("preset-dao").click();
   await expect(page.getByTestId("policy-summary")).toHaveText(/≥2 live references · humanity attested/);
   await page.getByLabel("minimum live references").fill("5");
   await expect(page.getByTestId("policy-summary")).toHaveText(/≥5 live references/);
-  await page.getByRole("button", { name: "Check alice" }).click();
+  await page.getByRole("button", { name: "Apply to alice" }).click();
   await expect(page).toHaveURL(/\/p\/alice\?answers=kju-is&minLinks=0&minVouches=5&humanity=1$/);
 });
 

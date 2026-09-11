@@ -44,6 +44,7 @@ export function PersonSearch({
   onAddress,
   pinned = [],
   big = false,
+  also,
 }: {
   api: Api;
   onPick: (handle: string) => void;
@@ -63,6 +64,13 @@ export function PersonSearch({
   pinned?: { href: string; label: string; note?: string }[];
   /** The front page is this box, so there it is the size of the thing people came to do */
   big?: boolean;
+  /**
+   * A second thing to do with whoever was found.
+   *
+   * Checking somebody and writing about them are the same lookup and were two pages of it. Offered
+   * on the result, a reader picks the person once and then says which of the two they came for.
+   */
+  also?: { label: string; onPick: (handle: string) => void };
 }) {
   const [byAccount, setByAccount] = useState(false);
   const [platform, setPlatform] = useState("x.com");
@@ -152,6 +160,11 @@ export function PersonSearch({
                       <button onClick={() => onPick(m.handle)} data-testid={`pick-${m.handle}`}>
                         {action}
                       </button>
+                      {also && (
+                        <button onClick={() => also.onPick(m.handle)} data-testid={`also-${m.handle}`}>
+                          {also.label}
+                        </button>
+                      )}
                     </span>
                   </li>
                 ))}

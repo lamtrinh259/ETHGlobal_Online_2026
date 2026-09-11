@@ -35,6 +35,9 @@ vi.mock("@/lib/api", async (orig) => ({
   }),
 }));
 
+// The page carries the policy form now, which pushes the chosen bar into the URL.
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+
 vi.mock("@/lib/config", () => ({
   loadWebConfig: () => ({
     apiUrl: "http://api.test",

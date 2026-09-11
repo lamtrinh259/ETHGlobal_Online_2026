@@ -11,12 +11,16 @@ test("the landing is the search, with the subject people came to read at the top
   await page.getByTestId("pick-alice").click();
   await expect(page).toHaveURL(/\/p\/alice$/);
 });
-test("verifier form builds a policy URL for the candidate page", async ({ page }) => {
-  await page.goto("/verify");
-  await page.getByTestId("name-query").fill("alice");
-  await page.getByTestId("pick-alice").click();
+test("the policy is set where the reading is, and goes into the URL", async ({ page }) => {
+  /*
+   * Finding somebody, checking them and writing about them were three pages of one lookup. The policy
+   * belongs to the reading rather than to a page of its own: it is adjusted beside the candidate it
+   * grades, and applying it puts the bar in the URL, which is what makes a reading shareable.
+   */
+  await page.goto("/p/alice");
+  await page.getByTestId("policy-editor").getByText("Your policy").click();
   await page.getByLabel("minimum linked accounts").fill("2");
-  await page.getByRole("button", { name: "Check alice" }).click();
+  await page.getByRole("button", { name: "Apply to alice" }).click();
   await expect(page).toHaveURL(/\/p\/alice\?answers=kju-is&minLinks=2&minVouches=3$/);
   // The attester answers, so the card is graded against a real read rather than against nothing.
   await expect(page.getByTestId("checks").locator("li")).toHaveCount(4);
@@ -56,9 +60,9 @@ test("vouch lookup finds the candidate, and their page says whether a reference 
 }) => {
   // One field, the same one a verifier uses. What state the name is in is said on the candidate's own
   // page, which is the screen where the reference actually gets written.
-  await page.goto("/vouch");
+  await page.goto("/");
   await page.getByTestId("name-query").fill("alice");
-  await page.getByTestId("pick-alice").click();
+  await page.getByTestId("also-alice").click();
   await expect(page).toHaveURL(/\/vouch\/alice$/);
 
   /*
