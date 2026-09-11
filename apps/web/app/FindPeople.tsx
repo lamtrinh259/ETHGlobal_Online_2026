@@ -1,7 +1,6 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { useMemo } from "react";
 import { PersonSearch } from "@/app/PersonSearch";
 import { useWebConfig } from "@/app/providers";
@@ -32,23 +31,14 @@ export function FindPeople({
         onAddress={(a) => router.push(`/w/${a}`)}
         action="Open"
         autoFocus
+        big
         label="Who are you checking?"
+        pinned={subjects.map((s) => ({
+          href: `/v/${s.parentName}`,
+          label: s.name ?? s.title,
+          note: s.title,
+        }))}
       />
-
-      {subjects.length > 0 && (
-        <ul className="open-questions" data-testid="open-questions">
-          {subjects.map((s) => (
-            <li key={s.domain}>
-              <Link href={`/v/${s.parentName}`}>{s.title}</Link>
-              {s.name && <strong>{s.name}</strong>}
-              {s.about && <small className="muted open-question-about">{s.about}</small>}
-              <small className="muted">
-                <code>{s.parentName}</code>
-              </small>
-            </li>
-          ))}
-        </ul>
-      )}
     </section>
   );
 }

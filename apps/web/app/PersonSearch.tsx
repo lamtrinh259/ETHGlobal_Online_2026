@@ -2,10 +2,14 @@
 
 import { useState } from "react";
 import type { Api } from "@/lib/api";
+import Link from "next/link";
 import { PlatformPicker } from "@/app/PlatformPicker";
 import { CopyButton } from "@/app/CopyButton";
 import { useFind, useWho } from "@/lib/hooks";
 import { ADDRESS_RE } from "@/lib/profile";
+
+/** The platforms a reader is likely to know somebody by, offered beside the search. */
+const PLATFORMS = ["x.com", "github.com", "google.com", "discord.com", "linkedin.com", "t.me"];
 
 const refs = (s: { received: number }) => `${s.received} reference${s.received === 1 ? "" : "s"} received`;
 
@@ -38,6 +42,8 @@ export function PersonSearch({
   autoFocus,
   label,
   onAddress,
+  pinned = [],
+  big = false,
 }: {
   api: Api;
   onPick: (handle: string) => void;
@@ -48,6 +54,15 @@ export function PersonSearch({
   label?: string;
   /** Where a wallet address goes, for callers that can show one */
   onAddress?: (address: string) => void;
+  /**
+   * Kept at the top of the list, above whatever was found.
+   *
+   * A subject is not a person and never appears in a search for one, but it is the thing most readers
+   * here have actually come to look at. Ranking cannot put it first because it is not in the ranking.
+   */
+  pinned?: { href: string; label: string; note?: string }[];
+  /** The front page is this box, so there it is the size of the thing people came to do */
+  big?: boolean;
 }) {
   const [byAccount, setByAccount] = useState(false);
   const [platform, setPlatform] = useState("x.com");
@@ -75,7 +90,7 @@ export function PersonSearch({
       */}
       {!byAccount ? (
         <>
-          <label>
+          <label className={big ? "search-big" : undefined}>
             {label ?? "Their name or handle"}
             <input
               value={query}
@@ -97,6 +112,24 @@ export function PersonSearch({
           )}
 
           {!address && found.isFetching && <p className="muted">looking…</p>}
+
+          {pinned.length > 0 && (
+            <ul className="acct" data-testid="pinned">
+              {pinned.map((x) => (
+                <li key={x.href}>
+                  <span className="acct-id">
+                    <strong>{x.label}</strong>
+                    {x.note && <small className="muted">{x.note}</small>}
+                  </span>
+                  <span className="acct-state">
+                    <Link className="button" href={x.href}>
+                      {action}
+                    </Link>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
 
           {matches.length > 0 && (
             <>
@@ -150,12 +183,27 @@ export function PersonSearch({
               </p>
             </div>
           )}
-          {/* The rarer half, out of the way of the question people actually arrive with. */}
-          <p>
-            <button className="linkish" onClick={() => setByAccount(true)} data-testid="by-account">
-              I only know an account of theirs →
-            </button>
-          </p>
+          {/* What kind of thing was typed. A name is the common case and stays the default; naming a
+              platform says the box holds an account there instead. */}
+          <label className="search-kind">
+            searching for{" "}
+            <select
+              value="name"
+              onChange={(e) => {
+                setPlatform(e.target.value);
+                setByAccount(true);
+              }}
+              aria-label="what you are searching for"
+              data-testid="by-account"
+            >
+              <option value="name">a name</option>
+              {PLATFORMS.map((d) => (
+                <option key={d} value={d}>
+                  an account on {d}
+                </option>
+              ))}
+            </select>
+          </label>
         </>
       ) : (
         <>

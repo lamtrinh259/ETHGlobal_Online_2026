@@ -442,43 +442,6 @@ dl.kv dd {
   max-width: 60ch;
 }
 
-/* ── doors (landing) ── */
-.doors {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: var(--sp-md);
-  margin: var(--sp-lg) 0;
-}
-.door {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: var(--sp-lg);
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  text-decoration: none;
-  transition: box-shadow 0.25s ease, border-color 0.25s ease;
-}
-.door:hover {
-  border-color: var(--flame-glow);
-  box-shadow: 0 0 24px -8px var(--flame-glow);
-}
-.door-k {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-secondary);
-}
-.door-t {
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--flame);
-}
-.door-d {
-  font-size: 13px;
-}
 .steps {
   padding-left: 1.2em;
 }
@@ -530,6 +493,24 @@ dl.kv dd {
 .flow .inside strong::after {
   content: " · enclave";
   color: var(--consensus);
+}
+
+/*
+ * The front page is one question, so the box that asks it is the size of the page's own heading.
+ * `search-kind` sits beside it rather than under it: what kind of thing was typed is part of asking,
+ * not a second step to find afterwards.
+ */
+.search-big input {
+  font-size: 1.35rem;
+  padding: var(--sp-sm) var(--sp-md);
+}
+.search-kind {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--sp-xs);
+  margin-top: var(--sp-xs);
+  color: var(--text-secondary);
+  font-size: 0.9rem;
 }
 
 /* ── policy checks ── */
@@ -1304,28 +1285,3 @@ pre > code {
   }
 }
 
-/* The questions anyone can answer: a list of doors, not a table of names. */
-.open-questions {
-  list-style: none;
-  margin: var(--sp-sm) 0 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-xs);
-}
-.open-questions > li {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--sp-sm);
-  padding: var(--sp-xs) 0;
-  border-top: 1px solid var(--border);
-}
-.open-questions > li > a {
-  font-weight: 600;
-}
-/* What the subject's own name says about them, under the question it is asked with. */
-.open-question-about {
-  flex-basis: 100%;
-  line-height: 1.4;
-}

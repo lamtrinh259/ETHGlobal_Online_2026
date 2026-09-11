@@ -75,7 +75,7 @@ describe("finding the person you mean", () => {
 
   it("identifies somebody exactly from an account of theirs", async () => {
     const onPick = show();
-    fireEvent.click(screen.getByTestId("by-account"));
+    fireEvent.change(screen.getByTestId("by-account"), { target: { value: "x.com" } });
     fireEvent.change(screen.getByLabelText("their account"), { target: { value: "bob_x" } });
     await waitFor(() => expect(screen.getByTestId("who-result")).toHaveTextContent("That is bob"));
     fireEvent.click(screen.getByTestId("who-go"));
@@ -84,7 +84,7 @@ describe("finding the person you mean", () => {
 
   it("asks for a view code only when somebody says they have one", () => {
     show();
-    fireEvent.click(screen.getByTestId("by-account"));
+    fireEvent.change(screen.getByTestId("by-account"), { target: { value: "x.com" } });
     expect(screen.queryByLabelText("view code")).toBeNull();
     fireEvent.click(screen.getByTestId("have-viewcode"));
     // A private account is a one-time pad on chain; the code is the only way to reach it.
@@ -93,7 +93,7 @@ describe("finding the person you mean", () => {
 
   it("says what an account can do that a name cannot, before anything is typed", () => {
     show();
-    fireEvent.click(screen.getByTestId("by-account"));
+    fireEvent.change(screen.getByTestId("by-account"), { target: { value: "x.com" } });
     expect(screen.getByTestId("who-result")).toHaveTextContent("identifies them exactly");
   });
 

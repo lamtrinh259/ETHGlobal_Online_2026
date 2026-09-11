@@ -1,14 +1,16 @@
 import { test, expect } from "@playwright/test";
 
-test("landing offers the three doors and they route", async ({ page }) => {
+test("the landing is the search, with the subject people came to read at the top", async ({ page }) => {
+  // One question, asked in one box. The doors asked a reader to classify themselves before typing.
   await page.goto("/");
-  const doors = page.locator(".door");
-  await expect(doors).toHaveCount(3);
-  await doors.nth(2).click();
-  await expect(page).toHaveURL(/\/verify$/);
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Check a candidate");
-});
+  await expect(page.getByTestId("name-query")).toBeFocused();
+  await expect(page.getByTestId("pinned")).toContainText("Kim Jong Un");
 
+  // Typing finds people; picking one opens their page.
+  await page.getByTestId("name-query").fill("alice");
+  await page.getByTestId("pick-alice").click();
+  await expect(page).toHaveURL(/\/p\/alice$/);
+});
 test("verifier form builds a policy URL for the candidate page", async ({ page }) => {
   await page.goto("/verify");
   await page.getByTestId("name-query").fill("alice");
