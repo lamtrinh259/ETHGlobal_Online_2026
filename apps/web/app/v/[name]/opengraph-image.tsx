@@ -26,6 +26,8 @@ export default async function Image({ params }: { params: Promise<{ name: string
         .catch(() => null)
     : null;
   const answers = read?.answers.length ?? 0;
+  // One sentence built in one place, rather than a stem and a suffix assembled inside the markup.
+  const answered = `${answers} ${answers === 1 ? "answer" : "answers"}, each signed into a name of its own`;
 
   return new ImageResponse(
     <div
@@ -49,9 +51,9 @@ export default async function Image({ params }: { params: Promise<{ name: string
         <div style={{ display: "flex", fontSize: 30, color: "#8da2c0", marginTop: 16 }}>{name}</div>
       </div>
       <div style={{ display: "flex", fontSize: 36, color: "#f5f7fb" }}>
-        {subject
-          ? `${answers} answer${answers === 1 ? "" : "s"}, each signed into a name of its own`
-          : "Read through the ENS resolver, not through this app"}
+        {/* A count only where one was read. An attester that could not answer is not nobody having
+            answered, and a card is the one place a wrong number cannot be taken back. */}
+        {subject && read ? answered : "Read through the ENS resolver, not through this app"}
       </div>
     </div>,
     size

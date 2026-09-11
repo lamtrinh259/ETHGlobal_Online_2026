@@ -23,6 +23,8 @@ export default async function Image({ params }: { params: Promise<{ handle: stri
     .standing(handle, { signal: flourish() })
     .catch(() => null);
   const references = standing?.received ?? 0;
+  // One sentence built in one place, as on the card for a name.
+  const written = `${references} ${references === 1 ? "reference" : "references"} written by name, on chain`;
 
   return new ImageResponse(
     <div
