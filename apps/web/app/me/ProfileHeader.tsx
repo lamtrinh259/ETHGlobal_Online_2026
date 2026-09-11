@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import type { ReactNode } from "react";
 import { displayableImage, SITE_IS_SECURE } from "@/lib/profile";
 import type { ScorePart } from "@/lib/score";
@@ -87,6 +88,20 @@ export function ProfileHeader({
           </p>
         </div>
       </div>
+
+      {/*
+        The thing all of this is for.
+        Everything on this page is machinery for producing one page somebody else reads, and there was
+        no way from here to look at it — the owner could see their score, their accounts and their
+        references, and not the page a verifier opens.
+      */}
+      {name && handle && (
+        <p className="row" data-testid="my-public-page">
+          <Link className="button primary" href={`/p/${handle}`}>
+            See your page as anybody reads it →
+          </Link>
+        </p>
+      )}
 
       <ScoreRing score={score} parts={parts} mine />
 

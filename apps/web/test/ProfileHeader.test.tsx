@@ -100,3 +100,21 @@ describe("the anchor the score links to", () => {
     expect(scored.parts.find((p) => p.id === "humanity")?.done).toBe(false);
   });
 });
+
+/**
+ * Everything on the dashboard is machinery for producing one page somebody else reads, and there was
+ * no way from it to look at that page: the owner could see their score, their accounts and their
+ * references, and not the thing a verifier opens.
+ */
+describe("seeing your own page", () => {
+  it("links to it once the name is held", () => {
+    header();
+    expect(screen.getByTestId("my-public-page").querySelector("a")).toHaveAttribute("href", "/p/alice");
+  });
+
+  it("offers nothing while there is no page to see", () => {
+    // Nobody holds the name, so `/p/<handle>` is a page about a name rather than about this person.
+    header({ name: undefined, handle: undefined });
+    expect(screen.queryByTestId("my-public-page")).toBeNull();
+  });
+});
