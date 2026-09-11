@@ -3,7 +3,8 @@
 [![ci](https://github.com/lamtrinh259/ETHGlobal_Online_2026/actions/workflows/ci.yml/badge.svg)](https://github.com/lamtrinh259/ETHGlobal_Online_2026/actions/workflows/ci.yml)
 
 Non-deletable, human-verified references. A reference is a Multipass record whose registrar signature is produced
-inside a Chainlink CRE enclave from a Privy identity token and a wallet-signed intent; ENSv2 makes every record a
+by the Chainlink CRE `attest` workflow from a Privy identity token and a wallet-signed intent — inside the enclave
+where one is deployed, on this deployment's own node until then, and the app says which. ENSv2 makes every record a
 name (`<handle>.<instance>.eth`) that any wallet or agent can resolve without integrating with us.
 
 Any subject can be an instance — a question, a university cohort, an organisation. The subject is a deployment
