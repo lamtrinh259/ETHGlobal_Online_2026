@@ -170,7 +170,7 @@ export function encodeReport(result: AttestResult): Hex {
  * Write the record through the DON: `runtime.report` has the nodes sign the payload, the
  * KeystoneForwarder delivers it to the reporter, and the reporter registers it. Returns the tx hash.
  */
-export function writeRecord(donRuntime: Runtime<Config>, result: AttestResult): Hex {
+export function writeRecord(donRuntime: Runtime<Config>, result: AttestResult, domain: string): Hex {
   const config = donRuntime.config;
   const network = getNetwork({ chainSelectorName: config.chainSelectorName, isTestnet: true });
   if (!network) throw new Error(`unknown chain ${config.chainSelectorName}`);
@@ -185,7 +185,33 @@ export function writeRecord(donRuntime: Runtime<Config>, result: AttestResult): 
   if (tx.txStatus !== TxStatus.SUCCESS) {
     throw new Error(`report write failed: ${tx.errorMessage || tx.txStatus}`);
   }
-  return bytesToHex(tx.txHash ?? new Uint8Array(32));
+  /*
+   * A forwarder catches whatever the receiver does.
+   *
+   * `KeystoneForwarder` calls the receiver inside a try/catch and records the outcome in its own
+   * event: the transaction succeeds whether `onReport` registered the record or reverted. Taking
+   * `txStatus` as proof of a write reports one that never happened — a candidate is told their
+   * record is on chain, and nothing is there. Observed on Sepolia: a duplicate handle reverted inside
+   * the reporter and the transaction still came back successful, one log and a fifth of the gas.
+   *
+   * The record is the only thing that can answer, so it is asked.
+   */
+  const hash = bytesToHex(tx.txHash ?? new Uint8Array(32));
+  // A simulated write reports no transaction at all, and nothing can have landed from one.
+  if (hash !== zeroHash) {
+    const after = resolveRecord(donRuntime, {
+      wallet: result.record.wallet as Address,
+      name: zeroHash,
+      domain,
+    });
+    if (!after.exists || after.record.nonce !== result.record.nonce) {
+      throw new Error(
+        `report delivered but no record was written: ${domain} still holds ` +
+          `${after.exists ? `nonce ${after.record.nonce}` : "nothing"} for ${result.record.wallet}`
+      );
+    }
+  }
+  return hash;
 }
 
 /** JSON-safe result: bigints as decimal strings */
@@ -470,7 +496,7 @@ export const onAttest = async (runtime: TeeRuntime<Config>, payload: HTTPPayload
     viewcodeKey: runtime.getSecret({ id: config.secretIds.viewcodeKey }).result().value as Hex,
   };
   const result = await attestConfidential(req, onchain.exists ? onchain.id : zeroHash, secrets, env);
-  const txHash = config.reporter ? writeRecord(donRuntime, result) : undefined;
+  const txHash = config.reporter ? writeRecord(donRuntime, result, req.intent.domain) : undefined;
   const out = serializeResult(result, txHash);
 
   if (config.deliveryUrl) {

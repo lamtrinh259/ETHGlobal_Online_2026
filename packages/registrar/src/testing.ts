@@ -64,14 +64,21 @@ export function fakePrivy(appId: string, seed = "privy-test-key"): FakePrivy {
 }
 
 /** A user with an embedded wallet and the usual linked accounts */
-export function fakeUser(privateKey: Hex, handle = "alice") {
+/**
+ * A person with accounts, for tests and simulation fixtures.
+ *
+ * `ids` overrides the platform account identifiers. They are fixed by default, which is what a test
+ * wants; a fixture written against a real chain needs them unique, because a record is keyed by the
+ * account it attests and the first run would otherwise take that account for good.
+ */
+export function fakeUser(privateKey: Hex, handle = "alice", ids: { twitter?: string; google?: string } = {}) {
   const account = privateKeyToAccount(privateKey);
   const did = `did:privy:${handle}`;
   const linked: LinkedAccount[] = [
     { type: "wallet", address: account.address, chain_type: "ethereum" },
-    { type: "twitter_oauth", subject: "1234567890123456789", username: handle, name: "Alice" },
+    { type: "twitter_oauth", subject: ids.twitter ?? "1234567890123456789", username: handle, name: "Alice" },
     { type: "telegram", telegram_user_id: "987654321", username: `${handle}_tg`, first_name: "Alice" },
-    { type: "google_oauth", subject: "10987654321098765432", email: `${handle}@example.com` },
+    { type: "google_oauth", subject: ids.google ?? "10987654321098765432", email: `${handle}@example.com` },
     { type: "email", address: `${handle}@example.com` },
   ];
   return { account, privateKey, did, linked };

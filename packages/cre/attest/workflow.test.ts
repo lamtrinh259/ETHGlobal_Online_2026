@@ -79,10 +79,18 @@ const emptyRecord = { wallet: "0x0000000000000000000000000000000000000000", name
  * Multipass `resolveRecord` read and the optional delivery POST.
  */
 function fakeTeeRuntime(
-  opts: { onchain?: OnchainFixture; deliveryStatus?: number; cfg?: Config; txStatus?: number } = {}
+  opts: {
+    onchain?: OnchainFixture;
+    deliveryStatus?: number;
+    cfg?: Config;
+    txStatus?: number;
+    /** Whether the record the forwarder carried actually reached the chain */
+    landed?: boolean;
+  } = {}
 ) {
   const cfg = opts.cfg ?? config;
   const evmCalls: { to: string; args: unknown }[] = [];
+  let wrote = false;
   const deliveries: { url: string; body: string }[] = [];
   const secretsRequested: string[] = [];
   const onchain = opts.onchain ?? { exists: false, nonce: 0n, id: zeroHash, wallet: emptyRecord.wallet };
@@ -100,6 +108,9 @@ function fakeTeeRuntime(
     },
     callCapability: ({ capabilityId, payload }: { capabilityId: string; payload: any }) => {
       if (capabilityId.startsWith("evm") && !payload.call) {
+        // A forwarder reports its own transaction, not the receiver's outcome; `landed: false` is the
+        // case where it succeeds and the record was never written.
+        wrote = opts.landed !== false;
         writes.push({
           receiver: bytesToHex(asBytes(payload.receiver)),
           gasLimit: String(payload.gasConfig?.gasLimit ?? ""),
@@ -117,10 +128,14 @@ function fakeTeeRuntime(
         const data = bytesToHex(asBytes(payload.call.data));
         const to = bytesToHex(asBytes(payload.call.to));
         evmCalls.push({ to, args: decodeFunctionData({ abi: MultipassAbi, data }).args });
+        // Once a write has landed the chain holds the record it wrote, which is what a read after it sees.
+        const seen = wrote
+          ? { exists: true, nonce: onchain.nonce + 1n, id: onchain.id, wallet: onchain.wallet }
+          : { exists: onchain.exists, nonce: onchain.nonce, id: onchain.id, wallet: onchain.wallet };
         const encoded = encodeFunctionResult({
           abi: MultipassAbi,
           functionName: "resolveRecord",
-          result: [onchain.exists, { ...emptyRecord, nonce: onchain.nonce, id: onchain.id, wallet: onchain.wallet }],
+          result: [seen.exists, { ...emptyRecord, nonce: seen.nonce, id: seen.id, wallet: seen.wallet }],
         });
         return { result: () => ({ data: Uint8Array.from(Buffer.from(encoded.slice(2), "hex")) }) };
       }
@@ -281,6 +296,22 @@ describe("onAttest", () => {
 describe("writing the record as a DON report", () => {
   const REPORTER = "0xC7283bD9Aad1B08947C841536946Ce4dA9c99929";
   const withReporter = { ...config, reporter: REPORTER, reportGasLimit: "900000" } as Config;
+
+  test("refuses to report a write the forwarder swallowed", async () => {
+    /*
+     * Seen on Sepolia, tx 0x115f7217…: a handle already taken reverted inside the reporter, the
+     * forwarder caught it and emitted its own failure, and the transaction still came back
+     * successful — one log where a real write leaves three, and a fifth of the gas. `txStatus` is the
+     * forwarder's outcome, never the receiver's, so believing it hands somebody a transaction hash
+     * for a record that does not exist. Only the record can answer, so it is read back.
+     */
+    const { runtime, writes } = fakeTeeRuntime({ cfg: withReporter, landed: false });
+    await expect(onAttest(runtime, (await request()) as any)).rejects.toThrow(
+      /report delivered but no record was written/
+    );
+    // The write was attempted; what is refused is calling it a success.
+    expect(writes).toHaveLength(1);
+  });
 
   test("signs the record in the enclave, reports it from the DON, and returns the tx hash", async () => {
     const { runtime, reports, writes, deliveries } = fakeTeeRuntime({ cfg: withReporter });

@@ -12,7 +12,7 @@
  */
 import { baseIntent, fakePrivy, fakeUser, signedAttestRequest, toWire } from "@ketsuban/registrar/testing";
 import { toBytes32, type Hex } from "@peeramid-labs/multipass-client";
-import { generatePrivateKey } from "viem/accounts";
+import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { mkdirSync, writeFileSync, readFileSync } from "node:fs";
 
 /**
@@ -28,7 +28,22 @@ const key = () => (process.env.FIXTURE_KEY as Hex) ?? generatePrivateKey();
 const cfg = JSON.parse(readFileSync(new URL("../config.staging.json", import.meta.url), "utf8"));
 const privy = fakePrivy("local-app-id", "local-privy-key");
 const mode = process.argv[2] ?? "platform";
-const user = mode === "vouch" ? fakeUser(key(), process.argv[4] ?? "bob") : fakeUser(key(), "alice");
+/*
+ * A handle nobody has taken yet.
+ *
+ * A platform record is named after the account in the identity token, and Multipass keeps one holder
+ * per name per domain. A fixture that always says `alice` works once against a given chain and then
+ * every later broadcast is refused, because the first run took the name for good. The wallet is fresh
+ * per run, so its address is the obvious thing to hang a unique handle on.
+ */
+const person = mode === "vouch" ? (process.argv[4] ?? "bob") : "alice";
+const seat = key();
+const suffix = privateKeyToAccount(seat).address.slice(2, 8).toLowerCase();
+const pinned = !!process.env.FIXTURE_KEY;
+const digits = BigInt(`0x${suffix}`).toString();
+// The account ids go with the handle: a record is keyed by the account, so a repeated id is a
+// repeated claim on the same account and the chain keeps the first one.
+const user = fakeUser(seat, pinned ? person : `${person}-${suffix}`, pinned ? {} : { twitter: digits, google: digits });
 const now = Math.floor(Date.now() / 1000);
 
 const [domain, handle, payload] =
@@ -57,8 +72,18 @@ mkdirSync(new URL("../fixtures/", import.meta.url), { recursive: true });
 const wire = JSON.stringify(toWire(req), null, 2) + "\n";
 writeFileSync(new URL(`../fixtures/${mode}.json`, import.meta.url), wire);
 if (mode === "platform") writeFileSync(new URL("../fixtures/request.json", import.meta.url), wire);
+/*
+ * The reporter this run writes through.
+ *
+ * `--broadcast` goes through Chainlink's MockKeystoneForwarder, and `AttestationReporter.FORWARDER` is
+ * immutable — so a broadcast needs a reporter built for the mock, which is not the one the staging
+ * config names. Rewriting this file on every run used to drop that address, and the documented single
+ * command only worked if you edited the file again in between.
+ */
+const reporter = process.env.CRE_REPORTER ?? cfg.reporter;
 writeFileSync(
   new URL("../config.local.json", import.meta.url),
-  JSON.stringify({ ...cfg, privy: { appId: privy.appId, verificationKey: privy.jwk } }, null, 2) + "\n"
+  JSON.stringify({ ...cfg, reporter, privy: { appId: privy.appId, verificationKey: privy.jwk } }, null, 2) +
+    "\n"
 );
 console.log(`fixture for ${user.account.address} domain=${domain} optIn=${optIn} → fixtures/${mode}.json, config.local.json`);
