@@ -26,14 +26,17 @@ export function PersonSearch({
   onPick,
   action,
   autoFocus,
+  label,
 }: {
   api: Api;
   onPick: (handle: string) => void;
   /** What picking somebody does here, said in the button */
   action: string;
   autoFocus?: boolean;
+  /** What the field is called here; the front page asks a broader question than a verifier does */
+  label?: string;
 }) {
-  const [how, setHow] = useState<"name" | "account">("name");
+  const [byAccount, setByAccount] = useState(false);
   const [platform, setPlatform] = useState("x.com");
   const [account, setAccount] = useState("");
   const [hasCode, setHasCode] = useState(false);
@@ -49,27 +52,14 @@ export function PersonSearch({
 
   return (
     <div data-testid="person-search">
-      <p className="row" role="group" aria-label="how you know them">
-        <button
-          className={how === "name" ? "primary" : ""}
-          onClick={() => setHow("name")}
-          data-testid="by-name"
-        >
-          By name
-        </button>
-        <button
-          className={how === "account" ? "primary" : ""}
-          onClick={() => setHow("account")}
-          data-testid="by-account"
-        >
-          By an account of theirs
-        </button>
-      </p>
-
-      {how === "name" ? (
+      {/*
+        One field, because there was one question. The two buttons asked the reader to classify what
+        they knew before typing it, and the second field only ever answered the rarer half.
+      */}
+      {!byAccount ? (
         <>
           <label>
-            Their name or handle
+            {label ?? "Their name or handle"}
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -80,11 +70,15 @@ export function PersonSearch({
             />
           </label>
 
-          {clean.length >= 2 && found.isFetching && <p className="muted">looking…</p>}
+          {found.isFetching && <p className="muted">looking…</p>}
 
           {matches.length > 0 && (
             <>
-              <p className="muted">Most referenced first — the only evidence of which one people mean.</p>
+              <p className="muted">
+                {clean
+                  ? "Most referenced first — the only evidence of which one people mean."
+                  : "Most referenced first."}
+              </p>
               <ul className="acct" data-testid="matches">
                 {matches.map((m) => (
                   <li key={m.handle} data-testid={`match-${m.handle}`}>
@@ -116,9 +110,20 @@ export function PersonSearch({
               </button>
             </p>
           )}
+          {/* The rarer half, out of the way of the question people actually arrive with. */}
+          <p>
+            <button className="linkish" onClick={() => setByAccount(true)} data-testid="by-account">
+              I only know an account of theirs →
+            </button>
+          </p>
         </>
       ) : (
         <>
+          <p>
+            <button className="linkish" onClick={() => setByAccount(false)} data-testid="by-name">
+              ← Search by name instead
+            </button>
+          </p>
           <PlatformPicker single selected={[platform]} onToggle={setPlatform} />
           <label>
             Their handle on <code>{platform}</code>

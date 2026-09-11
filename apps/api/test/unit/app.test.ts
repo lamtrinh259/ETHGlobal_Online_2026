@@ -1529,6 +1529,42 @@ describe("GET /v1/find — telling two people of the same name apart", () => {
     expect(found).toEqual({ q: "zebedee", matches: [] });
   });
 
+  it("answers the whole namespace, most referenced first, when nothing was typed", async () => {
+    // The front page asks the same question a search does with no query: who has people behind them.
+    const { chain } = fakeChain({
+      listed: {
+        "kju-is": [person("bob"), person("carol"), person("dave")],
+        "~carol": [vouch("a"), vouch("b")],
+        "~bob": [vouch("c")],
+      },
+      names: {
+        "kju-is/bob": { taken: true, wallet: user.account.address, live: true },
+        "kju-is/carol": { taken: true, wallet: user.account.address, live: true },
+        "kju-is/dave": { taken: true, wallet: user.account.address, live: true },
+      },
+    });
+    const found = await (await app(chain).request("/v1/find")).json();
+    expect(found.matches.map((m: { handle: string }) => m.handle)).toEqual(["carol", "bob", "dave"]);
+  });
+
+  it("ranks before it cuts, so the person people vouched for is not left outside the window", async () => {
+    /*
+     * Ten was taken off the front of the list and then sorted, so the ranking only ever reordered
+     * whichever names happened to be written first. The eleventh, with every reference, was dropped
+     * before anything compared it to anybody.
+     */
+    const many = Array.from({ length: 11 }, (_, i) => person(`bob${i}`));
+    const { chain } = fakeChain({
+      listed: { "kju-is": many, "~bob10": [vouch("a"), vouch("b")] },
+      names: Object.fromEntries(
+        many.map((p) => [`kju-is/${p.name}`, { taken: true, wallet: user.account.address, live: true }])
+      ),
+    });
+    const found = await (await app(chain).request("/v1/find?q=bob")).json();
+    expect(found.matches).toHaveLength(10);
+    expect(found.matches[0]).toMatchObject({ handle: "bob10", received: 2 });
+  });
+
   it("refuses a search too short to mean anything", async () => {
     const { chain } = fakeChain();
     expect((await app(chain).request("/v1/find?q=a")).status).toBe(400);

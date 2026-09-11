@@ -863,20 +863,28 @@ export function createApp({
    */
   app.get("/v1/find", async (c) => {
     const q = c.req.query("q")?.trim().toLowerCase().replace(/^@/, "") ?? "";
-    if (q.length < 2) return c.json({ error: "search for at least two characters" }, 400);
+    // One character narrows almost nothing and costs a standing read per name it does not narrow.
+    if (q.length === 1) return c.json({ error: "search for at least two characters" }, 400);
 
     const rootDomain = config.NAME_DOMAINS[0] ?? "";
     const live = (await chain.listRecords(rootDomain)).filter((r) => r.live);
-    const hits = live.filter((r) => r.name.toLowerCase().includes(q)).slice(0, 10);
+    const hits = live.filter((r) => r.name.toLowerCase().includes(q));
     const matches = await Promise.all(
       hits.map(async (r) => {
         const s = await standing(r.name);
         return { handle: r.name, wallet: r.wallet, ...s };
       })
     );
-    // Most references first; a tie falls back to the shorter name, which is the plainer one.
+    /*
+     * Most references first; a tie falls back to the shorter name, which is the plainer one.
+     *
+     * Ranked before the list is cut, not after: cutting first ranked whichever ten happened to be
+     * written earliest, so the person people had actually vouched for could fall outside the window
+     * that was then sorted. With no query at all this is the whole namespace in that order, which is
+     * what the front page asks for.
+     */
     matches.sort((a, b) => b.received - a.received || a.handle.length - b.handle.length);
-    return c.json({ q, matches });
+    return c.json({ q, matches: matches.slice(0, 10) });
   });
 
   app.get("/v1/who", async (c) => {

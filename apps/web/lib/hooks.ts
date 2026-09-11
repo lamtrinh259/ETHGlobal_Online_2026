@@ -131,11 +131,17 @@ export function useRevoke(api: Api, name: string | undefined) {
 }
 
 /** Which person did you mean: handles like this one, most-referenced first. */
+/**
+ * People whose name looks like what was typed — or, with nothing typed, the ones with the most
+ * references behind them, which is the same question asked of the whole namespace.
+ */
 export function useFind(api: Api, q: string) {
+  const term = q.trim();
   return useQuery({
-    queryKey: ["find", q],
-    queryFn: () => api.find(q),
-    enabled: q.trim().length >= 2,
+    queryKey: ["find", term],
+    queryFn: () => api.find(term),
+    // One character narrows nothing and costs a read per name it does not narrow.
+    enabled: term.length !== 1,
     staleTime: 10_000,
   });
 }

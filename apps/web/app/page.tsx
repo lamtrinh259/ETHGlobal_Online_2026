@@ -3,6 +3,7 @@ import { createApi } from "@/lib/api";
 import { loadWebConfig } from "@/lib/config";
 import { flourish } from "@/lib/patience";
 import { questionTitle } from "@/lib/questions";
+import { FindPeople } from "./FindPeople";
 import { SignedIn } from "./SignedIn";
 
 /** Three doors, one per role (spec §3): candidate, voucher, verifier. */
@@ -37,11 +38,18 @@ export default async function Home() {
         <h1>
           A reference that cannot be <span className="knot">deleted</span>
         </h1>
-        <p>
-          Verified humans put their permanent name behind yours. Every record is an ENS name anyone can read —{" "}
-          <code>&lt;you&gt;.{root?.parentName}</code> — and nothing on it can be quietly removed.
-        </p>
+        <p>Verified humans put their permanent name behind yours, as an ENS name anyone can read.</p>
       </section>
+
+      <FindPeople
+        subjects={about.map((s) => ({
+          domain: s.domain,
+          parentName: s.parentName,
+          title: questionTitle(s.domain),
+          name: s.records?.name,
+          about: s.records?.description,
+        }))}
+      />
 
       <SignedIn />
 
@@ -73,30 +81,6 @@ export default async function Home() {
 
       {/* The one thing a visitor can read and answer without an account. Every other door asks them to
           be somebody first; this asks them what they think, which is the whole product in one page. */}
-      {subjects.length > 0 && (
-        <section className="card" data-testid="open-questions">
-          <h2>Questions anyone can answer</h2>
-          <p className="muted">
-            A name can exist for somebody who has claimed nothing. What people have said about them is
-            published under it, permanently, signed by whoever said it.
-          </p>
-          <ul className="open-questions">
-            {about.map((s) => (
-              <li key={s.domain}>
-                <Link href={`/v/${s.parentName}`}>{questionTitle(s.domain)}</Link>
-                {s.records?.name && <strong>{s.records.name}</strong>}
-                {s.records?.description && (
-                  <small className="muted open-question-about">{s.records.description}</small>
-                )}
-                <small className="muted">
-                  <code>{s.parentName}</code>
-                </small>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
       <section className="card">
         <h2>How it works</h2>
         <ol className="steps">
