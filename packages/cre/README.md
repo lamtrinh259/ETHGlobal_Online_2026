@@ -106,6 +106,54 @@ cd .. && cre workflow simulate attest --target local-settings --non-interactive 
 The simulator prints the signed record; the relay submits it. Deployment needs Confidential Workflows
 beta access; simulation does not.
 
+## Writing on chain without deployment access
+
+`cre workflow simulate --broadcast` runs the handler locally and **sends the write for real**, through a
+MockKeystoneForwarder the CRE team maintains on each testnet. The DON is simulated; the transaction,
+the reporter, the bridge and the Multipass record are not. That is a complete CRE write path on
+Sepolia, provable by a transaction hash, without `cre account access`.
+
+One thing stops it working here, and it is in our own contract. `AttestationReporter.FORWARDER` is
+immutable and set to Sepolia's **production** forwarder:
+
+| | Sepolia address |
+|---|---|
+| Production `KeystoneForwarder` | `0xF8344CFd5c43616a4366C34E3EEE75af79a74482` |
+| `MockKeystoneForwarder` (what `--broadcast` calls through) | `0x15fC6ae953E024d975e77382eEeC56A9101f9F88` |
+| Reporter deployed today | `0x4888d736a196c49CAf404FD626eB9CBbf175b140` (production forwarder) |
+
+So a broadcast write reverts `UnauthorizedForwarder`. The reporter holds no privileges and nothing
+points at it, so a second one costs nothing but gas:
+
+```bash
+cd packages/contracts
+MULTIPASS=0x418F82fd0014a4CA402F145978bfaF0555a9cA06 \
+BRIDGE=0xC7283bD9Aad1B08947C841536946Ce4dA9c99929 \
+CRE_FORWARDER=0x15fC6ae953E024d975e77382eEeC56A9101f9F88 \
+PRIVATE_KEY=… forge script script/DeployReporter.s.sol --rpc-url $SEPOLIA_RPC --broadcast
+```
+
+Put its address in `attest/config.local.json` as `reporter`, then:
+
+```bash
+cd packages/cre
+cre workflow simulate attest --target local-settings --non-interactive --trigger-index 0 \
+  --http-payload ./attest/fixtures/dns.json --broadcast
+```
+
+`packages/cre/.env` must carry two things a simulation without `--broadcast` does not need:
+
+- `CRE_ETH_PRIVATE_KEY` — a **funded** Sepolia wallet. Copied from `.env.example` it is private key `1`
+  (`0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf`), which is public knowledge and holds nothing: fine for
+  signing a simulated record, useless for paying for one.
+- `SECRET_REGISTRAR_KEY` — the **real** registrar key. Multipass verifies the registrar's signature on
+  the record, not who sent it, so a record signed by the example key reverts at `register` however
+  well the rest of the path works. It must derive to the address every domain is initialised with:
+  `curl -s $API/v1/preflight | jq '.registrar.signsAs'`.
+
+The fixture is signed by a throwaway wallet with no record in the target domain, so the write is a
+first registration and lands as `alice.com.x.www.ketsuban.eth` for that wallet.
+
 ## Deploying it to a live deployment
 
 The order matters, and one step fails silently if it is wrong.
