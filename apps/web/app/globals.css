@@ -1271,14 +1271,6 @@ pre > code {
   }
 }
 
-/* The exact-handle path, kept for somebody who already knows it and out of the way of somebody who does not. */
-.lookup-exact > summary {
-  cursor: pointer;
-  color: var(--text-secondary);
-  font-size: 13px;
-  margin: var(--sp-md) 0 var(--sp-sm);
-}
-
 /* The questions anyone can answer: a list of doors, not a table of names. */
 .open-questions {
   list-style: none;

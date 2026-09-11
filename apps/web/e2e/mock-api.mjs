@@ -227,7 +227,18 @@ export const routes = [
     },
   ],
   [/^\/v1\/explain\/([^/?]+)/, (m) => ({ name: decodeURIComponent(m[1]), says: "alice is a person's name here.", kind: "person" })],
-  [/^\/v1\/name\/([^/]+)\/([^/?]+)/, (m) => ({ domain: m[1], handle: m[2], taken: true, live: true, wallet: "0xEE4811b9462956C9C3535E79c08776D769CA9F3a" })],
+  [
+    /^\/v1\/name\/([^/]+)\/([^/?]+)/,
+    (m) => ({
+      domain: m[1],
+      handle: m[2],
+      // `lapsed` is how a page is tested against a name whose record ran out: held once, live no
+      // longer, which is the one state a reference cannot be written against.
+      taken: true,
+      live: m[2] !== "lapsed",
+      wallet: "0xEE4811b9462956C9C3535E79c08776D769CA9F3a",
+    }),
+  ],
   [
     /^\/v1\/profile\/([^/?]+)/,
     (m) => {

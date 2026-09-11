@@ -21,7 +21,7 @@ dependency first. Each line is its own commit.
 3. [x] **Nobody holds that name.** Offer a claim link when the search names a social account or an
        email; otherwise say plainly that this makes a page nobody can link to a real account — a
        subject page, not a person's.
-4. [ ] **Same pattern on `/vouch`.** The writer finds the candidate the same way a verifier finds one.
+4. [x] **Same pattern on `/vouch`.** The writer finds the candidate the same way a verifier finds one.
 5. [ ] **Merge `/v/` and `/p/`.** A person is one page. `/v/<handle>.<root>` goes to `/p/<handle>`;
        `/v/` keeps answering for names that are not people (accounts, references, mounts). "My profile"
        links to `/p/<handle>`.

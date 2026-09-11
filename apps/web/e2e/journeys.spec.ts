@@ -49,38 +49,24 @@ test("the profile and the vouch journey show their steps and the sign-in gate", 
   await expect(page.getByTestId("signin")).toBeVisible({ timeout: 20000 });
 });
 
-test("vouch lookup routes to the candidate when the API cannot answer, and blocks unclaimed handles when it can", async ({
+test("vouch lookup finds the candidate, and their page says whether a reference can hang on it", async ({
   page,
 }) => {
-  // Searching is the way in now; the exact handle is a disclosure for somebody who already knows it,
-  // and a person opens it before typing into it.
+  // One field, the same one a verifier uses. What state the name is in is said on the candidate's own
+  // page, which is the screen where the reference actually gets written.
   await page.goto("/vouch");
-  await page.getByText("I know their exact handle").click();
-  await page.getByLabel("handle").fill("alice");
-  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByTestId("name-query").fill("alice");
+  await page.getByTestId("pick-alice").click();
   await expect(page).toHaveURL(/\/vouch\/alice$/);
 
-  // Unclaimed is allowed through: an organisation writes before the candidate exists.
-  await page.route("**/v1/name/*/nobody", (route) =>
-    route.fulfill({ json: { domain: "ketsuban", handle: "nobody", taken: false, wallet: null, live: false } })
-  );
-  await page.goto("/vouch");
-  await page.getByText("I know their exact handle").click();
-  await page.getByLabel("handle").fill("nobody");
-  await expect(page.getByTestId("lookup-status")).toContainText("An organisation can write anyway");
-  await expect(page.getByRole("button", { name: "Continue" })).toBeEnabled();
-
-  // An expired name is a dead end: a reference needs something live to hang on.
-  await page.route("**/v1/name/*/lapsed", (route) =>
-    route.fulfill({ json: { domain: "ketsuban", handle: "lapsed", taken: true, wallet: null, live: false } })
-  );
-  await page.goto("/vouch");
-  await page.getByText("I know their exact handle").click();
-  await page.getByLabel("handle").fill("lapsed");
-  await expect(page.getByTestId("lookup-status")).toContainText("has expired");
-  await expect(page.getByRole("button", { name: "Continue" })).toBeDisabled();
+  /*
+   * An expired name is a dead end: a reference needs something live to hang on. The fixture is the
+   * mock's, not a route interception — this page renders on the server, where nothing in the browser
+   * can answer for it.
+   */
+  await page.goto("/vouch/lapsed");
+  await expect(page.getByTestId("candidate-status")).toContainText("expired");
 });
-
 test("the dashboard is behind the sign-in gate", async ({ page }) => {
   await page.goto("/me");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Your page");
