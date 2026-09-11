@@ -143,6 +143,21 @@ export function VouchFlow({
         ))}
       </ol>
 
+      {/*
+        What the invitation asks for, before signing in rather than after.
+        Somebody opening a link should be able to see what is being asked of them while deciding
+        whether to start at all: the accounts are linked on their own profile, which is a detour, and
+        finding that out three steps in is how a writer ends up publishing something that does not
+        count. Whether they hold them is a question only their wallet can answer, so that part waits.
+      */}
+      {(invite?.requires.length ?? 0) > 0 && stage === "signin" && (
+        <p className="muted" data-testid="invite-preview">
+          {candidate} asked for a reference from someone who has attested{" "}
+          <strong>{invite?.requires.join(" and ")}</strong>. A masked account counts, so this need not say
+          which account it is.
+        </p>
+      )}
+
       {loading && <p className="muted">loading…</p>}
 
       {/* Signing in writes nothing, so the gate stands in the root name domain rather than a platform
