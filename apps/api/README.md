@@ -60,6 +60,25 @@ statement, and a holder of a record in `ORG_DOMAIN` (default `org`) — an onboa
 a letter to someone who has not claimed their handle yet. The attest
 route reads that wallet on chain, so nothing about the invitation is taken on trust from the browser.
 
+An invitation may also carry `requires`: platform domains the writer should already have attested, so a
+candidate can ask for a reference from a colleague rather than from anybody. Each entry is checked
+against the domains the writer holds a **live record** in — nothing else can be checked, since a record
+is the only thing a domain has.
+
+Two consequences worth stating, because both are easy to get wrong:
+
+- **A masked record counts.** It proves the writer holds an account in that domain without publishing
+  which account, so a requirement is met privately and no view code changes hands. Asking for a
+  platform is a question somebody can answer without being named; asking for a *person* is not.
+- **A requirement that is not a domain can never be met.** A username has no record of its own, and
+  neither has a name this deployment answers for. The app refuses to sign such an invitation, and says
+  so on one already signed, because the writer would otherwise be sent to link something that cannot
+  change the outcome.
+
+Unmet requirements do not refuse the reference unless `REQUIRE_INVITE` is on: it is published and
+reported as `solicited: false`. The app holds the *invited* flow until what was asked for is linked,
+which is a courtesy to the candidate rather than a rule of the attester.
+
 Vouch instances: when a delivery registers a record in the root name domain (`NAME_DOMAINS[0]`), the relay provisions
 `~<handle>` — Multipass domain (fee 0, registrar `REGISTRAR_ADDRESS`) → `AttestationFactory.create` → root
 `setSubregistry(handle)` — so `bob.alice.<root>` is a real ENS name. Needs `REGISTRY`, `PERMISSIONED_RESOLVER`
