@@ -4,6 +4,8 @@
  * to leave it up for inspection.
  */
 import { execSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import { hostname } from "node:os";
 import { fakePrivy } from "@ketsuban/registrar/testing";
 
 export const APP_ID = "e2e-app-id";
@@ -18,9 +20,33 @@ function env() {
   };
 }
 
+/** The network the stack builds, named in the compose file so it can be joined by name. */
+const NETWORK = "ketsuban_e2e";
+
+/**
+ * Reach the stack from wherever this process is running.
+ *
+ * The services publish on loopback, which the suite then fetches — and that holds only while the
+ * daemon and this process share a network namespace. Inside a job that is itself a container they do
+ * not: a published port is unreachable there by every address, loopback and gateway alike, and the
+ * suite times out on a healthcheck it was never going to reach. Joining the stack's own network makes
+ * the services reachable by the names they already answer to.
+ */
+function reachStack() {
+  if (!existsSync("/.dockerenv")) return;
+  try {
+    execSync(`docker network connect ${NETWORK} ${hostname()}`, { stdio: "ignore" });
+  } catch {
+    // Already on it, which is the state this wanted.
+  }
+  process.env.E2E_API_URL ??= "http://api:8787";
+  process.env.E2E_RPC_URL ??= "http://anvil:8545";
+}
+
 export async function setup() {
   if (process.env.E2E_SKIP_COMPOSE === "1") return;
   execSync(`${COMPOSE} up -d --build --wait`, { stdio: "inherit", env: env() });
+  reachStack();
 }
 
 /**

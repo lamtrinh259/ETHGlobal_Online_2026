@@ -112,29 +112,6 @@ jobs:
       # log would otherwise be needed for.
       - name: the images it builds
         run: docker compose -f apps/api/docker-compose.e2e.yml build
-      # Where a published port actually lands.
-      #
-      # The stack publishes the api on loopback and the suite fetches it there, which holds only while
-      # the daemon and the test process share a network namespace. Inside a job that is itself a
-      # container they do not, and the suite times out on a healthcheck it was never going to reach.
-      - name: where a published port lands
-        run: |
-          docker run -d --rm --name probe -p 127.0.0.1:18999:80 nginx:alpine >/dev/null
-          sleep 2
-          : > probe.txt
-          for host in 127.0.0.1 host.docker.internal "$(ip route | awk '/default/ {print $3; exit}')"; do
-            code=$(curl -s -o /dev/null -m 3 -w '%{http_code}' "http://$host:18999/" || echo none)
-            echo "$host -> $code" >> probe.txt
-          done
-          echo "hostname: $(hostname), in-container: $([ -f /.dockerenv ] && echo yes || echo no)" >> probe.txt
-          cat probe.txt
-          docker rm -f probe >/dev/null 2>&1 || true
-          cp probe.txt e2e-setup-probe.txt
-      - if: always()
-        uses: actions/upload-artifact@v3
-        with:
-          name: port-probe
-          path: e2e-setup-probe.txt
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 25
