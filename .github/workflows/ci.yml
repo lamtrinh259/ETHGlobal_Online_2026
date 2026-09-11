@@ -74,5 +74,23 @@ jobs:
       # No Foundry here on purpose: forge runs inside the deploy container, the ABIs it needs are checked
       # in, and the toolchain download is the one step of this job that fails on its own.
       - run: pnpm --filter @ketsuban/registrar build
+      # This job composes anvil, a deploy container and the api image. Where the runner has no docker
+      # to compose them with, the suite dies inside vitest and the log says so in the middle of a
+      # container trace — which is how this job stayed red without anyone being able to read why.
+      - name: the daemon this job needs
+        run: |
+          echo "runner: $(uname -a)"
+          command -v docker >/dev/null || {
+            echo "::error::no docker on this runner: the api e2e composes anvil, a deploy container and the api image"
+            exit 1
+          }
+          docker version || {
+            echo "::error::docker is installed but its daemon is not reachable from this runner"
+            exit 1
+          }
+          docker compose version || {
+            echo "::error::docker has no compose plugin, which is what brings the stack up"
+            exit 1
+          }
       # anvil, the contracts deployed from this source, and the api image: the whole loop from outside.
       - run: pnpm --filter @ketsuban/api test:e2e
