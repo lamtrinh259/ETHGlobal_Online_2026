@@ -21,6 +21,8 @@ import {
  *
  *   pnpm --filter @ketsuban/web check:live
  *   CHECK_API=http://127.0.0.1:8787 pnpm --filter @ketsuban/web check:live
+ *
+ * Parsing is only half of it: `chain.live.ts` asks whether what parsed is what the chain holds.
  */
 const API = (process.env.CHECK_API ?? "https://ketsuban-api.peeramid.xyz").replace(/\/$/, "");
 const HANDLE = process.env.CHECK_HANDLE ?? "peersky";
