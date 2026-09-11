@@ -273,6 +273,8 @@ describe("ProfileCard", () => {
     // Every other empty section is the same nothing said again.
     expect(screen.queryByTestId("humanity")).toBeNull();
     expect(screen.queryByText("Linked accounts")).toBeNull();
+    // Including a question nobody has answered, under a line saying nobody has written anything.
+    expect(screen.queryByTestId("answers")).toBeNull();
 
     const blank = screen.getByTestId("blank-page");
     expect(blank).toHaveTextContent("Nobody holds this name");

@@ -118,7 +118,9 @@ export function ProfileCard({
         />
       )}
 
-      {p.answers.length > 0 && (
+      {/* A question nobody has answered, on a page that just said nobody has written anything, is the
+          same empty section as the accounts and the humanity line above it. */}
+      {!blank && p.answers.length > 0 && (
         <>
           <h3>Answers</h3>
           <dl className="kv" data-testid="answers">
