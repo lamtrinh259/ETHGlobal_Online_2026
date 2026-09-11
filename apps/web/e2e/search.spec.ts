@@ -114,3 +114,23 @@ test("the scope reads as a scope, set off from the field it qualifies", async ({
   const border = await page.getByTestId("by-account").evaluate((el) => getComputedStyle(el).borderLeftWidth);
   expect(border).not.toBe("0px");
 });
+
+test("the scope says what it says, rather than as much of it as fits", async ({ page }) => {
+  /*
+   * At 10ch the chip rendered "by name" as "by nam" on every phone. A placeholder does not widen
+   * `scrollWidth`, so the text it stands for has to actually be in the field to measure it.
+   */
+  // The employers page carries the plain bar; the front page's is the big one, and only it was wide
+  // enough to hide that the chip was sized for less than it says.
+  await page.goto("/employers");
+  const kind = page.getByTestId("by-account");
+  const holder = await kind.getAttribute("placeholder");
+  const cut = await kind.evaluate((el: HTMLInputElement, text: string) => {
+    const was = el.value;
+    el.value = text;
+    const over = el.scrollWidth > el.clientWidth + 1;
+    el.value = was;
+    return over;
+  }, holder ?? "");
+  expect(cut).toBe(false);
+});

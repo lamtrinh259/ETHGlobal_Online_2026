@@ -563,7 +563,8 @@ dl.kv dd {
   padding: var(--sp-sm);
   cursor: pointer;
   flex: none;
-  width: 10ch;
+  /* What it says plus its own padding: at 10ch "by name" came out as "by nam". */
+  width: 12ch;
   text-align: center;
 }
 /* Clearing the scope belongs to the scope, so it stands on it rather than on the bar beside it. */
@@ -597,7 +598,7 @@ dl.kv dd {
 }
 .searchbar-big .searchbar-row > .searchbar-kind {
   font-size: 0.95rem;
-  width: 11ch;
+  width: 12ch;
 }
 
 /* The suggestion the keyboard is on. Marked on the row, because that is what Enter will open. */
