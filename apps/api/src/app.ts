@@ -1584,7 +1584,7 @@ export function createApp({
   app.get("/v1/name/:domain/:handle", async (c) => {
     const domain = c.req.param("domain");
     const handle = c.req.param("handle").toLowerCase();
-    if (!/^[a-z0-9-]{1,31}$/.test(handle)) return c.json({ error: "bad handle" }, 400);
+    if (!HANDLE_RE.test(handle)) return c.json({ error: "bad handle" }, 400);
     // A reserved label is not free even when no record holds it: a platform namespace answers there.
     const reserved = config.NAME_DOMAINS.includes(domain) && RESERVED_HANDLES.includes(handle);
     const status = await chain.nameStatus(domain, handle);
@@ -1781,7 +1781,7 @@ export function createApp({
 
   app.get("/v1/standing/:handle", async (c) => {
     const handle = c.req.param("handle").toLowerCase();
-    if (!/^[a-z0-9-]{1,30}$/.test(handle)) return c.json({ error: "bad handle" }, 400);
+    if (!HANDLE_RE.test(handle)) return c.json({ error: "bad handle" }, 400);
     return c.json({ handle, ...(await standing(handle)), warning: WARNING });
   });
 
@@ -1839,7 +1839,7 @@ export function createApp({
 
   app.get("/v1/vouches/:handle", async (c) => {
     const handle = c.req.param("handle").toLowerCase();
-    if (!/^[a-z0-9-]{1,30}$/.test(handle)) return c.json({ error: "bad handle" }, 400);
+    if (!HANDLE_RE.test(handle)) return c.json({ error: "bad handle" }, 400);
     return c.json(await vouchesFor(handle));
   });
 
@@ -2051,7 +2051,7 @@ export function createApp({
    */
   app.get("/v1/profile/:handle", async (c) => {
     const handle = c.req.param("handle").toLowerCase();
-    if (!/^[a-z0-9-]{1,30}$/.test(handle)) return c.json({ error: "bad handle" }, 400);
+    if (!HANDLE_RE.test(handle)) return c.json({ error: "bad handle" }, 400);
     const instances = await chain.instances();
     const subjects = instances.filter((i) => config.NAME_DOMAINS.includes(i.domain));
     if (subjects.length === 0) return c.json({ error: "no name domains configured" }, 501);

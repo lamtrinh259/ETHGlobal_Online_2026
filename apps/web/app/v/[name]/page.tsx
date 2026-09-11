@@ -8,6 +8,7 @@ import { VouchList } from "@/app/VouchList";
 import { createApi } from "@/lib/api";
 import { flourish } from "@/lib/patience";
 import { loadWebConfig } from "@/lib/config";
+import { HANDLE_RE } from "@ketsuban/registrar";
 
 export const dynamic = "force-dynamic";
 
@@ -60,7 +61,7 @@ export default async function VerifyPage({ params, searchParams }: Params) {
       instanceOf ? api.instance(instanceOf.domain).catch(() => null) : Promise.resolve(null),
       // What others have said about this person. The page showed only what they said themselves,
       // which is the half a verifier came here least for.
-      handle && /^[a-z0-9-]{1,30}$/.test(handle) ? api.vouches(handle).catch(() => null) : null,
+      handle && HANDLE_RE.test(handle) ? api.vouches(handle).catch(() => null) : null,
     ]);
     /*
      * A mount is not a person who happens to hold nothing.

@@ -4175,3 +4175,38 @@ describe("the caveat on a claim about somebody", () => {
     });
   }
 });
+
+/**
+ * A handle as long as a name can be is a handle every route takes.
+ *
+ * Each route wrote the rule out again, and four of them said thirty. So somebody holding a
+ * 31-character name — which the chain and every other check allow — had no page, no references and no
+ * standing: three reads refusing them outright, and provisioning refusing to create the instance
+ * their references would have lived in.
+ */
+describe("a handle at the length a name actually allows", () => {
+  const handle = "a".repeat(31);
+  const takesAHandle = [
+    `/v1/standing/${handle}`,
+    `/v1/vouches/${handle}`,
+    `/v1/profile/${handle}`,
+    `/v1/name/kju-is/${handle}`,
+  ];
+
+  for (const path of takesAHandle) {
+    it(`${path.replace(handle, "<31 characters>")} does not refuse it`, async () => {
+      const { chain } = fakeChain({
+        addr: user.account.address,
+        names: { [`kju-is/${handle}`]: { taken: true, wallet: user.account.address, live: true } },
+      });
+      const res = await app(chain).request(path);
+      expect(res.status, path).not.toBe(400);
+    });
+  }
+
+  it("still refuses one longer than a name can hold", async () => {
+    const { chain } = fakeChain();
+    const tooLong = "a".repeat(32);
+    expect((await app(chain).request(`/v1/profile/${tooLong}`)).status).toBe(400);
+  });
+});
