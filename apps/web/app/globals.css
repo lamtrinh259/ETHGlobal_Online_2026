@@ -496,21 +496,72 @@ dl.kv dd {
 }
 
 /*
- * The front page is one question, so the box that asks it is the size of the page's own heading.
- * `search-kind` sits beside it rather than under it: what kind of thing was typed is part of asking,
- * not a second step to find afterwards.
+ * The search bar.
+ *
+ * One control: what is being looked for, and what to look for, in a single bordered row that takes
+ * focus as a whole. The kind used to sit under the results, where it read as a setting to find after
+ * the search had already failed to be what somebody meant.
  */
-.search-big input {
-  font-size: 1.35rem;
-  padding: var(--sp-sm) var(--sp-md);
-}
-.search-kind {
-  display: inline-flex;
-  align-items: baseline;
+.searchbar {
+  display: grid;
   gap: var(--sp-xs);
-  margin-top: var(--sp-xs);
+}
+.searchbar-label {
   color: var(--text-secondary);
   font-size: 0.9rem;
+}
+.searchbar-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  overflow: hidden;
+}
+/* The whole bar takes the focus ring, so it reads as one thing rather than three. */
+.searchbar-row:focus-within {
+  border-color: var(--consensus);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--consensus) 25%, transparent);
+}
+.searchbar-row > input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  outline: none;
+  padding: var(--sp-sm) var(--sp-md);
+}
+.searchbar-kind {
+  background: transparent;
+  border: 0;
+  border-right: 1px solid var(--border);
+  color: var(--text-secondary);
+  font: inherit;
+  outline: none;
+  padding: var(--sp-sm);
+  cursor: pointer;
+  /* A phone shrinks everything else before it shrinks the thing being typed into. */
+  max-width: 42%;
+}
+.searchbar-clear {
+  background: transparent;
+  border: 0;
+  color: var(--text-secondary);
+  font: inherit;
+  outline: none;
+  padding: 0 var(--sp-md);
+  cursor: pointer;
+  font-size: 1.2rem;
+}
+.searchbar-big .searchbar-row > input {
+  font-size: 1.3rem;
+  padding: var(--sp-md);
+}
+.searchbar-big .searchbar-kind {
+  font-size: 1rem;
 }
 
 /* ── policy checks ── */

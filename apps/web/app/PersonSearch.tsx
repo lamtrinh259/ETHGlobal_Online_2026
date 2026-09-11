@@ -98,17 +98,53 @@ export function PersonSearch({
       */}
       {!byAccount ? (
         <>
-          <label className={big ? "search-big" : undefined}>
-            {label ?? "Their name or handle"}
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="bob"
-              aria-label="their name"
-              autoFocus={autoFocus}
-              data-testid="name-query"
-            />
-          </label>
+          {/*
+            One control, not a field with a setting under it.
+            What kind of thing is being typed belongs to the box it is typed into — a reader chooses
+            it while asking, the way they would in any search bar. Underneath the results it was a
+            setting to go and find after the search had already failed to be what they meant.
+          */}
+          <div className={big ? "searchbar searchbar-big" : "searchbar"} data-testid="searchbar">
+            <span className="searchbar-label">{label ?? "Their name or handle"}</span>
+            <div className="searchbar-row">
+              <select
+                className="searchbar-kind"
+                value="name"
+                onChange={(e) => {
+                  setPlatform(e.target.value);
+                  setByAccount(true);
+                }}
+                aria-label="what you are searching for"
+                data-testid="by-account"
+              >
+                <option value="name">a name</option>
+                {PLATFORMS.map((d) => (
+                  <option key={d} value={d}>
+                    on {d}
+                  </option>
+                ))}
+              </select>
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="a name, a handle, or a wallet address"
+                aria-label="their name"
+                autoFocus={autoFocus}
+                data-testid="name-query"
+              />
+              {query && (
+                <button
+                  type="button"
+                  className="searchbar-clear"
+                  onClick={() => setQuery("")}
+                  aria-label="clear"
+                  data-testid="clear-query"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+          </div>
 
           {address && onAddress && (
             <p className="muted" data-testid="is-address">
@@ -196,27 +232,6 @@ export function PersonSearch({
               </p>
             </div>
           )}
-          {/* What kind of thing was typed. A name is the common case and stays the default; naming a
-              platform says the box holds an account there instead. */}
-          <label className="search-kind">
-            searching for{" "}
-            <select
-              value="name"
-              onChange={(e) => {
-                setPlatform(e.target.value);
-                setByAccount(true);
-              }}
-              aria-label="what you are searching for"
-              data-testid="by-account"
-            >
-              <option value="name">a name</option>
-              {PLATFORMS.map((d) => (
-                <option key={d} value={d}>
-                  an account on {d}
-                </option>
-              ))}
-            </select>
-          </label>
         </>
       ) : (
         <>

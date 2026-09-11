@@ -112,4 +112,23 @@ describe("finding the person you mean", () => {
     // And the way out of it: an account identifies somebody a bare name cannot.
     expect(screen.getByTestId("rather-account")).toBeInTheDocument();
   });
+
+  it("asks what kind of thing is being typed inside the bar, not under the results", () => {
+    /*
+     * It sat below the suggestions, where it read as a setting to go and find after the search had
+     * already failed to be what somebody meant. It belongs to the box being typed into.
+     */
+    show();
+    const bar = screen.getByTestId("searchbar");
+    expect(bar).toContainElement(screen.getByTestId("by-account"));
+    expect(bar).toContainElement(screen.getByTestId("name-query"));
+  });
+
+  it("offers a way to empty the box once there is something in it", () => {
+    show();
+    expect(screen.queryByTestId("clear-query")).toBeNull();
+    fireEvent.change(screen.getByTestId("name-query"), { target: { value: "bob" } });
+    fireEvent.click(screen.getByTestId("clear-query"));
+    expect((screen.getByTestId("name-query") as HTMLInputElement).value).toBe("");
+  });
 });
