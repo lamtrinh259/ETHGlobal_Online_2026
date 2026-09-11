@@ -75,6 +75,29 @@ export default async function ProfilePage({ params, searchParams }: Params) {
   if (composed instanceof Error) error = composed.message;
   else read = composed;
 
+  /*
+   * A read that failed is not a person with nothing.
+   *
+   * An unheld handle answers 200 with empty names, so an empty reading is a fact about the world. A
+   * refusal is not: rendering the card anyway turned an attester that was down into a confident page
+   * saying nobody holds this name and nobody has written about it, about somebody who may have a
+   * dozen references. The error was printed above it and read as a detail.
+   */
+  if (error) {
+    return (
+      <section className="card" data-testid="unread">
+        <h2>{`${handle}.${root.parentName}`}</h2>
+        <p className="error" role="alert">
+          {error}
+        </p>
+        <p className="muted">
+          This is what could not be read, not what is there. The records are on chain either way —{" "}
+          <Link href={`/v/${names[0]}`}>read the name yourself</Link>.
+        </p>
+      </section>
+    );
+  }
+
   if (claim?.kind === "mount") {
     return (
       <section className="card" data-testid="mount-name">
@@ -99,11 +122,6 @@ export default async function ProfilePage({ params, searchParams }: Params) {
 
   return (
     <>
-      {error && (
-        <p className="error" role="alert">
-          {error}
-        </p>
-      )}
       <ProfileCard p={profile} rootParent={root.parentName} policy={asked ? policy : undefined} />
 
       {/* Where a reader asks for a verdict, and the only place one comes from. */}

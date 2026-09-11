@@ -59,6 +59,15 @@ describe("what the mock attester answers", () => {
     expect(routes).toHaveLength(cases.length);
   });
 
+  it("parses the fixtures a page falls back to, not only the ones it succeeds on", () => {
+    /*
+     * `unheld` is the page with nothing on it and `alice` is the page with everything. Only the second
+     * was parsed here, so the first could omit a required field — and it did, which showed up as a
+     * page claiming nobody holds that name rather than as a fixture that does not parse.
+     */
+    expect(() => profileSchema.parse(answer("/v1/profile/unheld"))).not.toThrow();
+  });
+
   it("answers nothing for a path it does not serve, rather than something wrong", () => {
     expect(answer("/v1/nothing-here")).toBeUndefined();
   });

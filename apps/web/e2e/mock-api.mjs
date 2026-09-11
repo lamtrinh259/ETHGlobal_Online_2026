@@ -157,7 +157,9 @@ export const routes = [
    * for it — so every list it renders was untested while the error card it falls back to was not.
    */
   [
-    /^\/v1\/wallet\/([^/?]+)/,
+    // The zero address is the one this mock refuses, so the page can be driven against a read that
+    // failed rather than against a wallet that holds nothing. The two look identical.
+    /^\/v1\/wallet\/(?!0x0000000000000000000000000000000000000000)([^/?]+)/,
     (m) => ({
       address: decodeURIComponent(m[1]),
       org: null,
@@ -260,12 +262,21 @@ export const routes = [
     }),
   ],
   [
-    /^\/v1\/profile\/([^/?]+)/,
+    // `nobody` is the handle this mock refuses, so a page can be driven against a read that failed
+    // rather than against one that came back empty. The two look identical and mean opposite things.
+    /^\/v1\/profile\/(?!nobody)([^/?]+)/,
     (m) => {
       const handle = decodeURIComponent(m[1]);
       // The end of the "nobody holds that name" path on the front page: a page with nothing on it.
       if (handle === "unheld")
-        return { handle, names: [], vouches: [], standing: { claimed: false, given: 0, received: 0 } };
+        return {
+          handle,
+          names: [],
+          vouches: [],
+          standing: { claimed: false, given: 0, received: 0 },
+          // Required, and omitted here until a page stopped turning a failed read into an empty one.
+          warning: verification("x").warning,
+        };
       return {
         handle,
         names: [{ instance: "ketsuban", name: `${handle}.${ROOT}`, verification: verification(`${handle}.${ROOT}`) }],

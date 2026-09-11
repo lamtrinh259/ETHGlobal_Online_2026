@@ -44,6 +44,25 @@ export default async function WalletPage({ params }: Params) {
   // What ENS itself answers for this address, which its holder sets and nothing here can.
   const ens = await api.reverse(address, { signal: flourish() }).catch(() => undefined);
 
+  /*
+   * A read that failed is not a wallet holding nothing.
+   *
+   * An address with no records answers 200 with empty lists, so an empty reading is a fact. A refusal
+   * is not, and rendering the lists anyway said "this wallet holds no live name" about a wallet that
+   * might hold several, with the reason printed above it as a detail.
+   */
+  if (error) {
+    return (
+      <section className="card" data-testid="unread">
+        <h2>{short(address)}</h2>
+        <p className="error" role="alert">
+          {error}
+        </p>
+        <p className="muted">This is what could not be read, not what this wallet holds.</p>
+      </section>
+    );
+  }
+
   const names = read?.names ?? [];
   const live = names.filter((n) => n.live);
   /*
@@ -95,12 +114,6 @@ export default async function WalletPage({ params }: Params) {
           </p>
         )}
       </section>
-
-      {error && (
-        <p className="error" role="alert">
-          {error}
-        </p>
-      )}
 
       <section className="card" data-testid="wallet-names">
         <h2>Names</h2>

@@ -172,3 +172,28 @@ test("a view code in the query unmasks nothing; one in the fragment does", async
   expect(seen.some((u) => u.includes("/v1/verify/"))).toBe(true);
   expect(seen.filter((u) => u.includes(code))).toHaveLength(0);
 });
+
+/**
+ * A read that failed is not a person with nothing.
+ *
+ * The page catches a failed read and renders the card anyway, so an attester that is down produced a
+ * confident page saying nobody holds this name and nobody has written about it — which is a statement
+ * about the world, made from no information, about somebody who may have a dozen references.
+ */
+test("a candidate whose records could not be read says so, and claims nothing else", async ({ page }) => {
+  await page.goto("/p/nobody");
+  await expect(page.locator("main [role=alert]")).toBeVisible();
+  await expect(page.getByTestId("blank-page")).toHaveCount(0);
+  await expect(page.getByTestId("score")).toHaveCount(0);
+  await expect(page.getByTestId("checks")).toHaveCount(0);
+  // Nor the invitation to write the first reference for somebody who may already have many.
+  await expect(page.getByRole("link", { name: "Refer this person" })).toHaveCount(0);
+});
+
+test("a wallet whose records could not be read says so, and claims nothing else", async ({ page }) => {
+  await page.goto("/w/0x0000000000000000000000000000000000000000");
+  await expect(page.locator("main [role=alert]")).toBeVisible();
+  // Not "this wallet holds no live name", about a wallet that may hold several.
+  await expect(page.getByTestId("wallet-names")).toHaveCount(0);
+  await expect(page.getByTestId("wallet-accounts")).toHaveCount(0);
+});
