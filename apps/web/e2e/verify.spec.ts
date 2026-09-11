@@ -147,3 +147,28 @@ test("a policy nobody has heard of applies nothing", async ({ page }) => {
   await page.getByTestId("policy-pick").fill("whatever");
   await expect(page.getByTestId("policy-apply")).toBeDisabled();
 });
+
+/**
+ * A view code never reaches a server.
+ *
+ * It is the one-time pad that unmasks an account on chain: permanent, unrevocable, and the whole
+ * secret. As `?viewCode=0x…` it was written into this app's access log, the attester's, every proxy
+ * between them and the reader's own history — and a secret that never expires cannot be taken back.
+ */
+test("a view code in the query unmasks nothing; one in the fragment does", async ({ page }) => {
+  const code = `0x${"5a".repeat(32)}`;
+  const seen: string[] = [];
+  page.on("request", (r) => seen.push(r.url()));
+
+  await page.goto(`/p/alice?links=x.com&viewCode=${code}`);
+  await expect(page.getByTestId("unmasked")).toHaveCount(0);
+
+  // From here on, nothing that leaves the browser may carry it — the line above put it in a URL on
+  // purpose, to show it is ignored.
+  seen.length = 0;
+  await page.goto(`/p/alice?links=x.com#viewCode=${code}`);
+  await expect(page.getByTestId("unmasked")).toBeVisible();
+  // Asked for, and not in any URL that left the browser.
+  expect(seen.some((u) => u.includes("/v1/verify/"))).toBe(true);
+  expect(seen.filter((u) => u.includes(code))).toHaveLength(0);
+});

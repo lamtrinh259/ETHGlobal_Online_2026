@@ -808,7 +808,9 @@ describe("GET /v1/verify/:name", () => {
       },
     });
     const body = await (
-      await app(chain).request(`/v1/verify/alice.kju-is.eth?links=x,telegram&viewCode=${viewCode}`)
+      await app(chain).request("/v1/verify/alice.kju-is.eth?links=x,telegram", {
+        headers: { "x-view-code": viewCode },
+      })
     ).json();
     expect(body.status).toBe("active");
     expect(body.wallet).toBe(user.account.address);
@@ -856,7 +858,9 @@ describe("GET /v1/verify/:name", () => {
     );
     const { chain } = fakeChain({ addr: user.account.address, data: { "ketsuban:link:x": masked } });
     const body = await (
-      await app(chain).request(`/v1/verify/alice.kju-is.eth?links=x&viewCode=${keccak256("0x03")}`)
+      await app(chain).request("/v1/verify/alice.kju-is.eth?links=x", {
+        headers: { "x-view-code": keccak256("0x03") },
+      })
     ).json();
     expect(body.links).toEqual([
       { domain: "x", optedIn: true, ensName: null, commitment: viewCodeCommitment(viewCode) },
@@ -1472,12 +1476,16 @@ describe("GET /v1/who — finding a person by an account", () => {
     });
     const a = app(chain);
 
-    const found = await (await a.request(`/v1/who?domain=x.com&handle=bob&viewCode=${viewCode}`)).json();
+    const found = await (
+      await a.request("/v1/who?domain=x.com&handle=bob", { headers: { "x-view-code": viewCode } })
+    ).json();
     expect(found).toMatchObject({ found: true, candidate: "bobby" });
 
     // The wrong code computes a different mask and matches nothing: the code is the whole gate.
     const wrong = await (
-      await a.request(`/v1/who?domain=x.com&handle=bob&viewCode=0x${"11".repeat(32)}`)
+      await a.request("/v1/who?domain=x.com&handle=bob", {
+        headers: { "x-view-code": `0x${"11".repeat(32)}` },
+      })
     ).json();
     expect(wrong.found).toBe(false);
     // And without one, the same account is unfindable, as it must be.
@@ -1486,7 +1494,21 @@ describe("GET /v1/who — finding a person by an account", () => {
 
   it("refuses a view code that is not one", async () => {
     const { chain } = fakeChain({ listed: { "x.com": [] } });
-    expect((await app(chain).request("/v1/who?domain=x.com&handle=bob&viewCode=nope")).status).toBe(400);
+    expect(
+      (
+        await app(chain).request("/v1/who?domain=x.com&handle=bob", {
+          headers: { "x-view-code": "nope" },
+        })
+      ).status
+    ).toBe(400);
+    /*
+     * A code in the URL is not a code any more, and is ignored rather than honoured.
+     * It is the one-time pad that unmasks an account: permanent, unrevocable, and in a query string it
+     * lands in this service's access log, in every proxy's, and in the browser's history.
+     */
+    const inUrl = await app(chain).request(`/v1/who?domain=x.com&handle=bob&viewCode=0x${"5a".repeat(32)}`);
+    expect(inUrl.status).toBe(200);
+    expect((await inUrl.json()).found).toBe(false);
   });
 
   it("says nothing was found for an account nobody has attested", async () => {

@@ -4,6 +4,7 @@ import { EnsProof } from "@/app/EnsProof";
 import { PolicyBar } from "@/app/PolicyBar";
 import { ProfileCard } from "@/app/ProfileCard";
 import { Revealed } from "@/app/Revealed";
+import { Unmasked } from "@/app/Unmasked";
 import { CopyButton } from "@/app/CopyButton";
 import { createApi, type Verification } from "@/lib/api";
 import { loadWebConfig } from "@/lib/config";
@@ -65,10 +66,9 @@ export default async function ProfilePage({ params, searchParams }: Params) {
    */
   const [composed, claim] = await Promise.all([
     api
-      .profile(handle, {
-        links: q.links?.split(","),
-        viewCode: q.viewCode as `0x${string}` | undefined,
-      })
+      // No view code here: it is a permanent secret, and a server that reads one out of a URL has
+      // already written it into a log. `<Unmasked>` takes it from the fragment, in the browser.
+      .profile(handle, { links: q.links?.split(",") })
       .catch((e: Error) => e),
     api.explain(`${handle}.${root.parentName}`, { signal: flourish() }).catch(() => null),
   ]);
@@ -111,6 +111,8 @@ export default async function ProfilePage({ params, searchParams }: Params) {
 
       {/* One link can open several accounts: the grant was one signature over the whole selection.
           Followed here rather than at `/v/`, which now sends a person's name to this page. */}
+      <Unmasked name={names[0]} domains={q.links?.split(",").filter(Boolean) ?? []} />
+
       {q.reveal
         ?.split(",")
         .filter(Boolean)

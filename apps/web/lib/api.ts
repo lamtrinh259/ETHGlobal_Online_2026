@@ -395,6 +395,18 @@ async function readJson(res: Response): Promise<unknown> {
  * Client for apps/api. Mutations get a longer timeout: aborting a POST the server already
  * committed and retrying risks a double submit.
  */
+/**
+ * A view code goes in a header, never in a URL.
+ *
+ * It is the one-time pad that unmasks an account on chain: permanent, unrevocable, and the whole
+ * secret. In a query string it lands in the attester's access log, in this app's, in every proxy
+ * between them and in the browser's history — and a secret that never expires cannot be taken back
+ * once it is written somewhere. A header is sent to one place and logged by none of them by default.
+ */
+function viewCodeHeader(viewCode?: string): Record<string, string> {
+  return viewCode ? { "x-view-code": viewCode } : {};
+}
+
 export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fetch) {
   const base = apiUrl.replace(/\/$/, "");
   const call = async (url: string, init?: RequestInit) => {
@@ -582,8 +594,9 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
     async who(domain: string, handle: string, viewCode?: string): Promise<Who> {
       const q = new URLSearchParams({ domain, handle });
       // Only someone the candidate gave the code to can find a private account; it is the permission.
-      if (viewCode) q.set("viewCode", viewCode);
-      return whoSchema.parse(await readJson(await call(`${base}/v1/who?${q.toString()}`)));
+      return whoSchema.parse(
+        await readJson(await call(`${base}/v1/who?${q.toString()}`, { headers: viewCodeHeader(viewCode) }))
+      );
     },
 
     /** Live permissions on a name, so its holder can see who can read which account. */
@@ -658,10 +671,13 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
     async profile(handle: string, opts: { links?: string[]; viewCode?: Hex } = {}): Promise<ProfileRead> {
       const q = new URLSearchParams();
       if (opts.links?.length) q.set("links", opts.links.join(","));
-      if (opts.viewCode) q.set("viewCode", opts.viewCode);
       const qs = q.toString();
       return profileSchema.parse(
-        await readJson(await call(`${base}/v1/profile/${encodeURIComponent(handle)}${qs ? `?${qs}` : ""}`))
+        await readJson(
+          await call(`${base}/v1/profile/${encodeURIComponent(handle)}${qs ? `?${qs}` : ""}`, {
+            headers: viewCodeHeader(opts.viewCode),
+          })
+        )
       );
     },
     async vouches(handle: string): Promise<Vouches> {
@@ -693,9 +709,14 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
     async verify(name: string, opts: { links?: string[]; viewCode?: Hex } = {}): Promise<Verification> {
       const q = new URLSearchParams();
       if (opts.links?.length) q.set("links", opts.links.join(","));
-      if (opts.viewCode) q.set("viewCode", opts.viewCode);
       const qs = q.toString();
-      return verifySchema.parse(await readJson(await call(`${base}/v1/verify/${name}${qs ? `?${qs}` : ""}`)));
+      return verifySchema.parse(
+        await readJson(
+          await call(`${base}/v1/verify/${name}${qs ? `?${qs}` : ""}`, {
+            headers: viewCodeHeader(opts.viewCode),
+          })
+        )
+      );
     },
   };
 }

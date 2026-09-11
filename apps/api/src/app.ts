@@ -261,7 +261,9 @@ export function createApp({
     "*",
     cors({
       origin: config.CORS_ORIGINS.includes("*") ? "*" : config.CORS_ORIGINS,
-      allowHeaders: ["content-type", "x-delivery-token"],
+      // `x-view-code` carries a secret that must not be in a URL, so the browser has to be
+      // allowed to send it: without this the preflight refuses and every masked read fails.
+      allowHeaders: ["content-type", "x-delivery-token", "x-view-code"],
       allowMethods: ["GET", "POST", "OPTIONS"],
     })
   );
@@ -889,6 +891,17 @@ export function createApp({
    * time rather than being settled up front by whoever registered first. So this ranks rather than
    * picks, and the person referring makes the call with the evidence in front of them.
    */
+  /*
+   * A view code, out of a header rather than a query string.
+   *
+   * It is the one-time pad that unmasks an account on chain: permanent, unrevocable, and the whole
+   * secret. In a query string it lands in this service's access log, in the web server's, in every
+   * proxy between them, and in the browser's history — where a secret that never expires cannot be
+   * taken back. A header is sent to exactly one place and logged by none of them by default.
+   */
+  const viewCodeOf = (c: { req: { header: (name: string) => string | undefined } }): string | undefined =>
+    c.req.header("x-view-code");
+
   app.get("/v1/find", async (c) => {
     const q = c.req.query("q")?.trim().toLowerCase().replace(/^@/, "") ?? "";
     // One character narrows almost nothing and costs a standing read per name it does not narrow.
@@ -919,7 +932,7 @@ export function createApp({
     const domain = c.req.query("domain");
     const handle = c.req.query("handle")?.trim().replace(/^@/, "");
     if (!domain || !handle) return c.json({ error: "domain and handle required" }, 400);
-    const viewCode = c.req.query("viewCode");
+    const viewCode = viewCodeOf(c);
     if (viewCode !== undefined && !/^0x[0-9a-fA-F]{64}$/.test(viewCode)) {
       return c.json({ error: "viewCode must be 32 bytes of hex" }, 400);
     }
@@ -2008,7 +2021,7 @@ export function createApp({
   app.get("/v1/verify/:name", async (c) => {
     const v = await verifyName(c.req.param("name"), {
       linkDomains: await linkQuery(c.req.query("links")),
-      viewCode: c.req.query("viewCode") as Hex | undefined,
+      viewCode: viewCodeOf(c) as Hex | undefined,
     });
     if (!v) return c.json({ error: "unknown instance for name" }, 404);
     return c.json(v);
@@ -2026,7 +2039,7 @@ export function createApp({
     if (subjects.length === 0) return c.json({ error: "no name domains configured" }, 501);
     const opts = {
       linkDomains: await linkQuery(c.req.query("links")),
-      viewCode: c.req.query("viewCode") as Hex | undefined,
+      viewCode: viewCodeOf(c) as Hex | undefined,
     };
     const names = await Promise.all(
       subjects.map(async (i) => ({

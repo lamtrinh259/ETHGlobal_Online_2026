@@ -279,10 +279,16 @@ export function policyFromQuery(q: Record<string, string | undefined>, subjectDo
   };
 }
 
-/** Reference page link that unmasks one platform link for whoever holds it. */
+/**
+ * Reference page link that unmasks one platform link for whoever holds it.
+ *
+ * The code goes in the fragment, which a browser never sends upstream. It is the one-time pad that
+ * unmasks an account on chain — permanent and unrevocable — so a query string would write it into this
+ * app's access log, the attester's, and every proxy in between.
+ */
 export function disclosureLink(siteUrl: string, handle: string, domain: string, viewCode: string): string {
-  const q = new URLSearchParams({ links: domain, viewCode });
-  return `${siteUrl.replace(/\/$/, "")}/p/${handle}?${q.toString()}`;
+  const q = new URLSearchParams({ links: domain });
+  return `${siteUrl.replace(/\/$/, "")}/p/${handle}?${q.toString()}#viewCode=${viewCode}`;
 }
 
 /** The message a candidate pastes to someone they ask for a reference. */

@@ -259,7 +259,9 @@ describe("api e2e", () => {
       { domain: "x", optedIn: true, ensName: null, commitment: attested.record.payload },
     ]);
 
-    const disclosed = await (await fetch(`${API}/v1/verify/${name}?links=x&viewCode=${viewCode}`)).json();
+    const disclosed = await (
+      await fetch(`${API}/v1/verify/${name}?links=x`, { headers: { "x-view-code": viewCode } })
+    ).json();
     expect(disclosed.links[0].disclosed).toEqual({ handle: "alice", platformId: "1234567890123456789" });
     expect(disclosed.evidence).toContain("x_account_control");
   });
@@ -743,7 +745,9 @@ describe("api e2e", () => {
     expect(blind.note).toMatch(/private/i);
 
     const withCode = await (
-      await fetch(`${API}/v1/who?domain=telegram&handle=${handle}&viewCode=${viewCode}`)
+      await fetch(`${API}/v1/who?domain=telegram&handle=${handle}`, {
+        headers: { "x-view-code": viewCode },
+      })
     ).json();
     expect(withCode).toMatchObject({ found: true, wallet: user.account.address });
   });

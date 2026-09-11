@@ -159,7 +159,8 @@ Nothing on chain decides which `bob` anybody means — the one people have actua
 evidence, and it gets truer over time rather than being settled by whoever registered first.
 
 A private account is the exception: the chain holds a one-time pad, so no search can match it. Whoever
-the candidate gave a view code to can pass it as `&viewCode=0x…`, which computes the masked name and
+the candidate gave a view code to can pass it as `#viewCode=0x…` — in the fragment, which a browser
+never sends upstream, so the code stays out of every log on the way — which computes the masked name and
 matches exactly. Without the code the answer says a private account exists rather than "nobody",
 because reporting nobody invites writing a second page for a person who already has one.
 

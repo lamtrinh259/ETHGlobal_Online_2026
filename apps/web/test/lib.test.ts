@@ -447,7 +447,11 @@ describe("api client", () => {
       amount: "2000000000000000",
     });
     expect(
-      calls.some((c) => c.url === "http://api.test/v1/verify/alice.ketsuban.eth?links=x&viewCode=0x02")
+      calls.some(
+        (c) =>
+          c.url === "http://api.test/v1/verify/alice.ketsuban.eth?links=x" &&
+          (c.init?.headers as Record<string, string>)?.["x-view-code"] === "0x02"
+      )
     ).toBe(true);
   });
 
@@ -535,7 +539,9 @@ describe("api client", () => {
     // The view code is a permission, so it only travels when the reader was given one.
     expect(calls[3].url).toBe("http://api.test/v1/who?domain=x.com&handle=bob");
     await api.who("x.com", "bob", "0x01");
-    expect(calls[5].url).toBe("http://api.test/v1/who?domain=x.com&handle=bob&viewCode=0x01");
+    // The code is a header, never a URL: a query string is logged by every hop it passes.
+    expect(calls[5].url).toBe("http://api.test/v1/who?domain=x.com&handle=bob");
+    expect((calls[5].init?.headers as Record<string, string>)["x-view-code"]).toBe("0x01");
   });
 
   it("refuses a challenge that is missing the signature World needs", async () => {
@@ -587,6 +593,8 @@ describe("every read the client offers", () => {
   /** One fake service answering everything, so a wrong path or a wrong schema fails here. */
   function serving() {
     const calls: string[] = [];
+    /** What each call carried besides its URL, so a secret moved out of one can be seen in the other. */
+    const sent: RequestInit[] = [];
     const bodies: Record<string, unknown> = {
       "/v1/instance/": {
         domain: "kju-is",
@@ -609,8 +617,9 @@ describe("every read the client offers", () => {
       },
       "/v1/explain/": { name: "n", says: "s", kind: "person" },
     };
-    const fn = vi.fn(async (url: string) => {
+    const fn = vi.fn(async (url: string, init?: RequestInit) => {
       calls.push(url);
+      sent.push(init ?? {});
       const hit = Object.entries(bodies).find(([k]) => url.includes(k));
       return new Response(JSON.stringify(hit ? hit[1] : null), {
         status: hit ? 200 : 404,
@@ -620,6 +629,7 @@ describe("every read the client offers", () => {
     return {
       api: createApi("http://api.test", "http://api.test/v1/attest", fn as unknown as typeof fetch),
       calls,
+      sent,
     };
   }
 
@@ -645,12 +655,22 @@ describe("every read the client offers", () => {
     expect(calls.some((u) => u.endsWith("/v1/invites/alice"))).toBe(true);
   });
 
-  it("carries a view code when one is given, and leaves it off when it is not", async () => {
-    // The code is the whole permission for a private lookup; dropping it silently would look like the
-    // account simply not existing.
-    const { api, calls } = serving();
-    await api.who("x.com", "bob", `0x${"5a".repeat(32)}`);
-    expect(calls.some((u) => u.includes(`viewCode=0x${"5a".repeat(32)}`))).toBe(true);
+  it("carries a view code in a header, and never in the URL", async () => {
+    /*
+     * The code is the whole permission for a private lookup, so dropping it silently would look like
+     * the account simply not existing — and it is the one-time pad that unmasks an account on chain:
+     * permanent, unrevocable, and in a query string it is written into every log on the way.
+     */
+    const code = `0x${"5a".repeat(32)}`;
+    const { api, calls, sent } = serving();
+    await api.who("x.com", "bob", code);
+    expect(calls.every((u) => !u.includes(code))).toBe(true);
+    expect((sent[0].headers as Record<string, string>)["x-view-code"]).toBe(code);
+
+    // And nothing is sent when there is nothing to send: an empty header is a header all the same.
+    const plain = serving();
+    await plain.api.who("x.com", "bob");
+    expect(plain.sent[0].headers).toEqual({});
   });
 });
 

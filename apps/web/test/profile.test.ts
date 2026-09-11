@@ -260,9 +260,16 @@ describe("policyFromQuery", () => {
 });
 
 describe("disclosureLink", () => {
+  it("keeps the code out of the half of the URL a browser sends upstream", () => {
+    // It is permanent and unrevocable: in a query string it is written into every log on the way.
+    const link = disclosureLink("https://app.example", "alice", "x", `0x${"5a".repeat(32)}`);
+    expect(new URL(link).search).toBe("?links=x");
+    expect(new URL(link).hash).toBe(`#viewCode=0x${"5a".repeat(32)}`);
+  });
+
   it("points at the reference page with one platform and the view code", () => {
     expect(disclosureLink("https://app.example/", "alice", "x", "0xabc")).toBe(
-      "https://app.example/p/alice?links=x&viewCode=0xabc"
+      "https://app.example/p/alice?links=x#viewCode=0xabc"
     );
   });
 });

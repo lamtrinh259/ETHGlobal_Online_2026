@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 
 type Params = {
   params: Promise<{ name: string }>;
-  searchParams: Promise<{ viewCode?: string; links?: string; reveal?: string; for?: string }>;
+  searchParams: Promise<{ links?: string; reveal?: string; for?: string }>;
 };
 
 // Server component so a shared link unfurls with the name and its state (crawlers run no JS).
@@ -27,7 +27,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 
 export default async function VerifyPage({ params, searchParams }: Params) {
   const { name } = await params;
-  const { viewCode, links, reveal, for: addressedTo } = await searchParams;
+  const { links, reveal, for: addressedTo } = await searchParams;
   const config = loadWebConfig();
   const api = createApi(config.apiUrl, config.attestUrl);
   const decoded = decodeURIComponent(name);
@@ -48,10 +48,9 @@ export default async function VerifyPage({ params, searchParams }: Params) {
    */
   try {
     const [v, ens, claim, instance, received] = await Promise.all([
-      api.verify(decoded, {
-        links: links?.split(","),
-        viewCode: viewCode as `0x${string}` | undefined,
-      }),
+      // No view code here: it is a permanent secret, and a server that reads one out of a URL has
+      // already written it into a log. `<Unmasked>` takes it from the fragment, in the browser.
+      api.verify(decoded, { links: links?.split(",") }),
       // The cross-check is a bonus: an unconfigured or unreachable resolver must not break the page,
       // and these are awaited together, so a slow one would hold up the verification itself.
       api.ens(decoded, undefined, { signal: flourish() }).catch(() => null),

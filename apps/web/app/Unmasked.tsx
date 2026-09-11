@@ -1,0 +1,55 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { useVerification } from "@/lib/hooks";
+import { apiFor } from "@/lib/hooks";
+import { useWebConfig } from "./providers";
+
+/**
+ * A masked account opened by a view code out of the link's fragment.
+ *
+ * The code is the one-time pad that unmasks an account on chain: permanent, unrevocable, and the whole
+ * secret. It used to arrive as `?viewCode=0x…`, which put it in this app's access log, in the
+ * attester's, in every proxy between them and in the reader's own history — and a secret that never
+ * expires cannot be taken back once it is written down somewhere.
+ *
+ * The fragment is the half of a URL a browser keeps to itself, so nothing upstream ever sees it. That
+ * also means only the browser can read it, which is why this is a client component and why the page
+ * behind it renders masked.
+ */
+export function Unmasked({ name, domains }: { name: string; domains: string[] }) {
+  const config = useWebConfig();
+  const api = useMemo(() => apiFor(config), [config]);
+  const [code, setCode] = useState<string>();
+  useEffect(() => {
+    const found = /(?:^|[#&])viewCode=(0x[0-9a-fA-F]{64})/.exec(window.location.hash);
+    setCode(found?.[1]);
+  }, []);
+
+  const read = useVerification(api, code ? name : "", { links: domains, viewCode: code as `0x${string}` });
+  if (!code) return null;
+  const opened = (read.data?.links ?? []).filter((l) => l.disclosed);
+
+  return (
+    <section className="card" data-testid="unmasked">
+      <h3>Opened by the view code you were given</h3>
+      {read.isPending ? (
+        <p className="muted">opening…</p>
+      ) : opened.length === 0 ? (
+        <p className="muted" data-testid="unmasked-none">
+          That code opens nothing here. A view code belongs to one account on one name; this one does not
+          match any of them.
+        </p>
+      ) : (
+        <ul data-testid="unmasked-links">
+          {opened.map((l) => (
+            <li key={l.domain}>
+              <code>{l.domain}</code> — <strong>@{l.disclosed?.handle}</strong>{" "}
+              <small className="muted">(platform id {l.disclosed?.platformId})</small>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
