@@ -1184,6 +1184,47 @@ describe("a letter too long to sit on chain", () => {
     expect(bob.letter).toBe(long);
     expect(bob.letterHash).toBe(createHash("sha256").update(long).digest("hex"));
   });
+
+  it("refuses to serve a copy that does not hash to the record's own reference", async () => {
+    /*
+     * The card tells a reader the letter "checks against" the hash on the record, and the store is
+     * keyed by that hash — so the text under a key matches it by construction, at the moment it is
+     * written. Nothing re-checks it afterwards, and the store is a file. Serving whatever is under the
+     * key means the one piece of content this service hands over is the one piece nobody verified.
+     */
+    const dir = mkdtempSync(join(tmpdir(), "letters-"));
+    const real = "what bob actually wrote";
+    const hash = createHash("sha256").update(real).digest("hex");
+    const { chain } = fakeChain({
+      listed: {
+        "~alice": [
+          {
+            name: "bob",
+            id: toBytes32("b"),
+            wallet: user.account.address,
+            payload: toBytes32("worked together"),
+            validUntil: 1_800_000_000n,
+            nonce: 1n,
+            live: true,
+          },
+        ],
+      },
+      instances: [instance, vouchInstance],
+      texts: { "bob.alice.kju-is.eth/description": `sha256:${hash}` },
+    });
+    // The record still names bob's letter; the copy on disk is somebody else's words.
+    writeFileSync(join(dir, "letters.json"), JSON.stringify({ [hash]: "words bob never wrote" }));
+    const a = createApp({ config: loadConfig({ ...baseEnv, DATA_DIR: dir }), chain, now: () => NOW });
+
+    const listed = await (await a.request("/v1/vouches/alice")).json();
+    const bob = listed.vouches.find((v: { voucher: string }) => v.voucher === "bob");
+    expect(bob.letter).toBeNull();
+    // The reference is still named, so the reader is told a letter exists and this copy is not it.
+    expect(bob.letterHash).toBe(hash);
+
+    // And the route a reader is told to fetch a copy from does not hand one over either.
+    expect((await a.request(`/v1/letter/${hash}`)).status).toBe(404);
+  });
 });
 
 describe("whether this deployment can ask for a proof of humanity", () => {

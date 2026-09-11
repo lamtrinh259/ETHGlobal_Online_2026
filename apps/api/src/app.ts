@@ -626,11 +626,28 @@ export function createApp({
     });
   }
 
+  /**
+   * The letter held for a hash, if what is held is that letter.
+   *
+   * The store is content-addressed, so the text under a key hashes to it — at the moment it is
+   * written. Nothing re-checked it afterwards, and the store is a file this service can rewrite. The
+   * card tells a reader the letter checks against the hash on the record, and that is only true if
+   * somebody checks: this is the one thing this service hands over that the chain does not hold, so
+   * it is the one thing a reader cannot check for themselves without it.
+   */
+  function heldLetter(hash: string): string | undefined {
+    const held = letterStore.get(hash);
+    if (held === undefined) return undefined;
+    if (createHash("sha256").update(held).digest("hex") === hash) return held;
+    console.error(`letter · the copy held for ${hash} does not hash to it; refusing to serve it`);
+    return undefined;
+  }
+
   /** Split a `description` into the letter a reader sees and the hash that proves it, if there is one. */
   function letterOf(text: string): { letter: string | null; letterHash: string | null } {
     const ref = /^sha256:([0-9a-f]{64})$/.exec(text.trim());
     if (!ref) return { letter: text || null, letterHash: null };
-    return { letter: letterStore.get(ref[1]) ?? null, letterHash: ref[1] };
+    return { letter: heldLetter(ref[1]) ?? null, letterHash: ref[1] };
   }
 
   /**
@@ -748,7 +765,7 @@ export function createApp({
 
   app.get("/v1/letter/:hash", (c) => {
     const hash = c.req.param("hash").toLowerCase();
-    const text = /^[0-9a-f]{64}$/.test(hash) ? letterStore.get(hash) : undefined;
+    const text = /^[0-9a-f]{64}$/.test(hash) ? heldLetter(hash) : undefined;
     if (text === undefined) return c.json({ error: "no letter with that hash" }, 404);
     return c.json({ hash, text });
   });
