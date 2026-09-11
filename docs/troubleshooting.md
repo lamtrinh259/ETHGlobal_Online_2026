@@ -41,10 +41,12 @@ attesting it again in the DNS domain.
 That was a real bug: the Universal Resolver falls back to the nearest ancestor resolver, so an instance
 that answers on the first label alone becomes a wildcard for everything beneath it. Every fallback ends at
 the resolver the `.eth` registry names, and `script/SetRootResolver.s.sol` replaces that one in a single
-transaction. Check with a name that must **not** resolve:
+transaction. Check with a name that must **not** resolve, beside one that must — a check that cannot tell them
+apart passes just as happily when the wildcard is back:
 
 ```bash
-curl -s $API/v1/ens/alice.anything.ketsuban.eth | jq .address   # 0x0, always
+curl -s $API/v1/ens/alice.anything.ketsuban.eth | jq .addr      # null
+curl -s $API/v1/ens/alice.ketsuban.eth | jq .addr               # an address, so the check can fail
 ```
 
 ## Two factories

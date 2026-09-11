@@ -119,7 +119,7 @@ it, so the enclave must sign with the key the domains were initialised with. Rea
 rather than assuming:
 
 ```bash
-curl -s $API/v1/preflight | jq '.registrar.signsAs, [.multipass.domains[].registrar] | unique'
+curl -s $API/v1/preflight | jq '.registrar.signsAs, ([.multipass.domains[].registrar] | unique)'
 ```
 
 Both must be the same single address, and `SECRET_REGISTRAR_KEY` uploaded to CRE must derive to it.
