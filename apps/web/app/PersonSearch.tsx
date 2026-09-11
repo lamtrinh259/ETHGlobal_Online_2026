@@ -6,11 +6,8 @@ import type { Api } from "@/lib/api";
 import Link from "next/link";
 import { PlatformPicker } from "@/app/PlatformPicker";
 import { CopyButton } from "@/app/CopyButton";
-import { useFind, useWho } from "@/lib/hooks";
+import { useContracts, useFind, useWho } from "@/lib/hooks";
 import { ADDRESS_RE } from "@/lib/profile";
-
-/** The platforms a reader is likely to know somebody by, offered beside the search. */
-const PLATFORMS = ["x.com", "github.com", "google.com", "discord.com", "linkedin.com", "t.me"];
 
 const refs = (s: { received: number }) => `${s.received} reference${s.received === 1 ? "" : "s"} received`;
 
@@ -74,7 +71,17 @@ export function PersonSearch({
   also?: { label: string; onPick: (handle: string) => void };
 }) {
   const [byAccount, setByAccount] = useState(false);
-  const [platform, setPlatform] = useState("x.com");
+  /*
+   * What this deployment answers for, rather than a list kept here.
+   *
+   * A domain with a dot is a DNS name — a platform or a mail host — which is exactly what somebody
+   * can be known by. The rest are this deployment's own name domains and the per-candidate vouch
+   * instances, and nobody has an account at either.
+   */
+  const contracts = useContracts(api);
+  const domains = (contracts.data?.instances ?? []).map((i) => i.domain).filter((d) => d.includes("."));
+  // Empty means a name, which is what the box says when nothing has been typed into it.
+  const [platform, setPlatform] = useState("");
   const [account, setAccount] = useState("");
   const [hasCode, setHasCode] = useState(false);
   const [viewCode, setViewCode] = useState("");
@@ -141,23 +148,30 @@ export function PersonSearch({
           <div className={big ? "searchbar searchbar-big" : "searchbar"} data-testid="searchbar">
             <span className="searchbar-label">{label ?? "Their name or handle"}</span>
             <div className="searchbar-row">
-              <select
+              {/*
+                Typed, not chosen from a list.
+                A deployment mounts a domain the first time somebody attests an account there, so the
+                list grows on its own and a menu of it is out of date by definition — and a mail host
+                is a domain like any other, which a fixed list of platforms left out entirely. The
+                completion is what this deployment actually holds, and anything else is still typable.
+              */}
+              <input
                 className="searchbar-kind"
-                value="name"
+                list="search-domains"
+                value={platform}
                 onChange={(e) => {
                   setPlatform(e.target.value);
-                  setByAccount(true);
+                  if (e.target.value.includes(".")) setByAccount(true);
                 }}
+                placeholder="a name"
                 aria-label="what you are searching for"
                 data-testid="by-account"
-              >
-                <option value="name">a name</option>
-                {PLATFORMS.map((d) => (
-                  <option key={d} value={d}>
-                    on {d}
-                  </option>
+              />
+              <datalist id="search-domains">
+                {domains.map((d) => (
+                  <option key={d} value={d} />
                 ))}
-              </select>
+              </datalist>
               <input
                 value={query}
                 onChange={(e) => {

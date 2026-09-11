@@ -26,6 +26,16 @@ const api = {
           ]
         : [],
   })),
+  contracts: vi.fn(async () => ({
+    instances: [
+      { domain: "ketsuban", parentName: "ketsuban.eth", parentLabel: "ketsuban" },
+      { domain: "~alice", parentName: "alice.ketsuban.eth", parentLabel: "alice" },
+      { domain: "x.com", parentName: "com.x.www.ketsuban.eth", parentLabel: "com" },
+      { domain: "gmail.com", parentName: "com.gmail.@.ketsuban.eth", parentLabel: "com" },
+    ],
+    bridge: null,
+    permissionedResolver: null,
+  })),
   who: vi.fn(async (_d: string, handle: string) =>
     handle === "bob_x"
       ? { found: true, candidate: "bob", standing: { claimed: true, given: 0, received: 4 } }
@@ -166,5 +176,22 @@ describe("finding the person you mean", () => {
     fireEvent.keyDown(box, { key: "Escape" });
     expect(screen.getByTestId("match-bobby").className).not.toContain("here");
     expect(box).not.toHaveAttribute("aria-activedescendant");
+  });
+
+  it("completes from the domains this deployment actually mounts, mail hosts included", async () => {
+    /*
+     * The list was six platforms written down here, so a mail host could not be searched at all and a
+     * domain mounted after somebody attested there would never appear. A deployment mounts one the
+     * first time an account is attested, so any list kept in the app is out of date by definition.
+     */
+    show();
+    const offered = async () =>
+      [...document.querySelectorAll("#search-domains option")].map((o) => o.getAttribute("value"));
+    await waitFor(async () => expect(await offered()).toContain("x.com"));
+    // A mail host is a domain somebody is known by, like any other.
+    expect(await offered()).toContain("gmail.com");
+    // Its own name domains and a candidate's vouch instance are not places an account lives.
+    expect(await offered()).not.toContain("ketsuban");
+    expect(await offered()).not.toContain("~alice");
   });
 });
