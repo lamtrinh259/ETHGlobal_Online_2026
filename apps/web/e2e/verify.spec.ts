@@ -35,19 +35,24 @@ test("unknown routes get the not-found card", async ({ page }) => {
 
 test("verify form presets fill the policy and encode it into the reference page URL", async ({ page }) => {
   await page.goto("/verify");
-  await page.getByLabel("handle").fill("Alice.ketsuban.eth");
+  // Who first: the policy is asked about somebody, and is not on screen before there is one.
+  await expect(page.getByTestId("presets")).toHaveCount(0);
+  await page.getByTestId("name-query").fill("alice");
+  await page.getByTestId("pick-alice").click();
+  await expect(page.getByTestId("picked")).toContainText("alice");
   await page.getByTestId("preset-dao").click();
   await expect(page.getByTestId("policy-summary")).toHaveText(/≥2 live references · humanity attested/);
   await page.getByLabel("minimum live references").fill("5");
   await expect(page.getByTestId("policy-summary")).toHaveText(/≥5 live references/);
-  await page.getByRole("button", { name: "Check" }).click();
+  await page.getByRole("button", { name: "Check alice" }).click();
   await expect(page).toHaveURL(/\/p\/alice\?answers=kju-is&minLinks=0&minVouches=5&humanity=1$/);
 });
 
 test("a wallet address routes to the wallet page, and it reads what the wallet holds", async ({ page }) => {
   await page.goto("/verify");
-  await page.getByLabel("handle").fill("0xEE4811b9462956C9C3535E79c08776D769CA9F3a");
-  await page.getByRole("button", { name: "Check" }).click();
+  // The same field takes an address: it is the other thing a verifier arrives holding.
+  await page.getByTestId("name-query").fill("0xEE4811b9462956C9C3535E79c08776D769CA9F3a");
+  await page.getByTestId("open-wallet").click();
   await expect(page).toHaveURL(/\/w\/0xEE4811b9462956C9C3535E79c08776D769CA9F3a$/);
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Wallet");
 

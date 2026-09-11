@@ -16,7 +16,7 @@ dependency first. Each line is its own commit.
 
 1. [x] **Landing becomes the search.** "Check a candidate" is the front page: one search field,
        focused, sufficient on its own. Below it, the most referenced profiles, KJU first.
-2. [~] **One input, stepwise.** `/verify` loses the two-mode toggle and the second field. Who → search
+2. [x] **One input, stepwise.** `/verify` loses the two-mode toggle and the second field. Who → search
        → policy, in that order. Looking somebody up by an account of theirs stays, demoted.
 3. [ ] **Nobody holds that name.** Offer a claim link when the search names a social account or an
        email; otherwise say plainly that this makes a page nobody can link to a real account — a

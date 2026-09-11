@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { Api } from "@/lib/api";
 import { PlatformPicker } from "@/app/PlatformPicker";
 import { useFind, useWho } from "@/lib/hooks";
+import { ADDRESS_RE } from "@/lib/profile";
 
 const refs = (s: { received: number }) => `${s.received} reference${s.received === 1 ? "" : "s"} received`;
 
@@ -27,6 +28,7 @@ export function PersonSearch({
   action,
   autoFocus,
   label,
+  onAddress,
 }: {
   api: Api;
   onPick: (handle: string) => void;
@@ -35,6 +37,8 @@ export function PersonSearch({
   autoFocus?: boolean;
   /** What the field is called here; the front page asks a broader question than a verifier does */
   label?: string;
+  /** Where a wallet address goes, for callers that can show one */
+  onAddress?: (address: string) => void;
 }) {
   const [byAccount, setByAccount] = useState(false);
   const [platform, setPlatform] = useState("x.com");
@@ -46,6 +50,9 @@ export function PersonSearch({
   const who = useWho(api, platform, account, hasCode ? viewCode.trim() : undefined);
   const found = useFind(api, query);
   const clean = query.trim().toLowerCase().replace(/^@/, "");
+  // A wallet address is the other thing a verifier arrives holding — from a transaction, a signature
+  // or a CV. It is the same question, so it is the same field.
+  const address = ADDRESS_RE.test(query.trim()) ? query.trim() : undefined;
   const exact = /^[a-z0-9-]{1,31}$/.test(clean);
   const matches = found.data?.matches ?? [];
   const named = matches.some((m) => m.handle === clean);
@@ -70,7 +77,16 @@ export function PersonSearch({
             />
           </label>
 
-          {found.isFetching && <p className="muted">looking…</p>}
+          {address && onAddress && (
+            <p className="muted" data-testid="is-address">
+              That is a wallet address.{" "}
+              <button className="linkish" onClick={() => onAddress(address)} data-testid="open-wallet">
+                See everything it holds →
+              </button>
+            </p>
+          )}
+
+          {!address && found.isFetching && <p className="muted">looking…</p>}
 
           {matches.length > 0 && (
             <>

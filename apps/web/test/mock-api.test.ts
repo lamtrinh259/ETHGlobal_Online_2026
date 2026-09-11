@@ -4,6 +4,7 @@ import {
   contractsSchema,
   ensSchema,
   explainSchema,
+  findSchema,
   instanceReadSchema,
   nameStatusSchema,
   profileSchema,
@@ -35,6 +36,7 @@ const cases: [string, { parse: (v: unknown) => unknown }][] = [
   ["/v1/ens/alice.ketsuban.eth", ensSchema],
   ["/v1/reverse/0xEE4811b9462956C9C3535E79c08776D769CA9F3a", reverseSchema],
   ["/v1/explain/alice.ketsuban.eth", explainSchema],
+  ["/v1/find?q=ali", findSchema],
   ["/v1/name/ketsuban/alice", nameStatusSchema],
 ];
 

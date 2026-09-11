@@ -214,6 +214,18 @@ export const routes = [
       note: "answered from the Multipass record, not from a reverse registry",
     }),
   ],
+  // The search the front page opens on, and the first step of checking a candidate.
+  [
+    /^\/v1\/find/,
+    (m, url) => {
+      const q = (new URL(url, "http://x").searchParams.get("q") ?? "").toLowerCase();
+      const people = [
+        { handle: "alice", wallet: "0xEE4811b9462956C9C3535E79c08776D769CA9F3a", claimed: true, given: 0, received: 2 },
+        { handle: "bob", wallet: "0xEE4811b9462956C9C3535E79c08776D769CA9F3a", claimed: true, given: 1, received: 0 },
+      ];
+      return { q, matches: people.filter((p) => p.handle.includes(q)) };
+    },
+  ],
   [/^\/v1\/explain\/([^/?]+)/, (m) => ({ name: decodeURIComponent(m[1]), says: "alice is a person's name here.", kind: "person" })],
   [/^\/v1\/name\/([^/]+)\/([^/?]+)/, (m) => ({ domain: m[1], handle: m[2], taken: true, live: true, wallet: "0xEE4811b9462956C9C3535E79c08776D769CA9F3a" })],
   [
@@ -234,7 +246,7 @@ export const routes = [
 /** What this mock answers for one path, or undefined when it answers nothing. */
 export function answer(url) {
   const hit = routes.find(([re]) => re.test(url));
-  return hit ? hit[1](url.match(hit[0])) : undefined;
+  return hit ? hit[1](url.match(hit[0]), url) : undefined;
 }
 
 // Imported by a test that checks these fixtures still parse; only listens when run as a program.

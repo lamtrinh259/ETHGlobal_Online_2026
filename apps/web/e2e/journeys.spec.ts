@@ -11,9 +11,10 @@ test("landing offers the three doors and they route", async ({ page }) => {
 
 test("verifier form builds a policy URL for the candidate page", async ({ page }) => {
   await page.goto("/verify");
-  await page.getByLabel("handle").fill("Alice.ketsuban.eth");
+  await page.getByTestId("name-query").fill("alice");
+  await page.getByTestId("pick-alice").click();
   await page.getByLabel("minimum linked accounts").fill("2");
-  await page.getByRole("button", { name: "Check" }).click();
+  await page.getByRole("button", { name: "Check alice" }).click();
   await expect(page).toHaveURL(/\/p\/alice\?answers=kju-is&minLinks=2&minVouches=3$/);
   // The attester answers, so the card is graded against a real read rather than against nothing.
   await expect(page.getByTestId("checks").locator("li")).toHaveCount(4);

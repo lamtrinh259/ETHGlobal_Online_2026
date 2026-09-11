@@ -29,6 +29,7 @@ export function FindPeople({
       <PersonSearch
         api={api}
         onPick={(h) => router.push(`/p/${h}`)}
+        onAddress={(a) => router.push(`/w/${a}`)}
         action="Open"
         autoFocus
         label="Who are you checking?"
