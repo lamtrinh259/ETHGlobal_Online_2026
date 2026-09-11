@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Api } from "@/lib/api";
 import Link from "next/link";
-import { PlatformPicker } from "@/app/PlatformPicker";
 import { CopyButton } from "@/app/CopyButton";
 import { useContracts, useFind, useWho } from "@/lib/hooks";
 import { ADDRESS_RE } from "@/lib/profile";
@@ -300,12 +299,20 @@ export function PersonSearch({
         </>
       ) : (
         <>
-          <p>
+          {/*
+            The domain was chosen in the bar, so it is not asked for again.
+            A grid of platforms here could only offer the ones written into this app: a mail host or a
+            domain mounted since would not be on it, and clicking any of them would overwrite what
+            somebody had already typed.
+          */}
+          <p className="row">
+            <span>
+              Searching <code>{platform}</code>
+            </span>
             <button className="linkish" onClick={() => setByAccount(false)} data-testid="by-name">
-              ← Search by name instead
+              change
             </button>
           </p>
-          <PlatformPicker single selected={[platform]} onToggle={setPlatform} />
           <label>
             Their handle on <code>{platform}</code>
             <input

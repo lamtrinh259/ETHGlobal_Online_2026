@@ -194,4 +194,17 @@ describe("finding the person you mean", () => {
     expect(await offered()).not.toContain("ketsuban");
     expect(await offered()).not.toContain("~alice");
   });
+
+  it("searches a domain this app has never heard of, because the deployment might have", () => {
+    /*
+     * A grid of platforms could only ever offer the ones written into this app. A university mail
+     * host is exactly the case an invitation asks for, and clicking anything on that grid would have
+     * overwritten what somebody had already typed.
+     */
+    show();
+    fireEvent.change(screen.getByTestId("by-account"), { target: { value: "mit.edu" } });
+    expect(screen.getByLabelText("their account")).toBeInTheDocument();
+    // Named where the handle is asked for, so it is clear which account is being looked up.
+    expect(screen.getAllByText("mit.edu").length).toBeGreaterThan(0);
+  });
 });
