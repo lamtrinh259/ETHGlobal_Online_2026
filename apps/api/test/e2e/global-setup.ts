@@ -24,6 +24,24 @@ export async function setup() {
 }
 
 /**
+ * The addresses the stack just deployed.
+ *
+ * They used to be read out of the checkout, because the deploy step wrote them there through a mount
+ * of the repo. Compose resolves such a path on the daemon's host, so a job running inside a container
+ * of its own mounted nothing and the suite had no chance — the file it wanted was never going to
+ * appear. The deploy step writes to a volume now, and this asks the volume rather than the filesystem
+ * the suite happens to be sitting on.
+ */
+export function deployment(): Record<string, string> {
+  const raw = execSync(`${COMPOSE} run --rm --no-deps --entrypoint cat deploy /deployments/local.json`, {
+    encoding: "utf8",
+    env: env(),
+  });
+  // `run` prints compose's own progress on stderr, so stdout is the file and nothing else.
+  return JSON.parse(raw) as Record<string, string>;
+}
+
+/**
  * Restart the API container and wait until it is serving again, as a redeploy would.
  *
  * Compose reports the container started before the process inside it is listening, so readiness is

@@ -8,6 +8,9 @@ name: ketsuban-e2e
 
 volumes:
   api-data:
+  # Where the deploy step leaves `local.json` for the api and for the suite. A volume rather than a
+  # path on the host, which is not shared with a job that runs inside a container of its own.
+  deployments:
 
 networks:
   ketsuban_e2e:
@@ -31,17 +34,15 @@ services:
       retries: 30
 
   deploy:
-    image: ghcr.io/foundry-rs/foundry:latest
-    # The image runs as its own user, and the repo is mounted from the host: without this it cannot write
-    # the build cache or `deployments/local.json`, which is how this failed on a CI runner but not on a
-    # developer's machine.
-    user: root
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile.e2e-deploy
     networks: [ketsuban_e2e]
     depends_on:
       anvil: { condition: service_healthy }
-    working_dir: /repo/packages/contracts
+    working_dir: /contracts
     volumes:
-      - ../..:/repo
+      - deployments:/deployments
     environment:
       PRIVATE_KEY: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
       INSTANCE_DOMAIN: ${INSTANCE_DOMAIN:-kju-is}
@@ -57,13 +58,14 @@ services:
         && test -f deployments/local.json
         && DEPLOYMENT_FILE=deployments/local.json
         forge script script/AddNamespace.s.sol --rpc-url http://anvil:8545 --broadcast --skip-simulation -vv
+        && cp deployments/local.json /deployments/local.json
 
   # World's Developer Portal, stubbed. See test/e2e/world-stub.mjs for what it does and does not check.
   world:
-    image: node:22-alpine
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile.e2e-world
     networks: [ketsuban_e2e]
-    volumes:
-      - ./test/e2e/world-stub.mjs:/stub.mjs:ro
     environment:
       WORLD_RP_ID: rp_e2e
       PORT: "8080"
@@ -85,7 +87,7 @@ services:
     ports:
       - "127.0.0.1:${E2E_API_PORT:-18787}:8787"
     volumes:
-      - ../../packages/contracts/deployments:/deployments:ro
+      - deployments:/deployments:ro
       - api-data:/data
     environment:
       PORT: "8787"

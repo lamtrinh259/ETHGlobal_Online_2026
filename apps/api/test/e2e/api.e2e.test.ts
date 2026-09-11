@@ -8,7 +8,6 @@
  * bridge.verify on chain → name resolves through the ENS shim → verify endpoint.
  */
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
 import { beforeAll, describe, expect, it } from "vitest";
 import {
   bytesToHex,
@@ -37,12 +36,16 @@ import {
   eciesDecrypt,
   eciesEncrypt,
   hashBoxes,
+  linkKeyHash,
   signDisclosure,
   signRevocation,
 } from "@ketsuban/registrar";
+
+/** The secret in a link, as a browser would have minted it for a grant addressed to nobody. */
+const LINK_KEY = `0x${"7a".repeat(32)}` as Hex;
 import { decodeRecord, fromBytes32, MultipassAbi, toBytes32 } from "@peeramid-labs/multipass-client";
 import { hashSignal, rpSignatureMessage } from "../../src/world.js";
-import { APP_ID, PRIVY_SEED, restartApi } from "./global-setup.js";
+import { APP_ID, deployment as readDeployment, PRIVY_SEED, restartApi } from "./global-setup.js";
 
 const API = process.env.E2E_API_URL ?? `http://127.0.0.1:${process.env.E2E_API_PORT ?? "18787"}`;
 const RPC = process.env.E2E_RPC_URL ?? `http://127.0.0.1:${process.env.E2E_ANVIL_PORT ?? "18545"}`;
@@ -84,9 +87,7 @@ async function waitFor(url: string, tries = 60) {
 
 beforeAll(async () => {
   await waitFor(`${API}/healthz`);
-  deployment = JSON.parse(
-    readFileSync(new URL("../../../../packages/contracts/deployments/local.json", import.meta.url), "utf8")
-  );
+  deployment = readDeployment();
 
   /*
    * This suite writes to a chain, so it can only be run against an empty one: names it registers are
@@ -426,7 +427,7 @@ describe("api e2e", () => {
       requires: ["telegram"],
     });
     const made = await (await post(wire(mine))).json();
-    expect(made.code, `invitation refused: ${made.error}`).toMatch(/^[0-9a-f]{8}$/);
+    expect(made.code, `invitation refused: ${made.error}`).toMatch(/^[0-9a-f]{32}$/);
     // Addressed by its own signature, so storing it again is the same link rather than a second one.
     expect((await (await post(wire(mine))).json()).code).toBe(made.code);
 
@@ -549,6 +550,8 @@ describe("api e2e", () => {
           ...disclosure,
           exp: disclosure.exp.toString(),
           boxes: [box],
+          // Addressed to nobody, so the link is the whole permission and carries its own secret.
+          linkKeyHash: linkKeyHash(LINK_KEY),
           signature: await signDisclosure(
             user.account,
             disclosure,
@@ -564,7 +567,9 @@ describe("api e2e", () => {
     // Same grant, same id, still readable: nothing about a restart is a revocation.
     const after = await (await fetch(`${API}/v1/disclosures/${name}`)).json();
     expect(after.grants.map((g: { id: string }) => g.id)).toContain(grant.id);
-    expect((await fetch(`${API}/v1/disclose/${name}/x`)).status).toBe(200);
+    expect((await fetch(`${API}/v1/disclose/${name}/x?k=${LINK_KEY}`)).status).toBe(200);
+    // And the secret survived the restart with the grant: without it the same read is refused.
+    expect((await fetch(`${API}/v1/disclose/${name}/x`)).status).toBe(403);
   });
 
   it("attests an account into the DNS domain it belongs to, and names it there", async () => {

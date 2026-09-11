@@ -1,0 +1,7 @@
+# World's Developer Portal, stubbed, carried in an image rather than mounted.
+#
+# One file, but a mounted one: compose resolves the path on the daemon's host, which on a runner that
+# executes the job inside a container is not where this checkout is.
+FROM node:22-alpine
+COPY apps/api/test/e2e/world-stub.mjs /stub.mjs
+CMD ["node", "/stub.mjs"]
