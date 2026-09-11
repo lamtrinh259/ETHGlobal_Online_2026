@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useWebConfig } from "@/app/providers";
-import { loadPolicies, savePolicy, type SavedPolicy } from "@/lib/policies";
+import { forgetPolicy, loadPolicies, savePolicy, type SavedPolicy } from "@/lib/policies";
 import { describePolicy, lookupTarget, POLICY_PRESETS, policyToQuery, presetPolicy } from "@/lib/profile";
 import { questionTitle } from "@/lib/questions";
 
@@ -167,14 +167,21 @@ export function PolicyForm({ handle, subjectDomains }: { handle: string; subject
               rebuilding it per candidate is how the bar drifts between one and the next. */}
         <p className="row" data-testid="my-policies">
           {mine.map((entry) => (
-            <button
-              type="button"
-              key={entry.name}
-              onClick={() => applyMine(entry)}
-              data-testid={`mine-${entry.name}`}
-            >
-              {entry.name}
-            </button>
+            <span key={entry.name} className="row">
+              <button type="button" onClick={() => applyMine(entry)} data-testid={`mine-${entry.name}`}>
+                {entry.name}
+              </button>
+              {/* A bar somebody stopped using is one they can be rid of; kept, the list only grows. */}
+              <button
+                type="button"
+                className="linkish"
+                onClick={() => setMine(forgetPolicy(entry.name))}
+                aria-label={`forget ${entry.name}`}
+                data-testid={`forget-${entry.name}`}
+              >
+                ×
+              </button>
+            </span>
           ))}
         </p>
         <p className="row">
