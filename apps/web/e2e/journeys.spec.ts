@@ -132,22 +132,6 @@ test("a domain that cannot be written disables the publish button with the reaso
   await expect(page.getByTestId("publish")).toHaveCount(0);
 });
 
-test("the names page describes the namespace it is given", async ({ page }) => {
-  await page.goto("/names");
-  await expect(page.getByRole("heading", { name: "Names", level: 1 })).toBeVisible();
-  /*
-   * The shapes are read from the mounts the attester answers with. This asserted "no mounts to
-   * describe" and passed for months — not because the API was unreachable, but because the fixture
-   * did not parse and the page rendered the same empty state it shows when it is. A page built to
-   * degrade quietly needs its healthy state asserted, or the degraded one is all that is ever tested.
-   * The empty case is covered in `test/namespace.test.ts`, where the read can actually be withheld.
-   */
-  await expect(page.getByTestId("name-kinds")).toBeVisible();
-  await expect(page.getByTestId("name-kinds")).toContainText("ketsuban.eth");
-  await expect(page.locator("main [role=alert]")).toHaveCount(0);
-  await expect(page.getByRole("link", { name: /Check a name/ })).toBeVisible();
-});
-
 test("a reference link carrying a popular ask renders, rather than failing on the server", async ({
   page,
 }) => {

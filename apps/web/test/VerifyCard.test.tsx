@@ -71,7 +71,7 @@ describe("VerifyCard", () => {
     expect(links).toHaveTextContent("masked");
   });
 
-  it("renders an active record with disclosed, masked and public links, and the warning", () => {
+  it("renders an active record with disclosed, masked and public links", () => {
     render(<VerifyCard v={base} />);
     expect(screen.getByRole("heading", { name: "alice.ketsuban.eth" })).toBeInTheDocument();
     expect(screen.getByTestId("status")).toHaveTextContent("active");
@@ -81,14 +81,13 @@ describe("VerifyCard", () => {
     expect(links[0]).toHaveTextContent("id 42");
     expect(links[1]).toHaveTextContent("masked");
     expect(links[2]).toHaveTextContent("verified");
-    expect(screen.getByRole("note")).toHaveTextContent(base.warning);
     // Said, rather than named after the field that carries it.
     expect(screen.getByTestId("evidence")).toHaveTextContent("wallet binding");
     expect(screen.getByTestId("evidence")).toHaveTextContent("proof of humanity");
     expect(screen.getByTestId("evidence")).toHaveTextContent("x account");
   });
 
-  it("renders an inactive record without details but still with the warning", () => {
+  it("renders an inactive record without details", () => {
     render(
       <VerifyCard
         v={{ ...base, status: "inactive", wallet: null, answer: null, links: [], humanity: null }}
@@ -96,7 +95,6 @@ describe("VerifyCard", () => {
     );
     expect(screen.getByTestId("status")).toHaveTextContent("no record");
     expect(screen.queryByTestId("links")).toBeNull();
-    expect(screen.getByRole("note")).toHaveTextContent(base.warning);
   });
 });
 

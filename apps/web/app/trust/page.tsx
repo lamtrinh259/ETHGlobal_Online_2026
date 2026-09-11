@@ -193,10 +193,7 @@ export default async function TrustPage() {
           <li>
             <code>GET /v1/enclave-key</code> — the key a view code is encrypted to.
           </li>
-          <li>
-            Every name on every page resolves through ENS with no part of this service in the path.{" "}
-            <Link href="/names">What every name means →</Link>
-          </li>
+          <li>Every name on every page resolves through ENS with no part of this service in the path.</li>
         </ul>
         {preflight && preflight.warnings.length > 0 && (
           <div data-testid="self-reported">

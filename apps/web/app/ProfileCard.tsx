@@ -136,10 +136,6 @@ export function ProfileCard({ p, rootParent, policy }: { p: Profile; rootParent:
 
       <h3>Humanity</h3>
       <p data-testid="humanity">{p.humanity ? `attested (${p.humanity.level})` : "not attested"}</p>
-
-      <p className="warning" role="note">
-        {p.warning}
-      </p>
     </section>
   );
 }

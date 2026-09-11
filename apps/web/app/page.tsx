@@ -128,7 +128,7 @@ export default async function Home() {
           <li>
             <strong>It becomes a name.</strong> The record lands in Multipass and resolves under ENSv2 for
             anyone, no app required — your own name, each account you attest, and each reference written for
-            you. <Link href="/names">What every name means →</Link>
+            you.
           </li>
         </ol>
         <p className="warning">

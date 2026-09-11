@@ -369,7 +369,6 @@ export function Dashboard() {
           </dl>
         </section>
       </details>
-      <p className="warning">{d.warning}</p>
     </>
   );
 }

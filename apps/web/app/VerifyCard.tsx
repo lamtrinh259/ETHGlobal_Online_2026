@@ -121,9 +121,6 @@ export function VerifyCard({ v }: { v: Verification }) {
           </section>
         </>
       )}
-      <p className="warning" role="note">
-        {v.warning}
-      </p>
     </section>
   );
 }

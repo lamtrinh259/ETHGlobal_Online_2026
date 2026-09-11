@@ -155,8 +155,6 @@ export default async function WalletPage({ params }: Params) {
           </p>
         )}
       </section>
-
-      {read && <p className="warning">{read.warning}</p>}
     </>
   );
 }

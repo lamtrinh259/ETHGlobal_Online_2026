@@ -117,7 +117,7 @@ describe("ProfileCard", () => {
     expect(answers).toHaveTextContent("alice.kju-is.ketsuban.eth");
   });
 
-  it("renders checks with marks, answers, masked links and the warning", () => {
+  it("renders checks with marks, answers and masked links", () => {
     render(
       <ProfileCard
         p={{
@@ -167,7 +167,6 @@ describe("ProfileCard", () => {
     expect(vouches[1].querySelector("[data-testid=standing]")).toBeNull();
     expect(vouches[1]).toHaveClass("expired");
     expect(vouches[1]).toHaveTextContent("carol");
-    expect(screen.getByRole("note")).toHaveTextContent(profile.warning);
   });
 
   it("shows the policy line, the disclosure badge and links vouchers to their own page", () => {

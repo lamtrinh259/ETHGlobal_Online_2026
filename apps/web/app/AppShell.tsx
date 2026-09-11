@@ -16,7 +16,6 @@ const NAV = [
   { href: "/me", label: "My profile" },
   { href: "/vouch", label: "Refer" },
   { href: "/verify", label: "Verify" },
-  { href: "/names", label: "Names" },
   { href: "/trust", label: "Trust" },
 ];
 
