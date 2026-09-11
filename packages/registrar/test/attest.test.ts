@@ -249,6 +249,10 @@ describe("attest — vouch instance (~candidate) domain", () => {
       payload: toBytes32("withdrawn"),
     });
     const held = { ...noVouchRecord, exists: true, nonce: 1n, wallet: userAccount.address };
+    // Where invitations are required, or this exemption is moot: with `requireInvite` off the check
+    // returns on its first line and an already-held record has nothing to be excused from.
+    const closed = { ...env, requireInvite: true };
+    await expect(verifyPublicLeg(await signedRequest(intent), held, closed)).resolves.toBeUndefined();
     await expect(verifyPublicLeg(await signedRequest(intent), held, env)).resolves.toBeUndefined();
   });
 
@@ -260,6 +264,14 @@ describe("attest — vouch instance (~candidate) domain", () => {
     });
     // No invitation, and the candidate holds no name: the university writes first, Alice claims later.
     const asOrg = { exists: false, nonce: 0n, id: zeroHash, wallet: userAccount.address, issuerOrg: true };
+    // Asserted where invitations are required, because that is the requirement being waived: an
+    // organisation is vouched for once, and writing uninvited is what that buys.
+    const closed = { ...env, requireInvite: true };
+    await expect(verifyPublicLeg(await signedRequest(intent), asOrg, closed)).resolves.toBeUndefined();
+    // A person with no invitation is not excused there, which is the difference the org record makes.
+    await expect(
+      verifyPublicLeg(await signedRequest(intent), { ...asOrg, issuerOrg: false }, closed)
+    ).rejects.toThrow("needs the candidate's invitation");
     await expect(verifyPublicLeg(await signedRequest(intent), asOrg, env)).resolves.toBeUndefined();
 
     // And so does anyone else: a person writing for a handle nobody has claimed is the same act, and
