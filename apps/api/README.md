@@ -9,7 +9,7 @@ Relay and verification service. One container, env-configured, health-checked on
 | `GET /v1/verify/:name` | Machine-readable verification read through the ENS resolver: status, wallet, answer, expiry, humanity, links (`?links=` defaults to every mount this deployment holds, `?viewCode=` discloses opted-in links), each link's own `ensName`, `profile` (the user's `avatar`/`description`/`url`/`email` text records on the stock resolver), evidence, warning, and `branch` — `private` when the name read is the mirror one, which claims only that the person holds an account in that domain. |
 | `GET /v1/preflight` | What the configured addresses actually are on chain, both factories included: code present, which bridge functions the deployed bytecode has, and each name domain's active flag, registrar and fees. 503 with reasons when something is off. |
 | `GET /v1/instances` | Every mount this deployment holds, from both factories, each with `parentName` and — where a private branch exists — `maskedParentName`. Plus `bridge`, `permissionedResolver`, `ethRegistry`, `ethRegistrar` and `paymentToken` for what a wallet does itself. |
-| `GET /v1/explain/:name` | What a name would claim here, whether or not anything resolves at it: `kind` is `person`, `account`, `private`, `reference` or `unknown`, so an agent can tell a name nobody holds from one this deployment could never answer. Same function the app reads. |
+| `GET /v1/explain/:name` | What a name would claim here, whether or not anything resolves at it: `kind` is `person`, `account`, `private`, `reference`, `mount` or `unknown`, so an agent can tell a name nobody holds from one this deployment could never answer — and a mount, one label under the root like `x.<root>`, from the person it is shaped like. Same function the app reads. |
 | `GET /v1/eth-label/:label` | Who owns a `.eth` label on the registry the bridge checks, so a page can say that before someone pays for a `NotNameOwner` revert. `owner: null` means nobody here holds it. |
 
 `GET /healthz` also reports `config`: every contract address this process is using, which secrets are set
@@ -38,6 +38,18 @@ CORS: `CORS_ORIGINS` (comma list, default `*`) — set it to the web app origin 
 | `GET /v1/wallet/:address` | A wallet's names, linked-account records, references given, and `org` when it holds a live record in `ORG_DOMAIN` (its dashboard). |
 | `GET /v1/profile/:handle` | The whole candidate in one read: every instance name with its verification, the references written for them, and the candidate's standing. Facts only; grading against a policy is the reader's job. |
 | `GET /v1/vouches/:handle` | Every reference written under the candidate: records in the `~<handle>` vouch domain (Registered/Renewed logs from `DEPLOY_BLOCK`, current state per id, liveness), each live one with the voucher's standing and the long-form `letter` they wrote as a `description` text record. |
+| `GET /v1/find?q=` | Handles that look like what was typed, each with its wallet and standing, ranked by how many people have spoken about them. Two characters minimum. |
+| `GET /v1/who?handle=&domain=` | Which candidate an account belongs to: the wallet, the handle they claimed and their standing, for a platform account attested in the open. `found: false` when nobody attested it here. |
+| `GET /v1/instance/:domain` | What a subject instance is about, from its own records: `name`, `description`, `avatar`, `url`, read through the registry rather than the instance resolver, which answers only for names beneath it. |
+| `GET /v1/disclosures/:name` | Every live permission the holder has given: one row per share with its `id`, the domains it opened, the audience it was addressed to and when it expires. What a candidate needs to take one back. |
+| `POST /v1/revoke` | `{name, grantId, at, signature}` → takes one grant back, signed by the wallet holding the record. Refused when signed more than five minutes ago, so a captured revocation cannot be replayed against a later share. |
+| `POST /v1/letter` | `{text}` → `{hash, ref: "sha256:…", bytes}`. A name holds 31 bytes, so the long-form reference lives here and only its hash goes on chain. 413 over 20kB, 507 when the store is full. Content-addressed: the same letter twice costs nothing. |
+| `GET /v1/letter/:hash` | The letter back, for a reader who wants to hash their copy and compare. Kept under `DATA_DIR`; a deployment with no volume there loses every letter while the hashes stay on chain. |
+| `POST /v1/invite` | A candidate's signed invitation: who may write, which accounts they must hold, and when it expires. Stored against a short code. |
+| `GET /v1/invite/:code` | The invitation behind a link, with the signature a voucher's attestation is checked against. |
+| `GET /v1/invites/:handle` | The invitations a candidate has open, so their own page can list and share them. |
+| `POST /v1/avatar` | `multipart/form-data` with `file` → stores the picture and answers the URL to put in the `avatar` text record, because a record holds a URL and not bytes. 501 without `DATA_DIR`. |
+| `GET /v1/avatar/:id` | The stored picture. |
 
 A statement in a vouch domain (`~alice`) is refused unless the request carries an invitation signed by
 the wallet that holds `alice` in the root name domain (`REQUIRE_INVITE`, off by default: anyone may
