@@ -207,6 +207,21 @@ contract AttestationResolverAboutTest is BaseTest {
         shim.setAbout("kju-is", "description", "not yours to say");
     }
 
+    /// @notice A label is stored by its 32-byte value, so one that does not fit has no identity of its
+    ///         own: kept, it would share an id with whatever else was truncated to the same bytes and
+    ///         the later writer would silently rewrite the earlier one's page.
+    function test_refusesALabelThatDoesNotFit() public {
+        string memory tooLong = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"; // 33 bytes; the limit is 31
+        vm.prank(operator);
+        vm.expectRevert();
+        shim.setAbout(tooLong, "description", "collides once truncated");
+
+        // The boundary itself is writable, so the check refuses what does not fit and nothing more.
+        vm.prank(operator);
+        shim.setAbout("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "description", "31 bytes is fine");
+        assertEq(resolveText("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.acme-alumni.eth", "description"), "31 bytes is fine");
+    }
+
     /// @notice Its own children only, like every other answer this resolver gives.
     function test_saysNothingBeneathAnotherMount() public {
         vm.prank(operator);
