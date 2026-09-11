@@ -201,7 +201,7 @@ export default async function TrustPage() {
         {preflight && preflight.warnings.length > 0 && (
           <div data-testid="self-reported">
             <h3>What this deployment says is wrong with it</h3>
-            <ul>
+            <ul className="self-reported">
               {preflight.warnings.map((w) => (
                 <li key={w} className="muted">
                   {w}

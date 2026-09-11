@@ -126,7 +126,7 @@ test("health endpoint answers", async ({ request }) => {
  * still prove is that the shell, the hero and the forms fit, which is where the fixed widths that
  * break a phone actually live.
  */
-for (const path of ["/vouch/alice", "/verify", "/v/alice.ketsuban.eth", "/p/alice"]) {
+for (const path of ["/vouch/alice", "/verify", "/v/alice.ketsuban.eth", "/p/alice", "/trust"]) {
   test(`${path} fits the viewport`, async ({ page }) => {
     await page.goto(path);
     await expect(page.locator("main")).toBeVisible();

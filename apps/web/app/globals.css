@@ -502,6 +502,19 @@ dl.kv dd {
   margin: var(--sp-sm) 0;
 }
 
+/*
+ * What a deployment says is wrong with itself.
+ *
+ * These sentences name addresses, and an address is one unbroken 42-character word: left to itself it
+ * widens the page rather than wrapping, and a phone ends up scrolling sideways past every other thing
+ * on it. Prose, so it breaks anywhere rather than scrolling in a box of its own.
+ */
+.self-reported {
+  list-style: none;
+  padding-left: 0;
+  overflow-wrap: anywhere;
+}
+
 /* ── policy checks ── */
 .checks {
   list-style: none;
