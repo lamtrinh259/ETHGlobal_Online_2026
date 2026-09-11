@@ -147,3 +147,26 @@ test("a reference link carrying a popular ask renders, rather than failing on th
 // A journey for the multi-account reveal would need a live API: `/v/<name>` fetches on the server, so
 // Playwright's route interception never sees it, and without a card the panels are not reached at all.
 // That path is covered by the unit tests for the page and by the docker e2e for the endpoints.
+
+/**
+ * The detour comes back.
+ *
+ * Writing a reference asks for a one-time step on the dashboard. Somebody sent there mid-flow had to
+ * remember who they were referring and find them again, though the page they left said otherwise.
+ */
+test("the dashboard carries the way back to whoever was being referred", async ({ page }) => {
+  await page.goto("/me?then=%2Fvouch%2Falice");
+  const back = page.getByTestId("way-back");
+  await expect(back).toContainText("Back to referring alice");
+
+  await back.getByRole("link").click();
+  await expect(page).toHaveURL(/\/vouch\/alice$/);
+});
+
+test("a return path pointing off this app is not one to follow", async ({ page }) => {
+  // It comes off the query string, so it is whatever a link somebody was sent says.
+  await page.goto("/me?then=https%3A%2F%2Fevil.example%2Fsteal");
+  await expect(page.getByTestId("way-back")).toHaveCount(0);
+  await page.goto("/me?then=%2F%2Fevil.example");
+  await expect(page.getByTestId("way-back")).toHaveCount(0);
+});

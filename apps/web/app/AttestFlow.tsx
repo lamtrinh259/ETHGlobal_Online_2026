@@ -44,7 +44,7 @@ type Props = {
   /** Vouch domains: the candidate's invitation, from the link they shared */
   invite?: SignedInvite;
   /** Why publishing is refused right now; the button stays disabled and this is said above it */
-  blocked?: string;
+  blocked?: ReactNode;
   /** Only platform (linked-account) domains in the picker */
   platformsOnly?: boolean;
   /** Restrict the platform picker to these domains (e.g. the ones the user has actually linked) */

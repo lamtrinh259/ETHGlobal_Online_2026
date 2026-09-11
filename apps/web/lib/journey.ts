@@ -178,3 +178,28 @@ export function vouchSteps(
     },
   ];
 }
+
+/**
+ * Where a detour goes back to.
+ *
+ * Linking an account is a one-time step on the dashboard, asked of somebody halfway through writing a
+ * reference for a particular person. Sent there with nothing to come back with, they have to remember
+ * who they were referring and find them again — and the page they left promises the opposite.
+ *
+ * The path arrives on the query string, so it is whatever a link somebody was sent says: only a path
+ * inside this app is one to follow. A leading `//` or `/\\` is a host, not a path.
+ */
+export function returnTo(path: string | undefined): string | undefined {
+  if (!path || !path.startsWith("/")) return undefined;
+  if (path.startsWith("//") || path.startsWith("/\\")) return undefined;
+  return path;
+}
+
+/** What going back is for, said in terms of the page it goes back to rather than as "go back". */
+export function whatIsBack(path: string): string {
+  const vouch = /^\/vouch\/([^/?#]+)/.exec(path);
+  if (vouch) return `referring ${decodeURIComponent(vouch[1])}`;
+  const person = /^\/p\/([^/?#]+)/.exec(path);
+  if (person) return `${decodeURIComponent(person[1])}\u2019s page`;
+  return "where you were";
+}

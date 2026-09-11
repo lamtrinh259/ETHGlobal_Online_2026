@@ -5,6 +5,8 @@ import {
   isNameDomainFor,
   nameRows,
   needsAttention,
+  returnTo,
+  whatIsBack,
   parentNameFor,
   voucherProgress,
   vouchSteps,
@@ -228,5 +230,34 @@ describe("what the humanity step promises", () => {
     // What it can say is what the proof actually shows: a verified human, and no identity revealed.
     expect(step.detail).toMatch(/World ID/i);
     expect(step.detail).toMatch(/never see|without revealing/i);
+  });
+});
+
+describe("coming back from a detour", () => {
+  /*
+   * Linking an account is a one-time step on the dashboard, asked of somebody halfway through writing
+   * a reference for a particular person. They were sent there with no way back: the page they left
+   * said "come back here afterwards" and gave them nothing to come back with.
+   */
+  it("takes a path inside this app", () => {
+    expect(returnTo("/vouch/alice")).toBe("/vouch/alice");
+    expect(returnTo("/p/bob?links=x.com")).toBe("/p/bob?links=x.com");
+  });
+
+  it("refuses anywhere that is not inside this app", () => {
+    // A return path comes off the query string, so it is whatever a link somebody was sent says.
+    expect(returnTo("https://evil.example/steal")).toBeUndefined();
+    expect(returnTo("//evil.example")).toBeUndefined();
+    expect(returnTo("/\\evil.example")).toBeUndefined();
+    expect(returnTo("javascript:alert(1)")).toBeUndefined();
+    expect(returnTo("vouch/alice")).toBeUndefined();
+    expect(returnTo(undefined)).toBeUndefined();
+    expect(returnTo("")).toBeUndefined();
+  });
+
+  it("says what going back is for, in the words of the page it goes back to", () => {
+    expect(whatIsBack("/vouch/alice")).toBe("referring alice");
+    expect(whatIsBack("/p/bob")).toBe("bob’s page");
+    expect(whatIsBack("/trust")).toBe("where you were");
   });
 });

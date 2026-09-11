@@ -94,11 +94,16 @@ export function VouchFlow({
   const impossibleAsk = (invite?.requires ?? [])
     .map((d) => whyUnsatisfiable(d, config.parentNames))
     .find(Boolean);
-  const unmetAsked = missing.length
-    ? `${candidate} asked for a reference from someone who has attested ${missing.join(" and ")}. ` +
-      `Link ${missing.length > 1 ? "them" : "it"} on your profile and come back — a masked account counts, ` +
-      `so this need not say which account it is.`
-    : undefined;
+  const unmetAsked = missing.length ? (
+    <>
+      {candidate} asked for a reference from someone who has attested {missing.join(" and ")}.{" "}
+      {/* Said "come back" and left them to find their way; the link carries who they were referring. */}
+      <Link href={`/me?then=${encodeURIComponent(`/vouch/${candidate}`)}#link`}>
+        Link {missing.length > 1 ? "them" : "it"} on your profile
+      </Link>{" "}
+      and come back — a masked account counts, so this need not say which account it is.
+    </>
+  ) : undefined;
 
   /**
    * Write the letter onto the name the record just created. Kept by its hash when it is too long to
@@ -185,7 +190,9 @@ export function VouchFlow({
             picks up where you left off.
           </p>
           <p>
-            <Link href="/me#link" className="primary">
+            {/* Carries who they were referring, so finishing there comes back here rather than
+                leaving them to remember the name and find it again. */}
+            <Link href={`/me?then=${encodeURIComponent(`/vouch/${candidate}`)}#link`} className="primary">
               Complete your onboarding →
             </Link>
           </p>
