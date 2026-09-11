@@ -724,8 +724,15 @@ export function createApp({
     if (!signer || !status.live || signer.toLowerCase() !== (status.wallet ?? "").toLowerCase()) {
       return c.json({ error: "an invitation must be signed by the wallet holding that name" }, 400);
     }
-    // Addressed by its own signature, so the same invitation is always the same code.
-    const code = createHash("sha256").update(invite.signature).digest("hex").slice(0, 8);
+    /*
+     * Addressed by its own signature, so the same invitation is always the same code.
+     *
+     * Thirty-two characters of it, not eight. An invitation is what makes a reference count as one the
+     * candidate asked for — the thing a verifier's "only references they asked for" bar rests on — and
+     * it is handed out over an open endpoint. At eight hex the whole space is 2^32, so that bar was
+     * defeatable by guessing rather than by being invited.
+     */
+    const code = createHash("sha256").update(invite.signature).digest("hex").slice(0, 32);
     inviteStore.set(code, invite);
     return c.json({ code });
   });
@@ -753,7 +760,7 @@ export function createApp({
 
   app.get("/v1/invite/:code", (c) => {
     const code = c.req.param("code").toLowerCase();
-    const invite = /^[0-9a-f]{8}$/.test(code) ? inviteStore.get(code) : undefined;
+    const invite = /^[0-9a-f]{32}$/.test(code) ? inviteStore.get(code) : undefined;
     if (!invite) return c.json({ error: "no invitation with that code" }, 404);
     return c.json({ code, invite });
   });

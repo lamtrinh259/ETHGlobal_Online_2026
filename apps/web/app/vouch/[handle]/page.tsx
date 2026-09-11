@@ -44,7 +44,7 @@ export default async function VouchPage({ params, searchParams }: Params) {
   let invite: SignedInvite | undefined;
   // A short code stands for the same signed invitation; it is fetched and then checked identically.
   const fromCode =
-    token && /^[0-9a-f]{8}$/.test(token)
+    token && /^[0-9a-f]{32}$/.test(token)
       ? await createApi(config.apiUrl, config.attestUrl)
           .invite(token)
           .then((r) => r.invite as unknown as Record<string, string>)

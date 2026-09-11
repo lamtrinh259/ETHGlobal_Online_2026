@@ -1007,6 +1007,26 @@ describe("an invitation behind a short code", () => {
       body: JSON.stringify(body),
     });
 
+  /*
+   * An invitation is what makes a reference count as one the candidate asked for, which is the thing a
+   * verifier's "only references they asked for" bar rests on. It is handed out over an open endpoint,
+   * so the code is the whole secret — and at eight hex characters the space is 2^32, small enough that
+   * the bar was defeatable by guessing rather than by being invited.
+   */
+  it("is addressed by more of its hash than anybody can search", async () => {
+    const { chain } = fakeChain({
+      names: { "kju-is/alice": { taken: true, wallet: user.account.address, live: true } },
+    });
+    const a = app(chain);
+    const made = await (await post(a, await wire())).json();
+    expect(made.code).toMatch(/^[0-9a-f]{32}$/);
+
+    // Still the hash of its own signature, so the same invitation is still the same code.
+    expect((await (await post(a, await wire())).json()).code).toBe(made.code);
+    // And a code of the old length is not a prefix of it: it is simply not a code.
+    expect((await a.request(`/v1/invite/${made.code.slice(0, 8)}`)).status).toBe(404);
+  });
+
   it("hands back a code short enough to read out, and gives the invitation back for it", async () => {
     // A base64 invitation makes a link nobody can paste into a message without it wrapping.
     const dir = mkdtempSync(join(tmpdir(), "ketsuban-invites-"));
@@ -1019,7 +1039,7 @@ describe("an invitation behind a short code", () => {
     const res = await post(a, await wire());
     const made = await res.json();
     expect(made.error ?? "").toBe("");
-    expect(made.code).toMatch(/^[0-9a-z]{8}$/);
+    expect(made.code).toMatch(/^[0-9a-f]{32}$/);
 
     const back = await (await a.request(`/v1/invite/${made.code}`)).json();
     expect(back.invite).toMatchObject({ handle: "alice", requires: [] });
@@ -1077,7 +1097,7 @@ describe("an invitation behind a short code", () => {
 
   it("says a code it does not hold is unknown, rather than answering with nothing", async () => {
     const { chain } = fakeChain();
-    expect((await app(chain).request("/v1/invite/zzzzzzzz")).status).toBe(404);
+    expect((await app(chain).request(`/v1/invite/${"z".repeat(32)}`)).status).toBe(404);
   });
 });
 
