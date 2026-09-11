@@ -71,6 +71,12 @@ export function Dashboard() {
   const received = useVouches(api, handle);
   const rootVerification = useVerification(api, rootRow?.live ? rootRow.ensName : "");
   const rootProfile = rootVerification.data?.profile;
+  /*
+   * What others have written for them, where that was read at all.
+   *
+   * An unanswered read became an empty list, which the score counts and the page states: a person
+   * whose references could not be fetched was told they had none, about their own name.
+   */
   const liveVouchers = (received.data?.vouches ?? [])
     .filter((v) => v.live && v.statement !== WITHDRAWN)
     .filter((v, i, all) => all.findIndex((o) => o.voucher === v.voucher) === i);
@@ -257,7 +263,12 @@ export function Dashboard() {
         {handle ? (
           <>
             <p>
-              {liveVouchers.length === 0 ? (
+              {received.isError ? (
+                // Not "none yet", which is a fact about them rather than about a read that failed.
+                <span className="warning" data-testid="references-unread">
+                  These could not be read just now.
+                </span>
+              ) : liveVouchers.length === 0 ? (
                 <>
                   <strong>None yet.</strong> Verifiers usually want three.
                 </>

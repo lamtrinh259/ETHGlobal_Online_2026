@@ -229,6 +229,9 @@ export const routes = [
     /^\/v1\/find/,
     (m, url) => {
       const q = (new URL(url, "http://x").searchParams.get("q") ?? "").toLowerCase();
+      // The one search this mock refuses, so a page can be driven against a lookup that failed rather
+      // than against one that came back with nobody.
+      if (q === "unreadable") return undefined;
       const people = [
         { handle: "alice", wallet: "0xEE4811b9462956C9C3535E79c08776D769CA9F3a", claimed: true, given: 0, received: 2 },
         { handle: "bob", wallet: "0xEE4811b9462956C9C3535E79c08776D769CA9F3a", claimed: true, given: 1, received: 0 },

@@ -35,6 +35,12 @@ export function Unmasked({ name, domains }: { name: string; domains: string[] })
       <h3>Opened by the view code you were given</h3>
       {read.isPending ? (
         <p className="muted">opening…</p>
+      ) : read.isError ? (
+        // Not "your code is wrong": nothing was read, and the reader is holding a code somebody gave
+        // them on purpose.
+        <p className="warning" data-testid="unmasked-unread">
+          That could not be read just now, which says nothing about the code you were given.
+        </p>
       ) : opened.length === 0 ? (
         <p className="muted" data-testid="unmasked-none">
           That code opens nothing here. A view code belongs to one account on one name; this one does not

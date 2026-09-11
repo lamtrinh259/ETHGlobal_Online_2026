@@ -136,3 +136,17 @@ test("the scope says what it says, rather than as much of it as fits", async ({ 
   }, holder ?? "");
   expect(cut).toBe(false);
 });
+
+/**
+ * A search that failed is not a name nobody holds.
+ *
+ * The lookup returning nothing and the lookup not happening were the same empty list, so an attester
+ * that could not answer offered to make a page for a name somebody may already hold — which is how
+ * two people end up writing under one label.
+ */
+test("a lookup that failed says so, rather than offering the name", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTestId("name-query").fill("unreadable");
+  await expect(page.getByTestId("search-failed")).toBeVisible();
+  await expect(page.getByTestId("no-match")).toHaveCount(0);
+});

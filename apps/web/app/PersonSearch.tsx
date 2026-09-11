@@ -295,6 +295,11 @@ export function PersonSearch({
         )}
 
         {!platform && !address && found.isFetching && <p className="muted">looking…</p>}
+        {!platform && !address && found.isError && (
+          <p className="warning" data-testid="search-failed">
+            The attester did not answer, so this is not a list of who is here.
+          </p>
+        )}
 
         {/*
             One list, not a block above a list.
@@ -364,7 +369,9 @@ export function PersonSearch({
             is tied to a real account until whoever it is about signs in and links one. Until then it
             is a page about a name, the way the subjects here are.
           */}
-        {!platform && clean.length >= 2 && !found.isFetching && exact && !named && (
+        {/* Only where the search answered. A lookup that failed is not a name nobody holds, and
+            offering to make a page for one is how two people end up writing under the same label. */}
+        {!platform && clean.length >= 2 && !found.isFetching && !found.isError && exact && !named && (
           <div className="muted" data-testid="no-match">
             <p>
               Nobody holds <strong>{clean}</strong> yet. Opening it makes a page about the name: people can
