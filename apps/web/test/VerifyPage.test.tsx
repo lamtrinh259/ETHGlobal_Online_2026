@@ -52,6 +52,13 @@ vi.mock("@/lib/api", async (orig) => ({
   ...(await orig<typeof import("@/lib/api")>()),
   createApi: () => ({
     verify: vi.fn(async () => verification),
+    profile: vi.fn(async (handle: string) => ({
+      handle,
+      names: [{ instance: "ketsuban", name: `${handle}.ketsuban.eth`, verification }],
+      vouches: state.vouches,
+      standing: { claimed: true, given: 0, received: state.vouches.length },
+      warning: "This is not identity verification.",
+    })),
     vouches: vi.fn(async (handle: string) => ({
       handle,
       domain: `~${handle}`,
@@ -75,13 +82,33 @@ vi.mock("@/lib/config", () => ({
   loadWebConfig: () => ({
     apiUrl: "http://api.test",
     attestUrl: "http://api.test/v1/attest",
+    nameDomains: ["ketsuban"],
+    parentNames: ["ketsuban.eth"],
+    questions: {},
     instances: [{ domain: "ketsuban", parentName: "ketsuban.eth", parentLabel: "ketsuban" }],
   }),
 }));
 
 const { default: VerifyPage } = await import("@/app/v/[name]/page");
+const { default: ProfilePage } = await import("@/app/p/[handle]/page");
 
-const renderPage = async (search: Record<string, string>, name = "alice.ketsuban.eth") => {
+/**
+ * A person's name is that person's page.
+ *
+ * `/v/<handle>.<root>` sends a reader to `/p/<handle>`, so everything a reader does with a person —
+ * a shared disclosure link, the references written about them — is exercised there. `/v/` still
+ * answers for every name that is not a person, and those stay here.
+ */
+const renderPage = async (search: Record<string, string>, handle = "alice") => {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const page = await ProfilePage({
+    params: Promise.resolve({ handle }),
+    searchParams: Promise.resolve(search),
+  });
+  return render(<QueryClientProvider client={qc}>{page}</QueryClientProvider>);
+};
+
+const renderName = async (search: Record<string, string>, name: string) => {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const page = await VerifyPage({
     params: Promise.resolve({ name }),
@@ -100,7 +127,7 @@ describe("/v/<name> for a name nobody can hold", () => {
       kind: "mount",
     };
     state.vouches = [];
-    await renderPage({}, "x.ketsuban.eth");
+    await renderPage({}, "x");
     expect(screen.queryByText("Refer this person")).toBeNull();
     expect(screen.getByTestId("mount-name")).toHaveTextContent("not a name a person can hold");
     state.claim = { says: "alice is a person's name here.", kind: "person" };
@@ -178,7 +205,7 @@ describe("/v/<name> with an opened account", () => {
 
   it("says what an unresolved name would have claimed", async () => {
     // "No record" is two different facts: nobody holds it, or it could never mean anything here.
-    const { container } = await renderPage({});
+    const { container } = await renderName({}, "alice.x.ketsuban.eth");
     expect(container.querySelector("[data-testid=would-claim]")).toBeNull();
 
     const inactive = { ...verification, status: "inactive" as const };
@@ -188,7 +215,8 @@ describe("/v/<name> with an opened account", () => {
       explain: vi.fn(async () => ({ name: "x", says: "alice is a person's name here.", kind: "person" })),
       vouches: vi.fn(async () => ({ handle: "alice", domain: "~alice", vouches: [], warning: "" })),
     } as never);
-    const page = await renderPage({});
+    // Still `/v/`: a name that is not a person is what this card is for.
+    const page = await renderName({}, "alice.x.ketsuban.eth");
     expect(page.container.querySelector("[data-testid=would-claim]")?.textContent).toContain(
       "a person's name here"
     );
@@ -206,7 +234,7 @@ describe("/v/<name> with an opened account", () => {
  * A verifier arriving at a person's name came to read what others said about them. The page showed
  * only what the person said themselves, and offered no way to reach the rest.
  */
-describe("/v/<name> for a person", () => {
+describe("a person page, wherever the reader came from", () => {
   const vouch = {
     voucher: "bob",
     voucherName: "bob.ketsuban.eth",
@@ -222,13 +250,7 @@ describe("/v/<name> for a person", () => {
 
   it("shows the references written about them, and how to add one", async () => {
     state.vouches = [vouch];
-    const { default: Page } = await import("@/app/v/[name]/page");
-    render(
-      await Page({
-        params: Promise.resolve({ name: "alice.ketsuban.eth" }),
-        searchParams: Promise.resolve({}),
-      })
-    );
+    await renderPage({});
     const received = screen.getByLabelText("references received");
     expect(received).toHaveTextContent("worked with them for years");
     // Anyone may refer anyone; a reader is owed the difference.
@@ -238,13 +260,7 @@ describe("/v/<name> for a person", () => {
 
   it("invites the first reference when nobody has written one", async () => {
     state.vouches = [];
-    const { default: Page } = await import("@/app/v/[name]/page");
-    render(
-      await Page({
-        params: Promise.resolve({ name: "alice.ketsuban.eth" }),
-        searchParams: Promise.resolve({}),
-      })
-    );
+    await renderPage({});
     expect(screen.getByLabelText("references received")).toHaveTextContent("none yet");
   });
 });

@@ -81,7 +81,7 @@ export function ProfileHeader({
         </div>
       </div>
 
-      <ScoreRing score={score} parts={parts} />
+      <ScoreRing score={score} parts={parts} mine />
 
       {!name && (
         <p>

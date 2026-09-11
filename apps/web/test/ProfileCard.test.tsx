@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { ProfileCard } from "@/app/ProfileCard";
 import type { Profile } from "@/lib/profile";
@@ -254,6 +254,8 @@ describe("what the candidate has said about others", () => {
         rootParent="ketsuban.eth"
       />
     );
+    // Given is the second tab now: a reader wants one half of this at a time.
+    fireEvent.click(screen.getByTestId("tab-given"));
     const refs = screen.getByTestId("references");
     expect(refs).toHaveTextContent("What do you think of Kim Jong Un?");
     expect(refs).toHaveTextContent("a terrible dictator");

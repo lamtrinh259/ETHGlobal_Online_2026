@@ -1,13 +1,17 @@
 import { test, expect } from "@playwright/test";
 
 // /v/<name> is server-rendered, so the mock attester answers it rather than `page.route`.
-test("verify page reads a name through the resolver and frames it", async ({ page }) => {
+test("a person's name lands on their page, and it frames what was read", async ({ page }) => {
+  // One page for a person: `/v/<handle>.<root>` is that person, so it goes where they are.
   await page.goto("/v/alice.ketsuban.eth");
+  await expect(page).toHaveURL(/\/p\/alice$/);
   await expect(page.getByRole("heading", { name: "alice.ketsuban.eth" })).toBeVisible();
-  await expect(page.getByTestId("status")).toHaveText("active");
-  // What the person said about somebody else, and what somebody else said about them.
-  await expect(page.getByTestId("references")).toContainText("a terrible dictator");
+  await expect(page.getByTestId("score")).toBeVisible();
+
+  // What somebody else said about them, and — a tab away — what they said about somebody else.
   await expect(page.getByLabel("references received")).toContainText("Ran the platform team");
+  await page.getByTestId("tab-given").click();
+  await expect(page.getByTestId("references")).toContainText("a terrible dictator");
   await expect(page.locator(".sh-side")).toBeAttached();
 
   /*
@@ -21,9 +25,10 @@ test("verify page reads a name through the resolver and frames it", async ({ pag
   await expect(proof).toContainText("0x4A1817d13E9cF196f471725176355C1234b63C70");
 });
 
-// A name the attester does not know: the page must say so rather than crash.
+// A name the attester does not know: the page must say so rather than crash. Not a person's name —
+// those are somebody's page now, and an unheld one reads as unclaimed rather than as a failure.
 test("a name the attester cannot answer for is an error card, not a crash", async ({ page }) => {
-  await page.goto("/v/nobody.ketsuban.eth");
+  await page.goto("/v/nobody.x.ketsuban.eth");
   await expect(page.locator("main [role=alert]")).toBeVisible();
   await expect(page.locator(".sh-side")).toBeAttached();
 });

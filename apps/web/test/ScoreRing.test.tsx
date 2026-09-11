@@ -43,7 +43,7 @@ describe("the score at the top of a profile", () => {
       profile: { avatar: "", description: "", url: "" },
       references: 0,
     });
-    render(<ScoreRing score={score} parts={parts} />);
+    render(<ScoreRing score={score} parts={parts} mine />);
     expect(screen.getByTestId("part-name").querySelector("a")).toHaveAttribute("href", "#name");
     expect(screen.getByTestId("part-accounts").querySelector("a")).toHaveAttribute("href", "#accounts");
     expect(screen.getByTestId("part-references").querySelector("a")).toHaveAttribute("href", "#references");
@@ -62,5 +62,21 @@ describe("the score at the top of a profile", () => {
     render(<ScoreRing score={score} parts={parts} />);
     // A ring alone says nothing to a screen reader; the number has to be spoken.
     expect(screen.getByTestId("score")).toHaveAttribute("aria-label", expect.stringMatching(/0/));
+  });
+
+  it("does not send a reader to steps that are not theirs to take", () => {
+    // The same ring reads somebody else's page, where the parts are a reading rather than a to-do
+    // list: a verifier clicking "claim your name" would be claiming nothing of theirs.
+    const { score, parts } = at({
+      human: false,
+      hasName: true,
+      accounts: 1,
+      profile: { avatar: "", description: "", url: "" },
+      references: 1,
+    });
+    render(<ScoreRing score={score} parts={parts} />);
+    expect(screen.getByTestId("part-name").querySelector("a")).toBeNull();
+    // Still says what each part is worth, which is the half a reader came for.
+    expect(screen.getByTestId("part-name").textContent).toMatch(/Name/);
   });
 });

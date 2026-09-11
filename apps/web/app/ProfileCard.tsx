@@ -2,8 +2,9 @@ import Link from "next/link";
 import { describePolicy, type Policy, type Profile } from "@/lib/profile";
 import { questionTitle } from "@/lib/questions";
 import { ProfileHead } from "./ProfileHead";
-import { ReferencesGiven } from "./ReferencesGiven";
-import { VouchList } from "./VouchList";
+import { ReferenceTabs } from "./ReferenceTabs";
+import { ScoreRing } from "./me/ScoreRing";
+import { profileScore } from "@/lib/score";
 import { fmtUtc } from "./ui";
 
 /** The candidate reference page: identity, answers, links, humanity, and the policy checks. */
@@ -127,12 +128,28 @@ export function ProfileCard({ p, rootParent, policy }: { p: Profile; rootParent:
         </ul>
       )}
 
-      {/* What they said about others, alongside what others said about them. This page carried only the
-          second half, while their own verification carried both — two routes to one question, answered
-          differently depending on which link a reader happened to follow. */}
-      {p.identity && <ReferencesGiven references={p.identity.references} />}
+      {/*
+        The same reading the person gets of themselves.
+        A verifier was left to add up a column of checks; the ring is the one number, and its parts say
+        which half of it is thin. Read-only here: the steps that fix each part are not a reader's.
+      */}
+      <ScoreRing
+        {...profileScore({
+          human: !!p.humanity,
+          hasName: !!p.identity,
+          accounts: p.links.length,
+          profile: {
+            avatar: p.identity?.profile?.avatar ?? "",
+            description: p.identity?.profile?.description ?? "",
+            url: p.identity?.profile?.url ?? "",
+          },
+          references: p.vouches.filter((v) => v.live).length,
+        })}
+      />
 
-      <VouchList vouches={p.vouches} handle={p.handle} />
+      {/* What they said about others, alongside what others said about them: one question with two
+          halves, and a reader wants one of them at a time. */}
+      <ReferenceTabs handle={p.handle} vouches={p.vouches} references={p.identity?.references} />
 
       <h3>Humanity</h3>
       <p data-testid="humanity">{p.humanity ? `attested (${p.humanity.level})` : "not attested"}</p>

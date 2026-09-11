@@ -22,12 +22,12 @@ dependency first. Each line is its own commit.
        email; otherwise say plainly that this makes a page nobody can link to a real account — a
        subject page, not a person's.
 4. [x] **Same pattern on `/vouch`.** The writer finds the candidate the same way a verifier finds one.
-5. [ ] **Merge `/v/` and `/p/`.** A person is one page. `/v/<handle>.<root>` goes to `/p/<handle>`;
+5. [x] **Merge `/v/` and `/p/`.** A person is one page. `/v/<handle>.<root>` goes to `/p/<handle>`;
        `/v/` keeps answering for names that are not people (accounts, references, mounts). "My profile"
        links to `/p/<handle>`.
-6. [ ] **References, tabbed.** On the merged page, references given moves below the profile and shares
+6. [x] **References, tabbed.** On the merged page, references given moves below the profile and shares
        a tab strip with references received.
-7. [ ] **Score on the merged page.** The ring that is on `/me` belongs where a verifier reads.
+7. [x] **Score on the merged page.** The ring that is on `/me` belongs where a verifier reads.
 8. [ ] **Custom policies.** A verifier can build and keep their own, not only pick a preset. A policy
        can name *who* must have referred — a handle, or a pattern like `*.acme.com` — alongside the
        counts it already has. The presets stay, as what the platform ships.

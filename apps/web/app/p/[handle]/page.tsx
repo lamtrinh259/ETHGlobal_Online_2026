@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { EnsProof } from "@/app/EnsProof";
 import { ProfileCard } from "@/app/ProfileCard";
+import { Revealed } from "@/app/Revealed";
 import { CopyButton } from "@/app/CopyButton";
 import { createApi, type Verification } from "@/lib/api";
 import { loadWebConfig } from "@/lib/config";
@@ -96,6 +97,15 @@ export default async function ProfilePage({ params, searchParams }: Params) {
         </p>
       )}
       <ProfileCard p={profile} rootParent={root.parentName} policy={policy} />
+
+      {/* One link can open several accounts: the grant was one signature over the whole selection.
+          Followed here rather than at `/v/`, which now sends a person's name to this page. */}
+      {q.reveal
+        ?.split(",")
+        .filter(Boolean)
+        .map((domain) => (
+          <Revealed key={domain} name={names[0]} domain={domain} audience={q.for} />
+        ))}
       <section className="card">
         <h3>Verify it yourself</h3>
         <p className="muted">
