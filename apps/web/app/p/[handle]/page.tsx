@@ -7,7 +7,7 @@ import { Revealed } from "@/app/Revealed";
 import { Unmasked } from "@/app/Unmasked";
 import { CopyButton } from "@/app/CopyButton";
 import { createApi, type Verification } from "@/lib/api";
-import { loadWebConfig } from "@/lib/config";
+import { loadWebConfig, siteUrl } from "@/lib/config";
 import { flourish } from "@/lib/patience";
 import {
   assessProfile,
@@ -130,7 +130,7 @@ export default async function ProfilePage({ params, searchParams }: Params) {
   const ens = await api.ens(names[0], undefined, { signal: flourish() }).catch(() => null);
   const vouches = read?.vouches ?? [];
   const profile = assessProfile(handle, results, policy, vouches);
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "";
+  const site = siteUrl();
 
   return (
     <>
@@ -191,9 +191,9 @@ export default async function ProfilePage({ params, searchParams }: Params) {
       {profile.identity && (
         <section className="card">
           <h3>Share</h3>
-          <code>{shareSnippet(handle, siteUrl, root.parentName)}</code>
+          <code>{shareSnippet(handle, site, root.parentName)}</code>
           <p>
-            <CopyButton text={shareSnippet(handle, siteUrl, root.parentName)} label="Copy" />
+            <CopyButton text={shareSnippet(handle, site, root.parentName)} label="Copy" />
           </p>
         </section>
       )}

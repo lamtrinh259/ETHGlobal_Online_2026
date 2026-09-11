@@ -36,6 +36,9 @@ vi.mock("@/lib/config", () => ({
     attestUrl: "http://api.test/v1/attest",
     instances: [{ domain: "ketsuban", parentName: "ketsuban.eth", parentLabel: "ketsuban" }],
   }),
+  // Where the deployment is served from, which decides what an `http://` record may render.
+  siteUrl: () => "https://app.test",
+  siteIsSecure: () => true,
 }));
 // The flow itself is covered by its own tests; this one is about what the page says before it.
 vi.mock("@/app/vouch/[handle]/VouchFlow", () => ({ VouchFlow: () => null }));

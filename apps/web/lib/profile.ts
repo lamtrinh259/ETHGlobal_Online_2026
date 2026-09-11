@@ -1,6 +1,7 @@
 import { matchesAudienceName, WITHDRAWN } from "@ketsuban/registrar";
 import type { Verification, Vouch } from "./api";
 import type { WebConfig } from "./config";
+import { siteIsSecure } from "./config";
 import { questionTitle } from "./questions";
 
 /** The instance whose parent name is the root people namespace (first configured). */
@@ -340,7 +341,8 @@ export function normalUrl(input: string): string {
  * Only the scheme changes. A host that truly serves no https fails the same way it already did.
  */
 /** Whether pages here are served over https, which is what decides if mixed content is refused. */
-export const SITE_IS_SECURE = (process.env.NEXT_PUBLIC_SITE_URL ?? "").startsWith("https:");
+/** Kept as a name callers already import; the fact itself lives with the rest of the config. */
+export const SITE_IS_SECURE = siteIsSecure();
 
 export function displayableImage(src: string | null | undefined, pageIsSecure: boolean): string | null {
   if (!src) return null;

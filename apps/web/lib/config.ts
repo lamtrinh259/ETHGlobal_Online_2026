@@ -72,3 +72,19 @@ export function loadWebConfig(env: Record<string, string | undefined> = process.
     })),
   };
 }
+
+/**
+ * Where this deployment is served from.
+ *
+ * Read in three places with three different fallbacks: a card pointing at localhost, a share snippet
+ * with no origin at all, and a secure-context answer of "no" that changed which avatars render. A
+ * deployment that forgets the variable degraded three ways, none of them visible in the app itself.
+ */
+export function siteUrl(): string {
+  return (process.env.NEXT_PUBLIC_SITE_URL ?? "").replace(/\/$/, "");
+}
+
+/** Whether this deployment is served over https, which decides what an `http://` record may render. */
+export function siteIsSecure(): boolean {
+  return siteUrl().startsWith("https:");
+}

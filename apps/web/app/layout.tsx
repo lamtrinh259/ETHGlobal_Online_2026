@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Providers } from "./providers";
 import { AppShell } from "./AppShell";
-import { loadWebConfig } from "@/lib/config";
+import { loadWebConfig, siteUrl } from "@/lib/config";
 
 const TAGLINE = "References that cannot be deleted";
 const PITCH =
@@ -11,7 +11,8 @@ const PITCH =
 export const metadata: Metadata = {
   title: { default: `Ketsuban — ${TAGLINE}`, template: "%s · ketsuban" },
   description: PITCH,
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"),
+  // A card names an absolute URL or names nothing a client can fetch.
+  metadataBase: new URL(siteUrl() || "http://localhost:3000"),
   openGraph: { type: "website", siteName: "ketsuban", title: `Ketsuban — ${TAGLINE}`, description: PITCH },
   twitter: { card: "summary", title: `Ketsuban — ${TAGLINE}`, description: PITCH },
   manifest: "/site.webmanifest",

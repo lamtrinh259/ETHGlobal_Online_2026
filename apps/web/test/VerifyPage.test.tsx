@@ -90,6 +90,9 @@ vi.mock("@/lib/config", () => ({
     questions: {},
     instances: [{ domain: "ketsuban", parentName: "ketsuban.eth", parentLabel: "ketsuban" }],
   }),
+  // Where the deployment is served from, which decides what an `http://` record may render.
+  siteUrl: () => "https://app.test",
+  siteIsSecure: () => true,
 }));
 
 const { default: VerifyPage } = await import("@/app/v/[name]/page");

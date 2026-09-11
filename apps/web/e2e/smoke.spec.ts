@@ -170,3 +170,16 @@ for (const [path, says] of [
     expect(meta("og:title")).not.toBe("Ketsuban — References that cannot be deleted");
   });
 }
+
+test("a card names an image a client can actually fetch", async ({ request, baseURL }) => {
+  // Without `metadataBase` Next writes `http://localhost:3000` into every card, which is a picture no
+  // reader of a shared link can load and a failure nothing in the app itself shows.
+  const html = await (await request.get("/p/alice")).text();
+  const image = /<meta property="og:image" content="([^"]*)"/.exec(html)?.[1] ?? "";
+  expect(image, "og:image").toMatch(/^https?:\/\//);
+
+  const served = await request.get(new URL(image).pathname + new URL(image).search);
+  expect(served.status()).toBe(200);
+  expect(served.headers()["content-type"]).toContain("image/");
+  expect(baseURL).toBeTruthy();
+});
