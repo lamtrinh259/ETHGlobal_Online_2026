@@ -165,6 +165,16 @@ export function useInvites(api: Api, handle: string | undefined) {
   });
 }
 
+/** The composed read behind a person's page: names, references and standing in one request. */
+export function useProfile(api: Api, handle: string | undefined) {
+  return useQuery({
+    queryKey: ["profile", handle],
+    queryFn: () => api.profile(handle as string),
+    enabled: !!handle,
+    staleTime: 10_000,
+  });
+}
+
 export function useContracts(api: Api) {
   return useQuery({ queryKey: ["contracts"], queryFn: () => api.contracts(), staleTime: Infinity });
 }

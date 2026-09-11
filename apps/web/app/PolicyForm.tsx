@@ -4,11 +4,27 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useWebConfig } from "@/app/providers";
 import { forgetPolicy, loadPolicies, savePolicy, type SavedPolicy } from "@/lib/policies";
-import { describePolicy, lookupTarget, POLICY_PRESETS, policyToQuery, presetPolicy } from "@/lib/profile";
+import {
+  describePolicy,
+  lookupTarget,
+  POLICY_PRESETS,
+  policyToQuery,
+  presetPolicy,
+  type Policy,
+} from "@/lib/profile";
 import { questionTitle } from "@/lib/questions";
 
 /** Verifier policy picker → /p/<handle>?answers=&minLinks=&humanity= */
-export function PolicyForm({ handle, subjectDomains }: { handle: string; subjectDomains: string[] }) {
+export function PolicyForm({
+  handle,
+  subjectDomains,
+  onApply,
+}: {
+  handle: string;
+  subjectDomains: string[];
+  /** Where the bar goes instead of a candidate's page, for a reader checking a list of them */
+  onApply?: (policy: Policy) => void;
+}) {
   const router = useRouter();
   const config = useWebConfig();
   const [answers, setAnswers] = useState<string[]>(subjectDomains);
@@ -75,6 +91,8 @@ export function PolicyForm({ handle, subjectDomains }: { handle: string; subject
       className="card"
       onSubmit={(e) => {
         e.preventDefault();
+        // A reader checking a list of people has no one candidate to be sent to.
+        if (onApply) return onApply(policy);
         if (!target) return;
         router.push(target.href);
       }}
@@ -205,8 +223,8 @@ export function PolicyForm({ handle, subjectDomains }: { handle: string; subject
           </button>
         </p>
       </fieldset>
-      <button type="submit" className="primary" disabled={!target}>
-        Apply to {handle}
+      <button type="submit" className="primary" disabled={!onApply && !target}>
+        {onApply ? "Use this policy" : `Apply to ${handle}`}
       </button>
     </form>
   );
