@@ -78,3 +78,23 @@ test("enter with a domain named opens the account it resolves to, not a hidden n
   await page.getByTestId("name-query").press("Enter");
   await expect(page).toHaveURL(/\/p\/alice$/);
 });
+
+/**
+ * Where "nobody holds that name" actually leads.
+ *
+ * The page it makes was graded like a candidate: a column of crosses and a score of nothing, which is
+ * a verdict on somebody who has never been here.
+ */
+test("a name nobody holds opens a page that says so, rather than failing them", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTestId("name-query").fill("unheld");
+  await page.getByTestId("use-anyway").click();
+
+  await expect(page).toHaveURL(/\/p\/unheld$/);
+  await expect(page.getByTestId("blank-page")).toContainText("Nobody holds this name");
+  await expect(page.getByTestId("checks")).toHaveCount(0);
+  await expect(page.getByTestId("score")).toHaveCount(0);
+  // Both of the things there are to do with it.
+  await expect(page.getByRole("link", { name: "Refer this person" })).toBeVisible();
+  await expect(page.getByTestId("blank-page").getByRole("link", { name: "claims the name" })).toBeVisible();
+});

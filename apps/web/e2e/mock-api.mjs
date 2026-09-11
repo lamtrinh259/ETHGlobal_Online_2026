@@ -263,6 +263,9 @@ export const routes = [
     /^\/v1\/profile\/([^/?]+)/,
     (m) => {
       const handle = decodeURIComponent(m[1]);
+      // The end of the "nobody holds that name" path on the front page: a page with nothing on it.
+      if (handle === "unheld")
+        return { handle, names: [], vouches: [], standing: { claimed: false, given: 0, received: 0 } };
       return {
         handle,
         names: [{ instance: "ketsuban", name: `${handle}.${ROOT}`, verification: verification(`${handle}.${ROOT}`) }],

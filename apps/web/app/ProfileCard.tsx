@@ -9,6 +9,8 @@ import { fmtUtc } from "./ui";
 
 /** The candidate reference page: identity, answers, links, humanity, and the policy checks. */
 export function ProfileCard({ p, rootParent, policy }: { p: Profile; rootParent: string; policy?: Policy }) {
+  /** Nobody holds it and nobody has written about it: there is nothing here to pass judgement on. */
+  const blank = !p.identity && p.vouches.length === 0;
   return (
     <section className="card" aria-label="candidate page">
       {/* The same head as a person's verification and a subject's page: a reader arriving by any
@@ -46,22 +48,39 @@ export function ProfileCard({ p, rootParent, policy }: { p: Profile; rootParent:
         </p>
       )}
 
-      {policy && (
-        <p className="muted" data-testid="policy-line">
-          Policy: {describePolicy(policy)}
+      {/*
+        A page with nothing on it is empty, not failing.
+        Somebody typed a name nobody holds and opened the page it would make. Grading that produced a
+        column of crosses and a score of nothing — a verdict on a person who has never been here, read
+        by whichever of the two people opened it: someone about to write the first reference, or the
+        person the name is for.
+      */}
+      {blank ? (
+        <p data-testid="blank-page">
+          Nobody holds this name and nobody has written about it yet. References written here are real and
+          permanent, and none of them can be tied to a real account until whoever this is about{" "}
+          <Link href="/me">claims the name</Link> — until then it is a page about a name.
         </p>
+      ) : (
+        <>
+          {policy && (
+            <p className="muted" data-testid="policy-line">
+              Policy: {describePolicy(policy)}
+            </p>
+          )}
+          <ul className="checks" data-testid="checks">
+            {p.checks.map((c) => (
+              <li key={c.id} className={c.ok ? "ok" : "no"}>
+                <span className="check-mark" aria-hidden>
+                  {c.ok ? "✓" : "✗"}
+                </span>
+                <span className="check-label">{c.label}</span>
+                <span className="check-detail muted">{c.detail}</span>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
-      <ul className="checks" data-testid="checks">
-        {p.checks.map((c) => (
-          <li key={c.id} className={c.ok ? "ok" : "no"}>
-            <span className="check-mark" aria-hidden>
-              {c.ok ? "✓" : "✗"}
-            </span>
-            <span className="check-label">{c.label}</span>
-            <span className="check-detail muted">{c.detail}</span>
-          </li>
-        ))}
-      </ul>
 
       {p.answers.length > 0 && (
         <>
@@ -92,8 +111,8 @@ export function ProfileCard({ p, rootParent, policy }: { p: Profile; rootParent:
         </>
       )}
 
-      <h3>Linked accounts</h3>
-      {p.links.length === 0 ? (
+      {!blank && <h3>Linked accounts</h3>}
+      {blank ? null : p.links.length === 0 ? (
         <p>
           <em>none</em>
         </p>
@@ -133,26 +152,32 @@ export function ProfileCard({ p, rootParent, policy }: { p: Profile; rootParent:
         A verifier was left to add up a column of checks; the ring is the one number, and its parts say
         which half of it is thin. Read-only here: the steps that fix each part are not a reader's.
       */}
-      <ScoreRing
-        {...profileScore({
-          human: !!p.humanity,
-          hasName: !!p.identity,
-          accounts: p.links.length,
-          profile: {
-            avatar: p.identity?.profile?.avatar ?? "",
-            description: p.identity?.profile?.description ?? "",
-            url: p.identity?.profile?.url ?? "",
-          },
-          references: p.vouches.filter((v) => v.live).length,
-        })}
-      />
+      {!blank && (
+        <ScoreRing
+          {...profileScore({
+            human: !!p.humanity,
+            hasName: !!p.identity,
+            accounts: p.links.length,
+            profile: {
+              avatar: p.identity?.profile?.avatar ?? "",
+              description: p.identity?.profile?.description ?? "",
+              url: p.identity?.profile?.url ?? "",
+            },
+            references: p.vouches.filter((v) => v.live).length,
+          })}
+        />
+      )}
 
       {/* What they said about others, alongside what others said about them: one question with two
           halves, and a reader wants one of them at a time. */}
       <ReferenceTabs handle={p.handle} vouches={p.vouches} references={p.identity?.references} />
 
-      <h3>Humanity</h3>
-      <p data-testid="humanity">{p.humanity ? `attested (${p.humanity.level})` : "not attested"}</p>
+      {!blank && (
+        <>
+          <h3>Humanity</h3>
+          <p data-testid="humanity">{p.humanity ? `attested (${p.humanity.level})` : "not attested"}</p>
+        </>
+      )}
     </section>
   );
 }

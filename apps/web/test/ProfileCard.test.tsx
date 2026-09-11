@@ -216,6 +216,41 @@ describe("ProfileCard", () => {
     expect(container.querySelector("[data-testid=waiting]")).toBeNull();
   });
 
+  it("does not grade a name nobody has ever held or written about", () => {
+    /*
+     * A column of crosses and 0/100 is a verdict, and there is nothing here to pass judgement on:
+     * somebody typed a name nobody holds and opened the page it would make. It is empty, not failing.
+     */
+    render(
+      <ProfileCard
+        p={{ ...profile, identity: undefined, wallet: null, answers: [], links: [], vouches: [] }}
+        rootParent="ketsuban.eth"
+      />
+    );
+    expect(screen.queryByTestId("checks")).toBeNull();
+    expect(screen.queryByTestId("score")).toBeNull();
+
+    // Every other empty section is the same nothing said again.
+    expect(screen.queryByTestId("humanity")).toBeNull();
+    expect(screen.queryByText("Linked accounts")).toBeNull();
+
+    const blank = screen.getByTestId("blank-page");
+    expect(blank).toHaveTextContent("Nobody holds this name");
+    // The two things there are to do with it, for the two people who open it.
+    expect(blank.querySelector("a[href='/me']")).not.toBeNull();
+  });
+
+  it("still grades a name once there is something to grade", () => {
+    render(
+      <ProfileCard
+        p={{ ...profile, identity: undefined, wallet: null, answers: [], links: [] }}
+        rootParent="ketsuban.eth"
+      />
+    );
+    expect(screen.getByTestId("checks")).toBeInTheDocument();
+    expect(screen.queryByTestId("blank-page")).toBeNull();
+  });
+
   it("renders an unclaimed page", () => {
     render(
       <ProfileCard p={{ ...profile, wallet: null, answers: [], links: [] }} rootParent="ketsuban.eth" />
