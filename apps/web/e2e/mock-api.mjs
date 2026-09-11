@@ -86,6 +86,14 @@ export const routes = [
           parentName: ROOT,
           parentLabel: "ketsuban",
         },
+        // A mounted platform, which is what the search bar completes a domain from.
+        {
+          domain: "x.com",
+          registry: "0x254D9c7601BD8fa6b6FA7f5A42c860d184E053A7",
+          resolver: "0xa2602ce1A469d7FF1090aE4b876BA4ec566D3873",
+          parentName: `com.x.www.${ROOT}`,
+          parentLabel: "com",
+        },
       ],
       bridge: "0xC7283bD9Aad1B08947C841536946Ce4dA9c99929",
       permissionedResolver: null,
@@ -224,6 +232,18 @@ export const routes = [
         { handle: "bob", wallet: "0xEE4811b9462956C9C3535E79c08776D769CA9F3a", claimed: true, given: 1, received: 0 },
       ];
       return { q, matches: people.filter((p) => p.handle.includes(q)) };
+    },
+  ],
+  // Who holds an account on a mounted platform: the exact half of the search, where a name is a guess.
+  [
+    /^\/v1\/who/,
+    (m, url) => {
+      const p = new URL(url, "http://x").searchParams;
+      const handle = (p.get("handle") ?? "").replace(/^@/, "").toLowerCase();
+      const domain = p.get("domain") ?? "";
+      return handle === "alice"
+        ? { found: true, domain, handle, candidate: "alice", standing: { claimed: true, given: 0, received: 2 } }
+        : { found: false, domain, handle };
     },
   ],
   [/^\/v1\/explain\/([^/?]+)/, (m) => ({ name: decodeURIComponent(m[1]), says: "alice is a person's name here.", kind: "person" })],

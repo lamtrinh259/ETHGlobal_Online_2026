@@ -264,4 +264,37 @@ describe("finding the person you mean", () => {
     expect(screen.getByTestId("name-query")).toHaveAttribute("aria-label", "their name");
     expect(screen.queryByTestId("clear-kind")).toBeNull();
   });
+
+  it("opens the top of the ranking when enter is pressed with nothing arrowed to", async () => {
+    /*
+     * Enter is how somebody finishes typing a name. It did nothing unless they had arrowed down
+     * first, so the name of somebody visible on screen went nowhere.
+     */
+    const onPick = show();
+    fireEvent.change(screen.getByTestId("name-query"), { target: { value: "bob" } });
+    await waitFor(() => expect(screen.getByTestId("match-bob")).toBeInTheDocument());
+
+    fireEvent.keyDown(screen.getByTestId("name-query"), { key: "Enter" });
+    expect(onPick).toHaveBeenCalledWith("bob");
+  });
+
+  it("opens the page a name would make when enter is pressed and nobody holds it", async () => {
+    const onPick = show();
+    fireEvent.change(screen.getByTestId("name-query"), { target: { value: "nobody" } });
+    await waitFor(() => expect(screen.getByTestId("no-match")).toBeInTheDocument());
+
+    fireEvent.keyDown(screen.getByTestId("name-query"), { key: "Enter" });
+    expect(onPick).toHaveBeenCalledWith("nobody");
+  });
+
+  it("does not reach a name match that naming a domain took off the screen", async () => {
+    // The search for names still runs underneath, so enter could open somebody never shown.
+    const onPick = show();
+    fireEvent.change(screen.getByTestId("name-query"), { target: { value: "bob" } });
+    await waitFor(() => expect(screen.getByTestId("match-bob")).toBeInTheDocument());
+    fireEvent.change(screen.getByTestId("by-account"), { target: { value: "x.com" } });
+
+    fireEvent.keyDown(screen.getByTestId("name-query"), { key: "Enter" });
+    expect(onPick).not.toHaveBeenCalled();
+  });
 });

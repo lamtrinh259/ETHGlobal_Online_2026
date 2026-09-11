@@ -116,10 +116,21 @@ export function PersonSearch({
     (x) => !clean || x.label.toLowerCase().includes(clean) || x.href.toLowerCase().includes(clean)
   );
 
-  const options: { key: string; go: () => void }[] = [
-    ...shownPinned.map((x) => ({ key: `pin:${x.href}`, go: () => router.push(x.href) })),
-    ...matches.map((m) => ({ key: `hit:${m.handle}`, go: () => onPick(m.handle) })),
-  ];
+  /*
+   * Only what is on screen.
+   *
+   * With a domain named, the list is the one account that domain resolves to and the name matches are
+   * hidden — but the search for them still ran, so arrowing or pressing enter reached a row nobody
+   * could see and opened somebody the reader had not been shown.
+   */
+  const options: { key: string; go: () => void }[] = platform
+    ? who.data?.found && who.data.candidate
+      ? [{ key: "who", go: () => onPick(who.data!.candidate!) }]
+      : []
+    : [
+        ...shownPinned.map((x) => ({ key: `pin:${x.href}`, go: () => router.push(x.href) })),
+        ...matches.map((m) => ({ key: `hit:${m.handle}`, go: () => onPick(m.handle) })),
+      ];
   const [active, setActive] = useState(-1);
   /*
    * Kept in a ref as well as in state.
@@ -138,16 +149,32 @@ export function PersonSearch({
   };
 
   function onKeyDown(e: React.KeyboardEvent) {
-    if (!options.length) return;
+    /*
+     * Enter is how somebody finishes typing a name.
+     *
+     * Everywhere else they have typed one, enter acts on it; here it did nothing unless they had
+     * arrowed down first, so the name of somebody visible on screen went nowhere. With nothing
+     * selected it takes the top of the ranking — and where the ranking is empty because nobody holds
+     * that name, the page that name would make, which is the only thing left to do with it.
+     */
+    if (!options.length) {
+      if (e.key === "Enter" && !platform && !address && exact && !named && !found.isFetching) {
+        e.preventDefault();
+        onPick(clean);
+      }
+      return;
+    }
     const i = activeRef.current;
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
       const step = e.key === "ArrowDown" ? 1 : -1;
       // From nothing, down takes the first and up takes the last, which is where each one points.
       move(i < 0 ? (step > 0 ? 0 : options.length - 1) : (i + step + options.length) % options.length);
-    } else if (e.key === "Enter" && i >= 0 && i < options.length) {
+    } else if (e.key === "Enter") {
       e.preventDefault();
-      options[i].go();
+      // Arrowed to something, that. Otherwise the top of the ranking, which is what the list is for.
+      if (i >= 0 && i < options.length) options[i].go();
+      else options[0].go();
     } else if (e.key === "Escape") {
       move(-1);
     }

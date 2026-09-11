@@ -12,6 +12,7 @@ import {
   verifySchema,
   vouchesSchema,
   walletSchema,
+  whoSchema,
 } from "@/lib/api";
 import { routes } from "@/e2e/mock-api.mjs";
 
@@ -38,6 +39,7 @@ const cases: [string, { parse: (v: unknown) => unknown }][] = [
   ["/v1/explain/alice.ketsuban.eth", explainSchema],
   ["/v1/find?q=ali", findSchema],
   ["/v1/name/ketsuban/alice", nameStatusSchema],
+  ["/v1/who?domain=x.com&handle=alice", whoSchema],
 ];
 
 describe("what the mock attester answers", () => {
