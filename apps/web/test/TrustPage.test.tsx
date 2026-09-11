@@ -77,6 +77,31 @@ describe("what this deployment admits about itself", () => {
     expect(screen.getByTestId("key-verdict").textContent ?? "").toMatch(/One key in all three/);
   });
 
+  it("prints the key that all three agree on once, not once per row", async () => {
+    /*
+     * Three identical 42-character addresses, each wrapping across two lines of a phone, to say the
+     * one thing the verdict under them already says. Said in full where a reader can check or copy it,
+     * and short in the rows, which are about the roles rather than about the value.
+     */
+    await renderPage();
+    const table = screen.getByTestId("keys").textContent ?? "";
+    const full = /0x8583AD4a0F59Ba45C7E201318C6F774F31f7bbC8/gi;
+    expect(table.match(full)).toBeNull();
+    expect((screen.getByTestId("the-key").textContent ?? "").match(full)).toHaveLength(1);
+  });
+
+  it("prints all three in full when they disagree, since which one differs is the point", async () => {
+    state.preflight = {
+      ...state.preflight,
+      multipass: { domains: [{ registrar: "0x000000000000000000000000000000000000dEaD" }] },
+    };
+    await renderPage();
+    const table = screen.getByTestId("keys").textContent ?? "";
+    expect(table).toContain("0x8583AD4a0F59Ba45C7E201318C6F774F31f7bbC8");
+    expect(table).toContain("0x000000000000000000000000000000000000dEaD");
+    expect(screen.queryByTestId("the-key")).toBeNull();
+  });
+
   it("says so loudly when the key the chain expects is not the one signing", async () => {
     // A deployment in this state refuses every record at registration, after the person has signed.
     state.preflight = {

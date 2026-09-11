@@ -131,3 +131,11 @@ for (const path of ["/vouch/alice", "/verify", "/v/alice.ketsuban.eth", "/p/alic
     await noOverflow(page);
   });
 }
+
+test("the boxed steps are named once, not once in the label and again in the box", async ({ page }) => {
+  // `.flow .inside strong::after` appended " · enclave" to actors already called "the enclave".
+  await page.goto("/trust");
+  const flow = page.getByTestId("flow");
+  await expect(flow).toContainText("the enclave");
+  await expect(flow).not.toContainText("enclave · enclave");
+});

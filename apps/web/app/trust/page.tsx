@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { createApi } from "@/lib/api";
 import { loadWebConfig } from "@/lib/config";
+import { short } from "@/app/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -89,26 +90,30 @@ export default async function TrustPage() {
         <h2>The key the chain trusts</h2>
         <table data-testid="keys">
           <tbody>
-            <tr>
-              <td>every domain expects</td>
-              <td>
-                <code>{trusted ?? "—"}</code>
-              </td>
-            </tr>
-            <tr>
-              <td>the attester signs as</td>
-              <td>
-                <code>{signsAs ?? "—"}</code>
-              </td>
-            </tr>
-            <tr>
-              <td>a view code is sealed to</td>
-              <td>
-                <code>{enclave?.address ?? "—"}</code>
-              </td>
-            </tr>
+            {(
+              [
+                ["every domain expects", trusted],
+                ["the attester signs as", signsAs],
+                ["a view code is sealed to", enclave?.address],
+              ] as const
+            ).map(([role, key]) => (
+              <tr key={role}>
+                <td>{role}</td>
+                <td>
+                  {/* Short while they agree: three identical addresses, each wrapping across two lines
+                      of a phone, said the one thing the verdict below them already says. Where they
+                      disagree, which of them differs is the whole point, so they are printed in full. */}
+                  <code>{!key ? "—" : keyMatches ? short(key) : key}</code>
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
+        {keyMatches && trusted && (
+          <p data-testid="the-key">
+            <code>{trusted}</code>
+          </p>
+        )}
         <p className={keyMatches || !readable ? "muted" : "warning"} data-testid="key-verdict">
           {!readable
             ? "Not answering just now — read them yourself with GET /v1/preflight."

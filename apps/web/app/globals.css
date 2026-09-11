@@ -486,13 +486,15 @@ dl.kv dd {
 .flow li small {
   grid-column: 2;
 }
+/*
+ * The steps that are meant to run inside one, boxed.
+ *
+ * The box used to append " · enclave" to the actor's name as well, which read "the enclave · enclave"
+ * for every step it marked — the actors it marks are named for the thing it was there to say.
+ */
 .flow .inside {
   border-left-color: var(--consensus);
   background: var(--panel);
-}
-.flow .inside strong::after {
-  content: " · enclave";
-  color: var(--consensus);
 }
 
 /*
