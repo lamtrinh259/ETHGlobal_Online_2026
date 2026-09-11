@@ -98,8 +98,25 @@ export default async function TrustPage() {
                 </Link>
               </td>
             </tr>
+            <tr>
+              <td>And again, for an account kept private</td>
+              <td>
+                <a
+                  href="https://sepolia.etherscan.io/tx/0x6af38a23c9dfc94533c1a5fc753a9a0e8608169696e01ccaca8155ed9ae71484"
+                  rel="noreferrer"
+                >
+                  <code>0x6af38a23…e71484</code>
+                </a>
+              </td>
+            </tr>
           </tbody>
         </table>
+        <p>
+          The second is the one worth reading twice. It registered a record proving control of an account on{" "}
+          <code>x.com</code> in which the handle appears nowhere: what is stored is a one-time pad over it,
+          the payload is a commitment to a view code, and the view code itself was encrypted to the registrar
+          key inside the handler. The chain holds the fact and not the account.
+        </p>
         <p className="muted">
           Said exactly: the nodes were simulated and the forwarder was Chainlink&apos;s
           <code> MockKeystoneForwarder</code>, which is what a workflow without deployment access writes

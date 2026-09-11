@@ -171,6 +171,7 @@ first registration and lands as `alice.com.x.www.ketsuban.eth` for that wallet.
 | Called | `0x15fC6ae9…`, the MockKeystoneForwarder |
 | Reporter | `0xbDEd80C5BCf2218E66a559Ecd81fAE9b0e522Ebb`, wired to that forwarder |
 | Result | `alice.com.x.www.ketsuban.eth` resolves to `0x4A75f57c…`, status `active` |
+| And masked | [`0x6af38a23…e71484`](https://sepolia.etherscan.io/tx/0x6af38a23c9dfc94533c1a5fc753a9a0e8608169696e01ccaca8155ed9ae71484) — an opted-in record for `0xC2D253D8…`, stored name a one-time pad, payload a view-code commitment, view code encrypted to the registrar key in the handler |
 
 The enclave handler verified the identity token and the wallet intent and signed the record as
 registrar; the DON write carried it to the forwarder, the reporter, the bridge and Multipass. The
