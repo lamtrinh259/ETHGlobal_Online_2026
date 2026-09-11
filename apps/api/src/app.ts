@@ -1595,9 +1595,20 @@ export function createApp({
    * What an address is called. Multipass holds the record, so the resolver can answer the reverse
    * question without any reverse registry: useful to a verifier who has an address and nothing else.
    */
+  /**
+   * An address off the wire, in the casing the chain layer wants.
+   *
+   * EIP-55 casing is a checksum, and an address written in one case or the other is the same address —
+   * but viem refuses one whose casing does not check out, which reached a reader as a bare 500 from a
+   * route that had already decided the address was well formed. Lower-cased first, so the checksum is
+   * computed rather than checked, and every route reads the same canonical form whatever it was sent.
+   */
+  const addressOf = (raw: string): Address | undefined =>
+    /^0x[0-9a-fA-F]{40}$/.test(raw) ? getAddress(raw.toLowerCase()) : undefined;
+
   app.get("/v1/reverse/:address", async (c) => {
-    const address = c.req.param("address");
-    if (!/^0x[0-9a-fA-F]{40}$/.test(address)) return c.json({ error: "bad address" }, 400);
+    const address = addressOf(c.req.param("address"));
+    if (!address) return c.json({ error: "bad address" }, 400);
     const instances = await chain.instances();
     const named = await Promise.all(
       instances
@@ -1645,8 +1656,8 @@ export function createApp({
 
   /** A wallet's dashboard: its names per domain and the references it has given (`<prefix>*` domains). */
   app.get("/v1/wallet/:address", async (c) => {
-    const address = c.req.param("address");
-    if (!/^0x[0-9a-fA-F]{40}$/.test(address)) return c.json({ error: "bad address" }, 400);
+    const address = addressOf(c.req.param("address"));
+    if (!address) return c.json({ error: "bad address" }, 400);
     const instances = await chain.instances();
     const parentOf = new Map(instances.map((i) => [i.domain, i.parentName]));
     const mountOf = new Map(instances.map((i) => [i.domain, i]));

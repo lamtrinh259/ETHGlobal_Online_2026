@@ -4210,3 +4210,38 @@ describe("a handle at the length a name actually allows", () => {
     expect((await app(chain).request(`/v1/profile/${tooLong}`)).status).toBe(400);
   });
 });
+
+/**
+ * An address is the same address however it is written.
+ *
+ * EIP-55 casing is a checksum, not part of the value. An all-caps one is what plenty of tools and
+ * explorers hand out, and every route here checked the shape and then passed it to viem, which refuses
+ * a casing that does not check out — so `/v1/wallet` answered a bare 500 for an address it had just
+ * called well formed, while `/v1/reverse` beside it answered fine.
+ */
+describe("an address written in any casing", () => {
+  const mixed = user.account.address;
+  const casings = [mixed, mixed.toLowerCase(), `0x${mixed.slice(2).toUpperCase()}`];
+
+  for (const route of ["/v1/wallet", "/v1/reverse"]) {
+    it(`${route} answers the same for every one of them`, async () => {
+      const answers = [];
+      for (const address of casings) {
+        const { chain } = fakeChain({ addr: mixed });
+        const res = await app(chain).request(`${route}/${address}`);
+        expect(res.status, `${route}/${address}`).toBe(200);
+        const body = await res.json();
+        // The address it echoes is the canonical one, not whatever casing it was asked in.
+        expect(body.address, address).toBe(mixed);
+        answers.push(JSON.stringify(body));
+      }
+      expect(new Set(answers).size, "the same address gave different answers").toBe(1);
+    });
+  }
+
+  it("still refuses something that is not an address", async () => {
+    const { chain } = fakeChain();
+    expect((await app(chain).request("/v1/wallet/0xnope")).status).toBe(400);
+    expect((await app(chain).request(`/v1/reverse/${mixed}0`)).status).toBe(400);
+  });
+});
