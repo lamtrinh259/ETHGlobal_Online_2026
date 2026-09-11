@@ -847,12 +847,30 @@ export function createApp({
         .resolveUniversal(instance.parentName, [...keys])
         .then((r) => r.texts)
         .catch(async () => {
-          // No universal resolver configured: fall back to the mount's own, which answers for a
-          // deployment whose instance holds its own texts.
+          /*
+           * No universal resolver configured: fall back to the mount's own, which answers for a
+           * deployment whose instance holds its own texts.
+           *
+           * A key that cannot be read is not a key with nothing in it. Where every one of them fails
+           * the fallback resolver is not answering either, and an empty record would reach the page as
+           * "nobody has said who this is about" — a claim about a subject, made from no reading of it.
+           */
           const texts = await Promise.all(
-            keys.map((key) => chain.resolveText(instance.resolver, instance.parentName, key).catch(() => ""))
+            keys.map((key) =>
+              chain
+                .resolveText(instance.resolver, instance.parentName, key)
+                .then((v) => ({ ok: true as const, v }))
+                .catch((e: Error) => ({ ok: false as const, e }))
+            )
           );
-          return Object.fromEntries(keys.map((key, i) => [key, texts[i]])) as Record<string, string>;
+          const failure = texts.find((t) => !t.ok);
+          if (texts.every((t) => !t.ok)) {
+            throw failure && !failure.ok ? failure.e : new Error("this instance could not be read");
+          }
+          return Object.fromEntries(keys.map((key, i) => [key, texts[i].ok ? texts[i].v : ""])) as Record<
+            string,
+            string
+          >;
         }),
     ]);
     const description = about.description ?? "";

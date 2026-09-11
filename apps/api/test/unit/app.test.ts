@@ -4245,3 +4245,68 @@ describe("an address written in any casing", () => {
     expect((await app(chain).request(`/v1/reverse/${mixed}0`)).status).toBe(400);
   });
 });
+
+/**
+ * A chain this service cannot read is not a person with nothing.
+ *
+ * Every count here is a set built from a chain read, and an empty set is indistinguishable from a
+ * read that never came back. Answering zero would be worse than answering nothing: a reader sees a
+ * number, an agent records it, and neither has any way to know it was never read.
+ */
+describe("when the chain cannot be read", () => {
+  const broken = () => {
+    const { chain } = fakeChain({
+      names: { "kju-is/alice": { taken: true, wallet: user.account.address, live: true } },
+    });
+    chain.listRecords = vi.fn(async () => {
+      throw new Error("rpc is not answering");
+    });
+    return chain;
+  };
+
+  for (const path of ["/v1/standing/alice", "/v1/find?q=ali", "/v1/profile/alice"]) {
+    it(`${path.split("?")[0]} refuses rather than reporting nothing`, async () => {
+      const res = await app(broken()).request(path);
+      expect(res.status, path).toBeGreaterThanOrEqual(500);
+      const body = await res.text();
+      // Not a count, and not an empty list dressed as an answer.
+      expect(body, path).not.toMatch(/"received":\s*0/);
+      expect(body, path).not.toMatch(/"matches":\s*\[\]/);
+    });
+  }
+});
+
+/**
+ * A subject nobody could read is not a subject nobody has described.
+ *
+ * The instance read falls back from the universal resolver to the mount's own, and each text it asks
+ * for there falls back to an empty string. Where that resolver is not answering either, every key
+ * comes back empty and the page says nobody has said who this is about — a claim about a subject,
+ * made from no reading of it at all.
+ */
+describe("an instance whose texts cannot be read", () => {
+  it("refuses, rather than answering with a subject nobody has described", async () => {
+    const { chain } = fakeChain();
+    chain.resolveUniversal = vi.fn(async () => {
+      throw new Error("no universal resolver here");
+    });
+    chain.resolveText = vi.fn(async () => {
+      throw new Error("this resolver is not answering either");
+    });
+
+    const res = await app(chain).request("/v1/instance/kju-is");
+    expect(res.status).toBeGreaterThanOrEqual(500);
+  });
+
+  it("still answers where the resolver has nothing to say, which is a reading", async () => {
+    const { chain } = fakeChain();
+    chain.resolveUniversal = vi.fn(async () => {
+      throw new Error("no universal resolver here");
+    });
+    chain.resolveText = vi.fn(async () => "");
+
+    const res = await app(chain).request("/v1/instance/kju-is");
+    expect(res.status).toBe(200);
+    expect((await res.json()).description).toBeNull();
+  });
+});
