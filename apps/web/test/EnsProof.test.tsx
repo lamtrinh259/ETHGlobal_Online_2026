@@ -84,3 +84,23 @@ describe("where the ENS cross-check belongs", () => {
     expect(card.querySelector("summary")).toHaveTextContent(/read it yourself/i);
   });
 });
+
+/**
+ * The command has to run.
+ *
+ * Everything above it on the page is what the page is for; this is the part that says a reader does
+ * not have to take its word for anything. Without an endpoint `cast` looks for a node on localhost
+ * and fails with "failed to retrieve chain ID from fork endpoint" before it reads a thing.
+ */
+describe("the command the proof prints", () => {
+  it("names an endpoint, and says which chain to point it at", () => {
+    render(<EnsProof ens={ens} name="alice.ketsuban.eth" chainId={11155111} />);
+    expect(screen.getByTestId("ens-proof").textContent ?? "").toContain('cast call --rpc-url "$ETH_RPC_URL"');
+    expect(screen.getByTestId("ens-proof-rpc")).toHaveTextContent("Sepolia (chain 11155111)");
+  });
+
+  it("still says what to do where the deployment never said which chain it writes to", () => {
+    render(<EnsProof ens={ens} name="alice.ketsuban.eth" />);
+    expect(screen.getByTestId("ens-proof-rpc")).toHaveTextContent("the chain this deployment writes to");
+  });
+});

@@ -152,7 +152,7 @@ export default async function ProfilePage({ params, searchParams }: Params) {
           </code>
         </p>
       </details>
-      <EnsProof ens={ens} name={names[0]} />
+      <EnsProof ens={ens} name={names[0]} chainId={config.chainId} />
       <section className="card">
         <h3>Share</h3>
         <code>{shareSnippet(handle, siteUrl, root.parentName)}</code>

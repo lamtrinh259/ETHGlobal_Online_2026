@@ -7,7 +7,19 @@ import { short } from "./ui";
  * The same name read through the ENSv2 UniversalResolver. It proves the page is not the source of
  * truth: any wallet or indexer walking the registry reaches the same resolver and the same values.
  */
-export function EnsProof({ ens, name }: { ens: EnsResolution | null; name: string }) {
+/** What to call the chain these records live on, for the one line a reader has to fill in themselves. */
+const CHAINS: Record<number, string> = { 1: "Ethereum mainnet", 11155111: "Sepolia" };
+
+export function EnsProof({
+  ens,
+  name,
+  chainId,
+}: {
+  ens: EnsResolution | null;
+  name: string;
+  /** Which chain to point an RPC at; without it the command below cannot say */
+  chainId?: number;
+}) {
   // `cast` has no DNS encoder — there is no `--to-dns-name` — so the wire-format name is written out
   // here. Everything else in the command is a cast subcommand that exists.
   const wire = toHex(packetToBytes(name));
@@ -51,9 +63,19 @@ export function EnsProof({ ens, name }: { ens: EnsResolution | null; name: strin
             run.
           </p>
         )}
+        {/*
+          Runnable, rather than illustrative.
+          Without an endpoint `cast` looks for a node on localhost and fails with "failed to retrieve
+          chain ID from fork endpoint" — on the one part of the page whose whole purpose is that a
+          reader does not have to take its word for anything.
+        */}
+        <p className="muted" data-testid="ens-proof-rpc">
+          Point <code>ETH_RPC_URL</code> at {CHAINS[chainId ?? 0] ?? "the chain this deployment writes to"}
+          {chainId ? ` (chain ${chainId})` : ""}, which is where these records live.
+        </p>
         <pre>
           <code>
-            {`cast call ${ens ? ens.universalResolver : "<universal-resolver>"} \\
+            {`cast call --rpc-url "$ETH_RPC_URL" ${ens ? ens.universalResolver : "<universal-resolver>"} \\
   "resolve(bytes,bytes)(bytes,address)" \\
   ${wire} \\
   $(cast calldata "text(bytes32,string)" $(cast namehash ${name}) "${key}")`}

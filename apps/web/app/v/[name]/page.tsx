@@ -113,7 +113,7 @@ export default async function VerifyPage({ params, searchParams }: Params) {
           .map((domain) => (
             <Revealed key={domain} name={decoded} domain={domain} audience={addressedTo} />
           ))}
-        <EnsProof ens={ens} name={decoded} />
+        <EnsProof ens={ens} name={decoded} chainId={config.chainId} />
       </>
     );
   } catch (e) {
