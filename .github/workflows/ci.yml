@@ -83,35 +83,6 @@ jobs:
             exit 1
           }
 
-  # Everything the e2e job does before it runs a test, as its own status.
-  #
-  # The runner turned out to have docker, so the stack not starting was not the reason. This covers
-  # the rest of the prefix — a recursive checkout, a lockfile install, the package build the suite
-  # imports, and whether compose can even read the file it brings the stack up from. Green here and
-  # red next door means the suite itself is what fails, which is the one thing worth reading a log for.
-  e2e-setup:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-      - name: the submodule the deploy container compiles against
-        run: test -f packages/contracts/lib/forge-std/src/Test.sol || (echo "::error::forge-std is not checked out" && exit 1)
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @ketsuban/registrar build
-      - name: the stack this suite composes
-        run: docker compose -f apps/api/docker-compose.e2e.yml config --quiet
-      # The suite's first act is `compose up -d --build`, and the job next door dies at about the
-      # moment that starts. Building here says whether the images are what fails, which is the half a
-      # log would otherwise be needed for.
-      - name: the images it builds
-        run: docker compose -f apps/api/docker-compose.e2e.yml build
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 25

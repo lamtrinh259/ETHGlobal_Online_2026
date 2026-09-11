@@ -65,3 +65,12 @@ repository's runs and reports them as this one's — which is a green answer to 
 somebody else's code.
 
 A green local run and an unread red CI run is the same state as not having tested.
+
+The docker suite writes `e2e-results.xml` and the run keeps it, so which of those tests failed is
+readable without a login:
+
+```sh
+REPO=https://git.peeramid.xyz/api/v1/repos/peersky/ETHGlobal_Online_2026
+curl -s "$REPO/actions/artifacts" | jq -r '.[0].archive_download_url' | xargs curl -sLo r.zip
+unzip -p r.zip | grep -A3 "<failure"
+```
