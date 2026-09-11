@@ -32,6 +32,21 @@ describe("platform icons", () => {
     }
   });
 
+  it("draws the mail hosts people actually sign in with", () => {
+    /*
+     * A Google account is named by the domain of its own address rather than by its issuer, so a
+     * consumer one lands in `gmail.com` — which was taking the monogram meant for hosts nobody has a
+     * mark for, on the commonest account in the product.
+     */
+    for (const host of ["gmail.com", "proton.me", "icloud.com"]) {
+      const { getByTestId } = render(<PlatformIcon domain={host} />);
+      expect(
+        getByTestId(`icon-${host}`).querySelector("path")?.getAttribute("d")?.length ?? 0,
+        host
+      ).toBeGreaterThan(50);
+    }
+  });
+
   it("falls back to a monogram for a mail host nobody has a brand for", () => {
     // Any domain can be attested, so most of them will never have an icon; a broken image is worse.
     render(<PlatformIcon domain="peeramid.xyz" />);

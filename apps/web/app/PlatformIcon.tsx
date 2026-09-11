@@ -3,9 +3,12 @@ import {
   siDiscord,
   siFarcaster,
   siGithub,
+  siGmail,
   siGoogle,
+  siIcloud,
   siInstagram,
   siLine,
+  siProtonmail,
   siSpotify,
   siTelegram,
   siTiktok,
@@ -46,6 +49,18 @@ const BRANDS: Record<string, { title: string; hex: string; path: string }> = {
   "line.me": siLine,
   farcaster: siFarcaster,
   "farcaster.xyz": siFarcaster,
+  /*
+   * Mail hosts, which are accounts here like any other.
+   * A deployment mounts one the first time somebody attests an address there, and a Google account is
+   * named by the domain of its own address rather than by its issuer — so `gmail.com` is the domain a
+   * consumer Google account actually lands in, and it was taking the monogram meant for hosts nobody
+   * has a mark for.
+   */
+  "gmail.com": siGmail,
+  "proton.me": siProtonmail,
+  "protonmail.com": siProtonmail,
+  "icloud.com": siIcloud,
+  "me.com": siIcloud,
   // LinkedIn is not in simple-icons — the set drops brands on trademark request — so it takes the
   // monogram, which is what that fallback is for.
 };
