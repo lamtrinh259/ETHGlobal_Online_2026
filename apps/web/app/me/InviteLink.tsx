@@ -147,6 +147,13 @@ export function InviteLink({
                     {i.requires.length ? `asks for ${i.requires.join(", ")}` : "asks for nothing"} · until{" "}
                     {fmtUtc(i.expiresAt)}
                   </small>
+                  {/* Signed, so it cannot be repaired — but it can be stopped from being sent again. */}
+                  {i.requires.some((r) => whyUnsatisfiable(r, config.parentNames)) && (
+                    <small className="warning" data-testid={`invite-dead-${i.code}`}>
+                      Nobody can satisfy this one: a reference written from it is published, and marked
+                      unsolicited whatever the writer links. Make a new link instead of sending this.
+                    </small>
+                  )}
                 </span>
                 <span className="acct-state">
                   <CopyButton text={url} label="Copy link" />

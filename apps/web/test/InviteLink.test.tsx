@@ -16,7 +16,12 @@ vi.mock("@privy-io/react-auth", () => ({
   }),
 }));
 vi.mock("@/app/providers", () => ({
-  useWebConfig: () => ({ chainId: 11155111, multipass: WALLET, apiUrl: "http://api.test" }),
+  useWebConfig: () => ({
+    chainId: 11155111,
+    multipass: WALLET,
+    apiUrl: "http://api.test",
+    parentNames: ["ketsuban.eth"],
+  }),
 }));
 
 let existing: { code: string; requires: string[]; expiresAt: string }[] = [];
@@ -121,6 +126,19 @@ describe("inviting someone to refer you", () => {
     fireEvent.click(screen.getByTestId("make-invite"));
     await waitFor(() => expect(screen.getByRole("alert").textContent).toMatch(/username, not a domain/));
     expect(signed, "an impossible invitation was signed anyway").toHaveLength(0);
+  });
+
+  it("marks a link already signed that nobody can satisfy, rather than offering it again", async () => {
+    // Two of these were sent for real before the field was checked; the copy buttons are still here.
+    existing = [
+      { code: "8b4a1837", requires: ["github.com", "lamtrinh259"], expiresAt: "2027-01-01T00:00:00.000Z" },
+      { code: "7e7944ba", requires: ["x.com"], expiresAt: "2027-01-01T00:00:00.000Z" },
+    ];
+    render(<InviteLink api={api} handle="alice" />);
+    await waitFor(() => expect(screen.getByTestId("invite-8b4a1837")).toBeTruthy());
+    expect(screen.getByTestId("invite-dead-8b4a1837").textContent).toMatch(/Nobody can satisfy this one/);
+    expect(screen.queryByTestId("invite-dead-7e7944ba")).toBeNull();
+    existing = [];
   });
 
   it("asks for nothing by default, which is the common case", async () => {
