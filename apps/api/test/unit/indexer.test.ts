@@ -109,6 +109,9 @@ describe("Indexer", () => {
     ]);
     const indexer = new Indexer(source, MULTIPASS, 50n);
     expect(await indexer.tick()).toBe(5);
+    // One query per event type, each covering the whole span in one go. The count is asserted because
+    // `every` is true of no queries at all: without it this passes for an indexer that reads nothing.
+    expect(calls).toHaveLength(3);
     expect(calls.every((c) => c.fromBlock === 50n && c.toBlock === 500n)).toBe(true);
 
     const kju = indexer.recordsByDomain("kju-is");
