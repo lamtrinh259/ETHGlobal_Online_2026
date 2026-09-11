@@ -1,6 +1,6 @@
 # Ketsuban
 
-[![ci](https://github.com/lamtrinh259/ETHGlobal_Online_2026/actions/workflows/ci.yml/badge.svg)](https://github.com/lamtrinh259/ETHGlobal_Online_2026/actions/workflows/ci.yml)
+[CI](https://git.peeramid.xyz/peersky/ETHGlobal_Online_2026/actions) runs on Forgejo at `git.peeramid.xyz`, which is the `origin` remote.
 
 Non-deletable, human-verified references. A reference is a Multipass record whose registrar signature is produced
 by the Chainlink CRE `attest` workflow from a Privy identity token and a wallet-signed intent — inside the enclave

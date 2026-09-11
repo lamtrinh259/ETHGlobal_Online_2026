@@ -52,5 +52,16 @@ changes in one day passed it and broke on push — a form that moved behind a di
 still typed into, and a fixture that kept hashing a signal the way the server had stopped hashing it.
 Neither unit suite could have known, because each shares its fixtures with the code it checks.
 
-Then read the run: `gh run list --limit 1`. A green local run and an unread red CI run is the same
-state as not having tested.
+Then read the run. CI is **Forgejo**, at `git.peeramid.xyz`, which is the `origin` remote:
+
+```sh
+SHA=$(git rev-parse HEAD)
+REPO=https://git.peeramid.xyz/api/v1/repos/peersky/ETHGlobal_Online_2026
+curl -s "$REPO/commits/$SHA/statuses" | jq -r '.[] | "\(.context) \(.status) — \(.description)"'
+```
+
+Not `gh`. The `github` remote is a fork nobody here pushes to, so `gh run list` reads a different
+repository's runs and reports them as this one's — which is a green answer to a question about
+somebody else's code.
+
+A green local run and an unread red CI run is the same state as not having tested.
