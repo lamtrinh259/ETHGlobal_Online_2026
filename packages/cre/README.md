@@ -122,8 +122,17 @@ immutable and set to Sepolia's **production** forwarder:
 | `MockKeystoneForwarder` (what `--broadcast` calls through) | `0x15fC6ae953E024d975e77382eEeC56A9101f9F88` |
 | Reporter deployed today | `0x4888d736a196c49CAf404FD626eB9CBbf175b140` (production forwarder) |
 
-So a broadcast write reverts `UnauthorizedForwarder`. The reporter holds no privileges and nothing
-points at it, so a second one costs nothing but gas:
+Check it rather than take it on trust — this needs no key and spends nothing:
+
+```bash
+R=0x4888d736a196c49CAf404FD626eB9CBbf175b140
+cast call $R "onReport(bytes,bytes)" 0x 0x --from 0x15fC6ae953E024d975e77382eEeC56A9101f9F88 --rpc-url $RPC
+# -> execution reverted: UnauthorizedForwarder(0x15fC6ae9…)   the mock is refused by name
+cast call $R "onReport(bytes,bytes)" 0x 0x --from 0xF8344CFd5c43616a4366C34E3EEE75af79a74482 --rpc-url $RPC
+# -> reverted while decoding an empty report, which is the guard already passed
+```
+
+The reporter holds no privileges and nothing points at it, so a second one costs nothing but gas:
 
 ```bash
 cd packages/contracts
