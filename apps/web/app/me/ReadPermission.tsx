@@ -21,6 +21,7 @@ import { useDisclosures, useNameStatus, useRevoke, useVerification } from "@/lib
 import { isDnsName, mountPath, PUBLIC_GROUPINGS } from "@ketsuban/registrar";
 import { loadViewCodes } from "@/lib/keys";
 import { short } from "@/app/ui";
+import { HANDLE_RE } from "@ketsuban/registrar";
 
 type Props = { api: Api; links: WalletDashboard["links"]; name: string };
 
@@ -104,7 +105,7 @@ export function ReadPermission({ api, links, name }: Props) {
   const pendingName = useMemo(() => {
     if (scope !== "person" || audience || isAddress(typed)) return "";
     if (fullName) return resolved.isFetching ? "" : fullName;
-    if (!root || !/^[a-z0-9-]{1,31}$/.test(handle)) return "";
+    if (!root || !HANDLE_RE.test(handle)) return "";
     return lookup.isFetching ? "" : `${handle}.${root.parentName}`;
   }, [scope, audience, typed, fullName, resolved.isFetching, root, handle, lookup.isFetching]);
   /**

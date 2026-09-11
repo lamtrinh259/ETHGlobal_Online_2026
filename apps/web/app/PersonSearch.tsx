@@ -7,6 +7,7 @@ import Link from "next/link";
 import { CopyButton } from "@/app/CopyButton";
 import { useContracts, useFind, useWho } from "@/lib/hooks";
 import { ADDRESS_RE } from "@/lib/profile";
+import { HANDLE_RE } from "@ketsuban/registrar";
 
 const refs = (s: { received: number }) => `${s.received} reference${s.received === 1 ? "" : "s"} received`;
 
@@ -94,7 +95,7 @@ export function PersonSearch({
   // A wallet address is the other thing a verifier arrives holding — from a transaction, a signature
   // or a CV. It is the same question, so it is the same field.
   const address = ADDRESS_RE.test(query.trim()) ? query.trim() : undefined;
-  const exact = /^[a-z0-9-]{1,31}$/.test(clean);
+  const exact = HANDLE_RE.test(clean);
   const matches = found.data?.matches ?? [];
   const named = matches.some((m) => m.handle === clean);
 

@@ -35,7 +35,14 @@ import { verifyEs256Jwt } from "./jwt.js";
 import type { AttestEnv, AttestRequest, AttestResult, OnchainState, RegistrarSecrets } from "./types.js";
 
 const DAY = 24 * 60 * 60;
-const HANDLE_RE = /^[a-z0-9-]{1,31}$/;
+/**
+ * What a person's handle may be here.
+ *
+ * A Multipass name is a left-aligned bytes32, so 31 bytes is the whole of it. Exported because every
+ * caller had written this out again: seven copies in the app, two in the attester, and one of those
+ * said 30 — which let somebody claim a 31-character name that no reference could then be written for.
+ */
+export const HANDLE_RE = /^[a-z0-9-]{1,31}$/;
 
 export { DEFAULT_NAME_DOMAIN_PREFIXES };
 

@@ -7,6 +7,7 @@ import {
   platformOf,
   PLATFORM_DNS_NAMES,
 } from "../src/accounts.js";
+import { HANDLE_RE } from "../src/attest.js";
 
 describe("a platform is a DNS name", () => {
   it("names the service rather than a bare word", () => {
@@ -115,5 +116,27 @@ describe("a Google account is named by the address it is", () => {
   it("takes the local part as the label, as an address always does", () => {
     expect(labelFor("google", { username: "someone@gmail.com" })).toBe("someone");
     expect(labelFor("google", { username: "tim@peeramid.xyz" })).toBe("tim");
+  });
+});
+
+/**
+ * One rule for what a handle may be.
+ *
+ * Every caller had written it out again — seven copies in the app, two in the attester — and one of
+ * those said 30 rather than 31. A person holding a 31-character name could claim it and then have no
+ * reference written for them: the instance those live in was refused before it was ever created.
+ */
+describe("what a handle may be", () => {
+  it("takes a name as long as a left-aligned bytes32 holds", () => {
+    expect(HANDLE_RE.test("a".repeat(31))).toBe(true);
+    expect(HANDLE_RE.test("a".repeat(32))).toBe(false);
+    expect(HANDLE_RE.test("")).toBe(false);
+  });
+
+  it("takes what a label may contain, and nothing else", () => {
+    expect(HANDLE_RE.test("test-account-123456")).toBe(true);
+    expect(HANDLE_RE.test("Not Valid")).toBe(false);
+    expect(HANDLE_RE.test("under_score")).toBe(false);
+    expect(HANDLE_RE.test("dot.ted")).toBe(false);
   });
 });

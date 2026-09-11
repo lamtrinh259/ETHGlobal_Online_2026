@@ -6,6 +6,7 @@ import { Modal } from "@/app/Modal";
 import { PlatformPicker } from "@/app/PlatformPicker";
 import type { Ask } from "@/lib/asks";
 import { useFind, useWho } from "@/lib/hooks";
+import { HANDLE_RE } from "@ketsuban/registrar";
 
 const label = (s: { received: number }) => `${s.received} reference${s.received === 1 ? "" : "s"} received`;
 
@@ -33,7 +34,7 @@ export function ReferSomeone({ api, onGo }: { api: Api; onGo: (handle: string, a
   const clean = query.trim().toLowerCase().replace(/^@/, "");
   /** Opening with an ask in hand keeps the choice: nobody should be asked the same thing twice. */
   const open = (ask?: Ask) => setPicking({ ask });
-  const canStart = /^[a-z0-9-]{1,31}$/.test(clean);
+  const canStart = HANDLE_RE.test(clean);
 
   return (
     <div data-testid="refer-someone">

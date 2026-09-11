@@ -14,6 +14,7 @@ import {
   type Signer,
 } from "./chain";
 import type { WebConfig } from "./config";
+import { HANDLE_RE } from "@ketsuban/registrar";
 
 /** One client per config; the hooks below are the only place components touch the API. */
 export function apiFor(config: WebConfig): Api {
@@ -44,7 +45,7 @@ export function useNameStatus(api: Api, domain: string, handle: string, enabled 
   return useQuery({
     queryKey: ["name", domain, handle],
     queryFn: () => api.nameStatus(domain, handle),
-    enabled: enabled && !!domain && /^[a-z0-9-]{1,31}$/.test(handle),
+    enabled: enabled && !!domain && HANDLE_RE.test(handle),
     staleTime: 10_000,
   });
 }

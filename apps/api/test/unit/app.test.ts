@@ -2136,6 +2136,22 @@ describe("the two ways a signed record is delivered", () => {
 });
 
 describe("POST /v1/provision", () => {
+  it("provisions for a handle as long as a name can actually be", async () => {
+    /*
+     * A Multipass name is a left-aligned bytes32, so 31 bytes is the limit, and that is what every
+     * other check in this product uses. This one said 30 — so somebody holding a 31-character name
+     * could claim it, and then nobody could write a reference for them: the vouch instance that
+     * references live in was refused before it was ever created, silently, by a workflow.
+     */
+    const handle = "a".repeat(31);
+    const { chain } = fakeChain({
+      names: { [`kju-is/${handle}`]: { taken: true, wallet: user.account.address, live: true } },
+    });
+    const made = await post(app(chain), "/v1/provision", { handle });
+    expect(made.status).toBe(200);
+    expect((await made.json()).domain).toBe(`~${handle}`);
+  });
+
   it("provisions the vouch instance for a live handle, is idempotent, and refuses the rest", async () => {
     const { chain, state } = fakeChain({
       names: { "kju-is/alice": { taken: true, wallet: user.account.address, live: true } },

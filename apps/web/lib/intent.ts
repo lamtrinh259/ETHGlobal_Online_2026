@@ -11,7 +11,8 @@ import {
 } from "@ketsuban/registrar";
 import { toBytes32 } from "@peeramid-labs/multipass-client";
 
-export const HANDLE_RE = /^[a-z0-9-]{1,31}$/;
+import { HANDLE_RE } from "@ketsuban/registrar";
+export { HANDLE_RE };
 
 export type IntentInput = {
   wallet: Address;

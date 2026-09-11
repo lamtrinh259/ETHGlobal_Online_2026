@@ -246,7 +246,9 @@ export function shareSnippet(handle: string, siteUrl: string, rootParent: string
   return `Verify me at Ketsuban: ${siteUrl.replace(/\/$/, "")}/p/${handle} — on-chain name ${handle}.${rootParent}`;
 }
 
-export const HANDLE_RE = /^[a-z0-9-]{1,31}$/;
+// The attester and the chain decide what a handle may be; this app does not get its own rule.
+import { HANDLE_RE } from "@ketsuban/registrar";
+export { HANDLE_RE };
 
 /** Verifier policy from a query string; `preset` wins, otherwise defaults require every subject answered. */
 /** Every parameter a policy is carried in, so a page can tell a bar somebody set from the default. */

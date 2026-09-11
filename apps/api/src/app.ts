@@ -43,7 +43,7 @@ import {
   type OnchainState,
 } from "@ketsuban/registrar";
 import { decodeRecord, fromBytes32, isOptedIn, maskName, toBytes32 } from "@peeramid-labs/multipass-client";
-import { explainName, isDnsName, platformOf, storable } from "@ketsuban/registrar";
+import { explainName, HANDLE_RE, isDnsName, platformOf, storable } from "@ketsuban/registrar";
 import type { ChainReader, Instance } from "./chain.js";
 import { explainRevert } from "./errors.js";
 import type { Config } from "./config.js";
@@ -1365,7 +1365,7 @@ export function createApp({
     const body = z
       .object({
         wallet: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
-        label: z.string().regex(/^[a-z0-9-]{1,31}$/),
+        label: z.string().regex(HANDLE_RE),
       })
       .safeParse(await c.req.json().catch(() => null));
     if (!body.success) return c.json({ error: "wallet and label required" }, 400);
@@ -1528,7 +1528,8 @@ export function createApp({
    */
   app.post("/v1/provision", async (c) => {
     const body = z
-      .object({ handle: z.string().regex(/^[a-z0-9-]{1,30}$/) })
+      // 31, as everywhere else: a name is a left-aligned bytes32 and that is the whole of it.
+      .object({ handle: z.string().regex(HANDLE_RE) })
       .safeParse(await c.req.json().catch(() => null));
     if (!body.success) return c.json({ error: "handle required" }, 400);
     const handle = body.data.handle;
