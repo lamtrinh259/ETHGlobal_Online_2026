@@ -22,8 +22,28 @@ pnpm -w lint
 step "typecheck"
 pnpm -w typecheck
 
-# One at a time, as CI does: a recursive run that hangs says nothing about which package hung.
-for pkg in @ketsuban/registrar @ketsuban/contracts @ketsuban/cre-attest @ketsuban/api @ketsuban/web; do
+# One at a time, as CI does: a recursive run that hangs says nothing about which package hung. The
+# list is read from the workspace rather than written here, so a package whose tests are new cannot be
+# one this script silently skips.
+PACKAGES=$(node -e '
+  const { readFileSync, existsSync } = require("node:fs");
+  const globs = ["apps", "packages"];
+  const out = [];
+  for (const dir of globs)
+    for (const entry of require("node:fs").readdirSync(dir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      for (const p of [`${dir}/${entry.name}/package.json`, ...require("node:fs")
+        .readdirSync(`${dir}/${entry.name}`, { withFileTypes: true })
+        .filter((e) => e.isDirectory())
+        .map((e) => `${dir}/${entry.name}/${e.name}/package.json`)])
+        if (existsSync(p)) {
+          const pkg = JSON.parse(readFileSync(p, "utf8"));
+          if (pkg.scripts?.test) out.push(pkg.name);
+        }
+    }
+  console.log([...new Set(out)].join(" "));
+')
+for pkg in $PACKAGES; do
   step "$pkg"
   pnpm --filter "$pkg" test
 done
