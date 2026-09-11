@@ -1066,7 +1066,12 @@ details.advanced[open] > summary {
 /* The profile as a page: a picture you change in place, then the name and the line under it. */
 .me-head {
   display: flex;
-  align-items: center;
+  /*
+   * Beside the name, not beside the middle of whatever is written under it.
+   * Centred, a 72px avatar floated halfway down a ten-line description on a phone, level with nothing
+   * — and the name it belongs to was at the top of the column next to it.
+   */
+  align-items: flex-start;
   gap: var(--sp-md);
   margin: var(--sp-sm) 0 var(--sp-md);
 }

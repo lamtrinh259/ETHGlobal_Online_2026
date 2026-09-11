@@ -68,8 +68,9 @@ describe("a subject page reads as a profile", () => {
     expect(screen.getByTestId("head-avatar")).toHaveAttribute("src", "https://example.test/kju.png");
     expect(card).toHaveTextContent("kju-is.ketsuban.eth");
     expect(screen.getByTestId("head-url")).toBeInTheDocument();
-    // The answers are still there, under their own heading rather than as the page's subject.
-    expect(card).toHaveTextContent("Answers");
+    // The answers are still there, under the question rather than as the page's subject.
+    expect(card).toHaveTextContent("What do you think of Kim Jong Un?");
+    expect(card).toHaveTextContent("terrible dictator");
   });
 });
 
@@ -162,5 +163,23 @@ describe("answering it yourself", () => {
     );
     expect(screen.getByTestId("answer-cta")).toBeInTheDocument();
     expect(screen.getByTestId("answer-alice")).toHaveTextContent("a terrible dictator");
+  });
+});
+
+/**
+ * A page collecting answers has to say what was asked.
+ *
+ * The card that leads here says it, and the answers are only worth anything against it — a reader
+ * arriving by a shared link was shown a name, a description and a list of quotes, with no question.
+ */
+describe("what this page is asking", () => {
+  it("puts the question above the answers to it", () => {
+    render(<InstanceAnswers data={data} />);
+    expect(screen.getByTestId("the-question")).toHaveTextContent("What do you think of Kim Jong Un?");
+  });
+
+  it("asks it before anybody has answered", () => {
+    render(<InstanceAnswers data={{ ...data, answers: [] }} />);
+    expect(screen.getByTestId("the-question")).toBeInTheDocument();
   });
 });

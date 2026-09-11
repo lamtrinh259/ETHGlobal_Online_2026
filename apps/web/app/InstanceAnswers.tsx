@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { questionTitle } from "@/lib/questions";
 import { ProfileHead } from "./ProfileHead";
 import { fmtUtc } from "./ui";
 
@@ -47,7 +48,12 @@ export function InstanceAnswers({
       />
       {!about.description && <p className="muted">Nobody has said who this is about yet.</p>}
 
-      <h3>Answers</h3>
+      {/*
+        The question this page collects answers to, which it never said.
+        The card that leads here says it, and the answers are only worth reading against it — a reader
+        arriving from a link was shown a name, a description and a list of quotes with nothing asked.
+      */}
+      <h3 data-testid="the-question">{questionTitle(data.domain)}</h3>
       {/* The page exists to be answered, and had no way to. A reader who has just decided what they
           think is the one person most likely to say it, and they were shown the door out. */}
       <p className="row" data-testid="answer-cta">
