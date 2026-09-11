@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { missingRequirements } from "@/lib/invite";
+import { missingRequirements, whyUnsatisfiable } from "@/lib/invite";
 import { useMemo, useState } from "react";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import type { Address } from "viem";
@@ -89,6 +89,11 @@ export function VouchFlow({
    */
   const attestedNow = (dash.data?.links ?? []).filter((l) => l.live).map((l) => l.domain.toLowerCase());
   const missing = missingRequirements(invite?.requires ?? [], attestedNow, config.parentNames);
+  // Said in the preview too: somebody deciding whether to start should not be told to go and link
+  // something nobody can hold, and the detailed view only corrects that once they have signed in.
+  const impossibleAsk = (invite?.requires ?? [])
+    .map((d) => whyUnsatisfiable(d, config.parentNames))
+    .find(Boolean);
   const unmetAsked = missing.length
     ? `${candidate} asked for a reference from someone who has attested ${missing.join(" and ")}. ` +
       `Link ${missing.length > 1 ? "them" : "it"} on your profile and come back — a masked account counts, ` +
@@ -151,10 +156,12 @@ export function VouchFlow({
         count. Whether they hold them is a question only their wallet can answer, so that part waits.
       */}
       {(invite?.requires.length ?? 0) > 0 && stage === "signin" && (
-        <p className="muted" data-testid="invite-preview">
+        <p className={impossibleAsk ? "warning" : "muted"} data-testid="invite-preview">
           {candidate} asked for a reference from someone who has attested{" "}
-          <strong>{invite?.requires.join(" and ")}</strong>. A masked account counts, so this need not say
-          which account it is.
+          <strong>{invite?.requires.join(" and ")}</strong>.{" "}
+          {impossibleAsk
+            ? `${impossibleAsk} Write the reference if you mean to — it is published either way — but it cannot count as one ${candidate} asked for, so ask them for a new link.`
+            : "A masked account counts, so this need not say which account it is."}
         </p>
       )}
 

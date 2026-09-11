@@ -56,6 +56,20 @@ describe("the ask, read from the link", () => {
     expect(said).toMatch(/masked account counts/);
   });
 
+  it("does not send somebody off to link a username before they have even started", () => {
+    /*
+     * The real link `?invite=8b4a1837` asks for `github.com, lamtrinh259`. Read as a plain ask it
+     * reads like two accounts to go and connect, and the writer would find out only after signing in
+     * that one of them is not a thing anybody can hold.
+     */
+    const dead = { ...(invite as object), requires: ["github.com", "lamtrinh259"] } as never;
+    render(<VouchFlow candidate="peersky" invite={dead} />);
+    const said = screen.getByTestId("invite-preview").textContent ?? "";
+    expect(said).toMatch(/username, not a domain/);
+    expect(said).toMatch(/published either way/);
+    expect(said).not.toMatch(/masked account counts/);
+  });
+
   it("says nothing when the link asks for nothing", () => {
     render(<VouchFlow candidate="peersky" />);
     expect(screen.queryByTestId("invite-preview")).toBeNull();
