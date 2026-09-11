@@ -1793,19 +1793,28 @@ export function createApp({
     d.startsWith(config.VOUCH_PREFIX) && d.length > config.VOUCH_PREFIX.length;
 
   /** A handle's standing in the reference graph: live references given by its wallet and received under it. */
-  async function standing(handle: string): Promise<{ claimed: boolean; given: number; received: number }> {
+  /**
+   * What a handle holds here.
+   *
+   * `taken` is not `claimed`: a name held once and let lapse is a different thing from one nobody has
+   * ever registered, and the chain says which. Collapsed into one, a person whose record ran out read
+   * as somebody who had never been here, on a page carrying the references written for them.
+   */
+  async function standing(
+    handle: string
+  ): Promise<{ claimed: boolean; taken: boolean; given: number; received: number }> {
     const rootDomain = config.NAME_DOMAINS[0] ?? "";
     const status = await chain.nameStatus(rootDomain, handle);
     const received = new Set(
       (await chain.listRecords(`${config.VOUCH_PREFIX}${handle}`)).filter((r) => r.live).map((r) => r.name)
     ).size;
-    if (!status.live || !status.wallet) return { claimed: false, given: 0, received };
+    if (!status.live || !status.wallet) return { claimed: false, taken: status.taken, given: 0, received };
     const given = new Set(
       (await chain.listRecordsByWallet(status.wallet))
         .filter((r) => r.live && isVouchDomain(r.domain))
         .map((r) => r.domain)
     ).size;
-    return { claimed: true, given, received };
+    return { claimed: true, taken: true, given, received };
   }
 
   app.get("/v1/standing/:handle", async (c) => {

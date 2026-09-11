@@ -65,7 +65,7 @@ const vouches = (handle) => ({
       live: true,
       solicited: false,
       invite: null,
-      standing: { claimed: true, given: 2, received: 1 },
+      standing: { claimed: true, taken: true, given: 2, received: 1 },
       letter: "We worked together for three years on the same team.",
     },
   ],
@@ -247,7 +247,7 @@ export const routes = [
       const handle = (p.get("handle") ?? "").replace(/^@/, "").toLowerCase();
       const domain = p.get("domain") ?? "";
       return handle === "alice"
-        ? { found: true, domain, handle, candidate: "alice", standing: { claimed: true, given: 0, received: 2 } }
+        ? { found: true, domain, handle, candidate: "alice", standing: { claimed: true, taken: true, given: 0, received: 2 } }
         : { found: false, domain, handle };
     },
   ],
@@ -276,7 +276,7 @@ export const routes = [
           handle,
           names: [],
           vouches: [],
-          standing: { claimed: false, given: 0, received: 0 },
+          standing: { claimed: false, taken: false, given: 0, received: 0 },
           // Required, and omitted here until a page stopped turning a failed read into an empty one.
           warning: verification("x").warning,
         };
@@ -284,7 +284,7 @@ export const routes = [
         handle,
         names: [{ instance: "ketsuban", name: `${handle}.${ROOT}`, verification: verification(`${handle}.${ROOT}`) }],
         vouches: vouches(handle).vouches,
-        standing: { claimed: true, given: 1, received: 1 },
+        standing: { claimed: true, taken: true, given: 1, received: 1 },
         warning: verification("x").warning,
       };
     },

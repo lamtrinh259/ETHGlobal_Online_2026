@@ -12,11 +12,20 @@ export function ProfileCard({
   p,
   rootParent,
   policy,
+  heldOnce = false,
 }: {
   p: Profile;
   rootParent: string;
   /** The bar the reader asked for; absent means nobody asked, so nothing is graded */
   policy?: Policy;
+  /**
+   * Whether anybody has ever held this name.
+   *
+   * A record that ran out and a name nobody registered both resolve to nothing, and read as the same
+   * "unclaimed" — so somebody whose name lapsed was shown, on the page carrying the references written
+   * for them, as a person who had never been here.
+   */
+  heldOnce?: boolean;
 }) {
   /** Nobody holds it and nobody has written about it: there is nothing here to pass judgement on. */
   const blank = !p.identity && p.vouches.length === 0;
@@ -50,6 +59,8 @@ export function ProfileCard({
                   {short(p.wallet)}
                 </Link>
               </>
+            ) : heldOnce ? (
+              <span data-testid="lapsed">this name has lapsed — it can be claimed again</span>
             ) : (
               "unclaimed"
             )}
@@ -75,9 +86,10 @@ export function ProfileCard({
       */}
       {blank ? (
         <p data-testid="blank-page">
-          Nobody holds this name and nobody has written about it yet. References written here are real and
-          permanent, and none of them can be tied to a real account until whoever this is about{" "}
-          <Link href="/me">claims the name</Link> — until then it is a page about a name.
+          {heldOnce ? "Nobody holds this name now" : "Nobody holds this name"} and nobody has written about it
+          yet. References written here are real and permanent, and none of them can be tied to a real account
+          until whoever this is about <Link href="/me">claims the name</Link> — until then it is a page about
+          a name.
         </p>
       ) : (
         policy && (

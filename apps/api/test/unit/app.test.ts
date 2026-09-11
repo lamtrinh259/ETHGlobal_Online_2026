@@ -987,7 +987,7 @@ describe("GET /v1/vouches/:handle", () => {
           solicited: false,
           invite: null,
           letterHash: null,
-          standing: { claimed: true, given: 2, received: 2 },
+          standing: { claimed: true, taken: true, given: 2, received: 2 },
           letter: "Bob managed the platform team at Acme while Alice led infra.",
         },
         {
@@ -2301,7 +2301,7 @@ describe("GET /v1/profile/:handle", () => {
     expect(body.names[0].verification.status).toBe("active");
     expect(body.vouches).toHaveLength(1);
     expect(body.vouches[0]).toMatchObject({ voucher: "bob", statement: "worked together", live: true });
-    expect(body.standing).toEqual({ claimed: true, given: 0, received: 1 });
+    expect(body.standing).toEqual({ claimed: true, taken: true, given: 0, received: 1 });
     // Facts only: the API never grades a person.
     expect(body.score).toBeUndefined();
     expect(body.complete).toBeUndefined();
@@ -2840,6 +2840,8 @@ describe("GET /v1/standing/:handle", () => {
     expect(await (await app(chain).request("/v1/standing/alice")).json()).toEqual({
       handle: "alice",
       claimed: false,
+      // Never registered, which is not the same as registered once and let lapse.
+      taken: false,
       given: 0,
       received: 1,
       warning: WARNING,
@@ -2847,6 +2849,7 @@ describe("GET /v1/standing/:handle", () => {
     expect(await (await app(chain).request("/v1/standing/BOB")).json()).toEqual({
       handle: "bob",
       claimed: true,
+      taken: true,
       given: 1,
       received: 0,
       warning: WARNING,

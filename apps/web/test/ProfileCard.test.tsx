@@ -401,3 +401,31 @@ describe("what a person has said, by kind", () => {
     expect(screen.getByTestId("references")).toHaveTextContent("worked with them for years");
   });
 });
+
+/**
+ * A name that ran out is not a name nobody ever held.
+ *
+ * Both resolve to nothing, so both read as "unclaimed" — and somebody whose record lapsed was shown,
+ * on the page carrying the references written for them, as a person who had never been here.
+ */
+describe("a name that lapsed", () => {
+  const gone = { ...profile, identity: undefined, wallet: null };
+
+  it("says it can be claimed again, where somebody held it", () => {
+    render(<ProfileCard p={gone} rootParent="ketsuban.eth" heldOnce />);
+    expect(screen.getByTestId("lapsed")).toHaveTextContent("lapsed");
+    expect(screen.queryByText("unclaimed")).toBeNull();
+  });
+
+  it("still says unclaimed where nobody ever did", () => {
+    render(<ProfileCard p={gone} rootParent="ketsuban.eth" />);
+    expect(screen.getByText("unclaimed")).toBeInTheDocument();
+    expect(screen.queryByTestId("lapsed")).toBeNull();
+  });
+
+  it("does not tell a reader nobody holds a name that was held", () => {
+    const blank = { ...gone, answers: [], links: [], vouches: [] };
+    render(<ProfileCard p={blank} rootParent="ketsuban.eth" heldOnce />);
+    expect(screen.getByTestId("blank-page")).toHaveTextContent("Nobody holds this name now");
+  });
+});

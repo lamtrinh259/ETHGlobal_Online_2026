@@ -134,7 +134,12 @@ export default async function ProfilePage({ params, searchParams }: Params) {
 
   return (
     <>
-      <ProfileCard p={profile} rootParent={root.parentName} policy={asked ? policy : undefined} />
+      <ProfileCard
+        p={profile}
+        rootParent={root.parentName}
+        policy={asked ? policy : undefined}
+        heldOnce={read?.standing.taken ?? false}
+      />
 
       {/* Where a reader asks for a verdict, and the only place one comes from. */}
       <PolicyBar handle={handle} subjectDomains={subjectDomains} applied={asked ? policy : undefined} />

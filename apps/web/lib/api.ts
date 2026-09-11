@@ -204,7 +204,12 @@ export const profileSchema = z.object({
   handle: z.string(),
   names: z.array(z.object({ instance: z.string(), name: z.string(), verification: verifySchema.nullable() })),
   vouches: vouchesSchema.shape.vouches,
-  standing: z.object({ claimed: z.boolean(), given: z.number(), received: z.number() }),
+  standing: z.object({
+    claimed: z.boolean(),
+    taken: z.boolean().default(false),
+    given: z.number(),
+    received: z.number(),
+  }),
   warning: z.string(),
 });
 export type ProfileRead = z.infer<typeof profileSchema>;
@@ -213,6 +218,8 @@ export const enclaveKeySchema = z.object({ address: address, publicKey: hex });
 /** How many references a person holds, which is the one fact a link to them should carry. */
 export const standingSchema = z.object({
   claimed: z.boolean(),
+  /** Held once, whether or not it is held now: a lapsed name is not a name nobody has ever had. */
+  taken: z.boolean().default(false),
   given: z.number(),
   received: z.number(),
 });
