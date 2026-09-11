@@ -45,7 +45,7 @@ import { explainName, isDnsName, platformOf, storable } from "@ketsuban/registra
 import type { ChainReader, Instance } from "./chain.js";
 import { explainRevert } from "./errors.js";
 import type { Config } from "./config.js";
-import { PersistentMap, PersistentSet } from "./store.js";
+import { PersistentMap, PersistentSet, VOLATILE_WITHOUT_DATA_DIR } from "./store.js";
 import { commitFromEnv } from "./commit.js";
 import { signRequest, verifyHumanProof, worldFrom, type Fetch } from "./world.js";
 
@@ -499,14 +499,7 @@ export function createApp({
       const index = chain.indexStatus();
       const warnings = [
         ...p.warnings,
-        ...(store.durable
-          ? []
-          : [
-              // Whoever reads this is deciding whether to mount a volume, and a short list reads as a
-              // small risk. The letters are the sharpest of these: their hashes are on chain for good,
-              // and the text exists nowhere else.
-              "DATA_DIR is not set: reference letters, permissions, invitations, the one-human-one-account binding and gas top-ups are kept in memory and lost on restart",
-            ]),
+        ...(store.durable ? [] : [`DATA_DIR is not set: ${VOLATILE_WITHOUT_DATA_DIR}`]),
         ...(store.durable && !store.writable
           ? [`DATA_DIR cannot be written (${store.lastError}): nothing kept here survives a restart`]
           : []),

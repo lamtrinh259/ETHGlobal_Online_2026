@@ -2,7 +2,7 @@ import { serve } from "@hono/node-server";
 import { createApp } from "./app.js";
 import { Chain } from "./chain.js";
 import { startIndexer } from "./indexer.js";
-import { probeStorage } from "./store.js";
+import { probeStorage, VOLATILE_WITHOUT_DATA_DIR } from "./store.js";
 import { explainConfigError, loadConfig } from "./config.js";
 
 let config;
@@ -21,9 +21,7 @@ const index = startIndexer(chain.indexer, config.INDEX_POLL_SECONDS);
 // next restart. Ask once, at boot, before anyone has granted a permission that will not be there.
 const storage = probeStorage(config.DATA_DIR || undefined);
 if (!storage.durable) {
-  console.error(
-    "storage · DATA_DIR is not set: permissions, gas top-ups and avatars are kept in memory and lost on restart"
-  );
+  console.error(`storage · DATA_DIR is not set: ${VOLATILE_WITHOUT_DATA_DIR}`);
 } else if (!storage.writable) {
   console.error(
     `storage · DATA_DIR (${config.DATA_DIR}) cannot be written · ${storage.lastError} · nothing kept here survives a restart`

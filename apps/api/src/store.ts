@@ -83,6 +83,16 @@ export class PersistentSet {
  * choice alone — the service would claim a permission exists and then fail to open it.
  */
 /** Whether what this store holds would survive a restart, and why not when it would not. */
+/**
+ * What a deployment with no `DATA_DIR` is about to lose, in one sentence.
+ *
+ * It is said twice — once at boot, once from preflight — and an operator reads whichever they hit
+ * first, so both read it from here. The letters are the sharpest of these: a reference puts only
+ * `sha256:…` on chain, permanently, and the text exists nowhere but this directory.
+ */
+export const VOLATILE_WITHOUT_DATA_DIR =
+  "reference letters, permissions, invitations, the one-human-one-account binding and gas top-ups are kept in memory and lost on restart";
+
 export type StoreHealth = { durable: boolean; writable: boolean; lastError: string | null };
 
 /**
