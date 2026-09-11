@@ -34,6 +34,8 @@ const state = {
   reader: undefined as string | undefined,
   /** What the attester answers with when nothing opens: 404 never shared, 403 not (or no longer) yours */
   refusal: 404,
+  /** What the name would claim: a person by default, since that is what most of these pages are about */
+  claim: { says: "alice is a person's name here.", kind: "person" } as { says: string; kind: string },
 };
 
 // The reveal panel runs in the browser, because a permission addressed to one wallet only opens for it.
@@ -59,11 +61,7 @@ vi.mock("@/lib/api", async (orig) => ({
     ens: vi.fn(async () => {
       throw new Error("off");
     }),
-    explain: vi.fn(async (name: string) => ({
-      name,
-      says: "alice is a person's name here.",
-      kind: "person" as const,
-    })),
+    explain: vi.fn(async (name: string) => ({ name, ...state.claim })),
     disclosed: vi.fn(async (_name: string, _domain: string, reader?: string) => {
       // A grant addressed to one wallet opens for that wallet and no other.
       if (!state.disclosed || (state.reader && reader !== state.reader))
@@ -83,14 +81,31 @@ vi.mock("@/lib/config", () => ({
 
 const { default: VerifyPage } = await import("@/app/v/[name]/page");
 
-const renderPage = async (search: Record<string, string>) => {
+const renderPage = async (search: Record<string, string>, name = "alice.ketsuban.eth") => {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const page = await VerifyPage({
-    params: Promise.resolve({ name: "alice.ketsuban.eth" }),
+    params: Promise.resolve({ name }),
     searchParams: Promise.resolve(search),
   });
   return render(<QueryClientProvider client={qc}>{page}</QueryClientProvider>);
 };
+
+describe("/v/<name> for a name nobody can hold", () => {
+  it("says what the mount is instead of offering to refer it as a person", async () => {
+    // `x.ketsuban.eth` is where the X accounts hang. It is one label under the root, which is also a
+    // person's shape, so the page called it a person with no record and offered a button to write a
+    // reference for it — for a name the registrar will never let anybody claim.
+    state.claim = {
+      says: "x.ketsuban.eth is where this deployment mounts the accounts attested at x. It is not a name a person can hold.",
+      kind: "mount",
+    };
+    state.vouches = [];
+    await renderPage({}, "x.ketsuban.eth");
+    expect(screen.queryByText("Refer this person")).toBeNull();
+    expect(screen.getByTestId("mount-name")).toHaveTextContent("not a name a person can hold");
+    state.claim = { says: "alice is a person's name here.", kind: "person" };
+  });
+});
 
 describe("/v/<name> with an opened account", () => {
   it("shows the handle the candidate allowed", async () => {

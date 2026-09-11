@@ -58,12 +58,29 @@ export default async function VerifyPage({ params, searchParams }: Params) {
       // which is the half a verifier came here least for.
       handle && /^[a-z0-9-]{1,30}$/.test(handle) ? api.vouches(handle).catch(() => null) : null,
     ]);
+    /*
+     * A mount is not a person who happens to hold nothing.
+     *
+     * `x.<root>` is where the X accounts hang, and it sits one label under the root — the same shape as
+     * a person's name. Read as a person it becomes a record that does not exist, under a button
+     * offering to write a reference for it, for a name the registrar will never let anybody claim.
+     */
+    const isMount = claim?.kind === "mount";
     return (
       <>
         {/* An instance name is a page about a subject, not a person's record: leading with "no record"
             described the wrong thing. What it is comes first, and the answers under it follow. */}
-        {instance ? <InstanceAnswers data={instance} texts={ens?.texts} /> : <VerifyCard v={v} />}
-        {received && handle && (
+        {instance ? (
+          <InstanceAnswers data={instance} texts={ens?.texts} />
+        ) : isMount ? (
+          <section className="card" data-testid="mount-name">
+            <h2>{decoded}</h2>
+            <p className="muted">{claim?.says}</p>
+          </section>
+        ) : (
+          <VerifyCard v={v} />
+        )}
+        {received && handle && !isMount && (
           <section className="card" aria-label="references received">
             <VouchList vouches={received.vouches} handle={handle} />
             <p className="row">
@@ -76,7 +93,7 @@ export default async function VerifyPage({ params, searchParams }: Params) {
             </p>
           </section>
         )}
-        {v.status === "inactive" && !instance && claim && (
+        {v.status === "inactive" && !instance && !isMount && claim && (
           <section className="card" data-testid="would-claim">
             <h3>What this name would say</h3>
             <p className="muted">{claim.says}</p>

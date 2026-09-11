@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { Address, Hex } from "viem";
+import { NAME_KINDS } from "@ketsuban/registrar";
 
 const hex = z
   .string()
@@ -163,7 +164,7 @@ export const contractsSchema = z.object({
 export const explainSchema = z.object({
   name: z.string(),
   says: z.string(),
-  kind: z.enum(["person", "account", "private", "reference", "unknown"]),
+  kind: z.enum(NAME_KINDS),
   domain: z.string().optional(),
   label: z.string().optional(),
 });

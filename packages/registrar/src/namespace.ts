@@ -64,11 +64,17 @@ export function isNameDomain(
   return prefixes.some((p) => domain.length > p.length && domain.startsWith(p));
 }
 
+/**
+ * Every kind of thing a name can be here. Exported as the list so a reader validating the relay's
+ * answer spells it once: a second copy is a schema that rejects a kind this function already returns.
+ */
+export const NAME_KINDS = ["person", "account", "private", "reference", "mount", "unknown"] as const;
+
 export type NameClaim = {
   /** What this name says, in a sentence */
   says: string;
   /** The part of the namespace it belongs to, when it belongs to one */
-  kind: "person" | "account" | "private" | "reference" | "mount" | "unknown";
+  kind: (typeof NAME_KINDS)[number];
   /** The domain it lives in, for an account */
   domain?: string;
   /** The label that varies: a person's handle, an account's handle */

@@ -1,4 +1,5 @@
 export * from "./types.js";
+export { NAME_KINDS } from "./namespace.js";
 export {
   attest,
   attestConfidential,
