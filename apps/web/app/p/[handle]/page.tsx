@@ -114,8 +114,15 @@ export default async function ProfilePage({ params, searchParams }: Params) {
         .map((domain) => (
           <Revealed key={domain} name={names[0]} domain={domain} audience={q.for} />
         ))}
-      <section className="card">
-        <h3>Verify it yourself</h3>
+      {/*
+        One appendix, not three cards between the references and the bottom of the page.
+        Resolving the names and reading the JSON are the same claim said twice — that this page is a
+        formatting of records anybody can read without it — and they were sitting where a reader was
+        still deciding about a person. The third card told whoever opened the page how to alias their
+        own `.eth` name, which is the subject's business and lives on the subject's dashboard.
+      */}
+      <details className="card" data-testid="read-it-raw">
+        <summary>Read it without this app</summary>
         <p className="muted">
           Every field above is a resolver read. Any ENS client resolves the same names; the API only formats
           them.
@@ -128,19 +135,6 @@ export default async function ProfilePage({ params, searchParams }: Params) {
           ))}
         </ul>
         <p className="muted">
-          Policy:{" "}
-          {policy.requiredAnswers.length
-            ? `answers ${policy.requiredAnswers.join(", ")}`
-            : "no answers required"}
-          , ≥{policy.minLinks} linked account{policy.minLinks === 1 ? "" : "s"}, ≥{policy.minVouches} vouches
-          {policy.requireHumanity ? ", humanity attested" : ""}. Change it with{" "}
-          <code>?answers=&amp;minLinks=&amp;minVouches=&amp;humanity=1</code>.
-        </p>
-      </section>
-      <EnsProof ens={ens} name={names[0]} />
-      <section className="card">
-        <h3>For agents and ATS</h3>
-        <p className="muted">
           The same page as JSON, conservative and bounded — never authorisation to execute anything:
         </p>
         <p>
@@ -152,28 +146,13 @@ export default async function ProfilePage({ params, searchParams }: Params) {
             GET {config.apiUrl}/v1/vouches/{handle}
           </code>
         </p>
-      </section>
-      <section className="card">
-        <h3>Bring your own .eth name</h3>
-        <p className="muted">
-          Own <code>{handle}.eth</code>? Alias it so{" "}
-          <code>
-            {root.parentLabel}.{handle}.eth
-          </code>{" "}
-          resolves to this page&apos;s records: call{" "}
-          <code>
-            AttestationBridge.linkOwnName(&quot;{root.domain}&quot;, &quot;{handle}&quot;)
-          </code>{" "}
-          from the wallet that owns the name (the bridge checks ownership on the ENSv2 registry in the same
-          transaction) — or do it from <Link href="/me">your dashboard</Link>.
-        </p>
-      </section>
+      </details>
+      <EnsProof ens={ens} name={names[0]} />
       <section className="card">
         <h3>Share</h3>
         <code>{shareSnippet(handle, siteUrl, root.parentName)}</code>
         <p>
-          <CopyButton text={shareSnippet(handle, siteUrl, root.parentName)} label="Copy" />{" "}
-          <Link href={`/vouch/${handle}`}>Ask someone to vouch →</Link>
+          <CopyButton text={shareSnippet(handle, siteUrl, root.parentName)} label="Copy" />
         </p>
       </section>
     </>

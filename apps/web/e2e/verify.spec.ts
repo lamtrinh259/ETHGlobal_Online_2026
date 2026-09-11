@@ -73,3 +73,32 @@ test("a wallet page says so rather than crashing when it cannot be read", async 
   await page.goto("/w/not-an-address");
   await expect(page.locator("main [role=alert]")).toHaveText("not a wallet address");
 });
+
+/**
+ * A person's page is about that person.
+ *
+ * Below the references sat three cards of machinery: the resolver names, the JSON endpoints, and
+ * instructions for aliasing an `.eth` name — the last of which is the subject's own business, shown
+ * to every stranger who opened their page, and already a button on the subject's dashboard.
+ */
+test("the machinery below a person is one appendix, not three cards", async ({ page }) => {
+  await page.goto("/p/alice");
+
+  await expect(page.getByText("Bring your own .eth name")).toHaveCount(0);
+  // Said once. The editor above is the control; the query string it writes is not a reader's business.
+  await expect(page.getByText(/Change it with/)).toHaveCount(0);
+
+  const raw = page.getByTestId("read-it-raw");
+  await expect(raw).toBeVisible();
+  // Folded away: a reader deciding about a person meets it only if they go looking.
+  await expect(raw.locator("code").first()).toBeHidden();
+  await raw.getByText("Read it without this app").click();
+  await expect(raw).toContainText("/v1/verify/alice.ketsuban.eth");
+  await expect(raw).toContainText("/v1/vouches/alice");
+});
+
+test("the one thing to do with a person read about is offered once", async ({ page }) => {
+  await page.goto("/p/alice");
+  // It was a primary button in the references tab and a text link in the share card below it.
+  await expect(page.getByRole("link", { name: /vouch|Refer this person/i })).toHaveCount(1);
+});
