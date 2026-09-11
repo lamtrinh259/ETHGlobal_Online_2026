@@ -215,6 +215,7 @@ export function VouchFlow({
           {/* What the candidate asked of the writer, before they sign rather than after. */}
           <InviteTerms
             candidate={candidate}
+            parentNames={config.parentNames}
             requires={invite?.requires ?? []}
             attested={(dash.data?.links ?? []).filter((l) => l.live).map((l) => l.domain)}
           />

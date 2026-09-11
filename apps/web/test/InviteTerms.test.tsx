@@ -33,4 +33,26 @@ describe("what an invitation asks of the writer", () => {
     expect(screen.getByTestId("term-github.com").className).toMatch(/done/);
     expect(screen.getByTestId("term-mit.edu").className).toMatch(/todo/);
   });
+
+  it("says an impossible requirement cannot be attested, rather than listing it as a missing account", () => {
+    /*
+     * The invitation that cost a real reference asked for `github.com, lamtrinh259`. A username is not
+     * somewhere a record lives, so the invitation could not be satisfied by anybody — but the row read
+     * like one more account to go and link, and the writer had no way to know the outcome was fixed.
+     * Invitations like it can no longer be made; the ones already signed are still being followed.
+     */
+    render(
+      <InviteTerms
+        candidate="peersky"
+        requires={["github.com", "lamtrinh259"]}
+        attested={["github.com"]}
+        parentNames={["ketsuban.eth"]}
+      />
+    );
+    expect(screen.getByTestId("term-github.com").textContent).toMatch(/attested/);
+    expect(screen.getByTestId("term-lamtrinh259").textContent).toMatch(/cannot be attested/);
+    const said = screen.getByTestId("invite-impossible").textContent ?? "";
+    expect(said).toMatch(/cannot be satisfied by anyone/);
+    expect(said).toMatch(/username, not a domain/);
+  });
 });
