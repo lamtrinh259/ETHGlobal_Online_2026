@@ -14,9 +14,24 @@ import { questionTitle } from "@/lib/questions";
  */
 export function ReferencesGiven({ references }: { references: Verification["references"] }) {
   if (references.length === 0) return null;
+  /*
+   * An answer is not a reference.
+   *
+   * One is what somebody said about a question anybody may answer; the other is their name put behind
+   * a person. Counted together under "Given" beside a "Received" that counts references only, two
+   * different things were being totalled as one — so a page reading "Given (2)" beside "Received (1)"
+   * meant one reference each way and an answer besides.
+   */
+  const answers = references.filter((r) => r.kind === "answer");
+  const written = references.filter((r) => r.kind !== "answer");
   return (
     <section className="v-block">
-      <h3>References given</h3>
+      {answers.length > 0 && written.length > 0 && (
+        <p className="muted" data-testid="given-split">
+          {written.length} reference{written.length === 1 ? "" : "s"} written, and {answers.length} answer
+          {answers.length === 1 ? "" : "s"} to a question anybody may answer.
+        </p>
+      )}
       <ul className="v-refs" data-testid="references">
         {references.map((ref) => (
           <li key={ref.ensName ?? `${ref.kind}:${ref.subject}`}>

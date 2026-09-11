@@ -350,3 +350,54 @@ describe("what the candidate has said about others", () => {
     expect(screen.queryByTestId("references")).toBeNull();
   });
 });
+
+/**
+ * An answer is not a reference.
+ *
+ * "Given" sat beside "Received", which counts references only — so a page reading Given (2) beside
+ * Received (1) meant one reference each way and an answer besides, totalled as though they were the
+ * same kind of thing.
+ */
+describe("what a person has said, by kind", () => {
+  const given = [
+    {
+      kind: "answer" as const,
+      subject: "kju-is",
+      subjectName: "kju-is.ketsuban.eth",
+      statement: "a terrible dictator",
+      ensName: "alice.kju-is.ketsuban.eth",
+      validUntil: "2027-01-01T00:00:00.000Z",
+    },
+    {
+      kind: "reference" as const,
+      subject: "bob",
+      subjectName: "bob.ketsuban.eth",
+      statement: "worked with them for years",
+      ensName: "alice.bob.ketsuban.eth",
+      validUntil: "2027-01-01T00:00:00.000Z",
+    },
+  ];
+
+  const open = (references: typeof given) => {
+    render(
+      <ProfileCard
+        p={{ ...profile, identity: { profile: null, references } as never }}
+        rootParent="ketsuban.eth"
+      />
+    );
+    fireEvent.click(screen.getByTestId("tab-given"));
+  };
+
+  it("says how many of each, where it holds both", () => {
+    open(given);
+    expect(screen.getByTestId("given-split")).toHaveTextContent(
+      "1 reference written, and 1 answer to a question anybody may answer"
+    );
+  });
+
+  it("says nothing about the split when everything is one kind", () => {
+    open([given[1]]);
+    expect(screen.queryByTestId("given-split")).toBeNull();
+    expect(screen.getByTestId("references")).toHaveTextContent("worked with them for years");
+  });
+});
