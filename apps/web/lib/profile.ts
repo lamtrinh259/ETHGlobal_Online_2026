@@ -289,6 +289,21 @@ export function vouchRequest(
   return `Could you vouch for me? It takes five minutes and lands as your own permanent name: ${link} (my page: ${handle}.${rootParent})${asks}`;
 }
 
+/**
+ * A website as a browser will read it.
+ *
+ * `url` is a text record and a record is permanent. Typed without a scheme — `example.com`, which is
+ * how people write a website down — a browser reads it as a path on whatever page the link sits on,
+ * so the record names a page of this site that does not exist and always will. Anything already
+ * carrying a scheme is left exactly as typed, including one this app would not have chosen.
+ */
+export function normalUrl(input: string): string {
+  const url = input.trim();
+  if (!url || /^[a-z][a-z0-9+.-]*:/i.test(url)) return url;
+  // A host has a dot and no spaces. Anything else is not a website yet, so it is left to be read back.
+  return /^[^\s/]+\.[^\s/]+/.test(url) ? `https://${url}` : url;
+}
+
 export const ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/;
 
 /**

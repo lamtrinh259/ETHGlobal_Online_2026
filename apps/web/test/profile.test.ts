@@ -4,6 +4,7 @@ import {
   assessProfile,
   DEFAULT_POLICY,
   policyFromQuery,
+  normalUrl,
   profileNames,
   rootInstance,
   describePolicy,
@@ -424,5 +425,25 @@ describe("the message a candidate sends with an invitation", () => {
     const msg = vouchRequest("alice", "https://app.example", "ketsuban.eth");
     expect(msg).toContain("/vouch/alice");
     expect(msg).not.toMatch(/connect|account/i);
+  });
+});
+
+describe("a website somebody can actually follow", () => {
+  it("gives a bare host the scheme a browser needs", () => {
+    // How people write a website down. Left alone it is a path, not a site.
+    expect(normalUrl("example.com")).toBe("https://example.com");
+    expect(normalUrl("  peeramid.xyz/team  ")).toBe("https://peeramid.xyz/team");
+  });
+
+  it("leaves one that already says how to reach it", () => {
+    expect(normalUrl("https://example.com")).toBe("https://example.com");
+    // Including a scheme this app would not have picked: it is their record, not ours.
+    expect(normalUrl("http://example.com")).toBe("http://example.com");
+    expect(normalUrl("ipfs://bafy…")).toBe("ipfs://bafy…");
+  });
+
+  it("leaves something that is not a website yet, so it can be read back and fixed", () => {
+    expect(normalUrl("")).toBe("");
+    expect(normalUrl("coming soon")).toBe("coming soon");
   });
 });

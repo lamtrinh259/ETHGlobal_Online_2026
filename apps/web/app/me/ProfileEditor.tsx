@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { normalUrl } from "@/lib/profile";
 import type { Address } from "viem";
 import type { Api } from "@/lib/api";
 import { PROFILE_KEYS, type ProfileKey, type Signer } from "@/lib/chain";
@@ -142,6 +143,8 @@ export function ProfileEditor({ api, name, getSigner }: Props) {
           <input
             value={draft[k]}
             onChange={(e) => setDraft({ ...draft, [k]: e.target.value })}
+            // Normalised when the field is left, so what gets published is what is on screen.
+            onBlur={(e) => k === "url" && setDraft((d) => ({ ...d, url: normalUrl(e.target.value) }))}
             placeholder={k === "url" ? "https://…" : ""}
             data-testid={`profile-${k}`}
           />
