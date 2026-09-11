@@ -1676,6 +1676,61 @@ describe("POST /v1/attest — vouch invitations", () => {
     expect(bob.invite).toBeNull();
   });
 
+  it("counts an account the writer keeps masked, so the requirement is met without naming it", async () => {
+    /*
+     * The privacy the invitation is supposed to have.
+     *
+     * A candidate asks for a reference from somebody who has attested `github.com`. A writer whose
+     * GitHub record is masked holds one — the record proves an account in that domain and the handle
+     * stays behind their view code — so the requirement is answered without publishing which account
+     * it is, and without anybody passing a view code around. Filtering these out here would quietly
+     * make every private writer unsolicited, and nothing else would notice.
+     */
+    const written = {
+      name: "bob",
+      id: toBytes32("b"),
+      wallet: user.account.address,
+      payload: toBytes32("worked together 2019-22"),
+      validUntil: 1_800_000_000n,
+      nonce: 1n,
+      live: true,
+    };
+    const masked = {
+      name: `0x${"ab".repeat(32)}` as Hex, // a one-time pad over the handle, not a readable name
+      id: `0x${"cd".repeat(32)}` as Hex,
+      wallet: user.account.address,
+      payload: `0x${"ef".repeat(32)}` as Hex, // a commitment to the view code: this record is masked
+      validUntil: 1_800_000_000n,
+      nonce: 1n,
+      live: true,
+      domain: "github.com",
+    };
+    const { chain } = fakeChain({
+      ...aliceHolds,
+      listed: { "~alice": [written] },
+      byWallet: [masked as never],
+    });
+    const a = app(chain);
+    const invite = await signedInvite(user.account, "alice", NOW, 31337, baseEnv.MULTIPASS as Hex, {
+      requires: ["github.com"],
+    });
+    const wire = toWire(
+      await signedAttestRequest(
+        user.account,
+        { ...vouchIntent(NOW), handle: "bob" },
+        privy.mint({ sub: user.did, linked: user.linked, now: NOW }),
+        31337,
+        baseEnv.MULTIPASS as Hex,
+        invite
+      )
+    );
+    expect((await post(a, "/v1/attest", wire)).status).toBe(200);
+
+    const listed = await (await a.request("/v1/vouches/alice")).json();
+    const bob = listed.vouches.find((v: { voucher: string }) => v.voucher === "bob");
+    expect(bob.solicited, "a masked account did not count towards the invitation").toBe(true);
+  });
+
   it("does not count an invitation signed by someone who does not hold the candidate's name", async () => {
     // Seeded, because the check is that this reference comes back unmarked: asserting over a listing
     // with nothing in it passes whether or not a forged invitation would have been believed.
