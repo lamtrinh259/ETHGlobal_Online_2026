@@ -304,6 +304,24 @@ export function normalUrl(input: string): string {
   return /^[^\s/]+\.[^\s/]+/.test(url) ? `https://${url}` : url;
 }
 
+/**
+ * A picture a page served over https is allowed to load.
+ *
+ * Records written before the attester knew its own scheme name `http://…`, and a record is permanent:
+ * those cannot be rewritten. A browser refuses mixed content, so the picture is simply missing — and
+ * upgrading the scheme at the point of display costs nothing, because the alternative was a request
+ * the browser was never going to make.
+ *
+ * Only the scheme changes. A host that truly serves no https fails the same way it already did.
+ */
+/** Whether pages here are served over https, which is what decides if mixed content is refused. */
+export const SITE_IS_SECURE = (process.env.NEXT_PUBLIC_SITE_URL ?? "").startsWith("https:");
+
+export function displayableImage(src: string | null | undefined, pageIsSecure: boolean): string | null {
+  if (!src) return null;
+  return pageIsSecure && src.startsWith("http://") ? `https://${src.slice("http://".length)}` : src;
+}
+
 export const ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/;
 
 /**

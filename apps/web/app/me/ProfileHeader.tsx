@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { displayableImage, SITE_IS_SECURE } from "@/lib/profile";
 import type { ScorePart } from "@/lib/score";
 import { ScoreRing } from "./ScoreRing";
 
@@ -49,7 +50,13 @@ export function ProfileHeader({
       <div className="me-head">
         {profile?.avatar ? (
           // eslint-disable-next-line @next/next/no-img-element -- an arbitrary URL, not a bundled asset
-          <img src={profile.avatar} alt="" className="me-avatar-img" width={72} height={72} />
+          <img
+            src={displayableImage(profile.avatar, SITE_IS_SECURE) ?? ""}
+            alt=""
+            className="me-avatar-img"
+            width={72}
+            height={72}
+          />
         ) : (
           <span className="me-avatar-empty" aria-hidden />
         )}

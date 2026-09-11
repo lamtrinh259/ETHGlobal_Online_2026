@@ -4,6 +4,7 @@ import {
   assessProfile,
   DEFAULT_POLICY,
   policyFromQuery,
+  displayableImage,
   normalUrl,
   profileNames,
   rootInstance,
@@ -445,5 +446,31 @@ describe("a website somebody can actually follow", () => {
   it("leaves something that is not a website yet, so it can be read back and fixed", () => {
     expect(normalUrl("")).toBe("");
     expect(normalUrl("coming soon")).toBe("coming soon");
+  });
+});
+
+describe("a picture an https page is allowed to load", () => {
+  it("upgrades one written before the attester knew its own scheme", () => {
+    /*
+     * Every avatar on the live deployment names `http://…`, because the URL was built from a request
+     * that arrives as plain http behind a proxy. The record is permanent, so those cannot be fixed
+     * where they are — but a browser was never going to make that request anyway.
+     */
+    expect(displayableImage("http://api.example/v1/avatar/a.png", true)).toBe(
+      "https://api.example/v1/avatar/a.png"
+    );
+  });
+
+  it("leaves it alone where the page itself is not secure, which is how local development runs", () => {
+    expect(displayableImage("http://127.0.0.1:8787/v1/avatar/a.png", false)).toBe(
+      "http://127.0.0.1:8787/v1/avatar/a.png"
+    );
+  });
+
+  it("changes nothing else", () => {
+    expect(displayableImage("https://api.example/a.png", true)).toBe("https://api.example/a.png");
+    expect(displayableImage("ipfs://bafy", true)).toBe("ipfs://bafy");
+    expect(displayableImage(null, true)).toBeNull();
+    expect(displayableImage(undefined, true)).toBeNull();
   });
 });

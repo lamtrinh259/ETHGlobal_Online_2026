@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { displayableImage, SITE_IS_SECURE } from "@/lib/profile";
 
 export type HeadRecords = { name?: string; description?: string; url?: string; avatar?: string };
 
@@ -19,18 +20,14 @@ export function ProfileHead({
   children?: ReactNode;
 }) {
   const title = records.name?.trim() || ensName;
+  // Records written before the attester knew its own scheme say `http://`, and a page served over
+  // https is not allowed to load those. The scheme is the only thing changed.
+  const shown = displayableImage(records.avatar, SITE_IS_SECURE);
   return (
     <div className="me-head" data-testid="profile-head">
-      {records.avatar ? (
+      {shown ? (
         // eslint-disable-next-line @next/next/no-img-element -- an arbitrary URL, not a bundled asset
-        <img
-          src={records.avatar}
-          alt=""
-          className="me-avatar-img"
-          data-testid="head-avatar"
-          width={72}
-          height={72}
-        />
+        <img src={shown} alt="" className="me-avatar-img" data-testid="head-avatar" width={72} height={72} />
       ) : (
         <span className="me-avatar-empty" data-testid="head-avatar" aria-hidden />
       )}
