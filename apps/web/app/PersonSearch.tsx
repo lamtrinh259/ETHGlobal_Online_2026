@@ -3,10 +3,19 @@
 import { useState } from "react";
 import type { Api } from "@/lib/api";
 import { PlatformPicker } from "@/app/PlatformPicker";
+import { CopyButton } from "@/app/CopyButton";
 import { useFind, useWho } from "@/lib/hooks";
 import { ADDRESS_RE } from "@/lib/profile";
 
 const refs = (s: { received: number }) => `${s.received} reference${s.received === 1 ? "" : "s"} received`;
+
+/** What to send somebody whose account is here but whose name nobody holds. */
+export function claimAsk(platform: string, handle: string, site: string): string {
+  return (
+    `I looked you up on Ketsuban and nobody holds a name for you yet. If you link your ${platform} ` +
+    `account (@${handle}) there, references written for you attach to it and the page is yours: ${site}/me`
+  );
+}
 
 /**
  * Finding the person you mean.
@@ -46,6 +55,7 @@ export function PersonSearch({
   const [hasCode, setHasCode] = useState(false);
   const [viewCode, setViewCode] = useState("");
   const [query, setQuery] = useState("");
+  const site = typeof window === "undefined" ? "" : window.location.origin;
 
   const who = useWho(api, platform, account, hasCode ? viewCode.trim() : undefined);
   const found = useFind(api, query);
@@ -116,15 +126,29 @@ export function PersonSearch({
             </>
           )}
 
-          {/* Nobody holding a name is not a dead end: a page can be made for somebody who has claimed
-              nothing, and that is how a person is referred before they have heard of any of this. */}
+          {/*
+            Nobody holding a name is not a dead end — a page can be made for somebody who has claimed
+            nothing, which is how a person is referred before they have heard of any of this. But it
+            makes a different kind of page, and that is worth knowing before it is made: nothing on it
+            is tied to a real account until whoever it is about signs in and links one. Until then it
+            is a page about a name, the way the subjects here are.
+          */}
           {clean.length >= 2 && !found.isFetching && exact && !named && (
-            <p className="muted" data-testid="no-match">
-              Nobody holds <strong>{clean}</strong> yet.{" "}
-              <button className="linkish" onClick={() => onPick(clean)} data-testid="use-anyway">
-                {action} anyway →
-              </button>
-            </p>
+            <div className="muted" data-testid="no-match">
+              <p>
+                Nobody holds <strong>{clean}</strong> yet. Opening it makes a page about the name: people can
+                write references there, and none of it can be linked to a real account until whoever it is
+                about claims it.
+              </p>
+              <p className="row">
+                <button className="linkish" onClick={() => onPick(clean)} data-testid="use-anyway">
+                  {action} anyway →
+                </button>
+                <button className="linkish" onClick={() => setByAccount(true)} data-testid="rather-account">
+                  I know an account of theirs instead
+                </button>
+              </p>
+            </div>
           )}
           {/* The rarer half, out of the way of the question people actually arrive with. */}
           <p>
@@ -190,9 +214,26 @@ export function PersonSearch({
             ) : who.data?.note ? (
               who.data.note
             ) : (
-              <>Nobody holds that account here. Try their name instead.</>
+              <>Nobody has attested that account here.</>
             )}
           </p>
+
+          {/*
+            An account nobody attested is the one case where the person can be reached: whoever holds
+            `@bob` on that platform can sign in, link it, and the page becomes theirs. So this offers
+            something to send them rather than a dead end.
+          */}
+          {account.trim().length >= 2 && !who.isFetching && !who.data?.found && (
+            <p className="row" data-testid="invite-to-claim">
+              <CopyButton
+                text={claimAsk(platform, account.trim().replace(/^@/, ""), site)}
+                label="Copy an ask they can act on"
+              />
+              <small className="muted">
+                They sign in, link <code>{platform}</code>, and the name is theirs.
+              </small>
+            </p>
+          )}
         </>
       )}
     </div>

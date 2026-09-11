@@ -96,4 +96,20 @@ describe("finding the person you mean", () => {
     fireEvent.click(screen.getByTestId("by-account"));
     expect(screen.getByTestId("who-result")).toHaveTextContent("identifies them exactly");
   });
+
+  it("says what opening a name nobody holds actually makes", async () => {
+    /*
+     * It offered "anyway →" and nothing else. A page for a name nobody holds is a different thing
+     * from a person's: references can be written on it, and none of it is tied to a real account
+     * until somebody claims it. Worth knowing before making one, not after.
+     */
+    show();
+    fireEvent.change(screen.getByTestId("name-query"), { target: { value: "nobody" } });
+    await waitFor(() => expect(screen.getByTestId("no-match")).toBeInTheDocument());
+    const said = screen.getByTestId("no-match").textContent ?? "";
+    expect(said).toMatch(/none of it can be linked to a real account until/);
+    expect(screen.getByTestId("use-anyway")).toBeInTheDocument();
+    // And the way out of it: an account identifies somebody a bare name cannot.
+    expect(screen.getByTestId("rather-account")).toBeInTheDocument();
+  });
 });

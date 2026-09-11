@@ -18,7 +18,7 @@ dependency first. Each line is its own commit.
        focused, sufficient on its own. Below it, the most referenced profiles, KJU first.
 2. [x] **One input, stepwise.** `/verify` loses the two-mode toggle and the second field. Who → search
        → policy, in that order. Looking somebody up by an account of theirs stays, demoted.
-3. [ ] **Nobody holds that name.** Offer a claim link when the search names a social account or an
+3. [x] **Nobody holds that name.** Offer a claim link when the search names a social account or an
        email; otherwise say plainly that this makes a page nobody can link to a real account — a
        subject page, not a person's.
 4. [ ] **Same pattern on `/vouch`.** The writer finds the candidate the same way a verifier finds one.
