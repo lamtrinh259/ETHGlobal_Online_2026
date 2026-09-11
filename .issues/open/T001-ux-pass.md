@@ -31,5 +31,5 @@ dependency first. Each line is its own commit.
 8. [x] **Custom policies.** A verifier can build and keep their own, not only pick a preset. A policy
        can name *who* must have referred — a handle, or a pattern like `*.acme.com` — alongside the
        counts it already has. The presets stay, as what the platform ships.
-9. [ ] **`/trust` is spaghetti.** Cut the prose by ~80%. A diagram, the steps, and where the boundary
+9. [x] **`/trust` is spaghetti.** Cut the prose by ~80%. A diagram, the steps, and where the boundary
        is — not paragraphs.

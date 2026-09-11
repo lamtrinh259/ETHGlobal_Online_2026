@@ -499,6 +499,39 @@ dl.kv dd {
   overflow-wrap: anywhere;
 }
 
+/*
+ * The path a record takes, and which steps of it are inside the enclave.
+ *
+ * A diagram rather than a paragraph: the question is where the boundary falls, and a boundary is a
+ * thing to see rather than to read. The boxed steps are marked on the step itself, so the meaning
+ * survives a screen too narrow to hold a drawing.
+ */
+.flow {
+  list-style: none;
+  padding-left: 0;
+  display: grid;
+  gap: var(--sp-xs);
+}
+.flow li {
+  display: grid;
+  grid-template-columns: minmax(6rem, 9rem) 1fr;
+  gap: 2px var(--sp-sm);
+  padding: var(--sp-sm);
+  border-left: 3px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.flow li small {
+  grid-column: 2;
+}
+.flow .inside {
+  border-left-color: var(--consensus);
+  background: var(--panel);
+}
+.flow .inside strong::after {
+  content: " · enclave";
+  color: var(--consensus);
+}
+
 /* ── policy checks ── */
 .checks {
   list-style: none;

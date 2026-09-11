@@ -45,9 +45,9 @@ describe("what this deployment admits about itself", () => {
     const said = screen.getByTestId("stance").textContent ?? "";
     // Naming the enclave is fine — the handler really is written for one. Saying it is running, or
     // that the operator cannot see the token, is the claim this deployment has not earned.
-    expect(said).toMatch(/own node/);
+    expect(said).toMatch(/operator could read them/);
     expect(said).toMatch(/not been enrolled/);
-    expect(said).toMatch(/not being claimed/);
+    expect(said).toMatch(/Not claimed here/);
     expect(said).not.toMatch(/nowhere else|neither this service nor its operator/);
   });
 
@@ -74,7 +74,7 @@ describe("what this deployment admits about itself", () => {
 
   it("shows the three keys agreeing, because that is what makes a signature acceptable", async () => {
     await renderPage();
-    expect(screen.getByTestId("key-verdict").textContent ?? "").toMatch(/The same key in all three/);
+    expect(screen.getByTestId("key-verdict").textContent ?? "").toMatch(/One key in all three/);
   });
 
   it("says so loudly when the key the chain expects is not the one signing", async () => {
@@ -86,6 +86,6 @@ describe("what this deployment admits about itself", () => {
     await renderPage();
     const verdict = screen.getByTestId("key-verdict");
     expect(verdict.className).toContain("warning");
-    expect(verdict.textContent ?? "").toMatch(/would be refused/);
+    expect(verdict.textContent ?? "").toMatch(/refused at registration/);
   });
 });
