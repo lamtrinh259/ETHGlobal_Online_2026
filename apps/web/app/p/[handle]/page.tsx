@@ -46,13 +46,33 @@ export default async function ProfilePage({ params, searchParams }: Params) {
   let error: string | undefined;
   // One composed read instead of one per instance plus the references (`GET /v1/profile/:handle`).
   let read: Awaited<ReturnType<typeof api.profile>> | undefined;
-  try {
-    read = await api.profile(handle, {
-      links: q.links?.split(","),
-      viewCode: q.viewCode as `0x${string}` | undefined,
-    });
-  } catch (e) {
-    error = (e as Error).message;
+  /*
+   * Whether this label is somebody's to hold.
+   *
+   * A mount hangs one label under the root, which is also where a person's name goes, so `x` grades as
+   * a candidate: unclaimed, incomplete, a column of failed checks. That is a verdict on a name the
+   * registrar will never let anybody claim. The deployment knows which labels those are; this page
+   * cannot, because its own config lists only the name domains.
+   */
+  const [composed, claim] = await Promise.all([
+    api
+      .profile(handle, {
+        links: q.links?.split(","),
+        viewCode: q.viewCode as `0x${string}` | undefined,
+      })
+      .catch((e: Error) => e),
+    api.explain(`${handle}.${root.parentName}`, { signal: flourish() }).catch(() => null),
+  ]);
+  if (composed instanceof Error) error = composed.message;
+  else read = composed;
+
+  if (claim?.kind === "mount") {
+    return (
+      <section className="card" data-testid="mount-name">
+        <h2>{`${handle}.${root.parentName}`}</h2>
+        <p className="muted">{claim.says}</p>
+      </section>
+    );
   }
   const results = names.map((name, i) => ({
     instanceDomain: config.instances[i].domain,
