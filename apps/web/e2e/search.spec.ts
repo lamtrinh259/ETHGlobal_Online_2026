@@ -37,7 +37,7 @@ test("naming a domain keeps the screen, and what was typed in it", async ({ page
 
   await expect(page.getByTestId("searchbar")).toBeVisible();
   await expect(page.getByTestId("name-query")).toHaveValue("bob");
-  await expect(page.getByTestId("name-query")).toHaveAttribute("placeholder", "their handle on x.com");
+  await expect(page.getByTestId("name-query")).toHaveAttribute("placeholder", "their handle");
 });
 
 /**
@@ -97,4 +97,20 @@ test("a name nobody holds opens a page that says so, rather than failing them", 
   // Both of the things there are to do with it.
   await expect(page.getByRole("link", { name: "Refer this person" })).toBeVisible();
   await expect(page.getByTestId("blank-page").getByRole("link", { name: "claims the name" })).toBeVisible();
+});
+
+/**
+ * The scope is not the search, and has to look like it.
+ *
+ * Two text inputs shared the bar with two grey placeholders of the same weight, and the rule meant to
+ * divide them never applied: `.searchbar-row > input { border: 0 }` outweighs a bare class, so the
+ * chip and the query sat flush against each other on every screen since the bar was built.
+ */
+test("the scope reads as a scope, set off from the field it qualifies", async ({ page }) => {
+  await page.goto("/");
+  const bg = (id: string) => page.getByTestId(id).evaluate((el) => getComputedStyle(el).backgroundColor);
+
+  expect(await bg("by-account")).not.toBe(await bg("name-query"));
+  const border = await page.getByTestId("by-account").evaluate((el) => getComputedStyle(el).borderLeftWidth);
+  expect(border).not.toBe("0px");
 });

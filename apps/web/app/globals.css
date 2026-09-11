@@ -534,17 +534,44 @@ dl.kv dd {
   outline: none;
   padding: var(--sp-sm) var(--sp-md);
 }
-.searchbar-kind {
-  background: transparent;
+/* The magnifier: what makes a row of inputs read as a search bar before anything is typed. */
+.searchbar-icon {
+  display: flex;
+  align-items: center;
+  padding-left: var(--sp-md);
+  color: var(--text-secondary);
+  flex: none;
+}
+/*
+ * The scope, after the thing being searched for rather than in front of it.
+ *
+ * Two text inputs shared the bar and two grey placeholders of the same weight sat side by side, with
+ * nothing saying which one was the search — and on a phone the qualifier took as much of the bar as
+ * the query, which was then cut off mid-word. It qualifies the search; it is not the search, so it
+ * trails it, set off by a rule and a field of its own.
+ */
+.searchbar-row > .searchbar-kind {
+  background: var(--panel-2);
   border: 0;
-  border-right: 1px solid var(--border);
+  border-left: 1px solid var(--border);
   color: var(--text-secondary);
   font: inherit;
+  font-size: 0.9rem;
   outline: none;
   padding: var(--sp-sm);
   cursor: pointer;
-  /* A phone shrinks everything else before it shrinks the thing being typed into. */
-  max-width: 42%;
+  flex: none;
+  width: 10ch;
+  text-align: center;
+}
+/* Clearing the scope belongs to the scope, so it stands on it rather than on the bar beside it. */
+.searchbar-row > .searchbar-clear-kind {
+  background: var(--panel-2);
+  padding-right: var(--sp-md);
+}
+.searchbar-row > .searchbar-kind::placeholder {
+  color: var(--text-secondary);
+  opacity: 1;
 }
 .searchbar-clear {
   background: transparent;
@@ -560,8 +587,15 @@ dl.kv dd {
   font-size: 1.3rem;
   padding: var(--sp-md);
 }
-.searchbar-big .searchbar-kind {
-  font-size: 1rem;
+/* A phone has room for the query or for a big font, not both: the query is what people came to type. */
+@media (max-width: 560px) {
+  .searchbar-big .searchbar-row > input {
+    font-size: 1.05rem;
+  }
+}
+.searchbar-big .searchbar-row > .searchbar-kind {
+  font-size: 0.95rem;
+  width: 11ch;
 }
 
 /* The suggestion the keyboard is on. Marked on the row, because that is what Enter will open. */

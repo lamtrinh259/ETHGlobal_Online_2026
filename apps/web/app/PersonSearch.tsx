@@ -196,50 +196,20 @@ export function PersonSearch({
         <div className={big ? "searchbar searchbar-big" : "searchbar"} data-testid="searchbar">
           <span className="searchbar-label">{label ?? "Their name or handle"}</span>
           <div className="searchbar-row">
-            {/*
-                Typed, not chosen from a list.
-                A deployment mounts a domain the first time somebody attests an account there, so the
-                list grows on its own and a menu of it is out of date by definition — and a mail host
-                is a domain like any other, which a fixed list of platforms left out entirely. The
-                completion is what this deployment actually holds, and anything else is still typable.
-              */}
-            <input
-              ref={kindBox}
-              className="searchbar-kind"
-              list="search-domains"
-              value={platform}
-              onChange={(e) => {
-                setPlatform(e.target.value);
-              }}
-              placeholder="a name"
-              aria-label="what you are searching for"
-              data-testid="by-account"
-            />
-            {/*
-              The way back out.
-              Naming a domain is one keystroke; unnaming it meant selecting the text and deleting it,
-              with nothing on screen saying so. A name is the default, so returning to it is a button.
-            */}
-            {platform && (
-              <button
-                type="button"
-                className="searchbar-clear"
-                onClick={() => {
-                  setPlatform("");
-                  setHasCode(false);
-                  kindBox.current?.focus();
-                }}
-                aria-label="search by name instead"
-                data-testid="clear-kind"
+            {/* A row of inputs reads as a form; the magnifier is what makes it read as a search. */}
+            <span className="searchbar-icon" aria-hidden>
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
               >
-                ×
-              </button>
-            )}
-            <datalist id="search-domains">
-              {domains.map((d) => (
-                <option key={d} value={d} />
-              ))}
-            </datalist>
+                <circle cx="11" cy="11" r="7" />
+                <path d="m20 20-3.5-3.5" strokeLinecap="round" />
+              </svg>
+            </span>
             <input
               value={query}
               onChange={(e) => {
@@ -247,7 +217,7 @@ export function PersonSearch({
                 move(-1);
               }}
               onKeyDown={onKeyDown}
-              placeholder={platform ? `their handle on ${platform}` : "a name, a handle, or a wallet address"}
+              placeholder={platform ? "their handle" : "a name or a handle"}
               aria-label={platform ? "their account" : "their name"}
               autoFocus={autoFocus}
               role="combobox"
@@ -267,6 +237,50 @@ export function PersonSearch({
                 ×
               </button>
             )}
+            {/*
+                Typed, not chosen from a list.
+                A deployment mounts a domain the first time somebody attests an account there, so the
+                list grows on its own and a menu of it is out of date by definition — and a mail host
+                is a domain like any other, which a fixed list of platforms left out entirely. The
+                completion is what this deployment actually holds, and anything else is still typable.
+              */}
+            <input
+              ref={kindBox}
+              className="searchbar-kind"
+              list="search-domains"
+              value={platform}
+              onChange={(e) => {
+                setPlatform(e.target.value);
+              }}
+              placeholder="by name"
+              aria-label="what you are searching for"
+              data-testid="by-account"
+            />
+            {/*
+              The way back out.
+              Naming a domain is one keystroke; unnaming it meant selecting the text and deleting it,
+              with nothing on screen saying so. A name is the default, so returning to it is a button.
+            */}
+            {platform && (
+              <button
+                type="button"
+                className="searchbar-clear searchbar-clear-kind"
+                onClick={() => {
+                  setPlatform("");
+                  setHasCode(false);
+                  kindBox.current?.focus();
+                }}
+                aria-label="search by name instead"
+                data-testid="clear-kind"
+              >
+                ×
+              </button>
+            )}
+            <datalist id="search-domains">
+              {domains.map((d) => (
+                <option key={d} value={d} />
+              ))}
+            </datalist>
           </div>
         </div>
 

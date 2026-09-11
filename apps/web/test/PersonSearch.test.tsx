@@ -206,7 +206,9 @@ describe("finding the person you mean", () => {
     // The same box, now asking for a handle there — the screen does not change under somebody.
     const box = screen.getByTestId("name-query");
     expect(box).toHaveAttribute("aria-label", "their account");
-    expect(box).toHaveAttribute("placeholder", "their handle on mit.edu");
+    // The chip beside it says which domain, so the placeholder is not cut off on a phone repeating it.
+    expect(box).toHaveAttribute("placeholder", "their handle");
+    expect(screen.getByTestId("by-account")).toHaveValue("mit.edu");
   });
 
   it("reads the subject as the first row of the ranking, not a banner over it", async () => {
