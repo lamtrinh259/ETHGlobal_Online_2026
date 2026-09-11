@@ -264,8 +264,14 @@ carry the check themselves. The grouping levels are reused, so only the mounts c
 
 ## Persistent storage (Coolify)
 
-The API keeps grants, gas top-ups and avatars under `DATA_DIR`, which the image sets to `/data`.
-Without a volume there, every permission and picture is lost on the next deployment.
+The API keeps reference letters, disclosure grants, invitations, the one-human-one-account binding, gas
+top-ups, avatars and the index snapshot under `DATA_DIR`, which the image sets to `/data`. Without a
+volume there, all of it is lost on the next deployment.
+
+The letters are the ones worth pausing on. A reference stores only `sha256:…` on chain, permanently, and
+the text lives here: lose this directory and every letter written so far becomes a hash nobody can open
+again. The index rebuilds itself from the chain and the top-ups only risk paying twice, but a letter is
+gone.
 
 In Coolify, under **Persistent storage**, choose **Volume mount**:
 

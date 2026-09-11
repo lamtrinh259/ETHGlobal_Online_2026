@@ -501,7 +501,12 @@ export function createApp({
         ...p.warnings,
         ...(store.durable
           ? []
-          : ["DATA_DIR is not set: permissions and gas top-ups are kept in memory and lost on restart"]),
+          : [
+              // Whoever reads this is deciding whether to mount a volume, and a short list reads as a
+              // small risk. The letters are the sharpest of these: their hashes are on chain for good,
+              // and the text exists nowhere else.
+              "DATA_DIR is not set: reference letters, permissions, invitations, the one-human-one-account binding and gas top-ups are kept in memory and lost on restart",
+            ]),
         ...(store.durable && !store.writable
           ? [`DATA_DIR cannot be written (${store.lastError}): nothing kept here survives a restart`]
           : []),

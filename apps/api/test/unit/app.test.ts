@@ -1885,6 +1885,19 @@ describe("what preflight says about the index", () => {
   });
 });
 
+describe("what preflight says about storage", () => {
+  it("names everything a deployment without DATA_DIR is about to lose", async () => {
+    // Whoever reads this decides whether to mount a volume, so a short list reads as a short risk. The
+    // letters are the sharpest: their hashes are on chain permanently, and the text is only here.
+    const { chain } = fakeChain();
+    const said = (await (await app(chain).request("/v1/preflight")).json()).warnings.join(" ");
+    expect(said).toMatch(/DATA_DIR is not set/);
+    for (const lost of [/letter/i, /one-human-one-account/i, /invitation/i, /permission/i, /gas top-up/i]) {
+      expect(said, String(lost)).toMatch(lost);
+    }
+  });
+});
+
 describe("GET /v1/preflight", () => {
   it("reports a healthy deployment, and 503s with the reason when something is off", async () => {
     const { chain } = fakeChain();
