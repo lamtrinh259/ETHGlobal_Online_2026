@@ -86,7 +86,19 @@ the attestation path.
 ```bash
 cp .env.example .env                                   # simulation secrets
 cd attest && pnpm install && bun test                  # unit tests with a fake TEE runtime
-bun run scripts/make-fixture.ts [name]                 # fixtures/request.json + config.local.json
+pnpm simulate                                          # the enclave handler, against the configured chain
+pnpm simulate:dns                                      # the same, into the DNS namespace
+```
+
+Each of those writes its own fixture first. The request is signed by a throwaway wallet, because the
+enclave refuses an intent whose nonce does not exceed the one already on chain — a fixed key works
+until it holds a record in the domain it targets and then fails with `intent: nonce not increasing`
+forever. `FIXTURE_KEY=0x…` pins the wallet when a reproducible request is wanted.
+
+To drive the simulator directly, or with a fixture of your own:
+
+```bash
+bun run scripts/make-fixture.ts [platform|name|optin|dns|dns-private|vouch]
 cd .. && cre workflow simulate attest --target local-settings --non-interactive --trigger-index 0 \
   --http-payload ./attest/fixtures/request.json
 ```

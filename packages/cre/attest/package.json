@@ -7,8 +7,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "PATH=\"$HOME/.bun/bin:$PATH\" bun test",
-    "simulate": "[ -f ../.env ] || cp ../.env.example ../.env; [ -f ./fixtures/request.json ] || pnpm fixtures; cd .. && PATH=\"$HOME/.bun/bin:$HOME/.cre/bin:$PATH\" cre workflow simulate attest --target local-settings --non-interactive --trigger-index 0 --http-payload ./attest/fixtures/request.json",
-    "simulate:dns": "[ -f ../.env ] || cp ../.env.example ../.env; [ -f ./fixtures/request.json ] || pnpm fixtures; cd .. && PATH=\"$HOME/.bun/bin:$HOME/.cre/bin:$PATH\" cre workflow simulate attest --target local-settings --non-interactive --trigger-index 0 --http-payload ./attest/fixtures/dns.json",
+    "simulate": "[ -f ../.env ] || cp ../.env.example ../.env; PATH=\"$HOME/.bun/bin:$PATH\" bun run scripts/make-fixture.ts platform; cd .. && PATH=\"$HOME/.bun/bin:$HOME/.cre/bin:$PATH\" cre workflow simulate attest --target local-settings --non-interactive --trigger-index 0 --http-payload ./attest/fixtures/request.json",
+    "simulate:dns": "[ -f ../.env ] || cp ../.env.example ../.env; PATH=\"$HOME/.bun/bin:$PATH\" bun run scripts/make-fixture.ts dns; cd .. && PATH=\"$HOME/.bun/bin:$HOME/.cre/bin:$PATH\" cre workflow simulate attest --target local-settings --non-interactive --trigger-index 0 --http-payload ./attest/fixtures/dns.json",
     "fixtures": "PATH=\"$HOME/.bun/bin:$PATH\" bun run scripts/make-fixture.ts dns && PATH=\"$HOME/.bun/bin:$PATH\" bun run scripts/make-fixture.ts dns-private && PATH=\"$HOME/.bun/bin:$PATH\" bun run scripts/make-fixture.ts platform"
   },
   "dependencies": {

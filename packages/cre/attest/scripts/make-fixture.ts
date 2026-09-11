@@ -12,14 +12,23 @@
  */
 import { baseIntent, fakePrivy, fakeUser, signedAttestRequest, toWire } from "@ketsuban/registrar/testing";
 import { toBytes32, type Hex } from "@peeramid-labs/multipass-client";
+import { generatePrivateKey } from "viem/accounts";
 import { mkdirSync, writeFileSync, readFileSync } from "node:fs";
 
-const ALICE_KEY = "0x000000000000000000000000000000000000000000000000000000000000a11c" as const;
-const BOB_KEY = "0x000000000000000000000000000000000000000000000000000000000000b0bb" as const;
+/**
+ * A wallet with no history on the target chain.
+ *
+ * The enclave refuses an intent whose nonce does not exceed the one on chain, so a fixture signed by a
+ * fixed key stops working the moment that key holds a record in the domain it targets — which is what
+ * happened to the default one here: `x` reached nonce 1 and every later run asked for nonce 1 again. A
+ * fresh key holds nothing anywhere, so nonce 1 is always the next one. `FIXTURE_KEY=0x…` pins it when
+ * a reproducible request is wanted.
+ */
+const key = () => (process.env.FIXTURE_KEY as Hex) ?? generatePrivateKey();
 const cfg = JSON.parse(readFileSync(new URL("../config.staging.json", import.meta.url), "utf8"));
 const privy = fakePrivy("local-app-id", "local-privy-key");
 const mode = process.argv[2] ?? "platform";
-const user = mode === "vouch" ? fakeUser(BOB_KEY, process.argv[4] ?? "bob") : fakeUser(ALICE_KEY, "alice");
+const user = mode === "vouch" ? fakeUser(key(), process.argv[4] ?? "bob") : fakeUser(key(), "alice");
 const now = Math.floor(Date.now() / 1000);
 
 const [domain, handle, payload] =
