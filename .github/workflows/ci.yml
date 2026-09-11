@@ -112,6 +112,21 @@ jobs:
       # log would otherwise be needed for.
       - name: the images it builds
         run: docker compose -f apps/api/docker-compose.e2e.yml build
+      # Whether a bind mount of this checkout lands inside a container the daemon starts.
+      #
+      # The deploy service mounts the repo and compiles the contracts out of it. Where the job itself
+      # runs in a container, compose paths are resolved by the daemon on the host, and the checkout
+      # only exists inside the job — so the mount comes up empty and the deploy container fails in
+      # seconds with the contracts nowhere to be found, which is the shape of the failure next door.
+      - name: a bind mount of this checkout, as the stack does it
+        run: |
+          set -e
+          seen=$(docker run --rm -v "$PWD:/repo" alpine:3 sh -c 'ls /repo/packages/contracts/script 2>/dev/null | wc -l')
+          echo "scripts visible through the mount: $seen"
+          test "$seen" -gt 0 || {
+            echo "::error::a bind mount of this checkout is empty inside a container: compose paths resolve on the host, and this job's files do not exist there"
+            exit 1
+          }
 
   e2e:
     runs-on: ubuntu-latest
