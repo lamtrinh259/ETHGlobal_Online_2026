@@ -167,7 +167,13 @@ export function vouchSteps(
       label: "Prove you are one real person",
       detail:
         "A World ID proof, done once on your profile. It shows a verified human wrote this, without revealing who. We never see who you are.",
-      state: at.human === undefined ? "pending" : at.human ? "done" : "now",
+      /*
+       * Outstanding, never current.
+       * It is proved once on the profile, not on this page, so this page never asks for it — and
+       * marking it current lit two steps at once, the one the reader was on and one they could not
+       * act on from here.
+       */
+      state: at.human === undefined ? "pending" : at.human ? "done" : "todo",
     },
     {
       id: "write",

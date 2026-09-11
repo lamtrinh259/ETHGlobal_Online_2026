@@ -202,10 +202,28 @@ describe("the voucher's humanity step", () => {
     expect(proved.find((s) => s.id === "humanity")?.state).toBe("done");
   });
 
-  it("is still the next thing to do when it has not been proved", async () => {
+  it("is outstanding, but never the step this page is asking for", async () => {
+    /*
+     * It is proved once on the profile, not here, so this page never asks for it — and marking it
+     * current lit two steps at once: the one the reader is on and one they cannot act on from here.
+     */
     const { vouchSteps } = await import("@/lib/journey");
     const not = vouchSteps("alice", { authenticated: true, published: false, human: false });
-    expect(not.find((s) => s.id === "humanity")?.state).toBe("now");
+    expect(not.find((s) => s.id === "humanity")?.state).toBe("todo");
+  });
+
+  it("leaves exactly one step current, whatever the voucher has done so far", async () => {
+    const { vouchSteps } = await import("@/lib/journey");
+    for (const authenticated of [false, true])
+      for (const published of [false, true])
+        for (const human of [undefined, false, true]) {
+          const steps = vouchSteps("alice", { authenticated, published, human });
+          const now = steps.filter((s) => s.state === "now");
+          // Published is the end of it: nothing is current because nothing is left.
+          expect(now.length, JSON.stringify({ authenticated, published, human })).toBe(
+            published && authenticated ? 0 : 1
+          );
+        }
   });
 
   it("stays pending where the deployment cannot ask for it at all", async () => {
