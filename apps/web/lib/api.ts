@@ -604,10 +604,19 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
     },
 
     /** Read a masked account the candidate allowed; `reader` must match a grant addressed to one wallet. */
-    async disclosed(name: string, domain: string, reader?: string, as?: string): Promise<Disclosed> {
-      const parts = [reader ? `reader=${reader}` : "", as ? `as=${encodeURIComponent(as)}` : ""].filter(
-        Boolean
-      );
+    async disclosed(
+      name: string,
+      domain: string,
+      reader?: string,
+      as?: string,
+      /** The secret out of the link, for a grant made for whoever holds one */
+      linkKey?: string
+    ): Promise<Disclosed> {
+      const parts = [
+        reader ? `reader=${reader}` : "",
+        as ? `as=${encodeURIComponent(as)}` : "",
+        linkKey ? `k=${encodeURIComponent(linkKey)}` : "",
+      ].filter(Boolean);
       const q = parts.length ? `?${parts.join("&")}` : "";
       return disclosedSchema.parse(
         await readJson(

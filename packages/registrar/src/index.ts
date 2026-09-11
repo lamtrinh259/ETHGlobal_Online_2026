@@ -22,6 +22,8 @@ export {
   grantId,
   hashBox,
   hashBoxes,
+  linkKeyHash,
+  LINK_KEY_RE,
   matchesAudienceName,
   recoverDiscloseSigner,
   recoverRevokeSigner,

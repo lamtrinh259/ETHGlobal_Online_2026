@@ -91,3 +91,29 @@ describe("a DNS domain says which platform it is", () => {
     });
   });
 });
+
+/**
+ * A Google account is an email account whose issuer vouches for it.
+ *
+ * Every one of them was mounted at `google.com`, which is a domain almost none of their holders have
+ * an address at: signing in with Google gives `someone@gmail.com`, or a company's own domain under
+ * Workspace. And the label took the whole address, which is not an ENS label at all — so the name a
+ * Google account resolved at was either wrong about the domain or missing entirely.
+ */
+describe("a Google account is named by the address it is", () => {
+  it("takes the domain of the address, not the name of the issuer", () => {
+    expect(dnsNameFor("google", { username: "someone@gmail.com" })).toBe("gmail.com");
+    expect(dnsNameFor("google", { username: "tim@peeramid.xyz" })).toBe("peeramid.xyz");
+    expect(dnsNameFor("google", { username: "TIM@Peeramid.XYZ" })).toBe("peeramid.xyz");
+  });
+
+  it("falls back to the issuer only where there is no address to read", () => {
+    expect(dnsNameFor("google", {})).toBe("google.com");
+    expect(dnsNameFor("google", { username: "nobody" })).toBe("google.com");
+  });
+
+  it("takes the local part as the label, as an address always does", () => {
+    expect(labelFor("google", { username: "someone@gmail.com" })).toBe("someone");
+    expect(labelFor("google", { username: "tim@peeramid.xyz" })).toBe("tim");
+  });
+});

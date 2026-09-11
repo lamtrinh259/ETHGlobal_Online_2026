@@ -27,6 +27,7 @@ import {
 } from "@ketsuban/registrar/testing";
 import {
   discloseDomain,
+  linkKeyHash,
   eciesDecrypt,
   eciesEncrypt,
   hashBoxes,
@@ -2274,8 +2275,17 @@ describe("disclosing a masked account", () => {
       exp: disclosure.exp.toString(),
       boxes,
       signature,
+      /*
+       * A grant addressed to nobody is opened by the link and by nothing else. Without a secret the
+       * URL it travels in is `/v/<a public name>?reveal=<a public account>`, which anybody can guess.
+       */
+      ...(over.audience || over.audienceName ? {} : { linkKeyHash: linkKeyHash(LINK_KEY) }),
     };
   }
+
+  /** The secret in the link, as the browser would have generated it. */
+  const LINK_KEY = `0x${"7a".repeat(32)}` as Hex;
+  const withKey = (path: string) => `${path}${path.includes("?") ? "&" : "?"}k=${LINK_KEY}`;
 
   async function revokeFor(over: Partial<{ at: bigint; signer: typeof user.account; grantId: Hex }> = {}) {
     const revocation = {
@@ -2305,7 +2315,7 @@ describe("disclosing a masked account", () => {
     expect(listed.grants).toHaveLength(1);
     expect(listed.grants[0].domains).toEqual(["discord.com", "x"]);
     // Each account is reachable on its own: the reader asks about one, not about the selection.
-    expect((await a.request(`/v1/disclose/${aliceName}/x`)).status).toBe(200);
+    expect((await a.request(withKey(`/v1/disclose/${aliceName}/x`))).status).toBe(200);
   });
 
   it("shares one account with two people without either share replacing the other", async () => {
@@ -2320,14 +2330,14 @@ describe("disclosing a masked account", () => {
 
     const listed = await (await a.request(`/v1/disclosures/${aliceName}`)).json();
     expect(listed.grants).toHaveLength(2);
-    expect((await a.request(`/v1/disclose/${aliceName}/x?reader=${bob}`)).status).toBe(200);
-    expect((await a.request(`/v1/disclose/${aliceName}/x?reader=${carol}`)).status).toBe(200);
+    expect((await a.request(withKey(`/v1/disclose/${aliceName}/x?reader=${bob}`))).status).toBe(200);
+    expect((await a.request(withKey(`/v1/disclose/${aliceName}/x?reader=${carol}`))).status).toBe(200);
 
     // Taking one back leaves the other standing: they were always separate permissions.
     const first = listed.grants.find((g: { audience: string }) => g.audience === bob);
     expect((await post(a, "/v1/revoke", await revokeFor({ grantId: first.id }))).status).toBe(200);
-    expect((await a.request(`/v1/disclose/${aliceName}/x?reader=${bob}`)).status).toBe(403);
-    expect((await a.request(`/v1/disclose/${aliceName}/x?reader=${carol}`)).status).toBe(200);
+    expect((await a.request(withKey(`/v1/disclose/${aliceName}/x?reader=${bob}`))).status).toBe(403);
+    expect((await a.request(withKey(`/v1/disclose/${aliceName}/x?reader=${carol}`))).status).toBe(200);
   });
 
   it("takes back the whole grant, because that is what was handed over", async () => {
@@ -2339,8 +2349,8 @@ describe("disclosing a masked account", () => {
     const { id } = await (await post(a, "/v1/disclose", wire)).json();
 
     expect((await post(a, "/v1/revoke", await revokeFor({ grantId: id }))).status).toBe(200);
-    expect((await a.request(`/v1/disclose/${aliceName}/x`)).status).toBe(404);
-    expect((await a.request(`/v1/disclose/${aliceName}/discord.com`)).status).toBe(404);
+    expect((await a.request(withKey(`/v1/disclose/${aliceName}/x`))).status).toBe(404);
+    expect((await a.request(withKey(`/v1/disclose/${aliceName}/discord.com`))).status).toBe(404);
     expect((await (await a.request(`/v1/disclosures/${aliceName}`)).json()).grants).toEqual([]);
   });
 
@@ -2354,7 +2364,7 @@ describe("disclosing a masked account", () => {
     const { chain, viewCode } = maskedChain({ [inBranch]: reader, [outsideBranch]: reader });
     const a = app(chain);
     await post(a, "/v1/disclose", await grantFor(viewCode, { audienceName: "*.x.kju-is.eth" }));
-    const opened = await a.request(`/v1/disclose/${aliceName}/x?reader=${reader}&as=${inBranch}`);
+    const opened = await a.request(withKey(`/v1/disclose/${aliceName}/x?reader=${reader}&as=${inBranch}`));
     expect(opened.status).toBe(200);
     expect((await opened.json()).disclosed.handle).toBe("alice_x");
 
@@ -2364,10 +2374,12 @@ describe("disclosing a masked account", () => {
     );
     expect(impostor.status).toBe(403);
     // And a name outside the branch is refused even when the caller really does hold it.
-    const outside = await a.request(`/v1/disclose/${aliceName}/x?reader=${reader}&as=${outsideBranch}`);
+    const outside = await a.request(
+      withKey(`/v1/disclose/${aliceName}/x?reader=${reader}&as=${outsideBranch}`)
+    );
     expect(outside.status).toBe(403);
     // A reader who names nothing gets nothing, whatever their wallet.
-    expect((await a.request(`/v1/disclose/${aliceName}/x?reader=${reader}`)).status).toBe(403);
+    expect((await a.request(withKey(`/v1/disclose/${aliceName}/x?reader=${reader}`))).status).toBe(403);
   });
 
   it("says on /healthz whether a share would survive a restart", async () => {
@@ -2443,7 +2455,48 @@ describe("disclosing a masked account", () => {
     expect(listed.grants).toHaveLength(1);
     expect(listed.grants[0].id).toBe(id);
     // And the account it covers still opens: one unreadable row must not break the read either.
-    expect((await after.request(`/v1/disclose/${aliceName}/x`)).status).toBe(200);
+    expect((await after.request(withKey(`/v1/disclose/${aliceName}/x`))).status).toBe(200);
+  });
+
+  it("refuses a link-shared account to anybody who was not sent the link", async () => {
+    /*
+     * "Anyone holding this link" was really anyone at all.
+     *
+     * The link is `/v/<their public name>?reveal=<the account>` — both halves guessable — and the
+     * grant is signed to the zero address, which `checkAudience` waves through. So a masked account
+     * shared this way was not shared, it was published, and the holder was told the opposite.
+     */
+    const { chain, viewCode } = maskedChain();
+    const a = app(chain);
+    expect((await post(a, "/v1/disclose", await grantFor(viewCode))).status).toBe(200);
+
+    const guessed = await a.request(`/v1/disclose/${aliceName}/x`);
+    expect(guessed.status).toBe(403);
+    expect(await guessed.text()).not.toContain("alice_x");
+    // Nor by guessing the secret, nor by holding the id the holder's own list of shares hands out.
+    expect((await a.request(`/v1/disclose/${aliceName}/x?k=0x${"00".repeat(32)}`)).status).toBe(403);
+    const listed = await (await a.request(`/v1/disclosures/${aliceName}`)).json();
+    expect(JSON.stringify(listed)).not.toContain(linkKeyHash(LINK_KEY).slice(2));
+    expect((await a.request(`/v1/disclose/${aliceName}/x?k=${listed.grants[0].id}`)).status).toBe(403);
+
+    // And opens for whoever was sent it.
+    const opened = await a.request(withKey(`/v1/disclose/${aliceName}/x`));
+    expect(opened.status).toBe(200);
+    expect((await opened.json()).disclosed.handle).toBe("alice_x");
+  });
+
+  it("refuses to let a second post replace the secret that opens a grant", async () => {
+    // The hash is not part of what the holder signed, so re-posting their grant must not be a way to
+    // swap in a secret of one's own choosing and open what it covers.
+    const { chain, viewCode } = maskedChain();
+    const a = app(chain);
+    const grant = await grantFor(viewCode);
+    expect((await post(a, "/v1/disclose", grant)).status).toBe(200);
+    const mine = `0x${"11".repeat(32)}` as Hex;
+    expect((await post(a, "/v1/disclose", { ...grant, linkKeyHash: linkKeyHash(mine) })).status).toBe(200);
+
+    expect((await a.request(`/v1/disclose/${aliceName}/x?k=${mine}`)).status).toBe(403);
+    expect((await a.request(withKey(`/v1/disclose/${aliceName}/x`))).status).toBe(200);
   });
 
   it("lists what a name has shared, so the holder can see who can read it", async () => {
@@ -2487,19 +2540,19 @@ describe("disclosing a masked account", () => {
     const { chain, viewCode } = maskedChain();
     const a = app(chain);
     const { id } = await (await post(a, "/v1/disclose", await grantFor(viewCode))).json();
-    expect((await a.request(`/v1/disclose/${aliceName}/x`)).status).toBe(200);
+    expect((await a.request(withKey(`/v1/disclose/${aliceName}/x`))).status).toBe(200);
 
     // A stranger cannot close someone else's account, and the grant keeps working after they try.
     const stranger = await post(a, "/v1/revoke", await revokeFor({ grantId: id, signer: registrar }));
     expect(stranger.status).toBe(422);
     expect((await stranger.json()).error).toMatch(/holds the record/);
-    expect((await a.request(`/v1/disclose/${aliceName}/x`)).status).toBe(200);
+    expect((await a.request(withKey(`/v1/disclose/${aliceName}/x`))).status).toBe(200);
 
     const ok = await post(a, "/v1/revoke", await revokeFor({ grantId: id }));
     expect(ok.status).toBe(200);
     expect(await ok.json()).toEqual({ ok: true, name: aliceName, id, domains: ["x"] });
     // The reader gets the same answer as someone who was never given anything.
-    expect((await a.request(`/v1/disclose/${aliceName}/x`)).status).toBe(404);
+    expect((await a.request(withKey(`/v1/disclose/${aliceName}/x`))).status).toBe(404);
     expect((await (await a.request(`/v1/disclosures/${aliceName}`)).json()).grants).toEqual([]);
   });
 
@@ -2511,7 +2564,7 @@ describe("disclosing a masked account", () => {
     const stale = await post(a, "/v1/revoke", await revokeFor({ grantId: id, at: BigInt(NOW - 3600) }));
     expect(stale.status).toBe(422);
     expect((await stale.json()).error).toMatch(/too old/);
-    expect((await a.request(`/v1/disclose/${aliceName}/x`)).status).toBe(200);
+    expect((await a.request(withKey(`/v1/disclose/${aliceName}/x`))).status).toBe(200);
   });
 
   it("says so plainly when there is nothing to revoke", async () => {
@@ -2531,7 +2584,7 @@ describe("disclosing a masked account", () => {
     const a = app(chain);
 
     // Nothing is readable before a grant exists.
-    expect((await a.request(`/v1/disclose/${aliceName}/x`)).status).toBe(404);
+    expect((await a.request(withKey(`/v1/disclose/${aliceName}/x`))).status).toBe(404);
     // And the public card still only sees a commitment.
     const masked = await (await a.request(`/v1/verify/${aliceName}?links=x`)).json();
     expect(masked.links[0]).toMatchObject({ optedIn: true });
@@ -2540,12 +2593,14 @@ describe("disclosing a masked account", () => {
     const stored = await post(a, "/v1/disclose", await grantFor(viewCode));
     expect(stored.status).toBe(200);
 
-    const opened = await (await a.request(`/v1/disclose/${aliceName}/x`)).json();
+    const opened = await (await a.request(withKey(`/v1/disclose/${aliceName}/x`))).json();
     expect(opened.disclosed).toEqual({ handle: "alice_x", platformId: "1234567890" });
     expect(opened.warning).toBe(WARNING);
   });
 
   it("keeps a permission across a restart, so the link a candidate handed over still works", async () => {
+    // Including the secret the link carries: a redeploy that forgot it would refuse every share made
+    // for whoever holds a link, which is every share that is not addressed to one named reader.
     const dir = mkdtempSync(join(tmpdir(), "ketsuban-grants-"));
     const { chain, viewCode } = maskedChain();
     const boot = () =>
@@ -2554,7 +2609,7 @@ describe("disclosing a masked account", () => {
     expect((await post(boot(), "/v1/disclose", await grantFor(viewCode))).status).toBe(200);
 
     const afterRedeploy = boot();
-    const opened = await afterRedeploy.request(`/v1/disclose/${aliceName}/x`);
+    const opened = await afterRedeploy.request(withKey(`/v1/disclose/${aliceName}/x`));
     expect(opened.status).toBe(200);
     expect((await opened.json()).disclosed.handle).toBe("alice_x");
   });
@@ -2586,11 +2641,11 @@ describe("disclosing a masked account", () => {
     const a = app(chain);
     await post(a, "/v1/disclose", await grantFor(viewCode, { audience: registrar.address }));
 
-    const wrong = await a.request(`/v1/disclose/${aliceName}/x?reader=${user.account.address}`);
+    const wrong = await a.request(withKey(`/v1/disclose/${aliceName}/x?reader=${user.account.address}`));
     expect(wrong.status).toBe(403);
     expect((await wrong.json()).error).toContain("addressed to a different reader");
 
-    const right = await a.request(`/v1/disclose/${aliceName}/x?reader=${registrar.address}`);
+    const right = await a.request(withKey(`/v1/disclose/${aliceName}/x?reader=${registrar.address}`));
     expect(right.status).toBe(200);
     expect((await right.json()).disclosed.handle).toBe("alice_x");
   });

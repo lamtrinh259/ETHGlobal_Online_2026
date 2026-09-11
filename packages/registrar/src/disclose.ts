@@ -190,6 +190,23 @@ export type Revocation = {
  * grant, and it is already part of what the holder signed — which means a revocation naming it cannot
  * be pointed at some other grant.
  */
+/**
+ * The secret that opens a grant made for "whoever holds the link".
+ *
+ * Such a grant binds nobody, so the link is the whole permission — and the link was
+ * `/v/<their public name>?reveal=<the account>`, both halves of which anybody can guess. That made
+ * every account shared this way readable by the world rather than by whoever it was sent to.
+ *
+ * Thirty-two random bytes, hashed before it is handed to the attester, so the holder's own list of who
+ * can read what does not itself hand out the permission it is describing.
+ */
+export function linkKeyHash(key: Hex): Hex {
+  return keccak256(key);
+}
+
+/** What a link key looks like: the 32 bytes the browser generated, hex. */
+export const LINK_KEY_RE = /^0x[0-9a-f]{64}$/i;
+
 export function grantId(grant: Pick<Disclosure, "boxesHash">): Hex {
   return grant.boxesHash;
 }

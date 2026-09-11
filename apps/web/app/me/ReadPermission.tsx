@@ -14,6 +14,7 @@ import {
   disclosureTypedData,
   revealLink,
   revocationTypedData,
+  newLinkKey,
   toDisclosureWire,
 } from "@/lib/disclose";
 import { useDisclosures, useNameStatus, useRevoke, useVerification } from "@/lib/hooks";
@@ -64,6 +65,8 @@ export function ReadPermission({ api, links, name }: Props) {
     domains: string[];
     expiresAt: string;
     audience?: Address;
+    /** The secret in the link, held only here and in the link itself: the attester stores its hash */
+    linkKey?: Hex;
   }>();
   const live = useDisclosures(api, name);
   const revoking = useRevoke(api, name);
@@ -159,8 +162,20 @@ export function ReadPermission({ api, links, name }: Props) {
         disclosureTypedData(disclosure, config.chainId, config.multipass as Address) as never,
         { address: wallet }
       );
-      const ack = await api.disclose(toDisclosureWire(disclosure, boxes, signature as Hex));
-      setGranted({ id: ack.id, domains: disclosure.domains, expiresAt: ack.expiresAt, audience: only });
+      /*
+       * A grant addressed to nobody is opened by the link and by nothing else.
+       * Without this the link named a public name and a public account, both guessable, and the page
+       * promised "anyone holding this link" over something anybody could read.
+       */
+      const linkKey = only || branchOf ? undefined : newLinkKey();
+      const ack = await api.disclose(toDisclosureWire(disclosure, boxes, signature as Hex, linkKey));
+      setGranted({
+        id: ack.id,
+        domains: disclosure.domains,
+        expiresAt: ack.expiresAt,
+        audience: only,
+        linkKey,
+      });
       setAdding(false);
       setPicked([]);
       void live.refetch();
@@ -409,14 +424,14 @@ export function ReadPermission({ api, links, name }: Props) {
                 by <code>{short(granted.audience)}</code> only
               </>
             ) : (
-              "by anyone holding this link"
+              "by anyone holding this link, and by nobody who has not been sent it"
             )}
             , until {new Date(granted.expiresAt).toUTCString()}.
           </p>
-          <code>{revealLink(siteUrl, name, granted.domains, granted.audience)}</code>
+          <code>{revealLink(siteUrl, name, granted.domains, granted.audience, granted.linkKey)}</code>
           <p>
             <CopyButton
-              text={revealLink(siteUrl, name, granted.domains, granted.audience)}
+              text={revealLink(siteUrl, name, granted.domains, granted.audience, granted.linkKey)}
               label="Copy the link"
             />
           </p>

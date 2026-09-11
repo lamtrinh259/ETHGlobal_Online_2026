@@ -48,10 +48,19 @@ export function isDnsName(value: string): boolean {
  * this deployment does not map.
  */
 export function dnsNameFor(domain: string, account: { username?: string }): string | undefined {
-  if (domain === "email") {
+  /*
+   * A Google account is an email account whose issuer vouches for it.
+   *
+   * Mounting every one of them at `google.com` claimed an address at a domain almost none of their
+   * holders have: signing in with Google gives `someone@gmail.com`, or a company's own domain under
+   * Workspace. The address carries where it is from, and that is the namespace the account belongs in
+   * — the issuer's own name is only what is left when there is no address to read.
+   */
+  if (domain === "email" || domain === "google") {
     const at = (account.username ?? "").lastIndexOf("@");
     const host = at === -1 ? "" : account.username!.slice(at + 1).toLowerCase();
-    return isDnsName(host) ? host : undefined;
+    if (isDnsName(host)) return host;
+    return domain === "google" ? PLATFORM_DNS_NAMES.google : undefined;
   }
   return PLATFORM_DNS_NAMES[domain];
 }
@@ -66,7 +75,8 @@ export function dnsNameFor(domain: string, account: { username?: string }): stri
 export function labelFor(domain: string, account: { username?: string }): string | undefined {
   const [handle = ""] = (account.username ?? "").split("#");
   const [local = ""] = handle.split("@");
-  const label = (domain === "email" ? local : handle).toLowerCase();
+  // A Google account's handle is an address, so its label is that address's local part.
+  const label = (domain === "email" || domain === "google" ? local : handle).toLowerCase();
   return /^[a-z0-9_-]{1,63}$/.test(label) ? label : undefined;
 }
 

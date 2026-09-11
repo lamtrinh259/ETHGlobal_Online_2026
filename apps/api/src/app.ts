@@ -20,6 +20,8 @@ import {
   solicitedBy,
   attest,
   checkAudience,
+  LINK_KEY_RE,
+  linkKeyHash,
   checkDisclosure,
   checkRevocation,
   discloseDomain,
@@ -98,6 +100,14 @@ export const wireDisclosure = z.object({
     .array(z.object({ ephemeralPubkey: hex, nonce: hex, ciphertext: hex }))
     .min(1)
     .max(16),
+  /*
+   * The hash of the secret a link-shared grant is opened by.
+   *
+   * Not part of the signature: it says nothing about what is permitted, only about who is holding the
+   * link, and the holder's browser keeps the secret itself. A grant for one named reader needs none —
+   * that reader is who it opens for.
+   */
+  linkKeyHash: hex.optional(),
   signature: hex,
 });
 
@@ -1090,6 +1100,22 @@ export function createApp({
     },
     (grant) => ({ ...grant, exp: grant.exp.toString() })
   );
+  /*
+   * What opens a grant made for "whoever holds the link".
+   *
+   * Such a grant binds nobody, so the link is the whole permission — and it was
+   * `/v/<their public name>?reveal=<the account>`, both halves of which anybody can guess, which made
+   * every account shared that way readable by the world rather than by the person it was sent to.
+   *
+   * Kept beside the grant rather than inside it, and only ever the hash: `/v1/disclosures/:name` is
+   * the holder's own list of who can read what, and must not itself hand out the permissions it lists.
+   */
+  const linkKeyStore = new PersistentMap<string>(
+    "linkkeys",
+    config.DATA_DIR || undefined,
+    (raw) => raw as string,
+    (h) => h
+  );
   app.post("/v1/disclose", async (c) => {
     const body = wireDisclosure.safeParse(await c.req.json().catch(() => null));
     if (!body.success) return c.json({ error: "bad request", issues: body.error.issues }, 400);
@@ -1130,7 +1156,15 @@ export function createApp({
     // One signature, one grant, one thing to take back. Storing it per account would make a share of
     // two accounts look like two permissions, and would let a second share of one account quietly
     // replace the first rather than standing beside it.
-    grantStore.set(`${grant.name}:${grantId(grant)}`, grant);
+    const key = `${grant.name}:${grantId(grant)}`;
+    grantStore.set(key, grant);
+    /*
+     * Set once. The grant is checked by its signature, but this is not signed — so a second POST of
+     * the same grant must not be able to replace the secret that opens it with one the sender chose.
+     */
+    if (body.data.linkKeyHash && !linkKeyStore.get(key)) {
+      linkKeyStore.set(key, body.data.linkKeyHash.toLowerCase());
+    }
     return c.json({
       ok: true,
       id: grantId(grant),
@@ -1226,6 +1260,14 @@ export function createApp({
     if (candidates.length === 0) return c.json({ error: "no disclosure for that account" }, 404);
     const reader = c.req.query("reader") as Address | undefined;
     const readerName = await heldBy(c.req.query("as"), reader);
+    /*
+     * The secret out of the link, for a grant that was made for whoever holds one.
+     *
+     * It arrives in the URL fragment and is put on this request by the browser, so it stays out of
+     * server logs and out of a referrer header on the way here.
+     */
+    const offered = c.req.query("k");
+    const offeredHash = offered && LINK_KEY_RE.test(offered) ? linkKeyHash(offered as Hex) : undefined;
     const located = locate(name, await chain.instances());
     if (!located) return c.json({ error: "unknown instance for name" }, 404);
     const holder = await chain.resolveAddr(located.instance.resolver, name);
@@ -1246,7 +1288,22 @@ export function createApp({
           discloseDomain(config.CHAIN_ID, config.MULTIPASS)
         );
         checkDisclosure(candidate, { holder, now: now(), signer });
-        checkAudience(candidate, { reader, readerName });
+        /*
+         * A grant addressed to nobody is opened by the link, not by asking for it.
+         *
+         * `checkAudience` waves through anything whose audience is the zero address, which is what
+         * "anyone with the link" is signed as — so with no secret required, the URL was guessable and
+         * the account was not shared, it was published.
+         */
+        if (candidate.audience.toLowerCase() === zeroAddress && !candidate.audienceName) {
+          const want = linkKeyStore.get(`${candidate.name}:${grantId(candidate)}`);
+          if (!want) throw new Error("disclosure: this share predates link keys and must be made again");
+          if (!offeredHash || offeredHash.toLowerCase() !== want) {
+            throw new Error("disclosure: addressed to a different reader");
+          }
+        } else {
+          checkAudience(candidate, { reader, readerName });
+        }
         grant = candidate;
         break;
       } catch (e) {

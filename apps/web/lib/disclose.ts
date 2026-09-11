@@ -5,6 +5,7 @@ import {
   domainsKey,
   eciesEncrypt,
   hashBoxes,
+  linkKeyHash,
   REVOKE_TYPES,
   ZERO_ADDRESS,
 } from "@ketsuban/registrar";
@@ -82,9 +83,29 @@ export function revocationTypedData(
 export function toDisclosureWire(
   disclosure: ReturnType<typeof buildDisclosure>["disclosure"],
   boxes: ReturnType<typeof buildDisclosure>["boxes"],
-  signature: Hex
+  signature: Hex,
+  /** Hashed here: the attester stores what opens the link, never the thing that opens it */
+  linkKey?: Hex
 ) {
-  return { ...disclosure, exp: disclosure.exp.toString(), boxes, signature };
+  return {
+    ...disclosure,
+    exp: disclosure.exp.toString(),
+    boxes,
+    signature,
+    ...(linkKey ? { linkKeyHash: linkKeyHash(linkKey) } : {}),
+  };
+}
+
+/**
+ * The secret that opens a grant made for whoever holds the link.
+ *
+ * A grant addressed to nobody binds nobody, so the link is the whole permission — and it named a
+ * public name and a public account, both of which anybody can guess. An account shared that way was
+ * not shared, it was published.
+ */
+export function newLinkKey(): Hex {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  return `0x${[...bytes].map((b) => b.toString(16).padStart(2, "0")).join("")}` as Hex;
 }
 
 /** The link a candidate hands over: the verification card, with one account opened. */
@@ -92,13 +113,17 @@ export function revealLink(
   siteUrl: string,
   name: string,
   domains: string | string[],
-  audience?: string
+  audience?: string,
+  /** The secret, for a grant made for whoever holds the link rather than for one named reader */
+  linkKey?: Hex
 ): string {
   // Carrying the audience is not a permission — the grant is what binds — but it lets the page say
   // which wallet has to be signed in, instead of showing a reader an empty answer.
   const to = audience ? `&for=${audience}` : "";
   const list = (Array.isArray(domains) ? domains : [domains]).join(",");
-  return `${siteUrl.replace(/\/$/, "")}/v/${name}?reveal=${encodeURIComponent(list)}${to}`;
+  // In the fragment: a browser never sends it to a server, so it stays out of logs and referrers.
+  const secret = linkKey ? `#k=${linkKey}` : "";
+  return `${siteUrl.replace(/\/$/, "")}/v/${name}?reveal=${encodeURIComponent(list)}${to}${secret}`;
 }
 
 function hexToBytes32(value: Hex): Uint8Array {

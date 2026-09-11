@@ -5,12 +5,14 @@ import {
   discloseDomain,
   eciesDecrypt,
   hashBoxes,
+  linkKeyHash,
   recoverDiscloseSigner,
 } from "@ketsuban/registrar";
 import {
   boxHashOf,
   buildDisclosure,
   disclosureTypedData,
+  newLinkKey,
   revealLink,
   toDisclosureWire,
 } from "@/lib/disclose";
@@ -122,5 +124,39 @@ describe("building a disclosure", () => {
     expect(revealLink("https://app.example", "alice.ketsuban.eth", "x.com", "0xabc")).toBe(
       "https://app.example/v/alice.ketsuban.eth?reveal=x.com&for=0xabc"
     );
+  });
+
+  /**
+   * A grant addressed to nobody binds nobody, so the link is the whole permission — and it named a
+   * public name and a public account, both of which anybody can guess. Shared that way an account was
+   * not shared, it was published, under a page promising "anyone holding this link".
+   */
+  it("carries the secret in a link for whoever holds it, in the fragment", () => {
+    const key = newLinkKey();
+    const link = revealLink("https://app.example", "alice.ketsuban.eth", "x.com", undefined, key);
+    expect(link).toBe(`https://app.example/v/alice.ketsuban.eth?reveal=x.com#k=${key}`);
+    // The fragment is the half a browser keeps: it reaches no server log and no referrer header.
+    expect(new URL(link).search).not.toContain(key);
+  });
+
+  it("mints a secret worth calling one", () => {
+    const keys = new Set(Array.from({ length: 64 }, () => newLinkKey()));
+    expect(keys.size).toBe(64);
+    for (const k of keys) expect(k).toMatch(/^0x[0-9a-f]{64}$/);
+  });
+
+  it("hands the attester the hash of that secret, never the secret", () => {
+    const key = newLinkKey();
+    const { disclosure, boxes } = buildDisclosure({
+      name: "alice.ketsuban.eth",
+      accounts: [{ domain: "x.com", viewCode: VIEW_CODE }],
+      enclavePubkey: enclave.publicKey,
+      now: NOW,
+    });
+    const wire = toDisclosureWire(disclosure, boxes, "0xdead", key);
+    expect(wire.linkKeyHash).toBe(linkKeyHash(key));
+    expect(JSON.stringify(wire)).not.toContain(key.slice(2));
+    // A grant addressed to one reader opens for that reader, and needs no secret at all.
+    expect(toDisclosureWire(disclosure, boxes, "0xdead")).not.toHaveProperty("linkKeyHash");
   });
 });
