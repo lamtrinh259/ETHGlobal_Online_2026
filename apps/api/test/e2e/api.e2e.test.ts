@@ -403,6 +403,53 @@ describe("api e2e", () => {
     expect((await (await fetch(`${API}/v1/letter/${kept.hash}`)).json()).text).toBe(letter);
   });
 
+  it("stores an invitation only for the wallet holding the name, and hands it back by code", async () => {
+    /*
+     * The other POST the docker suite never exercised. It writes nothing to the chain — it reads one:
+     * an invitation is only an invitation if the wallet that signed it holds the name it invites for,
+     * and that is decided against the registry rather than against anything the browser said.
+     *
+     * Alice claimed her name earlier in this file, so she can invite; nobody else can invite as her.
+     */
+    const now = Math.floor(Date.now() / 1000);
+    const post = (body: unknown) =>
+      fetch(`${API}/v1/invite`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    const wire = (i: Awaited<ReturnType<typeof signedInvite>>) => ({ ...i, exp: i.exp.toString() });
+
+    const mine = await signedInvite(user.account, "alice", now, 31337, deployment.multipass, {
+      requires: ["telegram"],
+    });
+    const made = await (await post(wire(mine))).json();
+    expect(made.code, `invitation refused: ${made.error}`).toMatch(/^[0-9a-f]{8}$/);
+    // Addressed by its own signature, so storing it again is the same link rather than a second one.
+    expect((await (await post(wire(mine))).json()).code).toBe(made.code);
+
+    const back = await (await fetch(`${API}/v1/invite/${made.code}`)).json();
+    expect(back.invite).toMatchObject({ handle: "alice", requires: ["telegram"] });
+    // The signature travels with it: a voucher's attestation is checked against this, not against us.
+    expect(back.invite.signature).toBe(mine.signature);
+
+    const listed = await (await fetch(`${API}/v1/invites/alice`)).json();
+    expect(listed.invites.map((i: { code: string }) => i.code)).toContain(made.code);
+
+    // Bob holds his own name, not alice's, so he cannot ask on her behalf.
+    const BOB_KEY = "0x000000000000000000000000000000000000000000000000000000000000b0bb" as const;
+    const impostor = await signedInvite(
+      fakeUser(BOB_KEY, "bob").account,
+      "alice",
+      now,
+      31337,
+      deployment.multipass
+    );
+    const refused = await post(wire(impostor));
+    expect(refused.status).toBe(400);
+    expect((await refused.json()).error).toMatch(/signed by the wallet holding that name/);
+  });
+
   it("keeps a picture by its bytes, serves it as a picture, and still has it after a restart", async () => {
     /*
      * A profile picture is the other thing this service holds that the chain cannot: a text record
