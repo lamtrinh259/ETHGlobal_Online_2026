@@ -617,8 +617,24 @@ export function createApp({
     const candidate = candidateOf(req.intent.domain, [config.VOUCH_PREFIX]);
     if (!candidate || !req.invite) return;
     const onchain = await readFor(req);
-    if (!(await solicitedBy(req, onchain, await env()))) return;
-    solicitedStore.set(`${candidate}:${req.intent.handle}`, {
+    const key = `${candidate}:${req.intent.handle}`;
+    if (!(await solicitedBy(req, onchain, await env()))) {
+      /*
+       * A claim that failed takes the mark with it.
+       *
+       * The mark is stored per candidate and writer, and a reference can be superseded: one written
+       * under a good invitation and then rewritten under an invitation that does not qualify kept
+       * saying the candidate asked for it, because nothing ever removed what an earlier request put
+       * there. A presented invitation is a claim about the record being written now, so failing it
+       * has to mean what it says.
+       *
+       * Presenting none is left alone: that is how a writer updates or withdraws what they already
+       * wrote, and it says nothing about how the reference was asked for in the first place.
+       */
+      solicitedStore.delete(key);
+      return;
+    }
+    solicitedStore.set(key, {
       handle: req.invite.handle,
       voucher: req.invite.voucher,
       exp: req.invite.exp.toString(),

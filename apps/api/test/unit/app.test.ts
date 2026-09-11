@@ -1731,6 +1731,55 @@ describe("POST /v1/attest — vouch invitations", () => {
     expect(bob.solicited, "a masked account did not count towards the invitation").toBe(true);
   });
 
+  it("takes the mark back when a later reference presents an invitation it does not meet", async () => {
+    /*
+     * The mark is stored per candidate and writer, and a reference can be superseded. Written once
+     * under an invitation that qualified and then rewritten under one that does not, it went on
+     * reporting that the candidate asked for it: nothing removed what the earlier request had put
+     * there, so the badge described a record that no longer existed.
+     */
+    const written = {
+      name: "bob",
+      id: toBytes32("b"),
+      wallet: user.account.address,
+      payload: toBytes32("worked together"),
+      validUntil: 1_800_000_000n,
+      nonce: 1n,
+      live: true,
+    };
+    const { chain } = fakeChain({ ...aliceHolds, listed: { "~alice": [written] } });
+    const a = app(chain);
+    const vouch = { ...vouchIntent(NOW), handle: "bob" };
+    const token = privy.mint({ sub: user.did, linked: user.linked, now: NOW });
+
+    const good = await signedInvite(user.account, "alice", NOW, 31337, baseEnv.MULTIPASS as Hex);
+    const first = toWire(
+      await signedAttestRequest(user.account, vouch, token, 31337, baseEnv.MULTIPASS as Hex, good)
+    );
+    expect((await post(a, "/v1/attest", first)).status).toBe(200);
+    const asked = await (await a.request("/v1/vouches/alice")).json();
+    expect(asked.vouches.find((v: { voucher: string }) => v.voucher === "bob").solicited).toBe(true);
+
+    // Now the same writer, superseding it, presenting an invitation nobody signed for alice.
+    const forged = await signedInvite(registrar, "alice", NOW, 31337, baseEnv.MULTIPASS as Hex);
+    const second = toWire(
+      await signedAttestRequest(
+        user.account,
+        { ...vouch, nonce: 2n },
+        token,
+        31337,
+        baseEnv.MULTIPASS as Hex,
+        forged
+      )
+    );
+    expect((await post(a, "/v1/attest", second)).status).toBe(200);
+    const after = await (await a.request("/v1/vouches/alice")).json();
+    expect(
+      after.vouches.find((v: { voucher: string }) => v.voucher === "bob").solicited,
+      "the mark survived an invitation that did not qualify"
+    ).toBe(false);
+  });
+
   it("does not count an invitation signed by someone who does not hold the candidate's name", async () => {
     // Seeded, because the check is that this reference comes back unmarked: asserting over a listing
     // with nothing in it passes whether or not a forged invitation would have been believed.
