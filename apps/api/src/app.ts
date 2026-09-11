@@ -448,7 +448,18 @@ export function createApp({
         503
       );
     }
-    return c.json({ id, url: new URL(`/v1/avatar/${id}`, c.req.url).toString() });
+    /*
+     * The scheme a reader will actually use.
+     *
+     * This URL goes into an `avatar` text record and stays there: the record is permanent, and so is
+     * whatever scheme was written into it. Behind a proxy that terminates TLS the request arrives as
+     * plain http, so building the URL from it records `http://…` for a page served over https — mixed
+     * content, which a strict browser refuses to load and no later fix can rewrite.
+     */
+    const url = new URL(`/v1/avatar/${id}`, c.req.url);
+    const proto = c.req.header("x-forwarded-proto")?.split(",")[0]?.trim();
+    if (proto === "https" || proto === "http") url.protocol = `${proto}:`;
+    return c.json({ id, url: url.toString() });
   });
 
   app.get("/v1/avatar/:id", (c) => {

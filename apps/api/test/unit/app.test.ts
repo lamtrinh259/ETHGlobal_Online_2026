@@ -3495,6 +3495,38 @@ describe("the avatar a profile points at", () => {
     return app.request("/v1/avatar", { method: "POST", body });
   };
 
+  it("records the scheme a reader will use, not the one the proxy handed it", async () => {
+    /*
+     * This URL goes into an `avatar` text record and stays there. Behind a proxy that terminates TLS
+     * the request arrives as plain http, so the record ends up naming `http://…` for a page served
+     * over https — mixed content, refused by a strict browser, and permanent.
+     *
+     * Seen on the live deployment: every avatar written so far carries an http URL.
+     */
+    const dir = mkdtempSync(join(tmpdir(), "ketsuban-avatar-proto-"));
+    const { chain } = fakeChain();
+    const a = createApp({ config: loadConfig({ ...baseEnv, DATA_DIR: dir }), chain, now: () => NOW });
+
+    const body = new FormData();
+    body.set("file", png());
+    const res = await a.request("/v1/avatar", {
+      method: "POST",
+      body,
+      headers: { "x-forwarded-proto": "https" },
+    });
+    expect((await res.json()).url).toMatch(/^https:\/\//);
+
+    // A proxy chain names every hop; the first is the one the reader spoke to.
+    const chained = new FormData();
+    chained.set("file", png());
+    const viaChain = await a.request("/v1/avatar", {
+      method: "POST",
+      body: chained,
+      headers: { "x-forwarded-proto": "https, http" },
+    });
+    expect((await viaChain.json()).url).toMatch(/^https:\/\//);
+  });
+
   it("keeps a picture and serves it back at the URL a text record can hold", async () => {
     const dir = mkdtempSync(join(tmpdir(), "ketsuban-avatar-"));
     const { chain } = fakeChain();
