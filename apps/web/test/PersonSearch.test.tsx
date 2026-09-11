@@ -213,12 +213,11 @@ describe("finding the person you mean", () => {
     // It sat in a list of its own above "Most referenced first", which read as an advertisement
     // rather than as the most referenced thing here, which is what it is.
     show({ href: "/v/kju-is.ketsuban.eth", label: "Kim Jong Un", note: "What do you think of him?" });
-    fireEvent.change(screen.getByTestId("name-query"), { target: { value: "bob" } });
-    await waitFor(() => expect(screen.getByTestId("match-bob")).toBeInTheDocument());
 
-    const rows = [...screen.getByTestId("matches").querySelectorAll("li")];
-    expect(rows[0]).toHaveTextContent("Kim Jong Un");
-    expect(rows[1]).toHaveTextContent("bob");
+    // One list, headed by what it is ranked on, with the subject as its first row.
+    const list = screen.getByTestId("matches");
+    expect(list.querySelectorAll("li")[0]).toHaveTextContent("Kim Jong Un");
+    expect(screen.getByTestId("pinned").closest("ul")).toBe(list);
   });
 
   it("stays on the same screen when a domain is named", () => {
@@ -235,5 +234,20 @@ describe("finding the person you mean", () => {
     expect((screen.getByTestId("name-query") as HTMLInputElement).value).toBe("bob");
     // And the private-account code is still reachable, which lived on the screen that used to replace this one.
     expect(screen.getByTestId("have-viewcode")).toBeInTheDocument();
+  });
+
+  it("drops the pinned row when what was typed is not it", async () => {
+    // It is a row in the list, not a banner: a search for somebody else should not answer with it,
+    // and arrowing to the first suggestion should reach the person being looked for.
+    show({ href: "/v/kju-is.ketsuban.eth", label: "Kim Jong Un" });
+    expect(screen.getByTestId("pinned")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByTestId("name-query"), { target: { value: "bob" } });
+    await waitFor(() => expect(screen.getByTestId("match-bob")).toBeInTheDocument());
+    expect(screen.queryByTestId("pinned")).toBeNull();
+
+    // And it comes back when the search is about it.
+    fireEvent.change(screen.getByTestId("name-query"), { target: { value: "kju" } });
+    await waitFor(() => expect(screen.getByTestId("pinned")).toBeInTheDocument());
   });
 });

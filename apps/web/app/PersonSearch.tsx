@@ -106,8 +106,18 @@ export function PersonSearch({
    * else each row contained — and the pinned subject, the thing most readers came for, sat behind
    * all of them.
    */
+  /*
+   * A pinned row is still a row in the list, so it answers to what was typed.
+   *
+   * Left in regardless it was the first thing under "most referenced first" for every search, and
+   * arrowing down to the first suggestion opened the subject rather than the person being looked for.
+   */
+  const shownPinned = pinned.filter(
+    (x) => !clean || x.label.toLowerCase().includes(clean) || x.href.toLowerCase().includes(clean)
+  );
+
   const options: { key: string; go: () => void }[] = [
-    ...pinned.map((x) => ({ key: `pin:${x.href}`, go: () => router.push(x.href) })),
+    ...shownPinned.map((x) => ({ key: `pin:${x.href}`, go: () => router.push(x.href) })),
     ...matches.map((m) => ({ key: `hit:${m.handle}`, go: () => onPick(m.handle) })),
   ];
   const [active, setActive] = useState(-1);
@@ -229,7 +239,7 @@ export function PersonSearch({
             A subject is something people here have written about, so it belongs among the things they
             have written about — read as the first row of the ranking rather than as a banner over it.
           */}
-        {!platform && (pinned.length > 0 || matches.length > 0) && (
+        {!platform && (shownPinned.length > 0 || matches.length > 0) && (
           <>
             <p className="muted">
               {clean
@@ -237,7 +247,7 @@ export function PersonSearch({
                 : "Most referenced first."}
             </p>
             <ul className="acct" id="search-suggestions" data-testid="matches">
-              {pinned.map((x) => (
+              {shownPinned.map((x) => (
                 <li
                   key={x.href}
                   id={`pin:${x.href}`}
