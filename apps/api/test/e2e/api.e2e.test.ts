@@ -107,7 +107,14 @@ describe("api e2e", () => {
   it("preflights the deployment it is pointed at", async () => {
     const res = await fetch(`${API}/v1/preflight`);
     const p = await res.json();
-    expect(JSON.stringify(p.warnings)).toBe("[]");
+    /*
+     * This rig deploys every contract from one anvil key, so that key owns Multipass and is also the
+     * relayer — which preflight reports, correctly. Production should split them. Everything else must
+     * still be silent, so the expected warning is named rather than the check being dropped.
+     */
+    const unexpected = (p.warnings as string[]).filter((w) => !/the Multipass owner is the relayer/.test(w));
+    expect(JSON.stringify(unexpected)).toBe("[]");
+    expect(p.warnings).toHaveLength(1);
     expect(p.ok).toBe(true);
     expect(res.status).toBe(200);
     expect(p.bridge).toMatchObject({ deployed: true, missing: [] });
