@@ -214,8 +214,9 @@ curl -s $API/v1/enclave-key | jq            # what a candidate encrypts to
 curl -s "$API/v1/disclose/alice.ketsuban.eth/x" | jq
 ```
 
-The link the candidate hands over is `/v/alice.ketsuban.eth?reveal=x`. Without a live permission the
-same page says so instead of showing anything.
+The link the candidate hands over is `/v/alice.ketsuban.eth?reveal=x`, which lands on `/p/alice` —
+a person is one page, and `/v/` sends their name there carrying the parameters. Without a live
+permission that page says so rather than showing anything.
 
 One grant covers everything picked. Sharing three accounts is one decision and one link, so it is one
 signature over the whole selection: the statement names its accounts in one order and carries their

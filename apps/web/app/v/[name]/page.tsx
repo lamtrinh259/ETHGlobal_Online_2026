@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { EnsProof } from "@/app/EnsProof";
 import { InstanceAnswers } from "@/app/InstanceAnswers";
 import { Revealed } from "@/app/Revealed";
@@ -42,29 +41,11 @@ export default async function VerifyPage({ params, searchParams }: Params) {
     suffix && decoded.toLowerCase().endsWith(suffix) && !instanceOf
       ? decoded.slice(0, -suffix.length).toLowerCase()
       : null;
-  // One label under the root is a person. Two is a reference written for one — `bob.alice.<root>` —
-  // and an account sits deeper still; neither is somebody, and neither has a candidate page.
-  const person = handle && !handle.includes(".") ? handle : null;
   /*
-   * A person is one page.
-   *
-   * `/v/<handle>.<root>` and `/p/<handle>` were two readings of the same subject: one framed as a
-   * record, one as a candidate. A verifier following a link had no way to tell which they had been
-   * given, and the two drifted apart in what they showed. Everything else a name can be — an
-   * account, a reference, a mount, a subject instance — is still read here, because none of those
-   * is a person and none of them has a candidate page.
+   * A person's name never reaches this page: `middleware.ts` sends it to `/p/<handle>` before anything
+   * renders, which is the only way a reader without JavaScript gets there. What is left here is every
+   * name that is not somebody — an account, a reference, a mount, a subject instance.
    */
-  if (person) {
-    const query = new URLSearchParams(
-      Object.entries({ viewCode, links, reveal, for: addressedTo }).filter(([, v]) => v !== undefined) as [
-        string,
-        string,
-      ][]
-    ).toString();
-    // Outside the try below: this works by throwing, and that catch turns anything thrown into a card.
-    redirect(`/p/${person}${query ? `?${query}` : ""}`);
-  }
-
   try {
     const [v, ens, claim, instance, received] = await Promise.all([
       api.verify(decoded, {

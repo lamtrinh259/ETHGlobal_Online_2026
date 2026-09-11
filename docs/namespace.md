@@ -125,8 +125,8 @@ to tell a name nobody happens to hold from one this deployment could never answe
 curl -s $API/v1/explain/alice.com.x.private-www.ketsuban.eth | jq '{kind, domain, says}'
 ```
 
-The app's `/names` page reads the same function, so the sentence a person sees and the one an agent gets
-are the same sentence.
+`/v1/explain` is the same function the app reads, so the sentence a person is shown and the one an
+agent gets are the same sentence.
 
 ## What a client attests into
 

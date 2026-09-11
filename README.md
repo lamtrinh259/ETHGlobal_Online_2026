@@ -24,8 +24,8 @@ Four claims worth checking, each without asking this service:
 | Profile fields are role-gated on chain | `setText(avatar)` from the holder is allowed; the same key from anyone else, and any other key from the holder, is refused by the resolver |
 | The signature can be made where nobody can read the identity token | `pnpm --filter @ketsuban/cre-attest simulate:dns` runs the signing handler in the TEE simulator and prints the signed record. The workflow is written for a Chainlink CRE enclave and is not yet deployed to one; this deployment signs on its own node, and the app says which of the two it is doing |
 
-The app's own [/names](https://ketsuban.peeramid.xyz/names) page builds the same list from the mounts on
-chain, so it never drifts from what is deployed.
+Every shape above is built from the mounts recorded on chain rather than from a list kept here, so it
+cannot drift from what is deployed: `curl -s $API/v1/instances` is where it comes from.
 
 ## Checks
 
