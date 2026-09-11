@@ -104,6 +104,25 @@ describe("inviting someone to refer you", () => {
     expect(signed[0]).toMatchObject({ requires: ["mit.edu"] });
   });
 
+  it("will not sign an invitation nobody could satisfy", async () => {
+    /*
+     * A real one cost a real reference: `github.com, lamtrinh259`. The attester looks for a record the
+     * writer holds in each named domain, and a username has none — so the writer followed the link,
+     * vouched, and was told their reference was unsolicited, with nothing anywhere saying the
+     * requirement had been impossible since the moment it was signed.
+     */
+    render(<InviteLink api={api} handle="alice" />);
+    fireEvent.click(screen.getByTestId("open-invite"));
+    fireEvent.change(screen.getByTestId("require-domain"), { target: { value: "lamtrinh259" } });
+
+    // Said while it can still be changed, not after signing.
+    expect(screen.getByTestId("require-domain-problem").textContent).toMatch(/username, not a domain/);
+
+    fireEvent.click(screen.getByTestId("make-invite"));
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toMatch(/username, not a domain/));
+    expect(signed, "an impossible invitation was signed anyway").toHaveLength(0);
+  });
+
   it("asks for nothing by default, which is the common case", async () => {
     render(<InviteLink api={api} handle="alice" />);
     fireEvent.click(screen.getByTestId("open-invite"));

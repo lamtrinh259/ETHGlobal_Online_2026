@@ -5,6 +5,7 @@ import { useSignTypedData, useWallets } from "@privy-io/react-auth";
 import type { Address } from "viem";
 import { ZERO_ADDRESS, type SignedInvite } from "@ketsuban/registrar";
 import { useWebConfig } from "@/app/providers";
+import { whyUnsatisfiable } from "@/lib/invite";
 import { CopyButton } from "@/app/CopyButton";
 import { fmtUtc } from "@/app/ui";
 import { useInvites } from "@/lib/hooks";
@@ -62,6 +63,13 @@ export function InviteLink({
       if (!wallet) throw new Error("no wallet yet — Privy is still creating it");
       // A domain is a domain however it was typed, and what is asked for has to be what was signed.
       const requires = [...picked, ...(domain.trim() ? [domain.trim()] : [])].map((d) => d.toLowerCase());
+      /*
+       * Refused before it is signed, because an invitation nobody can satisfy fails silently: the
+       * writer follows the link, vouches, and their reference comes back unsolicited with nothing
+       * saying the requirement was impossible from the moment it was made.
+       */
+      const impossible = requires.map((r) => whyUnsatisfiable(r, config.parentNames)).find(Boolean);
+      if (impossible) throw new Error(impossible);
       const invite = {
         handle,
         voucher: ZERO_ADDRESS,
@@ -163,7 +171,7 @@ export function InviteLink({
             onToggle={(d) => setPicked((p) => (p.includes(d) ? p.filter((x) => x !== d) : [...p, d]))}
           />
           <label>
-            Or an email domain
+            Or a mail host
             <input
               value={domain}
               onChange={(e) => setDomain(e.target.value)}
@@ -172,6 +180,12 @@ export function InviteLink({
               data-testid="require-domain"
             />
           </label>
+          {/* Said while it can still be changed, rather than as an error after signing. */}
+          {domain.trim() && whyUnsatisfiable(domain, config.parentNames) && (
+            <p className="warning" data-testid="require-domain-problem">
+              {whyUnsatisfiable(domain, config.parentNames)}
+            </p>
+          )}
 
           {/* The other direction: what the writer gets to see. A reference written about somebody whose
               accounts are all masked is written half blind. */}
