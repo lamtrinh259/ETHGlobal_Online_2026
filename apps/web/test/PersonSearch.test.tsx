@@ -47,11 +47,11 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
 const { PersonSearch } = await import("@/app/PersonSearch");
 
-const show = (onPick = vi.fn()) => {
+const show = (pinned?: { href: string; label: string; note?: string }, onPick = vi.fn()) => {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={qc}>
-      <PersonSearch api={api} onPick={onPick} action="Check this one" />
+      <PersonSearch api={api} onPick={onPick} action="Check this one" pinned={pinned ? [pinned] : []} />
     </QueryClientProvider>
   );
   return onPick;
@@ -70,7 +70,7 @@ describe("finding the person you mean", () => {
   });
 
   it("hands back the one that was picked", async () => {
-    const onPick = show();
+    const onPick = show(undefined, vi.fn());
     fireEvent.change(screen.getByLabelText("their name"), { target: { value: "bob" } });
     await waitFor(() => expect(screen.getByTestId("pick-bobby")).toBeInTheDocument());
     fireEvent.click(screen.getByTestId("pick-bobby"));
@@ -78,7 +78,7 @@ describe("finding the person you mean", () => {
   });
 
   it("offers a name nobody holds, rather than treating it as a dead end", async () => {
-    const onPick = show();
+    const onPick = show(undefined, vi.fn());
     fireEvent.change(screen.getByLabelText("their name"), { target: { value: "nobody" } });
     await waitFor(() => expect(screen.getByTestId("no-match")).toBeInTheDocument());
     fireEvent.click(screen.getByTestId("use-anyway"));
@@ -86,9 +86,9 @@ describe("finding the person you mean", () => {
   });
 
   it("identifies somebody exactly from an account of theirs", async () => {
-    const onPick = show();
+    const onPick = show(undefined, vi.fn());
     fireEvent.change(screen.getByTestId("by-account"), { target: { value: "x.com" } });
-    fireEvent.change(screen.getByLabelText("their account"), { target: { value: "bob_x" } });
+    fireEvent.change(screen.getByTestId("name-query"), { target: { value: "bob_x" } });
     await waitFor(() => expect(screen.getByTestId("who-result")).toHaveTextContent("That is bob"));
     fireEvent.click(screen.getByTestId("who-go"));
     expect(onPick).toHaveBeenCalledWith("bob");
@@ -149,7 +149,7 @@ describe("finding the person you mean", () => {
      * Every suggestion was a button, so reaching the third meant tabbing past the two above it and
      * whatever each row contained. A box people type into is one they expect to arrow out of.
      */
-    const onPick = show();
+    const onPick = show(undefined, vi.fn());
     fireEvent.change(screen.getByTestId("name-query"), { target: { value: "bob" } });
     await waitFor(() => expect(screen.getByTestId("match-bob")).toBeInTheDocument());
 
@@ -203,8 +203,37 @@ describe("finding the person you mean", () => {
      */
     show();
     fireEvent.change(screen.getByTestId("by-account"), { target: { value: "mit.edu" } });
-    expect(screen.getByLabelText("their account")).toBeInTheDocument();
-    // Named where the handle is asked for, so it is clear which account is being looked up.
-    expect(screen.getAllByText("mit.edu").length).toBeGreaterThan(0);
+    // The same box, now asking for a handle there — the screen does not change under somebody.
+    const box = screen.getByTestId("name-query");
+    expect(box).toHaveAttribute("aria-label", "their account");
+    expect(box).toHaveAttribute("placeholder", "their handle on mit.edu");
+  });
+
+  it("reads the subject as the first row of the ranking, not a banner over it", async () => {
+    // It sat in a list of its own above "Most referenced first", which read as an advertisement
+    // rather than as the most referenced thing here, which is what it is.
+    show({ href: "/v/kju-is.ketsuban.eth", label: "Kim Jong Un", note: "What do you think of him?" });
+    fireEvent.change(screen.getByTestId("name-query"), { target: { value: "bob" } });
+    await waitFor(() => expect(screen.getByTestId("match-bob")).toBeInTheDocument());
+
+    const rows = [...screen.getByTestId("matches").querySelectorAll("li")];
+    expect(rows[0]).toHaveTextContent("Kim Jong Un");
+    expect(rows[1]).toHaveTextContent("bob");
+  });
+
+  it("stays on the same screen when a domain is named", () => {
+    /*
+     * Naming a domain used to swap the whole widget for a different one: the bar disappeared, and
+     * with it whatever had been typed. It is the same question either way — who — so it is the same
+     * screen, and only what the box is asking for changes.
+     */
+    show();
+    fireEvent.change(screen.getByTestId("name-query"), { target: { value: "bob" } });
+    fireEvent.change(screen.getByTestId("by-account"), { target: { value: "x.com" } });
+
+    expect(screen.getByTestId("searchbar")).toBeInTheDocument();
+    expect((screen.getByTestId("name-query") as HTMLInputElement).value).toBe("bob");
+    // And the private-account code is still reachable, which lived on the screen that used to replace this one.
+    expect(screen.getByTestId("have-viewcode")).toBeInTheDocument();
   });
 });

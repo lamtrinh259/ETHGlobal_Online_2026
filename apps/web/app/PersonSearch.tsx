@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Api } from "@/lib/api";
 import Link from "next/link";
@@ -69,7 +69,6 @@ export function PersonSearch({
    */
   also?: { label: string; onPick: (handle: string) => void };
 }) {
-  const [byAccount, setByAccount] = useState(false);
   /*
    * What this deployment answers for, rather than a list kept here.
    *
@@ -81,13 +80,14 @@ export function PersonSearch({
   const domains = (contracts.data?.instances ?? []).map((i) => i.domain).filter((d) => d.includes("."));
   // Empty means a name, which is what the box says when nothing has been typed into it.
   const [platform, setPlatform] = useState("");
-  const [account, setAccount] = useState("");
   const [hasCode, setHasCode] = useState(false);
   const [viewCode, setViewCode] = useState("");
   const [query, setQuery] = useState("");
   const site = typeof window === "undefined" ? "" : window.location.origin;
   const router = useRouter();
 
+  // The one box: a name when no domain is named beside it, that domain's handle when one is.
+  const account = platform ? query : "";
   const who = useWho(api, platform, account, hasCode ? viewCode.trim() : undefined);
   const found = useFind(api, query);
   const clean = query.trim().toLowerCase().replace(/^@/, "");
@@ -111,22 +111,35 @@ export function PersonSearch({
     ...matches.map((m) => ({ key: `hit:${m.handle}`, go: () => onPick(m.handle) })),
   ];
   const [active, setActive] = useState(-1);
+  /*
+   * Kept in a ref as well as in state.
+   *
+   * Arrow-then-enter is one gesture and both keys land before React has re-rendered, so a handler
+   * reading the state still saw "nothing selected" and enter did nothing. Typing that fast is what
+   * people do with a search box; the ref is what the second key reads.
+   */
+  const activeRef = useRef(-1);
+  // Naming a domain is done in the bar, so anything offering that sends focus there.
+  const kindBox = useRef<HTMLInputElement>(null);
   const at = active >= 0 && active < options.length ? active : -1;
+  const move = (n: number) => {
+    activeRef.current = n;
+    setActive(n);
+  };
 
   function onKeyDown(e: React.KeyboardEvent) {
     if (!options.length) return;
+    const i = activeRef.current;
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
       const step = e.key === "ArrowDown" ? 1 : -1;
       // From nothing, down takes the first and up takes the last, which is where each one points.
-      setActive((i) =>
-        i < 0 ? (step > 0 ? 0 : options.length - 1) : (i + step + options.length) % options.length
-      );
-    } else if (e.key === "Enter" && at >= 0) {
+      move(i < 0 ? (step > 0 ? 0 : options.length - 1) : (i + step + options.length) % options.length);
+    } else if (e.key === "Enter" && i >= 0 && i < options.length) {
       e.preventDefault();
-      options[at].go();
+      options[i].go();
     } else if (e.key === "Escape") {
-      setActive(-1);
+      move(-1);
     }
   }
 
@@ -136,89 +149,100 @@ export function PersonSearch({
         One field, because there was one question. The two buttons asked the reader to classify what
         they knew before typing it, and the second field only ever answered the rarer half.
       */}
-      {!byAccount ? (
-        <>
-          {/*
+      <>
+        {/*
             One control, not a field with a setting under it.
             What kind of thing is being typed belongs to the box it is typed into — a reader chooses
             it while asking, the way they would in any search bar. Underneath the results it was a
             setting to go and find after the search had already failed to be what they meant.
           */}
-          <div className={big ? "searchbar searchbar-big" : "searchbar"} data-testid="searchbar">
-            <span className="searchbar-label">{label ?? "Their name or handle"}</span>
-            <div className="searchbar-row">
-              {/*
+        <div className={big ? "searchbar searchbar-big" : "searchbar"} data-testid="searchbar">
+          <span className="searchbar-label">{label ?? "Their name or handle"}</span>
+          <div className="searchbar-row">
+            {/*
                 Typed, not chosen from a list.
                 A deployment mounts a domain the first time somebody attests an account there, so the
                 list grows on its own and a menu of it is out of date by definition — and a mail host
                 is a domain like any other, which a fixed list of platforms left out entirely. The
                 completion is what this deployment actually holds, and anything else is still typable.
               */}
-              <input
-                className="searchbar-kind"
-                list="search-domains"
-                value={platform}
-                onChange={(e) => {
-                  setPlatform(e.target.value);
-                  if (e.target.value.includes(".")) setByAccount(true);
-                }}
-                placeholder="a name"
-                aria-label="what you are searching for"
-                data-testid="by-account"
-              />
-              <datalist id="search-domains">
-                {domains.map((d) => (
-                  <option key={d} value={d} />
-                ))}
-              </datalist>
-              <input
-                value={query}
-                onChange={(e) => {
-                  setQuery(e.target.value);
-                  setActive(-1);
-                }}
-                onKeyDown={onKeyDown}
-                placeholder="a name, a handle, or a wallet address"
-                aria-label="their name"
-                autoFocus={autoFocus}
-                role="combobox"
-                aria-expanded={options.length > 0}
-                aria-controls="search-suggestions"
-                aria-activedescendant={at >= 0 ? options[at].key : undefined}
-                data-testid="name-query"
-              />
-              {query && (
-                <button
-                  type="button"
-                  className="searchbar-clear"
-                  onClick={() => setQuery("")}
-                  aria-label="clear"
-                  data-testid="clear-query"
-                >
-                  ×
-                </button>
-              )}
-            </div>
-          </div>
-
-          {address && onAddress && (
-            <p className="muted" data-testid="is-address">
-              That is a wallet address.{" "}
-              <button className="linkish" onClick={() => onAddress(address)} data-testid="open-wallet">
-                See everything it holds →
+            <input
+              ref={kindBox}
+              className="searchbar-kind"
+              list="search-domains"
+              value={platform}
+              onChange={(e) => {
+                setPlatform(e.target.value);
+              }}
+              placeholder="a name"
+              aria-label="what you are searching for"
+              data-testid="by-account"
+            />
+            <datalist id="search-domains">
+              {domains.map((d) => (
+                <option key={d} value={d} />
+              ))}
+            </datalist>
+            <input
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                move(-1);
+              }}
+              onKeyDown={onKeyDown}
+              placeholder={platform ? `their handle on ${platform}` : "a name, a handle, or a wallet address"}
+              aria-label={platform ? "their account" : "their name"}
+              autoFocus={autoFocus}
+              role="combobox"
+              aria-expanded={options.length > 0}
+              aria-controls="search-suggestions"
+              aria-activedescendant={at >= 0 ? options[at].key : undefined}
+              data-testid="name-query"
+            />
+            {query && (
+              <button
+                type="button"
+                className="searchbar-clear"
+                onClick={() => setQuery("")}
+                aria-label="clear"
+                data-testid="clear-query"
+              >
+                ×
               </button>
+            )}
+          </div>
+        </div>
+
+        {address && onAddress && (
+          <p className="muted" data-testid="is-address">
+            That is a wallet address.{" "}
+            <button className="linkish" onClick={() => onAddress(address)} data-testid="open-wallet">
+              See everything it holds →
+            </button>
+          </p>
+        )}
+
+        {!platform && !address && found.isFetching && <p className="muted">looking…</p>}
+
+        {/*
+            One list, not a block above a list.
+            A subject is something people here have written about, so it belongs among the things they
+            have written about — read as the first row of the ranking rather than as a banner over it.
+          */}
+        {!platform && (pinned.length > 0 || matches.length > 0) && (
+          <>
+            <p className="muted">
+              {clean
+                ? "Most referenced first — the only evidence of which one people mean."
+                : "Most referenced first."}
             </p>
-          )}
-
-          {!address && found.isFetching && <p className="muted">looking…</p>}
-
-          {pinned.length > 0 && (
-            <ul className="acct" id="search-suggestions" data-testid="pinned">
+            <ul className="acct" id="search-suggestions" data-testid="matches">
               {pinned.map((x) => (
                 <li
                   key={x.href}
                   id={`pin:${x.href}`}
                   className={options[at]?.key === `pin:${x.href}` ? "here" : undefined}
+                  data-testid="pinned"
                 >
                   <span className="acct-id">
                     <strong>{x.label}</strong>
@@ -231,121 +255,66 @@ export function PersonSearch({
                   </span>
                 </li>
               ))}
-            </ul>
-          )}
-
-          {matches.length > 0 && (
-            <>
-              <p className="muted">
-                {clean
-                  ? "Most referenced first — the only evidence of which one people mean."
-                  : "Most referenced first."}
-              </p>
-              <ul className="acct" data-testid="matches">
-                {matches.map((m) => (
-                  <li
-                    key={m.handle}
-                    id={`hit:${m.handle}`}
-                    className={options[at]?.key === `hit:${m.handle}` ? "here" : undefined}
-                    data-testid={`match-${m.handle}`}
-                  >
-                    <span className="acct-id">
-                      <strong>{m.handle}</strong>
-                      <small className="muted">
-                        {refs(m)}
-                        {m.claimed ? "" : " · unclaimed"}
-                      </small>
-                    </span>
-                    <span className="acct-state">
-                      <button onClick={() => onPick(m.handle)} data-testid={`pick-${m.handle}`}>
-                        {action}
+              {matches.map((m) => (
+                <li
+                  key={m.handle}
+                  id={`hit:${m.handle}`}
+                  className={options[at]?.key === `hit:${m.handle}` ? "here" : undefined}
+                  data-testid={`match-${m.handle}`}
+                >
+                  <span className="acct-id">
+                    <strong>{m.handle}</strong>
+                    <small className="muted">
+                      {refs(m)}
+                      {m.claimed ? "" : " · unclaimed"}
+                    </small>
+                  </span>
+                  <span className="acct-state">
+                    <button onClick={() => onPick(m.handle)} data-testid={`pick-${m.handle}`}>
+                      {action}
+                    </button>
+                    {also && (
+                      <button onClick={() => also.onPick(m.handle)} data-testid={`also-${m.handle}`}>
+                        {also.label}
                       </button>
-                      {also && (
-                        <button onClick={() => also.onPick(m.handle)} data-testid={`also-${m.handle}`}>
-                          {also.label}
-                        </button>
-                      )}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
+                    )}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
 
-          {/*
+        {/*
             Nobody holding a name is not a dead end — a page can be made for somebody who has claimed
             nothing, which is how a person is referred before they have heard of any of this. But it
             makes a different kind of page, and that is worth knowing before it is made: nothing on it
             is tied to a real account until whoever it is about signs in and links one. Until then it
             is a page about a name, the way the subjects here are.
           */}
-          {clean.length >= 2 && !found.isFetching && exact && !named && (
-            <div className="muted" data-testid="no-match">
-              <p>
-                Nobody holds <strong>{clean}</strong> yet. Opening it makes a page about the name: people can
-                write references there, and none of it can be linked to a real account until whoever it is
-                about claims it.
-              </p>
-              <p className="row">
-                <button className="linkish" onClick={() => onPick(clean)} data-testid="use-anyway">
-                  {action} anyway →
-                </button>
-                <button className="linkish" onClick={() => setByAccount(true)} data-testid="rather-account">
-                  I know an account of theirs instead
-                </button>
-              </p>
-            </div>
-          )}
-        </>
-      ) : (
-        <>
-          {/*
-            The domain was chosen in the bar, so it is not asked for again.
-            A grid of platforms here could only offer the ones written into this app: a mail host or a
-            domain mounted since would not be on it, and clicking any of them would overwrite what
-            somebody had already typed.
-          */}
-          <p className="row">
-            <span>
-              Searching <code>{platform}</code>
-            </span>
-            <button className="linkish" onClick={() => setByAccount(false)} data-testid="by-name">
-              change
-            </button>
-          </p>
-          <label>
-            Their handle on <code>{platform}</code>
-            <input
-              value={account}
-              onChange={(e) => setAccount(e.target.value)}
-              placeholder="@bob"
-              aria-label="their account"
-              data-testid="account-handle"
-            />
-          </label>
-
-          {/* A private account is a one-time pad on chain, so nothing can search it. The view code is
-              the exception, and it is one the person chose to hand over. */}
-          {!hasCode ? (
+        {!platform && clean.length >= 2 && !found.isFetching && exact && !named && (
+          <div className="muted" data-testid="no-match">
             <p>
-              <button className="linkish" onClick={() => setHasCode(true)} data-testid="have-viewcode">
-                They gave me a view code
+              Nobody holds <strong>{clean}</strong> yet. Opening it makes a page about the name: people can
+              write references there, and none of it can be linked to a real account until whoever it is about
+              claims it.
+            </p>
+            <p className="row">
+              <button className="linkish" onClick={() => onPick(clean)} data-testid="use-anyway">
+                {action} anyway →
+              </button>
+              <button
+                className="linkish"
+                onClick={() => kindBox.current?.focus()}
+                data-testid="rather-account"
+              >
+                I know an account of theirs instead
               </button>
             </p>
-          ) : (
-            <label>
-              Their view code
-              <input
-                value={viewCode}
-                onChange={(e) => setViewCode(e.target.value)}
-                placeholder="0x…"
-                aria-label="view code"
-                data-testid="viewcode"
-              />
-              <small className="muted">A private account is unsearchable without it.</small>
-            </label>
-          )}
+          </div>
+        )}
 
+        {platform && (
           <p className="muted" data-testid="who-result">
             {account.trim().length < 2 ? (
               "An account identifies them exactly; a name does not."
@@ -365,25 +334,48 @@ export function PersonSearch({
               <>Nobody has attested that account here.</>
             )}
           </p>
+        )}
 
-          {/*
+        {/*
             An account nobody attested is the one case where the person can be reached: whoever holds
             `@bob` on that platform can sign in, link it, and the page becomes theirs. So this offers
             something to send them rather than a dead end.
           */}
-          {account.trim().length >= 2 && !who.isFetching && !who.data?.found && (
-            <p className="row" data-testid="invite-to-claim">
-              <CopyButton
-                text={claimAsk(platform, account.trim().replace(/^@/, ""), site)}
-                label="Copy an ask they can act on"
+        {/* A private account is a one-time pad on chain, so nothing can search it. The view code is
+              the exception, and it is one the person chose to hand over. */}
+        {platform &&
+          (hasCode ? (
+            <label>
+              Their view code
+              <input
+                value={viewCode}
+                onChange={(e) => setViewCode(e.target.value)}
+                placeholder="0x…"
+                aria-label="view code"
+                data-testid="viewcode"
               />
-              <small className="muted">
-                They sign in, link <code>{platform}</code>, and the name is theirs.
-              </small>
+              <small className="muted">A private account is unsearchable without it.</small>
+            </label>
+          ) : (
+            <p>
+              <button className="linkish" onClick={() => setHasCode(true)} data-testid="have-viewcode">
+                They gave me a view code
+              </button>
             </p>
-          )}
-        </>
-      )}
+          ))}
+
+        {platform && account.trim().length >= 2 && !who.isFetching && !who.data?.found && (
+          <p className="row" data-testid="invite-to-claim">
+            <CopyButton
+              text={claimAsk(platform, account.trim().replace(/^@/, ""), site)}
+              label="Copy an ask they can act on"
+            />
+            <small className="muted">
+              They sign in, link <code>{platform}</code>, and the name is theirs.
+            </small>
+          </p>
+        )}
+      </>
     </div>
   );
 }
