@@ -188,6 +188,26 @@ export function PersonSearch({
               aria-label="what you are searching for"
               data-testid="by-account"
             />
+            {/*
+              The way back out.
+              Naming a domain is one keystroke; unnaming it meant selecting the text and deleting it,
+              with nothing on screen saying so. A name is the default, so returning to it is a button.
+            */}
+            {platform && (
+              <button
+                type="button"
+                className="searchbar-clear"
+                onClick={() => {
+                  setPlatform("");
+                  setHasCode(false);
+                  kindBox.current?.focus();
+                }}
+                aria-label="search by name instead"
+                data-testid="clear-kind"
+              >
+                ×
+              </button>
+            )}
             <datalist id="search-domains">
               {domains.map((d) => (
                 <option key={d} value={d} />

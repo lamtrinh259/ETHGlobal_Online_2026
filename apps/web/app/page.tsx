@@ -23,11 +23,11 @@ export default async function Home() {
   const about = await Promise.all(
     subjects.map(async (s) => ({
       ...s,
-      records: await api
+      ...(await api
         // The first page anybody sees, and a description is worth having only if it costs nothing.
         .instance(s.domain, { signal: flourish() })
-        .then((r) => r.records)
-        .catch(() => undefined),
+        .then((r) => ({ records: r.records, answers: r.answers.length }))
+        .catch(() => ({ records: undefined, answers: undefined }))),
     }))
   );
   return (
@@ -46,6 +46,7 @@ export default async function Home() {
           title: questionTitle(s.domain),
           name: s.records?.name,
           about: s.records?.description,
+          answers: s.answers,
         }))}
       />
     </>

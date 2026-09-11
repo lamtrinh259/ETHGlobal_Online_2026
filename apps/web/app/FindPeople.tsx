@@ -17,7 +17,15 @@ export function FindPeople({
   subjects,
 }: {
   /** Pinned above the people: a subject is a page anybody can answer under, not a person */
-  subjects: { domain: string; parentName: string; title: string; name?: string; about?: string }[];
+  subjects: {
+    domain: string;
+    parentName: string;
+    title: string;
+    name?: string;
+    about?: string;
+    /** How many people have answered under it, which is what the list is ranked on */
+    answers?: number;
+  }[];
 }) {
   const router = useRouter();
   const config = useWebConfig();
@@ -37,7 +45,11 @@ export function FindPeople({
         pinned={subjects.map((s) => ({
           href: `/v/${s.parentName}`,
           label: s.name ?? s.title,
-          note: s.title,
+          // Said in the same terms as every other row, because it sits in the same ranking.
+          note:
+            s.answers === undefined
+              ? s.title
+              : `${s.answers} ${s.answers === 1 ? "answer" : "answers"} · ${s.title}`,
         }))}
       />
     </section>

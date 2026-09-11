@@ -250,4 +250,18 @@ describe("finding the person you mean", () => {
     fireEvent.change(screen.getByTestId("name-query"), { target: { value: "kju" } });
     await waitFor(() => expect(screen.getByTestId("pinned")).toBeInTheDocument());
   });
+
+  it("can be taken back to searching by name once a domain was named", () => {
+    /*
+     * Naming one is a keystroke; unnaming it meant selecting the text and deleting it, with nothing
+     * on screen saying so. The default is a name, so getting back to it is a button.
+     */
+    show();
+    fireEvent.change(screen.getByTestId("by-account"), { target: { value: "x.com" } });
+    expect(screen.getByTestId("name-query")).toHaveAttribute("aria-label", "their account");
+
+    fireEvent.click(screen.getByTestId("clear-kind"));
+    expect(screen.getByTestId("name-query")).toHaveAttribute("aria-label", "their name");
+    expect(screen.queryByTestId("clear-kind")).toBeNull();
+  });
 });
