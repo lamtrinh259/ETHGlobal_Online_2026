@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Verification } from "@/lib/api";
+import type { Verification, Vouch } from "@/lib/api";
 import {
   assessProfile,
   DEFAULT_POLICY,
@@ -323,7 +323,7 @@ describe("policy presets", () => {
 });
 
 describe("a verifier who cares who asked", () => {
-  const vouch = (voucher: string, solicited: boolean) => ({
+  const vouch = (voucher: string, solicited: boolean): Vouch => ({
     voucher,
     voucherName: `${voucher}.ketsuban.eth`,
     wallet: "0x1",
@@ -341,6 +341,34 @@ describe("a verifier who cares who asked", () => {
       { requiredAnswers: [], minLinks: 0, requireHumanity: false, minVouches: 2, ...policy },
       vouches
     );
+
+  it("asks who wrote it, not only how many did", () => {
+    /*
+     * A count says how many people spoke and never says who. A verifier who only cares about somebody
+     * from one company had to read the list by eye. The pattern is the one a disclosure audience uses
+     * — a name, or `*.branch` for anyone in it — rather than a second syntax to learn.
+     */
+    const acme = { ...vouch("dana", false), voucherName: "dana.acme.com" };
+    const both = [vouch("bob", false), acme];
+
+    const named = assess({ from: ["bob.ketsuban.eth"] }, both).checks.find((c) => c.id === "from");
+    expect(named?.ok).toBe(true);
+    expect(named?.detail).toContain("bob.ketsuban.eth");
+
+    expect(assess({ from: ["*.acme.com"] }, both).checks.find((c) => c.id === "from")?.ok).toBe(true);
+    // The branch itself is not a name under it, which is what the `*.` asks for.
+    expect(
+      assess({ from: ["*.acme.com"] }, [vouch("bob", false)]).checks.find((c) => c.id === "from")
+    ).toMatchObject({ ok: false, detail: "nobody matching has written one" });
+
+    // An unclaimed voucher has no name to match on, so their handle answers for them.
+    const unclaimed = { ...vouch("erin", false), voucherName: null };
+    expect(assess({ from: ["erin"] }, [unclaimed]).checks.find((c) => c.id === "from")?.ok).toBe(true);
+  });
+
+  it("says nothing about who wrote it when the policy did not ask", () => {
+    expect(assess({}, [vouch("bob", false)]).checks.find((c) => c.id === "from")).toBeUndefined();
+  });
 
   it("counts every live reference by default, however it arrived", () => {
     // Anyone may refer anyone, so the default policy must not quietly discount the unsolicited.

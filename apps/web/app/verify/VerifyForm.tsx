@@ -1,10 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PersonSearch } from "@/app/PersonSearch";
 import { useWebConfig } from "@/app/providers";
 import { apiFor } from "@/lib/hooks";
+import { loadPolicies, savePolicy, type SavedPolicy } from "@/lib/policies";
 import { describePolicy, lookupTarget, POLICY_PRESETS, policyToQuery, presetPolicy } from "@/lib/profile";
 import { questionTitle } from "@/lib/questions";
 
@@ -18,8 +19,34 @@ export function VerifyForm({ subjectDomains }: { subjectDomains: string[] }) {
   const [minVouches, setMinVouches] = useState(3);
   const [humanity, setHumanity] = useState(false);
   const [onlySolicited, setOnlySolicited] = useState(false);
+  const [from, setFrom] = useState("");
+  const [mine, setMine] = useState<SavedPolicy[]>([]);
+  const [saveAs, setSaveAs] = useState("");
+  // Read in the browser: the list lives there, and a server render has no storage to read it from.
+  useEffect(() => setMine(loadPolicies()), []);
   const [preset, setPreset] = useState<string | undefined>("hiring");
-  const policy = { requiredAnswers: answers, minLinks, requireHumanity: humanity, minVouches, onlySolicited };
+  const policy = {
+    requiredAnswers: answers,
+    minLinks,
+    requireHumanity: humanity,
+    minVouches,
+    onlySolicited,
+    from: from
+      .split(",")
+      .map((f) => f.trim())
+      .filter(Boolean),
+  };
+
+  /** One the verifier wrote: a preset of their own rather than one this platform ships. */
+  function applyMine(entry: SavedPolicy) {
+    setAnswers(entry.policy.requiredAnswers);
+    setMinLinks(entry.policy.minLinks);
+    setMinVouches(entry.policy.minVouches);
+    setHumanity(entry.policy.requireHumanity);
+    setOnlySolicited(!!entry.policy.onlySolicited);
+    setFrom((entry.policy.from ?? []).join(", "));
+    setPreset(undefined);
+  }
   const custom =
     <T,>(set: (v: T) => void) =>
     (v: T) => {
@@ -136,6 +163,20 @@ export function VerifyForm({ subjectDomains }: { subjectDomains: string[] }) {
             />{" "}
             require a humanity attestation
           </label>
+          {/*
+            A count says how many people spoke and never says who. One name, or a branch —
+            `*.acme.com` — matched the way a disclosure audience is, not a second syntax to learn.
+          */}
+          <label>
+            referred by{" "}
+            <input
+              value={from}
+              onChange={(e) => custom(setFrom)(e.target.value)}
+              placeholder="bob.ketsuban.eth, *.acme.com"
+              aria-label="referred by"
+              data-testid="policy-from"
+            />
+          </label>
           {/* Anyone may refer anyone, so a verifier who only trusts invited references has to say so. */}
           <label>
             <input
@@ -148,6 +189,41 @@ export function VerifyForm({ subjectDomains }: { subjectDomains: string[] }) {
           </label>
           <p className="muted" data-testid="policy-summary">
             {describePolicy(policy)}
+          </p>
+
+          {/* The presets are what this platform ships. What a verifier actually checks is theirs, and
+              rebuilding it per candidate is how the bar drifts between one and the next. */}
+          <p className="row" data-testid="my-policies">
+            {mine.map((entry) => (
+              <button
+                type="button"
+                key={entry.name}
+                onClick={() => applyMine(entry)}
+                data-testid={`mine-${entry.name}`}
+              >
+                {entry.name}
+              </button>
+            ))}
+          </p>
+          <p className="row">
+            <input
+              value={saveAs}
+              onChange={(e) => setSaveAs(e.target.value)}
+              placeholder="name this policy"
+              aria-label="name this policy"
+              data-testid="policy-name"
+            />
+            <button
+              type="button"
+              disabled={!saveAs.trim()}
+              onClick={() => {
+                setMine(savePolicy({ name: saveAs.trim(), policy }));
+                setSaveAs("");
+              }}
+              data-testid="save-policy"
+            >
+              Save this policy
+            </button>
           </p>
         </fieldset>
       )}

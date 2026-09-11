@@ -28,7 +28,7 @@ dependency first. Each line is its own commit.
 6. [x] **References, tabbed.** On the merged page, references given moves below the profile and shares
        a tab strip with references received.
 7. [x] **Score on the merged page.** The ring that is on `/me` belongs where a verifier reads.
-8. [ ] **Custom policies.** A verifier can build and keep their own, not only pick a preset. A policy
+8. [x] **Custom policies.** A verifier can build and keep their own, not only pick a preset. A policy
        can name *who* must have referred — a handle, or a pattern like `*.acme.com` — alongside the
        counts it already has. The presets stay, as what the platform ships.
 9. [ ] **`/trust` is spaghetti.** Cut the prose by ~80%. A diagram, the steps, and where the boundary

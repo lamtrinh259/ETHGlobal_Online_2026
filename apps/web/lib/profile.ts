@@ -1,4 +1,4 @@
-import { WITHDRAWN } from "@ketsuban/registrar";
+import { matchesAudienceName, WITHDRAWN } from "@ketsuban/registrar";
 import type { Verification, Vouch } from "./api";
 import type { WebConfig } from "./config";
 import { questionTitle } from "./questions";
@@ -24,6 +24,15 @@ export type Policy = {
   requireHumanity: boolean;
   /** Minimum live vouches from distinct vouchers (spec §3.1 default floor: 3) */
   minVouches: number;
+  /**
+   * Who the reference has to be from.
+   *
+   * A count says how many people spoke; it never says who. A verifier who only cares about somebody
+   * from one company, or one named person, could not express that and had to read the list by eye.
+   * Each entry is a name (`bob.ketsuban.eth`) or a branch (`*.acme.com`), matched the way a disclosure
+   * audience is — one syntax for "this person, or anyone in there", not two.
+   */
+  from?: string[];
   /**
    * Count only references the candidate asked for. Off by default: anyone may refer anyone, and
    * discounting the uninvited by default would put the old permission rule back in through the policy.
@@ -86,6 +95,7 @@ export function policyToQuery(policy: Policy, presetId?: string): string {
     minLinks: String(policy.minLinks),
     minVouches: String(policy.minVouches),
   });
+  if (policy.from?.length) q.set("from", policy.from.join(","));
   if (policy.requireHumanity) q.set("humanity", "1");
   if (policy.onlySolicited) q.set("solicited", "1");
   if (presetId) q.set("preset", presetId);
@@ -191,6 +201,21 @@ export function assessProfile(
         ? "none the candidate asked for"
         : "none yet",
   });
+  const wanted = policy.from?.filter((f) => f.trim()) ?? [];
+  if (wanted.length) {
+    // A voucher is known by the name they signed as; an unclaimed one has only a handle to match on.
+    const matched = counted.filter((v) =>
+      wanted.some((want) => matchesAudienceName(want, v.voucherName ?? undefined) || want === v.voucher)
+    );
+    checks.push({
+      id: "from",
+      label: `Referred by ${wanted.join(" or ")}`,
+      ok: matched.length > 0,
+      detail: matched.length
+        ? matched.map((v) => v.voucherName ?? v.voucher).join(", ")
+        : "nobody matching has written one",
+    });
+  }
   if (policy.requireHumanity) {
     checks.push({
       id: "humanity",
@@ -232,6 +257,7 @@ export function policyFromQuery(q: Record<string, string | undefined>, subjectDo
     minLinks: q.minLinks !== undefined && /^\d+$/.test(q.minLinks) ? Number(q.minLinks) : 1,
     requireHumanity: q.humanity === "1",
     onlySolicited: q.solicited === "1",
+    from: q.from ? q.from.split(",").filter(Boolean) : undefined,
     minVouches:
       q.minVouches !== undefined && /^\d+$/.test(q.minVouches)
         ? Number(q.minVouches)
