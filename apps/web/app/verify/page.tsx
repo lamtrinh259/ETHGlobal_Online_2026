@@ -27,9 +27,20 @@ export default function VerifyPage() {
             <strong>Answers</strong> — the candidate signed a statement into a permanent name; polarity
             readings are properties of the text, never of the person.
           </li>
+          {/* Every line here is something the reader will calibrate on, so the enclave is claimed only
+              where it holds: on a deployment signing from its own node it is the operator who is
+              trusted, and saying otherwise borrows a guarantee this one has not got. */}
           <li>
-            <strong>Linked accounts</strong> — control of a platform account at verification time, attested
-            inside an enclave; masked ones need the candidate&apos;s view code.
+            <strong>Linked accounts</strong> — control of a platform account at verification time,{" "}
+            {config.confidential ? (
+              <>
+                attested inside a <strong>Chainlink CRE enclave</strong>, so neither this service nor its
+                operator saw the handle
+              </>
+            ) : (
+              <>attested by this deployment&apos;s own attester, which reads the handle to mask it</>
+            )}
+            ; masked ones need the candidate&apos;s view code.
           </li>
           <li>
             <strong>Not</strong> identity, employment, safety, nationality or affiliation verification.
