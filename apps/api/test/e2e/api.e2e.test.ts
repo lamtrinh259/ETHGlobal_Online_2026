@@ -403,6 +403,52 @@ describe("api e2e", () => {
     expect((await (await fetch(`${API}/v1/letter/${kept.hash}`)).json()).text).toBe(letter);
   });
 
+  it("keeps a picture by its bytes, serves it as a picture, and still has it after a restart", async () => {
+    /*
+     * A profile picture is the other thing this service holds that the chain cannot: a text record
+     * carries a URL, so the bytes live here and the record points at them. Lose them and every avatar
+     * on the deployment is a broken image, permanently, because the record still names the URL.
+     *
+     * The upload route had no end-to-end cover at all — it is one of two POSTs the docker suite never
+     * exercised — and it is the one that writes straight to `DATA_DIR` rather than through a store.
+     */
+    // A one-pixel PNG, which is a real picture: the route sniffs the bytes rather than trusting a name.
+    const png = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+      "base64"
+    );
+    const send = async () => {
+      const form = new FormData();
+      form.append("file", new Blob([png], { type: "image/png" }), "me.png");
+      return (await fetch(`${API}/v1/avatar`, { method: "POST", body: form })).json();
+    };
+
+    const up = await send();
+    expect(up.error, `upload refused: ${up.error}`).toBeUndefined();
+    // Content-addressed: the name is the bytes, so the same picture twice costs one copy.
+    expect(up.id).toBe(`${createHash("sha256").update(png).digest("hex")}.png`);
+    expect((await send()).id).toBe(up.id);
+
+    const served = await fetch(`${API}/v1/avatar/${up.id}`);
+    expect(served.status).toBe(200);
+    expect(served.headers.get("content-type")).toContain("image/png");
+    expect(Buffer.from(await served.arrayBuffer()).equals(png)).toBe(true);
+
+    /*
+     * A name this service never issued is not a path to go looking down. Encoded, so it reaches the
+     * route as a parameter rather than being folded away by the client: `../..` in a URL is resolved
+     * before the request is sent, and asserting on that only proves the router has no such route.
+     */
+    const traversal = await fetch(`${API}/v1/avatar/${encodeURIComponent("../../etc/passwd")}`);
+    expect(traversal.status).toBe(404);
+    expect((await traversal.json()).error).toMatch(/no such picture/);
+
+    await restartApi(API);
+    const after = await fetch(`${API}/v1/avatar/${up.id}`);
+    expect(after.status, "the picture did not survive a restart").toBe(200);
+    expect(Buffer.from(await after.arrayBuffer()).equals(png)).toBe(true);
+  });
+
   it("keeps a share across a restart, because a redeploy must not revoke anybody", async () => {
     // The failure this guards against cost a live deployment its permissions: writes went to a
     // directory the service could not keep, everything looked fine, and the grants were gone at the
