@@ -262,7 +262,10 @@ const POLICY_PARAMS = ["preset", "answers", "minLinks", "minVouches", "humanity"
  * the verdict belongs to whoever performed it.
  */
 export function policyAsked(q: Record<string, string | undefined>): boolean {
-  return POLICY_PARAMS.some((k) => q[k] !== undefined && q[k] !== "");
+  // A preset nobody ships is not a bar somebody set. Left to count, it graded a person against the
+  // default under a link that names a policy this deployment has never heard of.
+  const named = (k: string) => (k === "preset" ? POLICY_PRESETS.some((p) => p.id === q.preset) : true);
+  return POLICY_PARAMS.some((k) => q[k] !== undefined && q[k] !== "" && named(k));
 }
 
 export function policyFromQuery(q: Record<string, string | undefined>, subjectDomains: string[]): Policy {

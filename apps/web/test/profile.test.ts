@@ -495,8 +495,18 @@ describe("policyAsked", () => {
     expect(policyAsked({ preset: "" })).toBe(false);
   });
 
+  it("is not asked by a link naming a policy this deployment does not ship", () => {
+    // Counted, it graded somebody against the default under a name nobody here has heard of.
+    expect(policyAsked({ preset: "nope" })).toBe(false);
+    expect(policyAsked({ preset: "hiring" })).toBe(true);
+    // A bar alongside it is still a bar, whatever the preset said.
+    expect(policyAsked({ preset: "nope", minVouches: "5" })).toBe(true);
+  });
+
   it("is true for every parameter a policy is carried in", () => {
-    for (const k of ["preset", "answers", "minLinks", "minVouches", "humanity", "solicited", "from"])
+    for (const k of ["answers", "minLinks", "minVouches", "humanity", "solicited", "from"])
       expect(policyAsked({ [k]: "1" }), k).toBe(true);
+    // `preset` carries a name rather than a value, so it counts only when it names one that exists.
+    expect(policyAsked({ preset: POLICY_PRESETS[0].id })).toBe(true);
   });
 });
