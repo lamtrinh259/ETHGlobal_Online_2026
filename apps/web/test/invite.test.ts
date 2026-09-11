@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { whyUnsatisfiable } from "@/lib/invite";
+import { missingRequirements, whyUnsatisfiable } from "@/lib/invite";
 
 const parents = ["ketsuban.eth", "kju-is.ketsuban.eth"];
 
@@ -23,5 +23,25 @@ describe("an invitation somebody could actually satisfy", () => {
 
   it("says nothing about an empty field, which asks for nothing", () => {
     expect(whyUnsatisfiable("   ", parents)).toBeNull();
+  });
+});
+
+describe("what the writer still has to link", () => {
+  it("names what was asked for and is not attested", () => {
+    expect(missingRequirements(["github.com", "x.com"], ["x.com"], parents)).toEqual(["github.com"]);
+  });
+
+  it("counts a masked account, which is how this is answered without naming the account", () => {
+    // `attested` is every live record's domain, masked or not: holding one is the whole question.
+    expect(missingRequirements(["github.com"], ["github.com"], parents)).toEqual([]);
+  });
+
+  it("never sends a writer after something nobody could hold", () => {
+    // Blocking on `lamtrinh259` would be a wall with nothing behind it.
+    expect(missingRequirements(["github.com", "lamtrinh259"], ["github.com"], parents)).toEqual([]);
+  });
+
+  it("asks nothing of a writer the invitation asked nothing of", () => {
+    expect(missingRequirements([], [], parents)).toEqual([]);
   });
 });

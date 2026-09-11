@@ -229,7 +229,7 @@ export function serializeResult(r: AttestResult, txHash?: Hex): string {
 function resolveRecord(
   donRuntime: Runtime<Config>,
   query: { wallet: Address; name: Hex; domain: string }
-): { exists: boolean; record: { nonce: bigint; id: Hex; wallet: Address } } {
+): { exists: boolean; record: { nonce: bigint; id: Hex; wallet: Address; validUntil: bigint } } {
   const config = donRuntime.config;
   const network = getNetwork({ chainSelectorName: config.chainSelectorName, isTestnet: true });
   if (!network) throw new Error(`unknown chain ${config.chainSelectorName}`);
@@ -284,10 +284,29 @@ export function readOnchain(donRuntime: Runtime<Config>, req: AttestRequest): On
     name: zeroHash,
     domain: config.orgDomain ?? "org",
   });
+  /*
+   * What the writer has attested, where the invitation asks for something.
+   *
+   * The relay builds this from its index; the enclave has only the chain, so it asks the chain — one
+   * `resolveRecord` per domain the invitation actually names, which is the smallest set that can
+   * answer. Without it `meetsInvite` was handed an empty list and every invitation carrying a
+   * requirement was refused: the writer met it, and their reference still came out unsolicited.
+   *
+   * A masked record counts. It proves the writer holds an account in that domain without saying which
+   * one, which is the whole point of asking for a platform rather than for a person.
+   */
+  const wants = req.invite?.requires ?? [];
+  const now = BigInt(Math.floor(donRuntime.now().getTime() / 1000));
+  const writerDomains = wants.filter((domain) => {
+    const r = resolveRecord(donRuntime, { wallet: req.intent.wallet, name: zeroHash, domain });
+    return r.exists && r.record.validUntil > now;
+  });
+
   return {
     ...state,
     candidateWallet: held.exists ? held.record.wallet : undefined,
     issuerOrg: org.exists,
+    writerDomains,
   };
 }
 

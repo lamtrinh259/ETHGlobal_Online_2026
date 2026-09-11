@@ -32,6 +32,7 @@ import {
   onDisclose,
   initWorkflow,
   onAttest,
+  readOnchain,
   onRegistered,
   parseRequest,
   serializeResult,
@@ -86,6 +87,8 @@ function fakeTeeRuntime(
     txStatus?: number;
     /** Whether the record the forwarder carried actually reached the chain */
     landed?: boolean;
+    /** Domains the writer holds a live record in, for an invitation that asks for one */
+    writerHolds?: string[];
   } = {}
 ) {
   const cfg = opts.cfg ?? config;
@@ -128,6 +131,22 @@ function fakeTeeRuntime(
         const data = bytesToHex(asBytes(payload.call.data));
         const to = bytesToHex(asBytes(payload.call.to));
         evmCalls.push({ to, args: decodeFunctionData({ abi: MultipassAbi, data }).args });
+        /*
+         * An invitation's requirement is checked with one read per domain it names, so the fake has to
+         * answer per domain rather than hand back the same record to every question.
+         */
+        const asked = (decodeFunctionData({ abi: MultipassAbi, data }).args as any)[0];
+        const wantedDomain = Buffer.from(String(asked.domainName).slice(2), "hex")
+          .toString()
+          .replace(/\0+$/, "");
+        if ((opts.writerHolds ?? []).includes(wantedDomain)) {
+          const encodedHeld = encodeFunctionResult({
+            abi: MultipassAbi,
+            functionName: "resolveRecord",
+            result: [true, { ...emptyRecord, validUntil: BigInt(NOW + 86_400), wallet: user.account.address }],
+          });
+          return { result: () => ({ data: Uint8Array.from(Buffer.from(encodedHeld.slice(2), "hex")) }) };
+        }
         // Once a write has landed the chain holds the record it wrote, which is what a read after it sees.
         const seen = wrote
           ? { exists: true, nonce: onchain.nonce + 1n, id: onchain.id, wallet: onchain.wallet }
@@ -290,6 +309,36 @@ describe("onAttest", () => {
   test("rejects malformed wire input", () => {
     expect(() => parseRequest(stringToBytes('{"idToken":"x"}'))).toThrow();
     expect(() => parseRequest(stringToBytes("not json"))).toThrow();
+  });
+});
+
+describe("what the enclave knows about the writer", () => {
+  test("asks the chain for each domain the invitation names, and counts a masked record", () => {
+    /*
+     * The relay builds this from its index; the enclave has only the chain. Left empty, `meetsInvite`
+     * was handed nothing and every invitation carrying a requirement came out unmet — the writer had
+     * linked what was asked and their reference was still marked unsolicited.
+     *
+     * A masked record counts: it proves an account in that domain without saying which, which is what
+     * makes asking for a platform a question somebody can answer privately.
+     */
+    const { runtime } = fakeTeeRuntime({ writerHolds: ["github.com"] });
+    const req = {
+      intent: { wallet: user.account.address, domain: "~alice" },
+      invite: { requires: ["github.com", "x.com"] },
+    } as any;
+
+    const state = readOnchain((runtime as any).usingTheDons(), req);
+    expect(state.writerDomains).toEqual(["github.com"]);
+  });
+
+  test("asks nothing when the invitation asks for nothing", () => {
+    const { runtime, evmCalls } = fakeTeeRuntime();
+    const before = evmCalls.length;
+    const req = { intent: { wallet: user.account.address, domain: "~alice" }, invite: undefined } as any;
+    expect(readOnchain((runtime as any).usingTheDons(), req).writerDomains).toEqual([]);
+    // The candidate's name and the org record, and no per-domain questions beyond them.
+    expect(evmCalls.length - before).toBe(3);
   });
 });
 

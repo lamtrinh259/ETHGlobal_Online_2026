@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { missingRequirements } from "@/lib/invite";
 import { useMemo, useState } from "react";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import type { Address } from "viem";
@@ -78,6 +79,21 @@ export function VouchFlow({
         ? "onboarding"
         : "statement";
   const vouchDomain = `${VOUCH_PREFIX}${candidate}`;
+
+  /*
+   * What the invitation asks for and the writer has not linked yet.
+   *
+   * Only requirements somebody could actually meet: one that can never be held is not something to
+   * send a writer away to do. A masked account counts, so this is answered without publishing which
+   * account it is.
+   */
+  const attestedNow = (dash.data?.links ?? []).filter((l) => l.live).map((l) => l.domain.toLowerCase());
+  const missing = missingRequirements(invite?.requires ?? [], attestedNow, config.parentNames);
+  const unmetAsked = missing.length
+    ? `${candidate} asked for a reference from someone who has attested ${missing.join(" and ")}. ` +
+      `Link ${missing.length > 1 ? "them" : "it"} on your profile and come back — a masked account counts, ` +
+      `so this need not say which account it is.`
+    : undefined;
 
   /**
    * Write the letter onto the name the record just created. Kept by its hash when it is too long to
@@ -212,6 +228,12 @@ export function VouchFlow({
               in the history as revoked.
             </p>
           )}
+          {/*
+            An invitation is a request, and this is the reference answering it: publishing before what
+            it asks for is linked writes something the candidate did not ask for, under their link. A
+            requirement nobody could satisfy never blocks — there would be nothing to go and do — and
+            referring someone uninvited is still open at /vouch/<handle>.
+          */}
           {/* What the candidate asked of the writer, before they sign rather than after. */}
           <InviteTerms
             candidate={candidate}
@@ -223,6 +245,7 @@ export function VouchFlow({
             fixedDomain={vouchDomain}
             fixedHandle={handle}
             invite={invite}
+            blocked={unmetAsked}
             title={onChain.existing ? "Update your reference" : "Write your reference"}
             answerLabel="Title"
             answerHint="Written into the name itself, on chain, and permanent. 31 bytes is all a name holds."

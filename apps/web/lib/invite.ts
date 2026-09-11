@@ -24,3 +24,20 @@ export function whyUnsatisfiable(entry: string, parentNames: readonly string[] =
   }
   return null;
 }
+
+/**
+ * What an invitation asks for that the writer has not attested yet.
+ *
+ * Only requirements somebody could actually meet: one that can never be held is not something to send
+ * a writer away to do, and blocking on it would trap them. A masked record counts — it proves an
+ * account in that domain without naming it — so the question is answered without publishing which
+ * account it is.
+ */
+export function missingRequirements(
+  requires: readonly string[],
+  attested: readonly string[],
+  parentNames: readonly string[] = []
+): string[] {
+  const held = new Set(attested.map((d) => d.toLowerCase()));
+  return requires.filter((d) => !whyUnsatisfiable(d, parentNames) && !held.has(d.trim().toLowerCase()));
+}

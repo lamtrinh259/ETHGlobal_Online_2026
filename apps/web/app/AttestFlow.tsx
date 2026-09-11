@@ -43,6 +43,8 @@ type Props = {
   hideForm?: boolean;
   /** Vouch domains: the candidate's invitation, from the link they shared */
   invite?: SignedInvite;
+  /** Why publishing is refused right now; the button stays disabled and this is said above it */
+  blocked?: string;
   /** Only platform (linked-account) domains in the picker */
   platformsOnly?: boolean;
   /** Restrict the platform picker to these domains (e.g. the ones the user has actually linked) */
@@ -68,6 +70,7 @@ export function AttestFlow({
   extra,
   hideForm,
   invite,
+  blocked,
   platformsOnly,
   domainOptions,
   allowLinking,
@@ -363,11 +366,18 @@ export function AttestFlow({
           operator. Only the account above is attested.
         </p>
       )}
+      {!settled && blocked && (
+        <p className="warning" data-testid="blocked">
+          {blocked}
+        </p>
+      )}
       {!settled && (
         <button
           className="primary"
           onClick={run}
-          disabled={busy || takenByOther || reserved || answerBytes > 31 || nonce.data?.ready === false}
+          disabled={
+            busy || takenByOther || reserved || answerBytes > 31 || nonce.data?.ready === false || !!blocked
+          }
           data-testid="publish"
         >
           {step === "attesting" && mounting
