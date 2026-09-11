@@ -72,7 +72,28 @@ const vouches = (handle) => ({
 });
 
 export const routes = [
-  [/^\/v1\/instances$/, () => ({ instances: [{ domain: "ketsuban", parentName: ROOT, parentLabel: "ketsuban" }], bridge: null, permissionedResolver: null, ethRegistry: null, registrar: false, paymentToken: null, humanity: true })],
+  [
+    /^\/v1\/instances$/,
+    () => ({
+      // Shaped as the attester answers: a mount carries the contracts a wallet writes to itself, and
+      // the bridge is an address rather than nothing. Parsed here by `mock-api.test.ts`, because the
+      // page catches a failed read and renders an empty state that reads exactly like a working one.
+      instances: [
+        {
+          domain: "ketsuban",
+          registry: "0x254D9c7601BD8fa6b6FA7f5A42c860d184E053A7",
+          resolver: "0xa2602ce1A469d7FF1090aE4b876BA4ec566D3873",
+          parentName: ROOT,
+          parentLabel: "ketsuban",
+        },
+      ],
+      bridge: "0xC7283bD9Aad1B08947C841536946Ce4dA9c99929",
+      permissionedResolver: null,
+      ethRegistry: null,
+      paymentToken: null,
+      humanity: true,
+    }),
+  ],
   // `nobody.*` is the name the attester cannot answer for, so a page can be tested against a refusal
   // as well as against an answer.
   [/^\/v1\/verify\/(?!nobody)([^/?]+)/, (m) => verification(decodeURIComponent(m[1]))],
@@ -176,7 +197,22 @@ export const routes = [
   ],
   [
     /^\/v1\/reverse\/([^/?]+)/,
-    (m) => ({ address: decodeURIComponent(m[1]), name: `alice.${ROOT}`, names: [`alice.${ROOT}`], primary: `alice.${ROOT}` }),
+    (m) => ({
+      address: decodeURIComponent(m[1]),
+      name: `alice.${ROOT}`,
+      // Each name carries where it was read and what kind it is; the wallet page groups by that, and
+      // a bare list of strings quietly produced a page with nothing on it.
+      names: [
+        {
+          domain: "ketsuban",
+          name: `alice.${ROOT}`,
+          resolver: "0xa2602ce1A469d7FF1090aE4b876BA4ec566D3873",
+          kind: "name",
+        },
+      ],
+      primary: `alice.${ROOT}`,
+      note: "answered from the Multipass record, not from a reverse registry",
+    }),
   ],
   [/^\/v1\/explain\/([^/?]+)/, (m) => ({ name: decodeURIComponent(m[1]), says: "alice is a person's name here.", kind: "person" })],
   [/^\/v1\/name\/([^/]+)\/([^/?]+)/, (m) => ({ domain: m[1], handle: m[2], taken: true, live: true, wallet: "0xEE4811b9462956C9C3535E79c08776D769CA9F3a" })],

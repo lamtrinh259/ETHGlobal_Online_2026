@@ -27,7 +27,9 @@ test("the vouch page explains every step in the voucher's own words", async ({ p
   const steps = page.locator(".journey li");
   await expect(steps).toHaveCount(3);
   await expect(steps.nth(0)).toContainText("no seed phrase");
-  await expect(steps.nth(1)).toContainText("coming soon");
+  // This deployment can ask for a proof of humanity, so the step offers it. It read "coming soon"
+  // while the mock's `/v1/instances` did not parse and `humanity` never reached the page.
+  await expect(steps.nth(1)).toContainText("Prove you are one real person");
   await expect(steps.nth(2)).toContainText("Write and sign the reference for alice");
 });
 
@@ -39,7 +41,10 @@ test("the profile and the vouch journey show their steps and the sign-in gate", 
 
   await page.goto("/vouch/alice");
   await expect(page.locator(".journey li")).toHaveCount(3);
-  await expect(page.locator(".journey li.pending")).toHaveCount(1);
+  // Nothing is pending: a step is only pending where the deployment cannot offer it, and this one
+  // can. The count was 1 because the humanity step could not be offered from a fixture that failed
+  // to parse, which is the same failure the page is built to survive and therefore not to announce.
+  await expect(page.locator(".journey li.pending")).toHaveCount(0);
   await expect(page.getByTestId("signin")).toBeVisible({ timeout: 20000 });
 });
 
@@ -127,11 +132,19 @@ test("a domain that cannot be written disables the publish button with the reaso
   await expect(page.getByTestId("publish")).toHaveCount(0);
 });
 
-test("the names page explains the namespace, and degrades when the API is unreachable", async ({ page }) => {
+test("the names page describes the namespace it is given", async ({ page }) => {
   await page.goto("/names");
   await expect(page.getByRole("heading", { name: "Names", level: 1 })).toBeVisible();
-  // Without an API there are no mounts to describe, and the page says so rather than inventing shapes.
-  await expect(page.locator("main [role=alert]")).toHaveText(/no mounts to describe/);
+  /*
+   * The shapes are read from the mounts the attester answers with. This asserted "no mounts to
+   * describe" and passed for months — not because the API was unreachable, but because the fixture
+   * did not parse and the page rendered the same empty state it shows when it is. A page built to
+   * degrade quietly needs its healthy state asserted, or the degraded one is all that is ever tested.
+   * The empty case is covered in `test/namespace.test.ts`, where the read can actually be withheld.
+   */
+  await expect(page.getByTestId("name-kinds")).toBeVisible();
+  await expect(page.getByTestId("name-kinds")).toContainText("ketsuban.eth");
+  await expect(page.locator("main [role=alert]")).toHaveCount(0);
   await expect(page.getByRole("link", { name: /Check a name/ })).toBeVisible();
 });
 
