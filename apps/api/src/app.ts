@@ -1920,8 +1920,16 @@ export function createApp({
       ]);
     const active = wallet !== "0x0000000000000000000000000000000000000000";
     const mounts = new Map((await chain.instances()).map((i) => [i.domain, i]));
-    // The label the person holds: what the private branch names their masked accounts after.
-    const held = name.split(".")[0] ?? "";
+    /*
+     * The label the person holds: what the private branch names their masked accounts after.
+     *
+     * It is the first label of a person's own name, so reading their name gets it for free — and
+     * reading any other name gets a different word entirely. A mount's first label is a platform
+     * handle, and building a masked name out of that produced one nobody holds, offered to a verifier
+     * under "check this yourself in any ENS client".
+     */
+    const personal = !isDnsName(instance.domain);
+    const held = personal ? (name.split(".")[0] ?? "") : "";
     const links = active
       ? await Promise.all(
           opts.linkDomains.map(async (domain) => {

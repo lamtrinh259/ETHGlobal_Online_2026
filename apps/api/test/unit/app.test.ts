@@ -781,6 +781,44 @@ describe("GET /v1/verify/:name", () => {
     expect(chain.resolveText).toHaveBeenCalledWith(instance.resolver, "alice.kju-is.eth", "avatar");
   });
 
+  it("does not name a masked account after whatever name was asked about", async () => {
+    /*
+     * The private branch names a person's masked accounts after the label they hold.
+     *
+     * That label is the first one of a person's own name, so reading their name gets it for free —
+     * and reading anything else gets a different word entirely. Asked about an account's own name,
+     * this built `<that account's handle>.<private branch>`, a name nobody holds, and put it on the
+     * page under "check this yourself in any ENS client".
+     */
+    const viewCode = keccak256("0x01");
+    const masked = {
+      name: maskName("alice_x", viewCode),
+      id: maskId("42", viewCode),
+      payload: viewCodeCommitment(viewCode),
+    };
+    const { chain } = fakeChain({
+      instances: [instance, xComInstance],
+      addr: user.account.address,
+      data: {
+        "ketsuban:link:x.com": encodePacked(
+          ["bytes32", "bytes32", "bytes32"],
+          [masked.name, masked.id, masked.payload]
+        ),
+      },
+    });
+    const a = app(chain);
+
+    // Asked about the account's own name, whose first label is a platform handle.
+    const onAccount = await (
+      await a.request(`/v1/verify/iampeersky.${xComInstance.parentName}?links=x.com`)
+    ).json();
+    expect(onAccount.links[0]).toMatchObject({ domain: "x.com", optedIn: true, ensName: null });
+
+    // Asked about the person's own name, where the first label is the label they hold.
+    const onPerson = await (await a.request("/v1/verify/alice.kju-is.eth?links=x.com")).json();
+    expect(onPerson.links[0].ensName).toBe(`alice.${xComInstance.maskedParentName}`);
+  });
+
   it("assembles an active record from resolver reads, including opted-in links", async () => {
     const viewCode = keccak256("0x01");
     const masked = {
