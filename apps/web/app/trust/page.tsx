@@ -30,7 +30,13 @@ export default async function TrustPage() {
   const signsAs = preflight?.registrar?.signsAs ?? null;
   const onchain = [...new Set(preflight?.multipass?.domains?.map((d) => d.registrar) ?? [])];
   const trusted = onchain.length === 1 ? onchain[0] : null;
-  const keyMatches = !!enclave && !!trusted && enclave.address.toLowerCase() === trusted.toLowerCase();
+  /*
+   * Three states, not two. A deployment that cannot be read right now is not a deployment whose keys
+   * disagree, and saying so puts a false alarm about the sharpest failure there is in front of the
+   * reader who came here to check exactly that.
+   */
+  const readable = !!enclave && !!trusted;
+  const keyMatches = readable && enclave.address.toLowerCase() === trusted.toLowerCase();
 
   return (
     <>
@@ -91,10 +97,12 @@ export default async function TrustPage() {
             </tr>
           </tbody>
         </table>
-        <p className={keyMatches ? "muted" : "warning"} data-testid="key-verdict">
-          {keyMatches
-            ? "The same key in all three, which is what makes a record this service signs acceptable on chain — and what makes a view code openable only where that key is."
-            : "These do not agree, so records this service signs would be refused at registration. Read them yourself with GET /v1/preflight."}
+        <p className={keyMatches || !readable ? "muted" : "warning"} data-testid="key-verdict">
+          {!readable
+            ? "This deployment did not answer just now, so these could not be compared. Read them yourself with GET /v1/preflight."
+            : keyMatches
+              ? "The same key in all three, which is what makes a record this service signs acceptable on chain — and what makes a view code openable only where that key is."
+              : "These do not agree, so records this service signs would be refused at registration. Read them yourself with GET /v1/preflight."}
         </p>
       </section>
 

@@ -163,6 +163,19 @@ cre workflow simulate attest --target local-settings --non-interactive --trigger
 The fixture is signed by a throwaway wallet with no record in the target domain, so the write is a
 first registration and lands as `alice.com.x.www.ketsuban.eth` for that wallet.
 
+### It has been run
+
+| | |
+|---|---|
+| Transaction | [`0x71b7edd5…e211e0`](https://sepolia.etherscan.io/tx/0x71b7edd59b72677a5bed8c12ca719b2de3b3f5dcd23c62b9e14be52bc8e211e0) |
+| Called | `0x15fC6ae9…`, the MockKeystoneForwarder |
+| Reporter | `0xbDEd80C5BCf2218E66a559Ecd81fAE9b0e522Ebb`, wired to that forwarder |
+| Result | `alice.com.x.www.ketsuban.eth` resolves to `0x4A75f57c…`, status `active` |
+
+The enclave handler verified the identity token and the wallet intent and signed the record as
+registrar; the DON write carried it to the forwarder, the reporter, the bridge and Multipass. The
+relay is not in that path and never saw the record.
+
 ## Deploying it to a live deployment
 
 The order matters, and one step fails silently if it is wrong.
