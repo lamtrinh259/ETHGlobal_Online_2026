@@ -9,6 +9,7 @@ import { createApi } from "@/lib/api";
 import { flourish } from "@/lib/patience";
 import { loadWebConfig } from "@/lib/config";
 import { HANDLE_RE } from "@ketsuban/registrar";
+import { socialCard } from "@/lib/profile";
 
 export const dynamic = "force-dynamic";
 
@@ -19,11 +20,9 @@ type Params = {
 
 // Server component so a shared link unfurls with the name and its state (crawlers run no JS).
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
-  const { name } = await params;
-  return {
-    title: decodeURIComponent(name),
-    description: "Ketsuban verification — read through the ENS resolver.",
-  };
+  const name = decodeURIComponent((await params).name);
+  // Named, because a link to one name unfurled as the deployment and said nothing about which name.
+  return socialCard(name, `${name}, read through the ENS resolver rather than through this app.`);
 }
 
 export default async function VerifyPage({ params, searchParams }: Params) {

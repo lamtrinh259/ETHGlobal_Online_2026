@@ -210,6 +210,14 @@ export const profileSchema = z.object({
 export type ProfileRead = z.infer<typeof profileSchema>;
 
 export const enclaveKeySchema = z.object({ address: address, publicKey: hex });
+/** How many references a person holds, which is the one fact a link to them should carry. */
+export const standingSchema = z.object({
+  claimed: z.boolean(),
+  given: z.number(),
+  received: z.number(),
+});
+export type Standing = z.infer<typeof standingSchema>;
+
 export const disclosedSchema = z.object({
   name: z.string(),
   domain: z.string(),
@@ -677,6 +685,13 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
           await call(`${base}/v1/profile/${encodeURIComponent(handle)}${qs ? `?${qs}` : ""}`, {
             headers: viewCodeHeader(opts.viewCode),
           })
+        )
+      );
+    },
+    async standing(handle: string, opts: { signal?: AbortSignal } = {}): Promise<Standing> {
+      return standingSchema.parse(
+        await readJson(
+          await call(`${base}/v1/standing/${encodeURIComponent(handle)}`, { signal: opts.signal })
         )
       );
     },

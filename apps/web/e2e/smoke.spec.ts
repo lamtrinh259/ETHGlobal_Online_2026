@@ -147,3 +147,26 @@ test("the boxed steps are named once, not once in the label and again in the box
   await expect(flow).toContainText("the enclave");
   await expect(flow).not.toContainText("enclave · enclave");
 });
+
+/**
+ * What a link says when somebody pastes it somewhere.
+ *
+ * Handing a link to a verifier is the product's whole action, and every page unfurled as the site: a
+ * page that sets `title` and `description` sets neither of the fields a chat client reads, so the
+ * layout's own card won everywhere and a shared reference advertised the deployment.
+ */
+for (const [path, says] of [
+  ["/p/alice", "alice"],
+  ["/v/kju-is.ketsuban.eth", "kju-is.ketsuban.eth"],
+]) {
+  test(`${path} unfurls as itself`, async ({ request }) => {
+    const html = await (await request.get(path)).text();
+    const meta = (prop: string) =>
+      new RegExp(`<meta (?:property|name)="${prop}" content="([^"]*)"`).exec(html)?.[1] ?? "";
+
+    expect(meta("og:title"), "og:title").toContain(says);
+    expect(meta("twitter:title"), "twitter:title").toContain(says);
+    // And not the line every other page carries.
+    expect(meta("og:title")).not.toBe("Ketsuban — References that cannot be deleted");
+  });
+}

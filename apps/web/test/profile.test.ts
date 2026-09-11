@@ -16,6 +16,7 @@ import {
   presetPolicy,
   policyAsked,
   shareSnippet,
+  socialCard,
   vouchRequest,
   type Policy,
 } from "@/lib/profile";
@@ -508,5 +509,21 @@ describe("policyAsked", () => {
       expect(policyAsked({ [k]: "1" }), k).toBe(true);
     // `preset` carries a name rather than a value, so it counts only when it names one that exists.
     expect(policyAsked({ preset: POLICY_PRESETS[0].id })).toBe(true);
+  });
+});
+
+describe("socialCard", () => {
+  /*
+   * Every page unfurled as the deployment: a page that sets `title` and `description` sets neither of
+   * the fields a chat client reads, so the layout's own card won everywhere. The product's action is
+   * handing a link to somebody, and the link said nothing about whose page it was.
+   */
+  it("says the same thing in every field a client might read", () => {
+    const card = socialCard("peersky — 3 references", "Read through the ENS resolver.");
+    expect(card.openGraph.title).toBe("peersky — 3 references");
+    expect(card.twitter.title).toBe("peersky — 3 references");
+    expect(card.openGraph.description).toBe("Read through the ENS resolver.");
+    expect(card.twitter.description).toBe("Read through the ENS resolver.");
+    expect(card.title).toBe("peersky — 3 references");
   });
 });

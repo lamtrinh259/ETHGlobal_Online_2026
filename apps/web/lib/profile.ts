@@ -368,3 +368,20 @@ export function lookupTarget(
   if (!HANDLE_RE.test(handle)) return undefined;
   return { kind: "handle", href: policyQuery ? `/p/${handle}?${policyQuery}` : `/p/${handle}` };
 }
+
+/**
+ * What a link to this page says when somebody pastes it somewhere.
+ *
+ * The product's whole action is handing a link to a verifier, and every page unfurled as the site: the
+ * layout's own card, because a page that sets `title` and `description` sets neither of the fields a
+ * chat client actually reads. A reference shared in a message advertised the deployment rather than
+ * saying whose page it is and what stands behind it.
+ */
+export function socialCard(title: string, description: string) {
+  return {
+    title,
+    description,
+    openGraph: { title, description, type: "profile" as const },
+    twitter: { card: "summary" as const, title, description },
+  };
+}

@@ -16,6 +16,7 @@ import {
   policyFromQuery,
   profileNames,
   shareSnippet,
+  socialCard,
 } from "@/lib/profile";
 
 export const dynamic = "force-dynamic";
@@ -27,10 +28,21 @@ type Params = {
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { handle } = await params;
-  return {
-    title: `${handle} — reference page`,
-    description: "Ketsuban candidate page, read through the ENS resolver.",
-  };
+  const config = loadWebConfig();
+  /*
+   * What stands behind them, in the card itself.
+   *
+   * A link to somebody's page is the thing this product asks people to hand over, and "a reference
+   * page" says nothing a reader could act on. The count is one small read and it is the whole point of
+   * the page; a deployment that cannot answer still gets a card naming the person.
+   */
+  const standing = await createApi(config.apiUrl, config.attestUrl)
+    .standing(handle, { signal: flourish() })
+    .catch(() => null);
+  const refs = standing
+    ? `${standing.received} reference${standing.received === 1 ? "" : "s"} written for them, by name, on chain`
+    : "References written by name, on chain, and readable without this app.";
+  return socialCard(`${handle} — reference page`, refs);
 }
 
 export default async function ProfilePage({ params, searchParams }: Params) {
