@@ -2,7 +2,7 @@
 
 import { PrivyProvider } from "@privy-io/react-auth";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useState, type ReactNode } from "react";
 import type { WebConfig } from "@/lib/config";
 
 const ConfigContext = createContext<WebConfig | null>(null);
@@ -14,9 +14,13 @@ export function useWebConfig(): WebConfig {
 }
 
 /**
- * Client-only providers. Children render only AFTER mount so react-query and Privy never execute
- * during SSR — the app is a client SPA behind a sign-in; only /v/<name> is server-rendered content
- * and it does not use these hooks.
+ * The providers every page sits inside.
+ *
+ * These used to withhold their children until after mount, so that react-query and Privy never ran
+ * during SSR. It also meant no page had any server-rendered body at all: every reader without
+ * JavaScript — a crawler, a link unfurler, an agent following a name — got a title and an empty
+ * document, on a product whose whole claim is that a name can be read without its app. The pages that
+ * matter are Server Components and never touch these hooks; the interactive parts hydrate as usual.
  */
 export function Providers({ config, children }: { config: WebConfig; children: ReactNode }) {
   const [client] = useState(
@@ -36,9 +40,6 @@ export function Providers({ config, children }: { config: WebConfig; children: R
         },
       })
   );
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-
   return (
     <ConfigContext.Provider value={config}>
       <QueryClientProvider client={client}>
@@ -51,7 +52,7 @@ export function Providers({ config, children }: { config: WebConfig; children: R
             appearance: { theme: "dark" },
           }}
         >
-          {mounted ? children : null}
+          {children}
         </PrivyProvider>
       </QueryClientProvider>
     </ConfigContext.Provider>
