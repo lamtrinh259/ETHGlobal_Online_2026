@@ -69,6 +69,46 @@ export default async function TrustPage() {
         )}
       </section>
 
+      {/* Evidence, not a promise. The workflow is not enrolled here, but the path it writes through has
+          carried a record onto this very chain, and both ends of that are things a reader can check. */}
+      <section className="card">
+        <h2>The path has carried a record, on this chain</h2>
+        <p>
+          The enclave handler verified an identity token and a wallet intent, signed the record as registrar
+          and wrote it through the DON. What landed is a name that resolves like any other:
+        </p>
+        <table data-testid="proven-run">
+          <tbody>
+            <tr>
+              <td>Transaction</td>
+              <td>
+                <a
+                  href="https://sepolia.etherscan.io/tx/0x71b7edd59b72677a5bed8c12ca719b2de3b3f5dcd23c62b9e14be52bc8e211e0"
+                  rel="noreferrer"
+                >
+                  <code>0x71b7edd5…e211e0</code>
+                </a>
+              </td>
+            </tr>
+            <tr>
+              <td>The name it registered</td>
+              <td>
+                <Link href="/v/alice.com.x.www.ketsuban.eth">
+                  <code>alice.com.x.www.ketsuban.eth</code>
+                </Link>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <p className="muted">
+          Said exactly: the nodes were simulated and the forwarder was Chainlink&apos;s
+          <code> MockKeystoneForwarder</code>, which is what a workflow without deployment access writes
+          through. The handler, the registrar signature, the reporter, the bridge, the Multipass record and
+          the transaction were all real. What a live deployment changes is who runs the nodes, not what the
+          record is.
+        </p>
+      </section>
+
       <section className="card">
         <h2>The key the chain trusts</h2>
         <p className="muted">

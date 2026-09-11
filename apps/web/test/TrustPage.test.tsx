@@ -58,6 +58,20 @@ describe("what this deployment admits about itself", () => {
     state.confidential = false;
   });
 
+  it("never shows the transaction without saying what was simulated in it", async () => {
+    /*
+     * The strongest thing on this page is a real transaction, which makes it the easiest to overstate:
+     * a run through the mock forwarder with simulated nodes is not a live DON, and a reader who takes
+     * it for one has been told something untrue by a page whose whole subject is what to trust.
+     */
+    await renderPage();
+    const run = screen.getByTestId("proven-run").closest("section");
+    const said = run?.textContent ?? "";
+    expect(said).toMatch(/0x71b7edd5/);
+    expect(said).toMatch(/simulated/);
+    expect(said).toMatch(/MockKeystoneForwarder/);
+  });
+
   it("shows the three keys agreeing, because that is what makes a signature acceptable", async () => {
     await renderPage();
     expect(screen.getByTestId("key-verdict").textContent ?? "").toMatch(/The same key in all three/);
