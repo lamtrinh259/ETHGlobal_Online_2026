@@ -5,7 +5,7 @@ import { ProfileHead } from "./ProfileHead";
 import { ReferenceTabs } from "./ReferenceTabs";
 import { ScoreRing } from "./me/ScoreRing";
 import { profileScore } from "@/lib/score";
-import { fmtUtc } from "./ui";
+import { fmtUtc, short } from "./ui";
 
 /** The candidate reference page: identity, answers, links, humanity, and the policy checks. */
 export function ProfileCard({
@@ -43,7 +43,12 @@ export function ProfileCard({
           <small className="muted">
             {p.identity && p.wallet ? (
               <>
-                wallet <Link href={`/w/${p.wallet}`}>{p.wallet}</Link>
+                {/* Shortened: forty-two characters of hex wrapped across two lines of a phone, under
+                    the name it belongs to, and the whole of it is a click away either way. */}
+                wallet{" "}
+                <Link href={`/w/${p.wallet}`} title={p.wallet}>
+                  {short(p.wallet)}
+                </Link>
               </>
             ) : (
               "unclaimed"

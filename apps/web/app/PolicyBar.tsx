@@ -65,7 +65,7 @@ export function PolicyBar({
                 apply(pick);
               }
             }}
-            placeholder="hiring, landlord, or one of your own"
+            placeholder="hiring, landlord, your own…"
             aria-label="policy to apply"
             data-testid="policy-pick"
           />

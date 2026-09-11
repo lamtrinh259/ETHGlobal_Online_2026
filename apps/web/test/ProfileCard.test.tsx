@@ -227,6 +227,21 @@ describe("ProfileCard", () => {
     expect(at("score")).toBeLessThan(order.findIndex((el) => el.textContent === "Answers"));
   });
 
+  it("shortens the wallet, which is forty-two characters under the name it belongs to", () => {
+    // The line only exists for a name somebody holds; an unclaimed one says so instead.
+    render(
+      <ProfileCard
+        p={{ ...profile, identity: { profile: null, references: [] } as never }}
+        rootParent="ketsuban.eth"
+      />
+    );
+    const link = screen.getByRole("link", { name: /0x/ });
+    expect(link).toHaveTextContent("0xEE48…9F3a");
+    // The whole of it is still there to be read and copied.
+    expect(link).toHaveAttribute("title", profile.wallet);
+    expect(link).toHaveAttribute("href", `/w/${profile.wallet}`);
+  });
+
   it("says nothing about whether somebody passes until a reader asks", () => {
     /*
      * The page arrived graded against a default nobody chose: a column of ticks saying what the
