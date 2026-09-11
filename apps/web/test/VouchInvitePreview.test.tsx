@@ -33,6 +33,8 @@ vi.mock("@/app/AttestFlow", () => ({ AttestFlow: () => <div data-testid="signin-
 vi.mock("@/lib/hooks", () => ({
   apiFor: () => ({}),
   useWalletDashboard: () => ({ data: undefined, isPending: false }),
+  // What the candidate opened to whoever holds the invitation; none of it, here.
+  useDisclosures: () => ({ data: undefined, isPending: false }),
   useContracts: () => ({ data: undefined }),
   useLetterWrite: () => ({ write: vi.fn(), state: "idle" }),
 }));

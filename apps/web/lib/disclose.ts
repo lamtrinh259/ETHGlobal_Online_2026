@@ -1,4 +1,4 @@
-import { keccak256, concatHex, type Address, type Hex } from "viem";
+import { concatHex, keccak256, toHex, type Address, type Hex } from "viem";
 import {
   DISCLOSE_TYPES,
   discloseDomain,
@@ -106,6 +106,18 @@ export function toDisclosureWire(
 export function newLinkKey(): Hex {
   const bytes = crypto.getRandomValues(new Uint8Array(32));
   return `0x${[...bytes].map((b) => b.toString(16).padStart(2, "0")).join("")}` as Hex;
+}
+
+/**
+ * The key for a grant that rides along with an invitation.
+ *
+ * A candidate inviting somebody to refer them can open their private accounts to that writer, so the
+ * writer is not asked to vouch for someone half-visible. That grant is addressed to nobody, because
+ * the invitation is already the permission — so the secret that opens it is the invitation's own code,
+ * which is in the link and nowhere else.
+ */
+export function linkKeyFromInvite(code: string): Hex {
+  return keccak256(toHex(`ketsuban:invite:${code.toLowerCase()}`));
 }
 
 /** The link a candidate hands over: the verification card, with one account opened. */

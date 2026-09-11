@@ -33,3 +33,20 @@ sequenceDiagram
   grant cannot swap in a secret somebody else chose.
 - Grants made before this stop opening and must be shared again. That is the point: they had no
   secret, so anybody could already read them.
+
+### A grant that rides with an invitation
+
+A candidate inviting somebody to refer them can open their private accounts to that writer, so the
+writer is not asked to vouch for someone half visible. That grant is addressed to nobody, because the
+invitation is already the permission — and its secret is therefore the invitation's own code:
+
+```
+linkKey = keccak256("ketsuban:invite:" + code)
+```
+
+Both ends derive it, so nothing extra is sent and the writer carries one link rather than two. The
+invitation's code is 128 bits, which is what makes this worth deriving from.
+
+The writer sees what was opened on the referral page itself: the list of a name's grants is public —
+it names domains and expiry, never a handle — so the page can tell which accounts to ask about, and
+opening one still takes the invitation.

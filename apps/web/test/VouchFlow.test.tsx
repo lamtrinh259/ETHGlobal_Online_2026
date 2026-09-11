@@ -73,6 +73,8 @@ vi.mock("@/lib/hooks", () => ({
     }),
   }),
   useContracts: () => ({ data: { permissionedResolver: state.resolver } }),
+  // What the candidate opened to whoever holds the invitation; none of it, here.
+  useDisclosures: () => ({ data: undefined, isPending: false }),
   useWalletDashboard: () => ({
     isPending: false,
     // `linked` is what opens the statement stage: a writer must have attested the account they

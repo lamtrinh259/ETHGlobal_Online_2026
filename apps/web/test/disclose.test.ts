@@ -12,6 +12,7 @@ import {
   boxHashOf,
   buildDisclosure,
   disclosureTypedData,
+  linkKeyFromInvite,
   newLinkKey,
   revealLink,
   toDisclosureWire,
@@ -158,5 +159,30 @@ describe("building a disclosure", () => {
     expect(JSON.stringify(wire)).not.toContain(key.slice(2));
     // A grant addressed to one reader opens for that reader, and needs no secret at all.
     expect(toDisclosureWire(disclosure, boxes, "0xdead")).not.toHaveProperty("linkKeyHash");
+  });
+});
+
+/**
+ * A grant that rides along with an invitation.
+ *
+ * The candidate opens their private accounts to the writer they are inviting, so that writer is not
+ * asked to vouch for somebody half visible. It is addressed to nobody, because the invitation is
+ * already the permission — so its secret has to be the invitation's own code, which lives in the link
+ * the writer followed and nowhere else.
+ */
+describe("the key an invitation carries", () => {
+  it("is derived from the code, so both ends reach it without sending it", () => {
+    expect(linkKeyFromInvite("abc123")).toBe(linkKeyFromInvite("ABC123"));
+    expect(linkKeyFromInvite("abc123")).toMatch(/^0x[0-9a-f]{64}$/);
+  });
+
+  it("differs for every invitation, so one does not open another", () => {
+    const keys = new Set(["a", "b", "c", "d"].map(linkKeyFromInvite));
+    expect(keys.size).toBe(4);
+  });
+
+  it("is not the code itself, which is what makes the derivation worth doing", () => {
+    const code = "0".repeat(32);
+    expect(linkKeyFromInvite(code)).not.toContain(code);
   });
 });

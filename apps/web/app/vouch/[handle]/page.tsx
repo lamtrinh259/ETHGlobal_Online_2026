@@ -105,7 +105,15 @@ export default async function VouchPage({ params, searchParams }: Params) {
           <Link href={`/p/${handle}`}>Their page →</Link>
         </p>
       </section>
-      <VouchFlow candidate={handle} invite={invite} withdraw={withdraw === "1"} ask={askById(ask)} />
+      {/* The code itself reaches the flow, not only what it stood for: a grant the candidate made for
+          whoever holds this invitation is opened by the invitation. */}
+      <VouchFlow
+        candidate={handle}
+        invite={invite}
+        inviteCode={invite ? token : undefined}
+        withdraw={withdraw === "1"}
+        ask={askById(ask)}
+      />
     </>
   );
 }

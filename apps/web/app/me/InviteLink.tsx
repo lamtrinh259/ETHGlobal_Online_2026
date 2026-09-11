@@ -14,7 +14,7 @@ import type { Api, WalletDashboard } from "@/lib/api";
 import { Modal } from "@/app/Modal";
 import { PlatformPicker } from "@/app/PlatformPicker";
 import { inviteTypedData } from "@/lib/intent";
-import { buildDisclosure, disclosureTypedData, toDisclosureWire } from "@/lib/disclose";
+import { buildDisclosure, disclosureTypedData, linkKeyFromInvite, toDisclosureWire } from "@/lib/disclose";
 import { loadViewCodes } from "@/lib/keys";
 import { Switch } from "@/app/Switch";
 
@@ -107,7 +107,15 @@ export function InviteLink({
           disclosureTypedData(disclosure, config.chainId, config.multipass as Address) as never,
           { address: wallet }
         );
-        await api.disclose(toDisclosureWire(disclosure, boxes, grant.signature as `0x${string}`));
+        /*
+         * Opened by the invitation, and by nothing else.
+         * The grant is addressed to nobody because the invitation is already the permission; without a
+         * secret tied to it, the reveal URL is a public name and a public account and anybody could
+         * read what the candidate opened for one writer.
+         */
+        await api.disclose(
+          toDisclosureWire(disclosure, boxes, grant.signature as `0x${string}`, linkKeyFromInvite(code))
+        );
       }
       setLink(`${siteUrl.replace(/\/$/, "")}/vouch/${handle}?invite=${code}`);
       setOpen(false);

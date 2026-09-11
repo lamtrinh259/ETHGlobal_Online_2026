@@ -17,11 +17,19 @@ export function Revealed({
   name,
   domain,
   audience,
+  linkKey: given,
 }: {
   name: string;
   domain: string;
   /** The wallet the link was addressed to, carried so the page can say who has to be signed in */
   audience?: string;
+  /**
+   * The secret, where the caller already holds it rather than reading it out of the address bar.
+   *
+   * A grant that rides along with an invitation is opened by the invitation's own code, which is in
+   * the link the writer followed — so the page derives it instead of asking them to carry a second one.
+   */
+  linkKey?: string;
 }) {
   const config = useWebConfig();
   const api = useMemo(() => apiFor(config), [config]);
@@ -37,19 +45,20 @@ export function Revealed({
    * In the fragment rather than the query, so it never reaches a server in a log or a referrer — which
    * also means only the browser can read it, and only after mount.
    */
-  const [linkKey, setLinkKey] = useState<string>();
+  const [fromHash, setFromHash] = useState<string>();
   useEffect(() => {
     const found = /(?:^|[#&])k=(0x[0-9a-fA-F]{64})/.exec(window.location.hash);
-    setLinkKey(found?.[1]);
+    setFromHash(found?.[1]);
   }, []);
+  const key = given ?? fromHash;
   const mismatched = !!audience && (!reader || reader.toLowerCase() !== audience.toLowerCase());
   const opened = useQuery({
-    queryKey: ["disclosed", name, domain, reader, readerName, linkKey],
+    queryKey: ["disclosed", name, domain, reader, readerName, key],
     // A grant that was taken back or ran out answers 403, one that never existed 404. The reader is
     // exactly the person who needs to know which, so the refusal is kept rather than flattened.
     queryFn: () =>
       api
-        .disclosed(name, domain, reader, readerName, linkKey)
+        .disclosed(name, domain, reader, readerName, key)
         .then((d) => ({ ok: true as const, d }))
         .catch((e: unknown) => ({
           ok: false as const,

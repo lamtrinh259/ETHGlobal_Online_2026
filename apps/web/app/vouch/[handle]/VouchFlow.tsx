@@ -10,12 +10,15 @@ import { InviteTerms } from "./InviteTerms";
 import { LetterForm } from "./LetterForm";
 import { useWebConfig } from "@/app/providers";
 import { fmtUtc } from "@/app/ui";
-import { apiFor, useContracts, useLetterWrite, useWalletDashboard } from "@/lib/hooks";
+import { apiFor, useContracts, useDisclosures, useLetterWrite, useWalletDashboard } from "@/lib/hooks";
 import type { SignedInvite } from "@ketsuban/registrar";
 import type { Signer } from "@/lib/chain";
 import { WITHDRAWN } from "@ketsuban/registrar";
 import { VOUCH_PREFIX, voucherProgress, vouchSteps } from "@/lib/journey";
 import { OpenToCandidate } from "./OpenToCandidate";
+import { Revealed } from "@/app/Revealed";
+import { linkKeyFromInvite } from "@/lib/disclose";
+import { ZERO_ADDRESS } from "@ketsuban/registrar";
 import { LETTER_MAX } from "@/lib/chain";
 import { LetterField, letterBytes } from "./LetterField";
 import type { Ask } from "@/lib/asks";
@@ -31,11 +34,14 @@ type Stage = "signin" | "onboarding" | "statement" | "done";
 export function VouchFlow({
   candidate,
   invite,
+  inviteCode,
   withdraw,
   ask,
 }: {
   candidate: string;
   invite?: SignedInvite;
+  /** The invitation's own code, which is the secret opening anything the candidate shared with it */
+  inviteCode?: string;
   withdraw?: boolean;
   /** The reference the writer came to give, when they picked one from the popular asks */
   ask?: Ask;
@@ -79,6 +85,19 @@ export function VouchFlow({
         ? "onboarding"
         : "statement";
   const vouchDomain = `${VOUCH_PREFIX}${candidate}`;
+  /*
+   * The accounts this candidate has opened to whoever holds a link. The list itself is public — it
+   * names domains and expiry, never a handle — and opening one still takes the invitation's own code.
+   */
+  const candidateName = root ? `${candidate}.${root.parentName}` : "";
+  const shares = useDisclosures(api, inviteCode && candidateName ? candidateName : undefined);
+  const shared = [
+    ...new Set(
+      (shares.data?.grants ?? [])
+        .filter((g) => !g.audienceName && g.audience.toLowerCase() === ZERO_ADDRESS)
+        .flatMap((g) => g.domains)
+    ),
+  ];
 
   /*
    * What the invitation asks for and the writer has not linked yet.
@@ -263,6 +282,22 @@ export function VouchFlow({
             requirement nobody could satisfy never blocks — there would be nothing to go and do — and
             referring someone uninvited is still open at /vouch/<handle>.
           */}
+          {/*
+            What the candidate opened for whoever holds this invitation.
+            A writer who cannot see the private accounts is being asked to vouch for somebody half
+            visible. The invitation is the permission, so the grant is opened by its own code rather
+            than by a second secret the writer would have to be sent.
+          */}
+          {inviteCode &&
+            shared.map((domain) => (
+              <Revealed
+                key={domain}
+                name={`${candidate}.${root?.parentName ?? ""}`}
+                domain={domain}
+                linkKey={linkKeyFromInvite(inviteCode)}
+              />
+            ))}
+
           {/* What the candidate asked of the writer, before they sign rather than after. */}
           <InviteTerms
             candidate={candidate}
