@@ -197,3 +197,19 @@ test("a wallet whose records could not be read says so, and claims nothing else"
   await expect(page.getByTestId("wallet-names")).toHaveCount(0);
   await expect(page.getByTestId("wallet-accounts")).toHaveCount(0);
 });
+
+/**
+ * The traversal the subject page exists for.
+ *
+ * A reader arrives at a question, finds an answer worth something, and wants to know who wrote it and
+ * what anybody says about them. The attribution led to the record's own name instead, so that walk
+ * ended one step short of the person.
+ */
+test("an answer leads to the person who wrote it", async ({ page }) => {
+  await page.goto("/v/kju-is.ketsuban.eth");
+  await expect(page.getByTestId("the-question")).toBeVisible();
+
+  await page.getByTestId("answered-by-alice").click();
+  await expect(page).toHaveURL(/\/p\/alice$/);
+  await expect(page.getByTestId("score")).toBeVisible();
+});

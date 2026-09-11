@@ -74,11 +74,23 @@ export function InstanceAnswers({
             <li key={a.ensName} data-testid={`answer-${a.handle}`}>
               <span className="acct-id">
                 <strong>“{a.answer}”</strong>
+                {/*
+                  Who said it, as somebody a reader can go and weigh.
+                  An answer was attributed to the name of the record holding it, which resolves to a
+                  card about that record — so a reader who found an answer worth something could not
+                  get from it to the person, which is the only reason the answer is worth reading.
+                */}
                 <small className="muted">
-                  <Link href={`/v/${a.ensName}`}>
-                    <code>{a.ensName}</code>
+                  <Link href={`/p/${a.handle}`} data-testid={`answered-by-${a.handle}`}>
+                    {a.handle}
                   </Link>{" "}
                   · until {fmtUtc(a.validUntil)}
+                </small>
+                <small className="muted">
+                  {/* The receipt: the name this answer itself resolves at, for a reader checking it. */}
+                  <Link href={`/v/${a.ensName}`}>
+                    <code>{a.ensName}</code>
+                  </Link>
                 </small>
               </span>
             </li>

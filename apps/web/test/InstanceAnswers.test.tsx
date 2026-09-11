@@ -183,3 +183,24 @@ describe("what this page is asking", () => {
     expect(screen.getByTestId("the-question")).toBeInTheDocument();
   });
 });
+
+/**
+ * An answer is worth reading because of who wrote it.
+ *
+ * Each was attributed to the name of the record holding it, which resolves to a card about that
+ * record — so a reader who found an answer worth something had no way from it to the person, which is
+ * the whole reason the answer is worth anything.
+ */
+describe("who answered", () => {
+  it("names them, and leads to their page", () => {
+    render(<InstanceAnswers data={data} />);
+    expect(screen.getByTestId("answered-by-alice")).toHaveAttribute("href", "/p/alice");
+    expect(screen.getByTestId("answered-by-alice")).toHaveTextContent("alice");
+  });
+
+  it("keeps the name the answer itself resolves at, for a reader checking it", () => {
+    render(<InstanceAnswers data={data} />);
+    const row = screen.getByTestId("answer-alice");
+    expect(row.querySelector('a[href="/v/alice.kju-is.ketsuban.eth"]')).not.toBeNull();
+  });
+});
