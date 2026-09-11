@@ -1949,12 +1949,19 @@ export function createApp({
                 disclosed = undefined;
               }
             }
-            // The name a verifier can check in any ENS client: the account's own where it is public,
-            // and the person's in the private branch where it is not.
-            const mount = mounts.get(domain);
-            const label = optedIn ? held : readable(fromBytes32(record.name))?.toLowerCase();
-            const parent = optedIn ? mount?.maskedParentName : mount?.parentName;
-            const ensName = parent && label && /^[a-z0-9_-]{1,63}$/.test(label) ? `${label}.${parent}` : null;
+            /*
+             * The name a verifier can check in any ENS client: the account's own where it is public,
+             * and the person's in the private branch where it is not.
+             *
+             * The same function the dashboard and reverse resolution use. It was open-coded here as
+             * well, and the two drifted: this copy named a masked account after whatever name was
+             * asked about, which on a mount is a platform handle rather than the label a person holds.
+             */
+            const { ensName } = linkName(
+              { name: readable(fromBytes32(record.name)) ?? "", payload: record.payload },
+              mounts.get(domain),
+              held || undefined
+            );
             return {
               domain,
               optedIn,
