@@ -131,4 +131,11 @@ jobs:
       # in, and the toolchain download is the one step of this job that fails on its own.
       - run: pnpm --filter @ketsuban/registrar build
       # anvil, the contracts deployed from this source, and the api image: the whole loop from outside.
-      - run: pnpm --filter @ketsuban/api test:e2e
+      # The summary is kept whatever happens: on a forge whose logs need a login, which of these
+      # thirty-five failed is otherwise readable by nobody who was not already signed in.
+      - run: pnpm --filter @ketsuban/api test:e2e --reporter=default --reporter=junit --outputFile=e2e-results.xml
+      - if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: e2e-results
+          path: apps/api/e2e-results.xml
