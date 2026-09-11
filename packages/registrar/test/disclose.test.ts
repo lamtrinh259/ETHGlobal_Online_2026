@@ -143,8 +143,15 @@ describe("one grant, several accounts", () => {
 
     // Swapping two boxes would hand a reader the wrong account's view code under the right name.
     expect(() => checkDisclosure({ ...many, boxes: [box2, box], signature }, ok)).toThrow(/different box/);
-    // And dropping one must not silently narrow the grant to whatever is left.
-    expect(() => checkDisclosure({ ...many, boxes: [box], signature }, ok)).toThrow(/different box/);
+    /*
+     * And dropping one must not silently narrow the grant to whatever is left. The message is matched
+     * exactly, because `different box` also matches what the hash check says: asserting the looser
+     * pattern passed whether or not the count was ever compared, and the count is what stops a box
+     * being paired with a domain it was not encrypted for.
+     */
+    expect(() => checkDisclosure({ ...many, boxes: [box], signature }, ok)).toThrow(
+      "disclosure: signature is for a different box set"
+    );
   });
 
   it("keeps each account's own view code, because one code never opens another account", () => {

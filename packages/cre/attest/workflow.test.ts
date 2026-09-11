@@ -466,6 +466,19 @@ describe("onDisclose", () => {
     ).rejects.toThrow(/different record/);
   });
 
+  test("refuses a record that is not a linked account, rather than decoding whatever it is given", async () => {
+    /*
+     * `packed` comes from the caller. A masked linked-account record is three 32-byte words, and the
+     * decoder reads it by position: handed a shorter value it would slice fields out of whatever it
+     * got and answer with the result as though it were a handle.
+     */
+    const { runtime } = fakeTeeRuntime();
+    const short = `0x${"11".repeat(32)}` as Hex;
+    await expect(onDisclose(runtime, (await payload({}, { packed: short })) as any)).rejects.toThrow(
+      "disclosure: not a linked-account record"
+    );
+  });
+
   test("answers the handle inside the enclave, and nothing else leaves", async () => {
     const { runtime, secretsRequested, evmCalls, deliveries } = fakeTeeRuntime();
     const out = JSON.parse(await onDisclose(runtime, (await payload()) as any));
