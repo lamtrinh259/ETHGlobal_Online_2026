@@ -236,6 +236,36 @@ describe("api client", () => {
     return { fn: fn as unknown as typeof fetch, calls };
   }
 
+  it("asks for a masked account as the reader the grant was addressed to", async () => {
+    /*
+     * A grant can be addressed to one wallet, or to whoever holds a name in a branch, and the reader
+     * says which they are in the query. Built wrong — an unencoded name, a dropped parameter — the
+     * attester answers about a different grant or refuses one that was addressed to this reader. Page
+     * tests mock this client away, so nothing exercised the two parameters until here.
+     */
+    const disclosed = {
+      name: "alice.ketsuban.eth",
+      domain: "x.com",
+      disclosed: { handle: "alice_x", platformId: "7" },
+      warning: "w",
+    };
+    const { fn, calls } = fetchMock({ "http://api.test/v1/disclose/": { body: disclosed } });
+    const api = createApi("http://api.test", "http://api.test/v1/attest", fn);
+    const reader = "0xEE4811b9462956C9C3535E79c08776D769CA9F3a";
+
+    await api.disclosed("alice.ketsuban.eth", "x.com");
+    expect(calls.at(-1)!.url).toBe("http://api.test/v1/disclose/alice.ketsuban.eth/x.com");
+
+    await api.disclosed("alice.ketsuban.eth", "x.com", reader);
+    expect(calls.at(-1)!.url).toBe(`http://api.test/v1/disclose/alice.ketsuban.eth/x.com?reader=${reader}`);
+
+    // A name carries characters a URL does not, and `*.acme.com` is a real audience.
+    await api.disclosed("alice.ketsuban.eth", "x.com", reader, "*.acme.com");
+    expect(calls.at(-1)!.url).toBe(
+      `http://api.test/v1/disclose/alice.ketsuban.eth/x.com?reader=${reader}&as=*.acme.com`
+    );
+  });
+
   it("reads nonce, attests, delivers and verifies with the right URLs and bodies", async () => {
     const { fn, calls } = fetchMock({
       "http://api.test/v1/nonce": {
