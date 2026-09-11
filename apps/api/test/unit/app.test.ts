@@ -1637,8 +1637,58 @@ describe("POST /v1/attest — vouch invitations", () => {
     expect(bob.invite).toMatchObject({ handle: "alice", signature: invite.signature });
   });
 
+  it("leaves a reference nobody was invited to write unmarked, and still writes it", async () => {
+    /*
+     * The two ways a reference arrives, told apart.
+     *
+     * Following an invitation link carries the candidate's signature with the request; writing from
+     * `/vouch/<handle>` directly carries nothing. Both are published — the product is not gated on an
+     * invitation — and the badge is the whole difference a reader sees, so the unmarked case is worth
+     * pinning as much as the marked one.
+     */
+    const written = {
+      name: "bob",
+      id: toBytes32("b"),
+      wallet: user.account.address,
+      payload: toBytes32("worked together 2019-22"),
+      validUntil: 1_800_000_000n,
+      nonce: 1n,
+      live: true,
+    };
+    const { chain } = fakeChain({ ...aliceHolds, listed: { "~alice": [written] } });
+    const a = app(chain);
+    const wire = toWire(
+      await signedAttestRequest(
+        user.account,
+        { ...vouchIntent(NOW), handle: "bob" },
+        privy.mint({ sub: user.did, linked: user.linked, now: NOW }),
+        31337,
+        baseEnv.MULTIPASS as Hex
+        // and no invitation
+      )
+    );
+    expect((await post(a, "/v1/attest", wire)).status).toBe(200);
+
+    const listed = await (await a.request("/v1/vouches/alice")).json();
+    const bob = listed.vouches.find((v: { voucher: string }) => v.voucher === "bob");
+    expect(bob, "the uninvited reference was not written at all").toBeTruthy();
+    expect(bob.solicited).toBe(false);
+    expect(bob.invite).toBeNull();
+  });
+
   it("does not count an invitation signed by someone who does not hold the candidate's name", async () => {
-    const { chain } = fakeChain(aliceHolds);
+    // Seeded, because the check is that this reference comes back unmarked: asserting over a listing
+    // with nothing in it passes whether or not a forged invitation would have been believed.
+    const written = {
+      name: "bob",
+      id: toBytes32("b"),
+      wallet: user.account.address,
+      payload: toBytes32("worked together 2019-22"),
+      validUntil: 1_800_000_000n,
+      nonce: 1n,
+      live: true,
+    };
+    const { chain } = fakeChain({ ...aliceHolds, listed: { "~alice": [written] } });
     const idToken = privy.mint({ sub: user.did, linked: user.linked, now: NOW });
     const wire = toWire(
       await signedAttestRequest(
@@ -1652,10 +1702,14 @@ describe("POST /v1/attest — vouch invitations", () => {
     );
     // Anyone can sign an "invitation" from themselves; only the wallet holding alice's name counts.
     // The reference is still written — it simply does not get to claim she asked for it.
-    const res = await post(app(chain), "/v1/attest", wire);
+    const a = app(chain);
+    const res = await post(a, "/v1/attest", wire);
     expect(res.status).toBe(200);
-    const listed = await (await app(chain).request("/v1/vouches/alice")).json();
-    expect(listed.vouches.every((v: { solicited: boolean }) => !v.solicited)).toBe(true);
+    const listed = await (await a.request("/v1/vouches/alice")).json();
+    const bob = listed.vouches.find((v: { voucher: string }) => v.voucher === "bob");
+    expect(bob, "nothing to check: the reference was not listed").toBeTruthy();
+    expect(bob.solicited).toBe(false);
+    expect(bob.invite).toBeNull();
   });
 
   it("a deployment may switch invitations back on", async () => {
