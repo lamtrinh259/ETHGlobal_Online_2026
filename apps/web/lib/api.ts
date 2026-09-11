@@ -190,6 +190,13 @@ export type EnsResolution = z.infer<typeof ensSchema>;
 export const preflightSchema = z.object({
   ok: z.boolean(),
   warnings: z.array(z.string()),
+  /*
+   * Which key the chain expects, and which one this service says it signs with. Optional because an
+   * older attester answers without them, and a page that reads this must degrade rather than fail: the
+   * banner these warnings drive matters more than the comparison they enable.
+   */
+  registrar: z.object({ signsAs: address.nullable() }).optional(),
+  multipass: z.object({ domains: z.array(z.object({ registrar: address })) }).optional(),
 });
 export type PreflightRead = z.infer<typeof preflightSchema>;
 
