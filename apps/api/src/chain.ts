@@ -689,6 +689,12 @@ export class Chain {
    */
   async preflight(): Promise<Preflight> {
     const warnings: string[] = [];
+    /*
+     * Advice, not a fault. `ok` drives a 503 and the banner the app shows over every page, so it is
+     * reserved for a deployment that cannot do its job. A key layout worth improving is still worth
+     * saying, and it is said in the same list a reader is already looking at.
+     */
+    const advisories: string[] = [];
     const [bridgeCode, multipassCode, factoryCode] = await Promise.all([
       this.publicClient.getCode({ address: this.config.BRIDGE }),
       this.publicClient.getCode({ address: this.config.MULTIPASS }),
@@ -725,7 +731,7 @@ export class Chain {
         ] as const,
         functionName: "owner",
       })) as Address;
-      warnings.push(...ownershipWarnings(this.relayer, owner));
+      advisories.push(...ownershipWarnings(this.relayer, owner));
     } catch {
       // A Multipass that does not publish an owner leaves the question unanswered, not failed.
     }
@@ -823,6 +829,7 @@ export class Chain {
 
     return {
       ok: warnings.length === 0,
+      // Faults first: they are why somebody opened this, and the advice reads after them.
       bridge: { address: this.config.BRIDGE, deployed: deployed(bridgeCode), missing },
       multipass: { address: this.config.MULTIPASS, deployed: deployed(multipassCode), domains },
       factory: { address: this.config.FACTORY, deployed: deployed(factoryCode), instances },
@@ -831,7 +838,7 @@ export class Chain {
         : null,
       registrar: { signsAs: configuredRegistrar ?? null, onchain: onchainRegistrars },
       relayer: { address: this.relayer, balance: relayerBalance.toString() },
-      warnings,
+      warnings: [...warnings, ...advisories],
     };
   }
 
