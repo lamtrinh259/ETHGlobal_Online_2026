@@ -1,11 +1,21 @@
 import { describe, expect, it } from "vitest";
 import {
+  contractsSchema,
+  enclaveKeySchema,
+  ensSchema,
+  ethLabelSchema,
+  explainSchema,
+  findSchema,
   grantsSchema,
   instanceReadSchema,
+  nameStatusSchema,
+  preflightSchema,
   profileSchema,
+  reverseSchema,
   verifySchema,
   vouchesSchema,
   walletSchema,
+  whoSchema,
 } from "@/lib/api";
 
 /**
@@ -37,6 +47,22 @@ const cases: [string, { parse: (v: unknown) => unknown }][] = [
   [`/v1/instance/${SUBJECT}`, instanceReadSchema],
   [`/v1/wallet/${WALLET}`, walletSchema],
   [`/v1/disclosures/${HANDLE}.${ROOT}`, grantsSchema],
+  /*
+   * The rest of what this app reads. Only the reads: a POST would write to the deployment being
+   * checked, and a check with a side effect is one nobody dares run. Each of these had drifted
+   * unnoticed at least once in the mock, which answers the same shapes.
+   */
+  ["/v1/instances", contractsSchema],
+  ["/v1/preflight", preflightSchema],
+  ["/v1/enclave-key", enclaveKeySchema],
+  [`/v1/ens/${HANDLE}.${ROOT}`, ensSchema],
+  [`/v1/explain/${HANDLE}.${ROOT}`, explainSchema],
+  [`/v1/reverse/${WALLET}`, reverseSchema],
+  [`/v1/name/${ROOT.split(".")[0]}/${HANDLE}`, nameStatusSchema],
+  [`/v1/find?q=${HANDLE}`, findSchema],
+  [`/v1/eth-label/${ROOT.split(".")[0]}`, ethLabelSchema],
+  // Answers `found: false` for an account nobody attested, so this parses on any deployment.
+  [`/v1/who?handle=${HANDLE}&domain=x.com`, whoSchema],
 ];
 
 describe(`what ${API} answers`, () => {
