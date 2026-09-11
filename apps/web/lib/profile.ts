@@ -249,6 +249,20 @@ export function shareSnippet(handle: string, siteUrl: string, rootParent: string
 export const HANDLE_RE = /^[a-z0-9-]{1,31}$/;
 
 /** Verifier policy from a query string; `preset` wins, otherwise defaults require every subject answered. */
+/** Every parameter a policy is carried in, so a page can tell a bar somebody set from the default. */
+const POLICY_PARAMS = ["preset", "answers", "minLinks", "minVouches", "humanity", "solicited", "from"];
+
+/**
+ * Whether a reader asked for a verdict, rather than just opening somebody's page.
+ *
+ * A page that grades every person against a bar nobody chose reads as a judgement of them, and the
+ * column of ticks says what the metrics beside it already say. Applying a policy is a deliberate act;
+ * the verdict belongs to whoever performed it.
+ */
+export function policyAsked(q: Record<string, string | undefined>): boolean {
+  return POLICY_PARAMS.some((k) => q[k] !== undefined && q[k] !== "");
+}
+
 export function policyFromQuery(q: Record<string, string | undefined>, subjectDomains: string[]): Policy {
   const preset = q.preset ? POLICY_PRESETS.find((p) => p.id === q.preset) : undefined;
   if (preset) return presetPolicy(preset, subjectDomains);

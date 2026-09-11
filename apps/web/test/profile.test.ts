@@ -14,6 +14,7 @@ import {
   POLICY_PRESETS,
   policyToQuery,
   presetPolicy,
+  policyAsked,
   shareSnippet,
   vouchRequest,
   type Policy,
@@ -472,5 +473,23 @@ describe("a picture an https page is allowed to load", () => {
     expect(displayableImage("ipfs://bafy", true)).toBe("ipfs://bafy");
     expect(displayableImage(null, true)).toBeNull();
     expect(displayableImage(undefined, true)).toBeNull();
+  });
+});
+
+describe("policyAsked", () => {
+  /*
+   * A page that grades everybody against a bar nobody chose reads as a judgement of them. A verdict
+   * is something a reader performs, so the page has to be able to tell that they did.
+   */
+  it("is false for a page opened with nothing on the query string", () => {
+    expect(policyAsked({})).toBe(false);
+    expect(policyAsked({ viewCode: "0x1", links: "x.com", reveal: "x.com" })).toBe(false);
+    // An empty parameter is what a cleared form leaves behind, and asks for nothing.
+    expect(policyAsked({ preset: "" })).toBe(false);
+  });
+
+  it("is true for every parameter a policy is carried in", () => {
+    for (const k of ["preset", "answers", "minLinks", "minVouches", "humanity", "solicited", "from"])
+      expect(policyAsked({ [k]: "1" }), k).toBe(true);
   });
 });

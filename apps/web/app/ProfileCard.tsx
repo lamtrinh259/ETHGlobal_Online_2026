@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { describePolicy, type Policy, type Profile } from "@/lib/profile";
+import type { Policy, Profile } from "@/lib/profile";
 import { questionTitle } from "@/lib/questions";
 import { ProfileHead } from "./ProfileHead";
 import { ReferenceTabs } from "./ReferenceTabs";
@@ -8,7 +8,16 @@ import { profileScore } from "@/lib/score";
 import { fmtUtc } from "./ui";
 
 /** The candidate reference page: identity, answers, links, humanity, and the policy checks. */
-export function ProfileCard({ p, rootParent, policy }: { p: Profile; rootParent: string; policy?: Policy }) {
+export function ProfileCard({
+  p,
+  rootParent,
+  policy,
+}: {
+  p: Profile;
+  rootParent: string;
+  /** The bar the reader asked for; absent means nobody asked, so nothing is graded */
+  policy?: Policy;
+}) {
   /** Nobody holds it and nobody has written about it: there is nothing here to pass judgement on. */
   const blank = !p.identity && p.vouches.length === 0;
   return (
@@ -24,9 +33,13 @@ export function ProfileCard({ p, rootParent, policy }: { p: Profile; rootParent:
         }}
       >
         <p className="row">
-          <span className={`badge ${p.complete ? "ok" : "off"}`} data-testid="completeness">
-            {p.complete ? "complete" : "incomplete"}
-          </span>
+          {/* A word passing judgement on somebody, for a bar they were never told about, is not a
+              reading of their records. It belongs to the reader who set the bar, and only then. */}
+          {policy && (
+            <span className={`badge ${p.complete ? "ok" : "off"}`} data-testid="completeness">
+              {p.complete ? "complete" : "incomplete"}
+            </span>
+          )}
           <small className="muted">
             {p.identity && p.wallet ? (
               <>
@@ -62,12 +75,7 @@ export function ProfileCard({ p, rootParent, policy }: { p: Profile; rootParent:
           <Link href="/me">claims the name</Link> — until then it is a page about a name.
         </p>
       ) : (
-        <>
-          {policy && (
-            <p className="muted" data-testid="policy-line">
-              Policy: {describePolicy(policy)}
-            </p>
-          )}
+        policy && (
           <ul className="checks" data-testid="checks">
             {p.checks.map((c) => (
               <li key={c.id} className={c.ok ? "ok" : "no"}>
@@ -79,7 +87,7 @@ export function ProfileCard({ p, rootParent, policy }: { p: Profile; rootParent:
               </li>
             ))}
           </ul>
-        </>
+        )
       )}
 
       {/*

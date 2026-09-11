@@ -3,6 +3,9 @@ import { describe, expect, it } from "vitest";
 import { ProfileCard } from "@/app/ProfileCard";
 import type { Profile } from "@/lib/profile";
 
+/** A bar somebody asked for. Nothing is graded without one: opening a page is not asking. */
+const ASKED = { requiredAnswers: ["kju-is"], minLinks: 1, requireHumanity: false, minVouches: 2 };
+
 const profile: Profile = {
   handle: "alice",
   identity: undefined,
@@ -120,6 +123,7 @@ describe("ProfileCard", () => {
   it("renders checks with marks, answers and masked links", () => {
     render(
       <ProfileCard
+        policy={ASKED}
         p={{
           ...profile,
           identity: {
@@ -180,9 +184,6 @@ describe("ProfileCard", () => {
         policy={{ requiredAnswers: ["kju-is"], minLinks: 1, requireHumanity: true, minVouches: 2 }}
       />
     );
-    expect(screen.getByTestId("policy-line")).toHaveTextContent(
-      "Policy: answers for What do you think of Kim Jong Un? · ≥1 linked account · ≥2 live references · humanity attested"
-    );
     expect(screen.getByTestId("links")).toHaveTextContent("@alice_x");
     expect(screen.getByTestId("disclosed")).toHaveTextContent("disclosed to you by the candidate");
     const voucherLink = screen.getByTestId("vouches").querySelector("a");
@@ -219,11 +220,25 @@ describe("ProfileCard", () => {
   it("puts the one number beside the verdict it explains", () => {
     // The badge said "incomplete" at the top and the score that says how incomplete sat under the
     // answers and the accounts, half a page down.
-    const { container } = render(<ProfileCard p={profile} rootParent="ketsuban.eth" />);
+    const { container } = render(<ProfileCard p={profile} rootParent="ketsuban.eth" policy={ASKED} />);
     const order = [...container.querySelectorAll("[data-testid=checks], [data-testid=score], h3")];
     const at = (t: string) => order.findIndex((el) => el.getAttribute("data-testid") === t);
     expect(at("score")).toBeGreaterThan(at("checks"));
     expect(at("score")).toBeLessThan(order.findIndex((el) => el.textContent === "Answers"));
+  });
+
+  it("says nothing about whether somebody passes until a reader asks", () => {
+    /*
+     * The page arrived graded against a default nobody chose: a column of ticks saying what the
+     * metrics beside it said, under a word passing judgement on a person for a bar they were never
+     * told about. The reading is the records; the verdict belongs to whoever set the bar.
+     */
+    render(<ProfileCard p={profile} rootParent="ketsuban.eth" />);
+    expect(screen.queryByTestId("checks")).toBeNull();
+    expect(screen.queryByTestId("completeness")).toBeNull();
+    // The metrics are not a verdict, and stay.
+    expect(screen.getByTestId("score")).toBeInTheDocument();
+    expect(screen.getByTestId("vouches")).toBeInTheDocument();
   });
 
   it("does not grade a name nobody has ever held or written about", () => {
@@ -255,6 +270,7 @@ describe("ProfileCard", () => {
       <ProfileCard
         p={{ ...profile, identity: undefined, wallet: null, answers: [], links: [] }}
         rootParent="ketsuban.eth"
+        policy={ASKED}
       />
     );
     expect(screen.getByTestId("checks")).toBeInTheDocument();

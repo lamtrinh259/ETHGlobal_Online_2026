@@ -42,7 +42,7 @@ test("presets fill the policy and encode it into the candidate's URL", async ({ 
   // The policy is about somebody, so it is asked on their page and folded away until wanted.
   await page.goto("/p/alice");
   await expect(page.getByTestId("presets")).toBeHidden();
-  await page.getByTestId("policy-editor").getByText("Your policy").click();
+  await page.getByTestId("policy-build").click();
   await page.getByTestId("preset-dao").click();
   await expect(page.getByTestId("policy-summary")).toHaveText(/≥2 live references · humanity attested/);
   await page.getByLabel("minimum live references").fill("5");
@@ -116,4 +116,34 @@ test("a wallet that belongs to somebody says who, first", async ({ page }) => {
 
   await page.getByTestId("wallet-is").getByRole("link").click();
   await expect(page).toHaveURL(/\/p\/alice$/);
+});
+
+/**
+ * A verdict is something a reader performs.
+ *
+ * The page arrived graded against a default nobody chose — a column of ticks saying what the metrics
+ * beside it said, under a word passing judgement on a person for a bar they were never told about.
+ */
+test("a person's page states their records, and grades them only when asked", async ({ page }) => {
+  await page.goto("/p/alice");
+  await expect(page.getByTestId("checks")).toHaveCount(0);
+  await expect(page.getByTestId("completeness")).toHaveCount(0);
+  await expect(page.getByTestId("score")).toBeVisible();
+
+  await page.getByTestId("policy-pick").fill("Hiring");
+  await page.getByTestId("policy-apply").click();
+  await expect(page).toHaveURL(/preset=hiring/);
+  await expect(page.getByTestId("checks")).toBeVisible();
+  await expect(page.getByTestId("completeness")).toBeVisible();
+  await expect(page.getByTestId("policy-line")).toContainText("Checking against");
+
+  await page.getByTestId("policy-clear").click();
+  await expect(page).toHaveURL(/\/p\/alice$/);
+  await expect(page.getByTestId("checks")).toHaveCount(0);
+});
+
+test("a policy nobody has heard of applies nothing", async ({ page }) => {
+  await page.goto("/p/alice");
+  await page.getByTestId("policy-pick").fill("whatever");
+  await expect(page.getByTestId("policy-apply")).toBeDisabled();
 });

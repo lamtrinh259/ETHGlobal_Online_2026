@@ -18,7 +18,7 @@ test("the policy is set where the reading is, and goes into the URL", async ({ p
    * grades, and applying it puts the bar in the URL, which is what makes a reading shareable.
    */
   await page.goto("/p/alice");
-  await page.getByTestId("policy-editor").getByText("Your policy").click();
+  await page.getByTestId("policy-build").click();
   await page.getByLabel("minimum linked accounts").fill("2");
   await page.getByRole("button", { name: "Apply to alice" }).click();
   await expect(page).toHaveURL(/\/p\/alice\?answers=kju-is&minLinks=2&minVouches=3$/);

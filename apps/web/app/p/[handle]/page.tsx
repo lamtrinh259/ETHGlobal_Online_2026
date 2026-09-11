@@ -1,14 +1,21 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { EnsProof } from "@/app/EnsProof";
-import { PolicyForm } from "@/app/PolicyForm";
+import { PolicyBar } from "@/app/PolicyBar";
 import { ProfileCard } from "@/app/ProfileCard";
 import { Revealed } from "@/app/Revealed";
 import { CopyButton } from "@/app/CopyButton";
 import { createApi, type Verification } from "@/lib/api";
 import { loadWebConfig } from "@/lib/config";
 import { flourish } from "@/lib/patience";
-import { assessProfile, HANDLE_RE, policyFromQuery, profileNames, shareSnippet } from "@/lib/profile";
+import {
+  assessProfile,
+  HANDLE_RE,
+  policyAsked,
+  policyFromQuery,
+  profileNames,
+  shareSnippet,
+} from "@/lib/profile";
 
 export const dynamic = "force-dynamic";
 
@@ -81,10 +88,10 @@ export default async function ProfilePage({ params, searchParams }: Params) {
     name,
     v: (read?.names.find((n) => n.name === name)?.verification ?? null) as Verification | null,
   }));
-  const policy = policyFromQuery(
-    q,
-    subjects.map((s) => s.domain)
-  );
+  const subjectDomains = subjects.map((s) => s.domain);
+  const policy = policyFromQuery(q, subjectDomains);
+  // A verdict is something a reader performs. Opening somebody's page is not performing one.
+  const asked = policyAsked(q);
   const ens = await api.ens(names[0], undefined, { signal: flourish() }).catch(() => null);
   const vouches = read?.vouches ?? [];
   const profile = assessProfile(handle, results, policy, vouches);
@@ -97,14 +104,10 @@ export default async function ProfilePage({ params, searchParams }: Params) {
           {error}
         </p>
       )}
-      <ProfileCard p={profile} rootParent={root.parentName} policy={policy} />
+      <ProfileCard p={profile} rootParent={root.parentName} policy={asked ? policy : undefined} />
 
-      {/* The bar this reading was graded against, adjustable where the reading is. Folded away: most
-          readers take the default, and the ones who do not are looking for it. */}
-      <details className="card" data-testid="policy-editor">
-        <summary>Your policy</summary>
-        <PolicyForm handle={handle} subjectDomains={subjects.map((s) => s.domain)} />
-      </details>
+      {/* Where a reader asks for a verdict, and the only place one comes from. */}
+      <PolicyBar handle={handle} subjectDomains={subjectDomains} applied={asked ? policy : undefined} />
 
       {/* One link can open several accounts: the grant was one signature over the whole selection.
           Followed here rather than at `/v/`, which now sends a person's name to this page. */}
