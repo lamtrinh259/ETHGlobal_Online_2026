@@ -158,6 +158,7 @@ test("the boxed steps are named once, not once in the label and again in the box
 for (const [path, says] of [
   ["/p/alice", "alice"],
   ["/v/kju-is.ketsuban.eth", "kju-is.ketsuban.eth"],
+  ["/v/alice.com.x.www.ketsuban.eth", "alice.com.x.www.ketsuban.eth"],
 ]) {
   test(`${path} unfurls as itself`, async ({ request }) => {
     const html = await (await request.get(path)).text();
@@ -174,12 +175,14 @@ for (const [path, says] of [
 test("a card names an image a client can actually fetch", async ({ request, baseURL }) => {
   // Without `metadataBase` Next writes `http://localhost:3000` into every card, which is a picture no
   // reader of a shared link can load and a failure nothing in the app itself shows.
-  const html = await (await request.get("/p/alice")).text();
-  const image = /<meta property="og:image" content="([^"]*)"/.exec(html)?.[1] ?? "";
-  expect(image, "og:image").toMatch(/^https?:\/\//);
+  for (const path of ["/p/alice", "/v/kju-is.ketsuban.eth"]) {
+    const html = await (await request.get(path)).text();
+    const image = /<meta property="og:image" content="([^"]*)"/.exec(html)?.[1] ?? "";
+    expect(image, `og:image on ${path}`).toMatch(/^https?:\/\//);
 
-  const served = await request.get(new URL(image).pathname + new URL(image).search);
-  expect(served.status()).toBe(200);
-  expect(served.headers()["content-type"]).toContain("image/");
+    const served = await request.get(new URL(image).pathname + new URL(image).search);
+    expect(served.status(), path).toBe(200);
+    expect(served.headers()["content-type"], path).toContain("image/");
+  }
   expect(baseURL).toBeTruthy();
 });
