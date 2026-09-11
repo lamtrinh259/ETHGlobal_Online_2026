@@ -88,6 +88,23 @@ export function dnsEncode(name: string): Hex {
  * product rather than as a wrong setting. The contract publishes its own domain, so this is a question
  * with an answer rather than an assumption.
  */
+/**
+ * Whether one stolen key would be enough to delete a record.
+ *
+ * The Multipass owner can `deleteName` any record in any domain — the product's central claim is that a
+ * reference cannot be deleted, and this is the one key that can. Held by the relayer it is a hot key:
+ * it signs transactions continuously, so it is the likeliest of the deployment's keys to be taken, and
+ * taking it would buy far more than the gas in it.
+ */
+export function ownershipWarnings(relayer: Address, owner: Address): string[] {
+  if (owner.toLowerCase() !== relayer.toLowerCase()) return [];
+  return [
+    `the Multipass owner is the relayer key (${owner}): the key that signs transactions can also ` +
+      `delete any record, so one compromise removes references this deployment calls permanent — ` +
+      `transfer ownership to a key that signs nothing else`,
+  ];
+}
+
 export function eip712Warnings(
   config: Pick<Config, "MULTIPASS" | "MULTIPASS_EIP712_NAME" | "MULTIPASS_EIP712_VERSION" | "CHAIN_ID">,
   onchain: [Hex, string, string, bigint, Address, Hex, bigint[]]
@@ -691,6 +708,26 @@ export class Chain {
       warnings.push(...eip712Warnings(this.config, domain));
     } catch {
       // An older Multipass may not publish its domain; that is not a fault, only an unanswered question.
+    }
+
+    // Who can delete a record, which is the one power that contradicts what the product promises.
+    try {
+      const owner = (await this.publicClient.readContract({
+        address: this.config.MULTIPASS,
+        abi: [
+          {
+            type: "function",
+            name: "owner",
+            inputs: [],
+            outputs: [{ type: "address" }],
+            stateMutability: "view",
+          },
+        ] as const,
+        functionName: "owner",
+      })) as Address;
+      warnings.push(...ownershipWarnings(this.relayer, owner));
+    } catch {
+      // A Multipass that does not publish an owner leaves the question unanswered, not failed.
     }
 
     // Without it, a domain nobody deployed cannot be mounted on demand and the person is turned away.

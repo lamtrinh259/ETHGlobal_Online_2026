@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { zeroAddress, zeroHash, type Address } from "viem";
 import { toBytes32 } from "@peeramid-labs/multipass-client";
-import { Chain, eip712Warnings } from "../../src/chain.js";
+import { Chain, eip712Warnings, ownershipWarnings } from "../../src/chain.js";
 import { loadConfig } from "../../src/config.js";
 
 const config = loadConfig({
@@ -370,6 +370,32 @@ describe("relaying a signed record", () => {
  * attestation reverts at `register` — after the person has already signed, which reads as a broken
  * product rather than as a wrong setting.
  */
+describe("who can delete a record, read off the chain", () => {
+  /*
+   * The Multipass owner can `deleteName` any record in any domain. The product's whole claim is that a
+   * reference cannot be deleted, so the one key that can is worth naming — and naming loudest when it
+   * is the relayer, a hot key that signs transactions all day and is the likeliest to be taken.
+   */
+  const relayer = "0x2222222222222222222222222222222222222222" as const;
+  const cold = "0x1111111111111111111111111111111111111111" as const;
+
+  it("says nothing when the owner is a key that does nothing else", () => {
+    expect(ownershipWarnings(relayer, cold)).toEqual([]);
+  });
+
+  it("names the relayer holding it, because one stolen key would then delete records", () => {
+    const [said] = ownershipWarnings(relayer, relayer);
+    expect(said).toMatch(/delete any record/i);
+    expect(said).toMatch(/relayer/i);
+  });
+
+  it("reads the same whichever case the chain answers in", () => {
+    expect(
+      ownershipWarnings(relayer, relayer.toUpperCase().replace("0X", "0x") as typeof relayer)
+    ).toHaveLength(1);
+  });
+});
+
 describe("the signing domain read off the chain", () => {
   const healthy: Parameters<typeof eip712Warnings>[1] = [
     "0x0f",

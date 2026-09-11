@@ -101,6 +101,11 @@ World is the party that decides whether the mathematics holds. `apps/api/README.
 |---|---|
 | Registrar key (enclave / Node fallback) | signs records for its domains; never transacts |
 | Multipass owner | `initializeDomain`, `changeRegistrar`, `deleteName`, fees |
+
+`deleteName` is the one power that contradicts what the product promises, so the owner should be a
+key that signs nothing else. Where it is the relayer — a hot key transacting continuously — a single
+compromise can remove references this deployment calls permanent, and preflight says so.
+
 | Factory / bridge / registry owner (operator) | creates instances, registers orgs, mounts subregistries |
 | Bridge on PermissionedResolver | `ROLE_SET_TEXT_ADMIN`, `ROLE_SET_ALIAS` on root |
 | User on PermissionedResolver | `ROLE_SET_TEXT` on four keys of their own name |
