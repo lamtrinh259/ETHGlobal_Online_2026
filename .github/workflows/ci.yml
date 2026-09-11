@@ -56,6 +56,33 @@ jobs:
         timeout-minutes: 12
         run: pnpm --filter @ketsuban/web run test:e2e
 
+  # Whether this runner can compose containers at all, as its own job.
+  #
+  # `e2e` brings up anvil, a deploy container and the api image. When that job fails, the reason is
+  # thirty lines into a container trace inside vitest, and on a private forge the log is only readable
+  # by somebody signed in — so "the stack could not start" and "a test failed" reported the same red.
+  # As a separate job the two are separate statuses, which the commit-status API reports without a
+  # login, and this one costs seconds.
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: the daemon the e2e job composes its stack with
+        run: |
+          echo "runner: $(uname -srm)"
+          command -v docker >/dev/null || {
+            echo "::error::no docker on this runner"
+            exit 1
+          }
+          docker version --format '{{.Server.Version}}' || {
+            echo "::error::docker is installed but its daemon is not reachable"
+            exit 1
+          }
+          docker compose version || {
+            echo "::error::docker has no compose plugin, which is what brings the stack up"
+            exit 1
+          }
+
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -74,23 +101,5 @@ jobs:
       # No Foundry here on purpose: forge runs inside the deploy container, the ABIs it needs are checked
       # in, and the toolchain download is the one step of this job that fails on its own.
       - run: pnpm --filter @ketsuban/registrar build
-      # This job composes anvil, a deploy container and the api image. Where the runner has no docker
-      # to compose them with, the suite dies inside vitest and the log says so in the middle of a
-      # container trace — which is how this job stayed red without anyone being able to read why.
-      - name: the daemon this job needs
-        run: |
-          echo "runner: $(uname -a)"
-          command -v docker >/dev/null || {
-            echo "::error::no docker on this runner: the api e2e composes anvil, a deploy container and the api image"
-            exit 1
-          }
-          docker version || {
-            echo "::error::docker is installed but its daemon is not reachable from this runner"
-            exit 1
-          }
-          docker compose version || {
-            echo "::error::docker has no compose plugin, which is what brings the stack up"
-            exit 1
-          }
       # anvil, the contracts deployed from this source, and the api image: the whole loop from outside.
       - run: pnpm --filter @ketsuban/api test:e2e
