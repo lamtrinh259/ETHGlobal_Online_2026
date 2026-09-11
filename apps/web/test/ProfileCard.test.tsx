@@ -216,6 +216,16 @@ describe("ProfileCard", () => {
     expect(container.querySelector("[data-testid=waiting]")).toBeNull();
   });
 
+  it("puts the one number beside the verdict it explains", () => {
+    // The badge said "incomplete" at the top and the score that says how incomplete sat under the
+    // answers and the accounts, half a page down.
+    const { container } = render(<ProfileCard p={profile} rootParent="ketsuban.eth" />);
+    const order = [...container.querySelectorAll("[data-testid=checks], [data-testid=score], h3")];
+    const at = (t: string) => order.findIndex((el) => el.getAttribute("data-testid") === t);
+    expect(at("score")).toBeGreaterThan(at("checks"));
+    expect(at("score")).toBeLessThan(order.findIndex((el) => el.textContent === "Answers"));
+  });
+
   it("does not grade a name nobody has ever held or written about", () => {
     /*
      * A column of crosses and 0/100 is a verdict, and there is nothing here to pass judgement on:

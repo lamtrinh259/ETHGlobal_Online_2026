@@ -82,6 +82,29 @@ export function ProfileCard({ p, rootParent, policy }: { p: Profile; rootParent:
         </>
       )}
 
+      {/*
+        The same reading the person gets of themselves, beside the verdict rather than below the page.
+        A verifier was left to add up a column of checks; the ring is the one number, and its parts say
+        which half of it is thin. It sat under the answers and the accounts, so the badge at the top
+        and the number that explains it were half a page apart. Read-only here: the steps that fix
+        each part are not a reader's.
+      */}
+      {!blank && (
+        <ScoreRing
+          {...profileScore({
+            human: !!p.humanity,
+            hasName: !!p.identity,
+            accounts: p.links.length,
+            profile: {
+              avatar: p.identity?.profile?.avatar ?? "",
+              description: p.identity?.profile?.description ?? "",
+              url: p.identity?.profile?.url ?? "",
+            },
+            references: p.vouches.filter((v) => v.live).length,
+          })}
+        />
+      )}
+
       {p.answers.length > 0 && (
         <>
           <h3>Answers</h3>
@@ -145,27 +168,6 @@ export function ProfileCard({ p, rootParent, policy }: { p: Profile; rootParent:
             </li>
           ))}
         </ul>
-      )}
-
-      {/*
-        The same reading the person gets of themselves.
-        A verifier was left to add up a column of checks; the ring is the one number, and its parts say
-        which half of it is thin. Read-only here: the steps that fix each part are not a reader's.
-      */}
-      {!blank && (
-        <ScoreRing
-          {...profileScore({
-            human: !!p.humanity,
-            hasName: !!p.identity,
-            accounts: p.links.length,
-            profile: {
-              avatar: p.identity?.profile?.avatar ?? "",
-              description: p.identity?.profile?.description ?? "",
-              url: p.identity?.profile?.url ?? "",
-            },
-            references: p.vouches.filter((v) => v.live).length,
-          })}
-        />
       )}
 
       {/* What they said about others, alongside what others said about them: one question with two

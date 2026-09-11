@@ -4,6 +4,7 @@ import { createApi } from "@/lib/api";
 import { loadWebConfig } from "@/lib/config";
 import { flourish } from "@/lib/patience";
 import { ADDRESS_RE } from "@/lib/profile";
+import { claimProgress } from "@/lib/journey";
 import { fmtUtc, short } from "@/app/ui";
 
 export const dynamic = "force-dynamic";
@@ -45,13 +46,36 @@ export default async function WalletPage({ params }: Params) {
 
   const names = read?.names ?? [];
   const live = names.filter((n) => n.live);
+  /*
+   * Who this is, which is the question an address was pasted to ask.
+   *
+   * The page opened with the shortened address and a note about ENS primary names, and the person's
+   * own page was a second link on a row of a list below that. A wallet holding a live name under the
+   * root name domain is somebody; say so before saying anything about the wallet.
+   */
+  const { handle } = claimProgress(read, config.instances);
 
   return (
     <>
       <section className="hero">
         <h1>
-          Wallet <span className="knot">{short(address)}</span>
+          {handle ? (
+            <>
+              Wallet of <span className="knot">{handle}</span>
+            </>
+          ) : (
+            <>
+              Wallet <span className="knot">{short(address)}</span>
+            </>
+          )}
         </h1>
+        {handle && (
+          <p data-testid="wallet-is">
+            <Link className="button primary" href={`/p/${handle}`}>
+              Open {handle}&apos;s page →
+            </Link>
+          </p>
+        )}
         <p>
           <code>{address}</code>
         </p>

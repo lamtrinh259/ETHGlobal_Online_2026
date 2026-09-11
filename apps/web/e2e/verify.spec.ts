@@ -102,3 +102,18 @@ test("the one thing to do with a person read about is offered once", async ({ pa
   // It was a primary button in the references tab and a text link in the share card below it.
   await expect(page.getByRole("link", { name: /vouch|Refer this person/i })).toHaveCount(1);
 });
+
+/**
+ * A verifier pasting an address is asking who holds it.
+ *
+ * The page led with the shortened address and an ENS technicality about primary names, then a list of
+ * names in which the person's own page was a small second link. The answer to the question asked was
+ * three reads down the page.
+ */
+test("a wallet that belongs to somebody says who, first", async ({ page }) => {
+  await page.goto("/w/0xEE4811b9462956C9C3535E79c08776D769CA9F3a");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("alice");
+
+  await page.getByTestId("wallet-is").getByRole("link").click();
+  await expect(page).toHaveURL(/\/p\/alice$/);
+});
