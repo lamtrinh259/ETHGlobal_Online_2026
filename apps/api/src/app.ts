@@ -925,7 +925,7 @@ export function createApp({
      * what the front page asks for.
      */
     matches.sort((a, b) => b.received - a.received || a.handle.length - b.handle.length);
-    return c.json({ q, matches: matches.slice(0, 10) });
+    return c.json({ q, matches: matches.slice(0, 10), warning: WARNING });
   });
 
   app.get("/v1/who", async (c) => {
@@ -952,6 +952,7 @@ export function createApp({
         found: false,
         domain,
         handle: handle.toLowerCase(),
+        warning: WARNING,
         ...(masked
           ? {
               note: "someone here attested a private account on this platform, and a private account cannot be searched — ask them for their page rather than starting a new one",
@@ -971,6 +972,7 @@ export function createApp({
       candidate: candidate ?? null,
       // How many references they hold, so the same evidence is on screen here as in a name search.
       standing: candidate ? await standing(candidate) : null,
+      warning: WARNING,
     });
   });
 

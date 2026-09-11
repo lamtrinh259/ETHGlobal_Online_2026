@@ -1607,7 +1607,7 @@ describe("GET /v1/find — telling two people of the same name apart", () => {
   it("answers with nothing to pick rather than an error when the name is new", async () => {
     const { chain } = fakeChain({ listed: { "kju-is": [person("bob")] } });
     const found = await (await app(chain).request("/v1/find?q=zebedee")).json();
-    expect(found).toEqual({ q: "zebedee", matches: [] });
+    expect(found).toMatchObject({ q: "zebedee", matches: [] });
   });
 
   it("answers the whole namespace, most referenced first, when nothing was typed", async () => {
@@ -4106,6 +4106,72 @@ describe("a deployment missing an optional part still serves", () => {
       expect(res.status).toBe(200);
       // The routes that have nothing to do with the missing part answer as they always did.
       expect((await app(chain, env).request("/v1/instances")).status).toBe(200);
+    });
+  }
+});
+
+/**
+ * What the service says about a person, it says with the caveat attached.
+ *
+ * The warning is a field other readers parse, which is why it was taken off the pages and left in the
+ * responses. Two of these carried none: the search, and the one answering which person holds an
+ * account — the strongest single claim this API makes, and the one an agent is likeliest to act on.
+ */
+describe("the caveat on a claim about somebody", () => {
+  const aboutAPerson = [
+    "/v1/verify/alice.kju-is.eth",
+    "/v1/vouches/alice",
+    "/v1/profile/alice",
+    "/v1/standing/alice",
+    `/v1/wallet/${user.account.address}`,
+    `/v1/reverse/${user.account.address}`,
+    "/v1/instance/kju-is",
+    "/v1/find?q=ali",
+    "/v1/who?domain=x.com&handle=alice_x",
+  ];
+
+  for (const path of aboutAPerson) {
+    it(`${path.split("?")[0]} carries it`, async () => {
+      const { chain } = fakeChain({
+        addr: user.account.address,
+        instances: [instance, xComInstance],
+        names: { "kju-is/alice": { taken: true, wallet: user.account.address, live: true } },
+        // An account somebody actually holds, so the answer that names a person is the one exercised
+        // rather than the refusal beside it.
+        listed: {
+          "x.com": [
+            {
+              name: "alice_x",
+              id: toBytes32("42"),
+              wallet: user.account.address,
+              live: true,
+              rawName: "alice_x",
+              payload: zeroHash,
+              validUntil: 9_000_000_000n,
+              nonce: 1n,
+              domain: "x.com",
+            },
+          ],
+        },
+        byWallet: [
+          {
+            domain: "kju-is",
+            name: "alice",
+            id: zeroHash,
+            payload: zeroHash,
+            validUntil: 9_000_000_000n,
+            nonce: 1n,
+            live: true,
+            wallet: user.account.address,
+          },
+        ],
+      });
+      const res = await app(chain).request(path);
+      expect(res.status, path).toBe(200);
+      const body = await res.json();
+      expect(body, path).toHaveProperty("warning");
+      // The answer that names somebody, not the one that says it found nobody.
+      if (path.startsWith("/v1/who")) expect(body.found, path).toBe(true);
     });
   }
 });

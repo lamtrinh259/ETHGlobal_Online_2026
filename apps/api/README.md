@@ -217,3 +217,9 @@ same machine.
 Stand in for "unwritable" with a directory beneath a regular file, which gives `ENOTDIR` at once on any
 system. A path under `/proc` looks equivalent and is not: on Linux that `mkdir` never returns, so the suite
 passes on a developer's machine and hangs forever on a runner.
+
+## The caveat
+
+Every answer about a person carries `warning`: the reads of a name, a wallet, a handle, the search,
+and the one that says which person holds an account. It is a field rather than a page, because the
+readers who most need it are the ones that never see a page.
