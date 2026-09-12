@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo } from "react";
 import { useWebConfig } from "@/app/providers";
 import { apiFor, useGraph } from "@/lib/hooks";
+import { HumanMark } from "@/app/HumanMark";
 
 /**
  * The shape behind the count.
@@ -71,7 +72,8 @@ export function ReferenceMap({ handle }: { handle: string }) {
             reader who wants to see it.
           */}
           <p data-testid="shape-summary">
-            <strong>{referrers}</strong> {referrers === 1 ? "person stands" : "people stand"} behind them ·{" "}
+            SybilScore <strong data-testid="shape-score">{g.score}</strong> · <strong>{referrers}</strong>{" "}
+            {referrers === 1 ? "person stands" : "people stand"} behind them ·{" "}
             <strong>{m.referrersReferringEachOther}</strong> of those know each other ·{" "}
             {g.seeds === 0 ? (
               <span className="muted">no proved human to measure trust from yet</span>
@@ -79,7 +81,11 @@ export function ReferenceMap({ handle }: { handle: string }) {
               <>
                 trust <strong>{g.rank.toFixed(3)}</strong> from {g.seeds} proved{" "}
                 {g.seeds === 1 ? "human" : "humans"}
-                {g.human ? ", one of them" : ""}
+                {g.human && (
+                  <>
+                    , <HumanMark />
+                  </>
+                )}
               </>
             )}
           </p>

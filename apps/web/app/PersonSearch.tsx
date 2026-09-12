@@ -44,6 +44,7 @@ export function PersonSearch({
   big = false,
   also,
   onInvite,
+  chosen,
 }: {
   api: Api;
   onPick: (handle: string) => void;
@@ -81,6 +82,8 @@ export function PersonSearch({
    * be read against the bar. Offered instead of the plain ask, because an employer has a bar to name.
    */
   onInvite?: (platform: string, account: string) => void;
+  /** Whether picking somebody has already been done, so the row says so instead of offering it again */
+  chosen?: (handle: string) => boolean;
 }) {
   /*
    * What this deployment answers for, rather than a list kept here.
@@ -375,9 +378,21 @@ export function PersonSearch({
                     </small>
                   </span>
                   <span className="acct-state">
-                    <button onClick={() => onPick(m.handle)} data-testid={`pick-${m.handle}`}>
-                      {action}
-                    </button>
+                    {/* Said on the row, because what picking did happens further down the page — on a
+                        phone, off the screen — and a button that changes nothing in sight reads as broken. */}
+                    {chosen?.(m.handle) ? (
+                      <button
+                        disabled
+                        data-testid={`pick-${m.handle}`}
+                        aria-label={`${m.handle} is on the list`}
+                      >
+                        ✓ on the list
+                      </button>
+                    ) : (
+                      <button onClick={() => onPick(m.handle)} data-testid={`pick-${m.handle}`}>
+                        {action}
+                      </button>
+                    )}
                     {also && (
                       <button onClick={() => also.onPick(m.handle)} data-testid={`also-${m.handle}`}>
                         {also.label}

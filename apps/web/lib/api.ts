@@ -243,6 +243,8 @@ export const graphSchema = z.object({
       given: z.number(),
       human: z.boolean(),
       rank: z.number(),
+      /** SybilScore, 0–100: what accumulated behind them; an older attester says nothing */
+      score: z.number().default(0),
     })
   ),
   edges: z.array(z.object({ from: z.string(), to: z.string() })),
@@ -253,6 +255,8 @@ export const graphSchema = z.object({
     clusterSize: z.number(),
   }),
   rank: z.number(),
+  /** SybilScore, 0–100: proved humanity is a floor, every live reference adds a capped share of its writer's score */
+  score: z.number().default(0),
   human: z.boolean(),
   /** How many people in the whole graph have proved humanity: where trust starts from */
   seeds: z.number(),

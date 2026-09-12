@@ -56,7 +56,14 @@ import {
   WITHDRAWN,
   type SignedPolicyInvite,
 } from "@ketsuban/registrar";
-import { neighbourhood, personMetrics, referenceGraph, sybilRank, type ReferenceGraph } from "./graph.js";
+import {
+  neighbourhood,
+  personMetrics,
+  referenceGraph,
+  sybilRank,
+  sybilScore,
+  type ReferenceGraph,
+} from "./graph.js";
 import { councilFrom, Readings, summarise, type Reading } from "./council.js";
 import type { ChainReader, Instance } from "./chain.js";
 import { explainRevert } from "./errors.js";
@@ -1080,6 +1087,7 @@ export function createApp({
     graph: ReferenceGraph;
     human: Set<string>;
     rank: Map<string, number>;
+    score: Map<string, number>;
   }> {
     const instances = await chain.instances();
     const domains = instances.map((i) => i.domain).filter((d) => d.startsWith(config.VOUCH_PREFIX));
@@ -1103,22 +1111,29 @@ export function createApp({
     const human = new Set(
       held.filter((r) => r.live && provedWallets.has(r.wallet.toLowerCase())).map((r) => r.name.toLowerCase())
     );
-    return { graph, human, rank: sybilRank(graph, human) };
+    return { graph, human, rank: sybilRank(graph, human), score: sybilScore(graph, human) };
   }
 
   /** A node as the routes answer it: the counts, whether they proved humanity, and their rank. */
-  const describe = (g: ReferenceGraph, human: Set<string>, rank: Map<string, number>) =>
+  const describe = (
+    g: ReferenceGraph,
+    human: Set<string>,
+    rank: Map<string, number>,
+    score: Map<string, number>
+  ) =>
     g.nodes.map((n) => ({
       ...n,
       human: human.has(n.handle),
       // Four places: enough to compare, not enough to read as precision this signal does not have.
       rank: Number((rank.get(n.handle) ?? 0).toFixed(4)),
+      // What accumulated behind them, 0–100: the number a page leads with.
+      score: score.get(n.handle) ?? 0,
     }));
 
   app.get("/v1/graph", async (c) => {
-    const { graph, human, rank } = await wholeGraph();
+    const { graph, human, rank, score } = await wholeGraph();
     return c.json({
-      nodes: describe(graph, human, rank),
+      nodes: describe(graph, human, rank, score),
       edges: graph.edges,
       seeds: human.size,
       warning: WARNING,
@@ -1128,11 +1143,12 @@ export function createApp({
   app.get("/v1/graph/:handle", async (c) => {
     const handle = c.req.param("handle").toLowerCase();
     if (!HANDLE_RE.test(handle)) return c.json({ error: "bad handle" }, 400);
-    const { graph, human, rank } = await wholeGraph();
+    const { graph, human, rank, score } = await wholeGraph();
     const near = neighbourhood(graph, handle);
     return c.json({
       handle,
-      nodes: describe(near, human, rank),
+      nodes: describe(near, human, rank, score),
+      score: score.get(handle) ?? 0,
       edges: near.edges,
       // Measured on the whole graph: a cluster does not stop at the edge of what is drawn.
       metrics: personMetrics(graph, handle),

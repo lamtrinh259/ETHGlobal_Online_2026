@@ -188,3 +188,47 @@ export function sybilRank(graph: ReferenceGraph, seeds: Iterable<string>): Map<s
   }
   return new Map(handles.map((h) => [h, trust.get(h)! / Math.max(1, adj.get(h)!.length)]));
 }
+
+/** How much proved humanity is worth on its own, and the most one reference can carry. */
+export const SCORE_HUMAN = 20;
+export const SCORE_PER_REFERENCE = 15;
+export const SCORE_MAX = 100;
+
+/**
+ * SybilScore: what accumulates, from every connection, and starts near nothing.
+ *
+ * Rank above is trust per connection — a signal that tells a ring from a team, and one that a
+ * newcomer with a single honest reference can score well on, which reads wrong on a page. This is the
+ * other number a verifier asks for: how much is behind somebody, added up. Proved humanity is worth a
+ * floor of its own; every live reference adds a share of its writer's score, capped, so what a
+ * connection is worth depends on who is at the other end of it. It is solved to a fixed point: a
+ * ring of accounts nobody proved and nobody outside referred sums to nothing however tightly it is
+ * wired, and a newcomer holds only what their referrers pass on. Zero to a hundred, whole numbers.
+ */
+export function sybilScore(graph: ReferenceGraph, humans: Iterable<string>): Map<string, number> {
+  const handles = graph.nodes.map((n) => n.handle);
+  const human = new Set([...humans].map((h) => h.toLowerCase()));
+  const referrers = new Map<string, string[]>(handles.map((h) => [h, []]));
+  for (const e of graph.edges) referrers.get(e.to)?.push(e.from);
+  let score = new Map(handles.map((h) => [h, human.has(h) ? SCORE_HUMAN : 0]));
+  // Each pass carries score one connection further; a graph's longest honest path is bounded by its size.
+  for (let i = 0; i < Math.max(1, handles.length); i++) {
+    const next = new Map<string, number>();
+    let moved = false;
+    for (const h of handles) {
+      const carried = referrers
+        .get(h)!
+        .reduce(
+          (sum, from) =>
+            sum + Math.min(SCORE_PER_REFERENCE, (score.get(from) ?? 0) * (SCORE_PER_REFERENCE / SCORE_MAX)),
+          0
+        );
+      const value = Math.min(SCORE_MAX, (human.has(h) ? SCORE_HUMAN : 0) + carried);
+      if (Math.abs(value - score.get(h)!) > 1e-9) moved = true;
+      next.set(h, value);
+    }
+    score = next;
+    if (!moved) break;
+  }
+  return new Map(handles.map((h) => [h, Math.round(score.get(h)!)]));
+}

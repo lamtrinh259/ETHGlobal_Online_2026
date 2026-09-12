@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { useWebConfig } from "@/app/providers";
 import { apiFor, useGraph, useReadings } from "@/lib/hooks";
+import { HumanMark } from "@/app/HumanMark";
 
 /**
  * The sybil signal, where the eye lands.
@@ -42,19 +43,9 @@ export function SybilLine({ handle }: { handle: string }) {
 
   return (
     <p className="muted sybil-line" data-testid="sybil-line">
-      <strong>sybil signal</strong>
-      {" · "}
-      {g.seeds === 0 ? (
-        <span title="nobody on this deployment has proved humanity yet, so trust has nowhere to start">
-          trust unmeasured
-        </span>
-      ) : (
-        <span
-          title={`trust that reached them from ${g.seeds} proved ${g.seeds === 1 ? "human" : "humans"} (SybilRank)`}
-        >
-          trust <strong data-testid="sybil-trust">{g.rank.toFixed(3)}</strong>
-        </span>
-      )}
+      <span title="what accumulated behind them, 0–100: proved humanity is a floor, every reference adds a share of its writer's score, and a ring nobody proved sums to nothing">
+        SybilScore <strong data-testid="sybil-score">{g.score}</strong>
+      </span>
       {" · "}
       {behind === 0 ? (
         <span>nobody behind them yet</span>
@@ -65,7 +56,7 @@ export function SybilLine({ handle }: { handle: string }) {
         </span>
       )}
       {" · "}
-      <span data-testid="sybil-human">{g.human ? "proved human" : "humanity not proved"}</span>
+      <span data-testid="sybil-human">{g.human ? <HumanMark /> : "humanity not proved"}</span>
       {" · "}
       {read ? (
         <span data-testid="sybil-read" title="how the references read, by the fast council; provisional">

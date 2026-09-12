@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { neighbourhood, personMetrics, referenceGraph, sybilRank } from "../../src/graph.js";
+import {
+  neighbourhood,
+  personMetrics,
+  referenceGraph,
+  sybilRank,
+  SCORE_HUMAN,
+  SCORE_MAX,
+  sybilScore,
+} from "../../src/graph.js";
 
 /**
  * A count is not a shape.
@@ -208,5 +216,63 @@ describe("a sybil rank", () => {
 
   it("is empty for an empty graph", () => {
     expect(sybilRank({ nodes: [], edges: [] }, ["alice"]).size).toBe(0);
+  });
+});
+
+describe("a sybil score", () => {
+  /*
+   * The number that accumulates. A newcomer starts near nothing; proved humanity is a floor; every
+   * live reference adds a share of its writer's score; a ring nobody proved sums to nothing.
+   */
+  const rec = (candidate: string, referrer: string) => ({
+    domain: `~${candidate}`,
+    name: referrer,
+    live: true,
+  });
+
+  it("is zero for somebody nobody has referred and nobody has proved", () => {
+    const g = referenceGraph([rec("alice", "bob")], "~");
+    expect(sybilScore(g, []).get("bob")).toBe(0);
+    expect(sybilScore(g, []).get("alice")).toBe(0);
+  });
+
+  it("gives proved humanity a floor of its own", () => {
+    const g = referenceGraph([rec("alice", "bob")], "~");
+    expect(sybilScore(g, ["bob"]).get("bob")).toBe(SCORE_HUMAN);
+  });
+
+  it("carries a share of the writer's score along each reference, so who refers you is what counts", () => {
+    const g = referenceGraph([rec("nadia", "mira"), rec("nadia", "nobody")], "~");
+    const s = sybilScore(g, ["mira"]);
+    // mira holds 20 (human); nadia gets 15% of that from mira and nothing from nobody.
+    expect(s.get("mira")).toBe(20);
+    expect(s.get("nadia")).toBe(3);
+  });
+
+  it("accumulates from every connection, and is capped at a hundred", () => {
+    const humans = ["h1", "h2", "h3", "h4", "h5", "h6", "h7", "h8"];
+    // Every proved human refers every other: each holds 20 + 7 × min(15, 15% of the other's score).
+    const records = humans.flatMap((a) => humans.filter((b) => b !== a).map((b) => rec(a, b)));
+    const s = sybilScore(referenceGraph(records, "~"), humans);
+    for (const h of humans) expect(s.get(h)).toBeGreaterThan(SCORE_HUMAN);
+    expect(Math.max(...humans.map((h) => s.get(h)!))).toBeLessThanOrEqual(SCORE_MAX);
+    // Somebody all eight refer gets more than somebody one of them refers.
+    const wide = sybilScore(
+      referenceGraph([...records, ...humans.map((h) => rec("popular", h)), rec("lone", "h1")], "~"),
+      humans
+    );
+    expect(wide.get("popular")!).toBeGreaterThan(wide.get("lone")!);
+    expect(wide.get("lone")!).toBeGreaterThan(0);
+  });
+
+  it("sums a ring nobody proved to nothing, however tightly it is wired", () => {
+    const ring = ["r1", "r2", "r3", "r4", "r5"];
+    const records = ring.flatMap((a) => ring.filter((b) => b !== a).map((b) => rec(a, b)));
+    const s = sybilScore(referenceGraph(records, "~"), []);
+    for (const r of ring) expect(s.get(r)).toBe(0);
+    // One bridge from a proved human lifts the one it reaches, and a little leaks around the ring.
+    const bridged = sybilScore(referenceGraph([...records, rec("r1", "mira")], "~"), ["mira"]);
+    expect(bridged.get("r1")!).toBeGreaterThan(0);
+    expect(bridged.get("r1")!).toBeLessThan(SCORE_HUMAN);
   });
 });

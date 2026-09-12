@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { usePrivy, useSignTypedData, useWallets } from "@privy-io/react-auth";
 import type { Address } from "viem";
 import { CopyButton } from "@/app/CopyButton";
+import { HumanMark } from "@/app/HumanMark";
 import { PolicyForm } from "@/app/PolicyForm";
 import { PersonSearch } from "@/app/PersonSearch";
 import { useWebConfig } from "@/app/providers";
@@ -158,7 +159,7 @@ export function Employers({ subjectDomains }: { subjectDomains: string[] }) {
                 choose(pick);
               }
             }}
-            placeholder="find a policy: hiring, landlord, your own…"
+            placeholder="hiring, landlord, your own…"
             aria-label="find a policy"
             data-testid="employer-policy-pick"
           />
@@ -240,8 +241,16 @@ export function Employers({ subjectDomains }: { subjectDomains: string[] }) {
           api={api}
           action="Add to the list"
           label="Their name or handle"
-          onPick={(h) => setList(shortlist(h, note))}
+          onPick={(h) => {
+            setList(shortlist(h, note));
+            // The list is the next card down — on a phone, off the screen. Bring it up so adding
+            // somebody visibly did something; the row itself also says so.
+            document
+              .getElementById("employer-report")
+              ?.scrollIntoView({ behavior: "smooth", block: "start" });
+          }}
           onInvite={(platform, account) => void invite(platform, account)}
+          chosen={(h) => list.some((s) => s.handle === h)}
         />
         {inviting && <p className="muted">signing the invitation…</p>}
         {inviteError && (
@@ -318,8 +327,8 @@ export function Employers({ subjectDomains }: { subjectDomains: string[] }) {
         </section>
       )}
 
-      <section className="card" data-testid="employer-report">
-        <h2>3 · Where each of them stands</h2>
+      <section className="card" id="employer-report" data-testid="employer-report">
+        <h2>3 · Your checks</h2>
         {list.length === 0 ? (
           <p className="muted">
             Nobody on the list yet. Add somebody above and this reads their records against the bar.
@@ -411,9 +420,14 @@ function Standing({
         {shape.data && shape.data.edges.some((e) => e.to === entry.handle) && (
           <small className="muted" data-testid={`shape-${entry.handle}`}>
             {shape.data.metrics.referrersReferringEachOther} of{" "}
-            {shape.data.edges.filter((e) => e.to === entry.handle).length} referrers know each other
-            {shape.data.seeds > 0 && <> · trust {shape.data.rank.toFixed(3)}</>}
-            {shape.data.human && <> · proved human</>}
+            {shape.data.edges.filter((e) => e.to === entry.handle).length} referrers know each other ·
+            SybilScore {shape.data.score}
+            {shape.data.human && (
+              <>
+                {" "}
+                · <HumanMark />
+              </>
+            )}
             {(read.data?.standing.withdrawn ?? 0) > 0 && (
               <> · has taken back {read.data!.standing.withdrawn}</>
             )}

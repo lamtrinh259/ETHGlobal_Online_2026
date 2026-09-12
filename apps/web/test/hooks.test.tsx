@@ -122,6 +122,7 @@ function fakeApi(): Api {
       edges: [],
       metrics: { mutual: 0, referrerDensity: 0, referrersReferringEachOther: 0, clusterSize: 1 },
       rank: 0,
+      score: 0,
       human: false,
       seeds: 0,
       warning: "w",

@@ -17,6 +17,9 @@ test("a bar, a list, and where each of them stands", async ({ page }) => {
   await page.getByTestId("name-query").fill("alice");
   await page.getByTestId("pick-alice").click();
 
+  // The row that was picked says so, since the list itself is further down the page.
+  await expect(page.getByTestId("pick-alice")).toContainText("on the list");
+  await expect(page.getByTestId("pick-alice")).toBeDisabled();
   const row = page.getByTestId("standing-alice");
   await expect(row).toBeVisible();
   // The attester answers, so this is a real reading rather than an empty one.

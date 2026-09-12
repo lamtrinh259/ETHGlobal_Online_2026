@@ -308,9 +308,9 @@ export const routes = [
       return {
         handle,
         nodes: [
-          { handle, received: 2, given: 1, human: true, rank: 0.1875 },
-          { handle: "bob", received: 2, given: 1, human: false, rank: 0.0625 },
-          { handle: "carol", received: 1, given: 2, human: false, rank: 0.0417 },
+          { handle, received: 2, given: 1, human: true, rank: 0.1875, score: 35 },
+          { handle: "bob", received: 2, given: 1, human: false, rank: 0.0625, score: 20 },
+          { handle: "carol", received: 1, given: 2, human: false, rank: 0.0417, score: 12 },
         ],
         edges: [
           { from: "bob", to: handle },
@@ -320,6 +320,7 @@ export const routes = [
         ],
         metrics: { mutual: 1, referrerDensity: 0.5, referrersReferringEachOther: 1, clusterSize: 3 },
         rank: 0.1875,
+        score: 35,
         human: true,
         seeds: 1,
         warning: "w",

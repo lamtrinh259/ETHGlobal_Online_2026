@@ -25,6 +25,7 @@ const graph: Graph = {
   ],
   metrics: { mutual: 1, referrerDensity: 0.5, referrersReferringEachOther: 1, clusterSize: 3 },
   rank: 0.1875,
+  score: 35,
   human: true,
   seeds: 1,
   warning: "w",
@@ -59,19 +60,19 @@ describe("the sybil signal in one line", () => {
       async () => graph,
       async () => readings
     );
-    await waitFor(() => expect(screen.getByTestId("sybil-trust")).toHaveTextContent("0.188"));
+    await waitFor(() => expect(screen.getByTestId("sybil-score")).toHaveTextContent("35"));
     expect(screen.getByTestId("sybil-behind")).toHaveTextContent("2");
     expect(screen.getByTestId("sybil-among")).toHaveTextContent("1");
     expect(screen.getByTestId("sybil-human")).toHaveTextContent("proved human");
     expect(screen.getByTestId("sybil-read")).toHaveTextContent("reads 1 supportive / 1 critical");
   });
 
-  it("says trust is unmeasured where nobody has proved humanity, and unread where no council reads", async () => {
+  it("scores a newcomer at nothing, says humanity is not proved, and unread where no council reads", async () => {
     await show(
-      async () => ({ ...graph, seeds: 0, rank: 0, human: false }),
+      async () => ({ ...graph, seeds: 0, rank: 0, score: 0, human: false }),
       async () => ({ ...readings, council: false })
     );
-    await waitFor(() => expect(screen.getByTestId("sybil-line")).toHaveTextContent("trust unmeasured"));
+    await waitFor(() => expect(screen.getByTestId("sybil-score")).toHaveTextContent("0"));
     expect(screen.getByTestId("sybil-human")).toHaveTextContent("humanity not proved");
     expect(screen.getByTestId("sybil-read")).toHaveTextContent("reads unread");
   });

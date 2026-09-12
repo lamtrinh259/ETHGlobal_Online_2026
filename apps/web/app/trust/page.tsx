@@ -181,6 +181,16 @@ export default async function TrustPage() {
             <span>trust per connection, so connections alone earn nothing</span>
             <small className="muted">a signal, shown beside the count and the shape, never a verdict</small>
           </li>
+          <li>
+            <strong>SybilScore</strong>
+            <span>
+              what accumulated, 0–100: proved humanity is a floor of 20, every live reference adds up to 15 —
+              a share of its writer's score
+            </span>
+            <small className="muted">
+              a newcomer starts at nothing; a ring nobody proved sums to nothing however tightly it is wired
+            </small>
+          </li>
         </ol>
         <p className="muted">
           A newcomer with one honest reference and a ring with one bought one look alike until more people
