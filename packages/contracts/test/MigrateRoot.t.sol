@@ -82,28 +82,31 @@ contract MigrateRootTest is BaseTest {
         script.run();
         assertEq(address(registry.getSubregistry("www")), address(www));
 
+        // GRANT_ROLES=0 leaves the grant to the resolver admin, and an unknown step is refused.
+        // Folded in here: `vm.setEnv` is process-wide and forge runs tests in parallel, so these
+        // cannot be separate tests without racing each other over STEP.
+        {
+            RootAttestationResolver root2 =
+                new RootAttestationResolver(mp, inner, INSTANCE, PARENT, vm.addr(operatorKey));
+            vm.setEnv("STEP", "bridge");
+            vm.setEnv("FACTORY", vm.toString(address(factory)));
+            vm.setEnv("ROOT_RESOLVER", vm.toString(address(root2)));
+            vm.setEnv("GRANT_ROLES", "0");
+            uint64 nonce = vm.getNonce(vm.addr(operatorKey));
+            script.run();
+            AttestationBridge fresh = AttestationBridge(payable(vm.computeCreateAddress(vm.addr(operatorKey), nonce)));
+            assertEq(address(fresh.rootResolver()), address(root2));
+            assertEq(inner.rootRoles(address(fresh)), 0);
+            vm.setEnv("GRANT_ROLES", "1");
+        }
+
         // unpoint: back to the resolver that was there
         vm.setEnv("STEP", "unpoint");
         vm.setEnv("RESOLVER", vm.toString(before));
         script.run();
         assertEq(ethRegistry.getResolver(LABEL), before);
-    }
 
-    function test_bridge_leavesTheGrantToTheResolverAdmin_whenAsked() public {
-        RootAttestationResolver root = new RootAttestationResolver(mp, inner, INSTANCE, PARENT, vm.addr(operatorKey));
-        vm.setEnv("STEP", "bridge");
-        vm.setEnv("FACTORY", vm.toString(address(factory)));
-        vm.setEnv("ROOT_RESOLVER", vm.toString(address(root)));
-        vm.setEnv("GRANT_ROLES", "0");
-        uint64 nonce = vm.getNonce(vm.addr(operatorKey));
-        script.run();
-        AttestationBridge fresh = AttestationBridge(payable(vm.computeCreateAddress(vm.addr(operatorKey), nonce)));
-        assertEq(address(fresh.rootResolver()), address(root));
-        assertEq(inner.rootRoles(address(fresh)), 0);
-        vm.setEnv("GRANT_ROLES", "1");
-    }
-
-    function test_refusesAStepItDoesNotKnow() public {
+        // Last, because a refused step leaves the script's broadcast open behind it.
         vm.setEnv("STEP", "explode");
         vm.expectRevert(bytes("STEP must be deploy, bridge, point, unpoint, unmount or remount"));
         script.run();

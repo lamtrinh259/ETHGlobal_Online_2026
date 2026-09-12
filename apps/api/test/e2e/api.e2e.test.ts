@@ -1460,3 +1460,77 @@ describe("a reference's letter", () => {
     ).rejects.toThrow(/Unauthorized|revert/i);
   });
 });
+
+describe("the letter through the relay, and the codes a session holds", () => {
+  const CAROL_KEY = "0x000000000000000000000000000000000000000000000000000000000000ca01" as const;
+  const textAbi = parseAbi(["function text(bytes32 node, string key) view returns (string)"]);
+  const post = (path: string, body: unknown) =>
+    fetch(`${API}${path}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+  it("writes the letter in the same transaction as the reference, paid by the relay", async () => {
+    // Carol holds no gas and has never been funded; the letter used to be her own transaction.
+    const now = Math.floor(Date.now() / 1000);
+    const carol = fakeUser(CAROL_KEY, "carol", {
+      twitter: "9999999999999999999",
+      google: "99999999999999999999",
+    });
+    const intent = baseIntent(carol.account, now, {
+      domain: "~alice",
+      handle: "carol",
+      payload: toBytes32("Head of infra, 2021-24"),
+      exp: BigInt(now + 3600),
+    });
+    const token = privy.mint({ sub: carol.did, linked: carol.linked, now });
+    const attested = await (
+      await post(
+        "/v1/attest",
+        toWire(await signedAttestRequest(carol.account, intent, token, 31337, deployment.multipass))
+      )
+    ).json();
+    expect(attested.record, JSON.stringify(attested)).toBeDefined();
+    const delivered = await (
+      await post("/v1/submit", {
+        ...attested,
+        description: "Ran the platform team with Alice for three years.",
+      })
+    ).json();
+    expect(delivered).toMatchObject({ ok: true, letterWritten: true });
+    const rpc = createPublicClient({ chain: anvil, transport: http(RPC) });
+    expect(
+      await rpc.readContract({
+        address: deployment.permissionedResolver,
+        abi: textAbi,
+        functionName: "text",
+        args: [namehash(`carol.alice.${deployment.instanceParent}`), "description"],
+      })
+    ).toBe("Ran the platform team with Alice for three years.");
+  });
+
+  it("hands a session its view codes, derived rather than kept, and they open the private record", async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const idToken = privy.mint({ sub: user.did, linked: user.linked, now });
+    const res = await post("/v1/viewcodes", { idToken });
+    expect(res.status).toBe(200);
+    const { codes, given } = await res.json();
+    expect(codes.x).toMatch(/^0x[0-9a-f]{64}$/);
+    expect(given).toEqual({});
+    const name = `alice.${deployment.instanceParent}`;
+    const opened = await (
+      await fetch(`${API}/v1/verify/${name}?links=x`, { headers: { "x-view-code": codes.x } })
+    ).json();
+    expect(opened.links[0].disclosed).toMatchObject({ handle: "alice" });
+    // A code somebody gave this person is kept against the session and comes back with their own.
+    const kept = await post("/v1/viewcodes/given", {
+      idToken,
+      name: "Carol.ketsuban.eth",
+      viewCode: `0x${"5a".repeat(32)}`,
+    });
+    expect(kept.status).toBe(200);
+    const again = await (await post("/v1/viewcodes", { idToken })).json();
+    expect(again.given).toEqual({ "carol.ketsuban.eth": `0x${"5a".repeat(32)}` });
+  });
+});

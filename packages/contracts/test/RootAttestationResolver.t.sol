@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
+import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
+import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {IAddrResolver} from "@ens/contracts/resolvers/profiles/IAddrResolver.sol";
 import {ITextResolver} from "@ens/contracts/resolvers/profiles/ITextResolver.sol";
 import {INameResolver} from "@ens/contracts/resolvers/profiles/INameResolver.sol";
@@ -100,6 +102,37 @@ contract RootAttestationResolverTest is BaseTest {
         assertEq(_text("alice.acme-alumni.eth", "ketsuban:humanity"), "selfie");
         assertEq(_text("alice.kju-is.acme-alumni.eth", "ketsuban:humanity"), "selfie");
         assertEq(_text("bob.alice.acme-alumni.eth", "ketsuban:humanity"), "");
+    }
+
+    function test_rootName_andTheInterfacesItAnswersTo() public view {
+        assertEq(root.rootName(), PARENT);
+        assertTrue(root.supportsInterface(type(IExtendedResolver).interfaceId));
+        assertTrue(root.supportsInterface(0x01ffc9a7));
+        assertFalse(root.supportsInterface(0xdeadbeef));
+    }
+
+    function test_expiry_isTheRecordsValidUntil_andHumanityUntilHopsByWallet() public {
+        registerVia(alice, record(HUMANITY, alice, bytes32(0), keccak256("human"), 1, b32("selfie")), 0);
+        (, LibMultipass.Record memory own) =
+            mp.resolveRecord(LibMultipass.NameQuery(INSTANCE, alice, bytes32(0), bytes32(0), bytes32(0)));
+        assertEq(_text("alice.acme-alumni.eth", "ketsuban:expiry"), Strings.toString(own.validUntil));
+        (, LibMultipass.Record memory human) =
+            mp.resolveRecord(LibMultipass.NameQuery(HUMANITY, alice, bytes32(0), bytes32(0), bytes32(0)));
+        assertEq(_text("alice.acme-alumni.eth", "ketsuban:humanity:until"), Strings.toString(human.validUntil));
+        assertEq(_text("nobody.acme-alumni.eth", "ketsuban:expiry"), "");
+        assertEq(_text("nobody.acme-alumni.eth", "ketsuban:humanity:until"), "");
+    }
+
+    function test_link_dataCarriesTheHoppedRecord() public {
+        registerVia(alice, record(HUMANITY, alice, bytes32(0), keccak256("human"), 1, b32("selfie")), 0);
+        (, LibMultipass.Record memory human) =
+            mp.resolveRecord(LibMultipass.NameQuery(HUMANITY, alice, bytes32(0), bytes32(0), bytes32(0)));
+        assertEq(
+            _data("alice.acme-alumni.eth", "ketsuban:link:humanity"),
+            abi.encodePacked(human.name, human.id, human.payload)
+        );
+        assertEq(_data("alice.acme-alumni.eth", "ketsuban:link:nothing"), bytes(""));
+        assertEq(_data("alice.acme-alumni.eth", "ketsuban:elsewhere"), bytes(""));
     }
 
     function test_expiry_endsAnAnswer() public {
