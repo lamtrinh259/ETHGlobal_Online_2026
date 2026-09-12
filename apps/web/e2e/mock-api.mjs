@@ -236,7 +236,20 @@ export const routes = [
         { handle: "alice", wallet: "0xEE4811b9462956C9C3535E79c08776D769CA9F3a", claimed: true, given: 0, received: 2 },
         { handle: "bob", wallet: "0xEE4811b9462956C9C3535E79c08776D769CA9F3a", claimed: true, given: 1, received: 0 },
       ];
-      return { q, matches: people.filter((p) => p.handle.includes(q)) };
+      // `many` stands for a namespace bigger than one page of results, which is the case a reader
+      // cannot otherwise tell from a list that simply stops.
+      if (q === "many") {
+        const all = Array.from({ length: 24 }, (_, i) => ({
+          handle: `many-${i}`,
+          wallet: "0xEE4811b9462956C9C3535E79c08776D769CA9F3a",
+          claimed: true,
+          given: 0,
+          received: 24 - i,
+        }));
+        return { q, matches: all.slice(0, 10), total: all.length };
+      }
+      const found = people.filter((p) => p.handle.includes(q));
+      return { q, matches: found, total: found.length };
     },
   ],
   // Who holds an account on a mounted platform: the exact half of the search, where a name is a guess.

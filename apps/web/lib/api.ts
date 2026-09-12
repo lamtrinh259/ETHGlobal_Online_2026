@@ -239,6 +239,8 @@ export type Disclosed = z.infer<typeof disclosedSchema>;
 /** A person whose handle looks like what was typed, with the references that say who they are. */
 export const findSchema = z.object({
   q: z.string(),
+  /** How many matched, which is not how many came back: the list is cut at ten. */
+  total: z.number().optional(),
   matches: z.array(
     z.object({
       handle: z.string(),

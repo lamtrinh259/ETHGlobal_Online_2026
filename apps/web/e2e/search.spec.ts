@@ -150,3 +150,23 @@ test("a lookup that failed says so, rather than offering the name", async ({ pag
   await expect(page.getByTestId("search-failed")).toBeVisible();
   await expect(page.getByTestId("no-match")).toHaveCount(0);
 });
+
+/**
+ * A list that stops is not a list of everybody.
+ *
+ * The attester answers with ten. Unsaid, a reader searching a common name takes those ten for the
+ * people called that — and the one nobody has vouched for, who sorts last, is exactly the one they
+ * cannot see.
+ */
+test("a search with more behind it says how many", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTestId("name-query").fill("many");
+  await expect(page.getByTestId("more-matches")).toContainText("Showing 10 of 24");
+});
+
+test("a search that fits says nothing about being cut", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTestId("name-query").fill("alice");
+  await expect(page.getByTestId("match-alice")).toBeVisible();
+  await expect(page.getByTestId("more-matches")).toHaveCount(0);
+});

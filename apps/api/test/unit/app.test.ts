@@ -4351,3 +4351,39 @@ describe("a name whose record has lapsed", () => {
     expect(body.taken).toBe(true);
   });
 });
+
+/**
+ * A list that stops is not a list of everybody.
+ *
+ * Ten come back, however many there are. Without the count, a reader takes those ten for the people
+ * called that — and an agent reading the same answer records it as the whole set, which is the
+ * opposite of what a list ranked by references is for.
+ */
+describe("how many the search found", () => {
+  const many = (n: number) =>
+    Array.from({ length: n }, (_, i) => ({
+      name: `bob-${String(i).padStart(2, "0")}`,
+      id: toBytes32(String(i)),
+      wallet: user.account.address,
+      payload: zeroHash,
+      validUntil: 9_000_000_000n,
+      nonce: 1n,
+      live: true,
+      domain: "kju-is",
+    }));
+
+  it("says how many matched, beside the ten it returns", async () => {
+    const { chain } = fakeChain({ listed: { "kju-is": many(24) } });
+    const body = await (await app(chain).request("/v1/find?q=bob")).json();
+    expect(body.matches).toHaveLength(10);
+    expect(body.total).toBe(24);
+  });
+
+  it("counts what matched rather than the namespace", async () => {
+    const { chain } = fakeChain({ listed: { "kju-is": many(24) } });
+    const body = await (await app(chain).request("/v1/find?q=bob-0")).json();
+    // `bob-00` … `bob-09`: ten of the twenty-four, and the total says so.
+    expect(body.total).toBe(10);
+    expect(body.matches).toHaveLength(10);
+  });
+});

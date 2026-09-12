@@ -98,6 +98,8 @@ export function PersonSearch({
   const exact = HANDLE_RE.test(clean);
   const matches = found.data?.matches ?? [];
   const named = matches.some((m) => m.handle === clean);
+  /** How many the attester found beyond the ten it returns. */
+  const cut = Math.max(0, (found.data?.total ?? matches.length) - matches.length);
 
   /*
    * The suggestions, reachable from the keyboard.
@@ -312,6 +314,14 @@ export function PersonSearch({
               {clean
                 ? "Most referenced first — the only evidence of which one people mean."
                 : "Most referenced first."}
+              {/* The list is cut at ten. Unsaid, a reader takes it for everybody of that name, and the
+                  one nobody has vouched for is the one they cannot see. */}
+              {cut > 0 && (
+                <span data-testid="more-matches">
+                  {" "}
+                  Showing {matches.length} of {found.data?.total}; narrow the name to see the rest.
+                </span>
+              )}
             </p>
             <ul className="acct" id="search-suggestions" data-testid="matches">
               {shownPinned.map((x) => (

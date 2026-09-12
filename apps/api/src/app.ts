@@ -943,7 +943,14 @@ export function createApp({
      * what the front page asks for.
      */
     matches.sort((a, b) => b.received - a.received || a.handle.length - b.handle.length);
-    return c.json({ q, matches: matches.slice(0, 10), warning: WARNING });
+    /*
+     * How many there were, beside the ten that came back.
+     *
+     * A reader searching a common name saw ten and no sign there were more, which reads as "these are
+     * the people called that" — the opposite of what a list ranked by references is for, since the
+     * eleventh is the one nobody has vouched for and the reader cannot tell they exist.
+     */
+    return c.json({ q, matches: matches.slice(0, 10), total: matches.length, warning: WARNING });
   });
 
   app.get("/v1/who", async (c) => {
