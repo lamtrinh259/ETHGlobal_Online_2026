@@ -26,7 +26,7 @@ import { LETTER_MAX } from "@/lib/chain";
 import { LetterField, letterBytes } from "./LetterField";
 import type { Ask } from "@/lib/asks";
 
-type Stage = "signin" | "onboarding" | "humanity" | "statement" | "done";
+type Stage = "signin" | "onboarding" | "statement" | "done";
 
 /**
  * Sequenced voucher steps, resumed from the wallet's on-chain records so a reload never repeats a
@@ -82,6 +82,12 @@ export function VouchFlow({
   };
   // After an account is attested here, the dashboard is polled until the index lists it.
   const [awaitingLink, setAwaitingLink] = useState(false);
+  /*
+   * The account whose form is open. Remembered rather than derived, so the confirmation — the view
+   * code above all — stays on screen after the record lands instead of vanishing the moment the
+   * dashboard lists the link and the next step takes its place.
+   */
+  const [attesting, setAttesting] = useState<string>();
   const dash = useWalletDashboard(api, authenticated ? wallet : undefined, awaitingLink);
   const contracts = useContracts(api);
   const onChain = voucherProgress(dash.data, root?.domain ?? "", candidate);
@@ -111,11 +117,9 @@ export function VouchFlow({
     ? "signin"
     : published
       ? "done"
-      : stillToLink.length > 0 || notYou.length > 0
+      : stillToLink.length > 0 || notYou.length > 0 || needsHuman
         ? "onboarding"
-        : needsHuman
-          ? "humanity"
-          : "statement";
+        : "statement";
   const vouchDomain = `${VOUCH_PREFIX}${candidate}`;
   /*
    * The accounts this candidate has opened to whoever holds a link. The list itself is public — it
@@ -225,98 +229,108 @@ export function VouchFlow({
         <AttestFlow fixedDomain={root?.domain ?? ""} title="Sign in to begin" hideForm />
       )}
 
-      {!loading && stage === "onboarding" && (
+      {/* One card for everything a writer proves first, and it stays: a step done folds up with its
+          confirmation inside, the next opens under it, and the statement form arrives below. */}
+      {!loading && authenticated && !published && (askedFor.length > 0 || contracts.data?.humanity) && (
         <section className="card" data-testid="onboarding-gate">
           <h2>Before you write for {candidate}</h2>
           <p>
             A reference here is worth something because whoever writes it has shown, once, how they know the
-            person. That takes {contracts.data?.humanity ? "two things" : "one thing"}, done right here; this
-            page continues by itself.
+            person. {askedFor.length > 0 && contracts.data?.humanity ? "Two things" : "One thing"}, done right
+            here; this page continues by itself.
           </p>
-          <h3>1. The account you know {candidate} from</h3>
-          <p>
-            {candidate} asked for references from people who hold <strong>{askedFor.map(describeRequirement).join(" and ")}</strong>.
-            {" "}Sign in to {stillToLink.length > 1 ? "each" : "it"} below and <em>Sign &amp; publish</em>. The
-            account is attested to your wallet on chain and stays masked: the reference shows it came from
-            someone who holds such an account, never which one.
-          </p>
-          <ul className="journey" data-testid="onboarding-steps">
-            {askedFor.map((d) => {
-              const { domain } = parseRequirement(d);
-              const platform = platformOf(domain) ?? "";
-              const linked = connectedAccounts(user as LinkedAccounts | null | undefined).some((a) =>
-                platform === "email"
-                  ? (a.domain === "email" || a.domain === "google") && a.label.toLowerCase().endsWith(`@${domain}`)
-                  : a.domain === platform
-              );
-              const todo = stillToLink.includes(d);
-              return (
-                <li key={d} className={todo ? "todo" : "done"}>
-                  {describeRequirement(d)}
-                  {!todo
-                    ? " — attested"
-                    : linked
-                      ? " — linked; sign and publish below"
-                      : " — not attested yet"}
-                  {todo && !linked && linkFor[platform] && (
-                    <>
-                      {" "}
-                      <button className="primary" onClick={linkFor[platform].link} data-testid={`link-${d}`}>
-                        Link {linkFor[platform].label}
-                      </button>
-                    </>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-          {linkError && (
-            <p className="warning" data-testid="gate-link-error">
-              {linkError}
-            </p>
-          )}
-          {notYou.length > 0 && (
-            <p className="warning" data-testid="not-you">
-              {notYou.join(" ")} You can still write a reference, marked as one {candidate} did not ask for;
-              or ask them for a link meant for you.
-            </p>
-          )}
-          {stillToLink.length > 0 && (
-            <AttestFlow
-              key={stillToLink[0]}
-              fixedDomain={parseRequirement(stillToLink[0]).domain}
-              allowLinking
-              title=""
-              onPublished={() => {
-                setAwaitingLink(true);
-                void dash.refetch();
-              }}
-            />
+          {askedFor.length > 0 && (
+            <details className="step" open={stillToLink.length > 0 || notYou.length > 0 || !!attesting}>
+              <summary data-testid="step-accounts">
+                {stillToLink.length === 0 && notYou.length === 0 ? "✓ " : ""}The account you know {candidate}{" "}
+                from
+              </summary>
+              <p>
+                {candidate} asked for references from people who hold{" "}
+                <strong>{askedFor.map(describeRequirement).join(" and ")}</strong>. Sign in to{" "}
+                {askedFor.length > 1 ? "each" : "it"} and <em>Sign &amp; publish</em>. The account is attested to
+                your wallet on chain and stays masked: the reference shows it came from someone who holds such an
+                account, never which one.
+              </p>
+              <ul className="journey" data-testid="onboarding-steps">
+                {askedFor.map((d) => {
+                  const { domain } = parseRequirement(d);
+                  const platform = platformOf(domain) ?? "";
+                  const linked = connectedAccounts(user as LinkedAccounts | null | undefined).some((a) =>
+                    platform === "email"
+                      ? (a.domain === "email" || a.domain === "google") &&
+                        a.label.toLowerCase().endsWith(`@${domain}`)
+                      : a.domain === platform
+                  );
+                  const todo = stillToLink.includes(d);
+                  return (
+                    <li key={d} className={todo ? "todo" : "done"}>
+                      {describeRequirement(d)}
+                      {!todo ? " — attested" : linked ? " — linked; sign and publish below" : " — not attested yet"}
+                      {todo && !linked && linkFor[platform] && (
+                        <>
+                          {" "}
+                          <button
+                            className="primary"
+                            onClick={linkFor[platform].link}
+                            data-testid={`link-${d}`}
+                          >
+                            Link {linkFor[platform].label}
+                          </button>
+                        </>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+              {linkError && (
+                <p className="warning" data-testid="gate-link-error">
+                  {linkError}
+                </p>
+              )}
+              {notYou.length > 0 && (
+                <p className="warning" data-testid="not-you">
+                  {notYou.join(" ")} You can still write a reference, marked as one {candidate} did not ask for;
+                  or ask them for a link meant for you.
+                </p>
+              )}
+              {(attesting ?? stillToLink[0]) && (
+                <AttestFlow
+                  key={attesting ?? stillToLink[0]}
+                  fixedDomain={parseRequirement(attesting ?? stillToLink[0]!).domain}
+                  allowLinking
+                  title=""
+                  onPublished={() => {
+                    setAttesting(attesting ?? stillToLink[0]);
+                    setAwaitingLink(true);
+                    void dash.refetch();
+                  }}
+                />
+              )}
+              {attesting && stillToLink.some((d) => d !== attesting) && (
+                <p>
+                  <button
+                    className="primary"
+                    onClick={() => setAttesting(stillToLink.find((d) => d !== attesting))}
+                    data-testid="next-account"
+                  >
+                    Next: {describeRequirement(stillToLink.find((d) => d !== attesting)!)} →
+                  </button>
+                </p>
+              )}
+            </details>
           )}
           {contracts.data?.humanity && (
-            <>
-              <h3>2. One person, one voice</h3>
+            <details className="step" open={needsHuman} data-testid="humanity-gate">
+              <summary data-testid="step-human">{humanityDone ? "✓ " : ""}One person, one voice</summary>
               <p>
-                World&apos;s Selfie Check proves you are a single human without telling this site who you are.
-                Once per wallet.{humanityDone ? " Done." : ""}
+                A reference here means one verified human wrote it. World&apos;s Selfie Check proves that without
+                telling this site who you are; once per wallet, and it is the platform&apos;s rule, not{" "}
+                {candidate}&apos;s.{humanityDone ? " Done." : " Pass it here and this page continues by itself."}
               </p>
-              {!humanityDone && wallet && (
-                <HumanityCheck api={api} wallet={wallet} onVerified={() => void dash.refetch()} />
-              )}
-            </>
+              {needsHuman && <HumanityCheck api={api} wallet={wallet} onVerified={() => void dash.refetch()} />}
+            </details>
           )}
-        </section>
-      )}
-
-      {!loading && stage === "humanity" && (
-        <section className="card" data-testid="humanity-gate">
-          <h2>One person, one voice</h2>
-          <p>
-            A reference here means one verified human wrote it. World&apos;s Selfie Check proves that without
-            telling this site who you are; once per wallet, and it is the platform&apos;s rule, not{" "}
-            {candidate}&apos;s. Pass it here and this page continues by itself.
-          </p>
-          <HumanityCheck api={api} wallet={wallet} onVerified={() => void dash.refetch()} />
         </section>
       )}
 

@@ -245,6 +245,23 @@ describe("what onboarding still needs", () => {
     expect(screen.getByTestId("onboarding-steps").textContent).toContain("github.com — linked; sign and publish below");
   });
 
+  it("keeps the confirmation on screen after the record lands, and opens the next step under it", async () => {
+    state.links = [];
+    state.checksHumanity = true;
+    render(<VouchFlow candidate="alice" invite={{ ...invite, requires: ["x.com"] } as typeof invite} inviteCode="c" />);
+    await waitFor(() => expect(screen.getByTestId("onboarding-gate")).toBeInTheDocument());
+    expect(screen.getByTestId("attest")).toHaveAttribute("data-domain", "x.com");
+    // The record lands and the dashboard lists the link.
+    state.links = [{ domain: "x.com", live: true, optedIn: false, ensName: null }];
+    fireEvent.click(screen.getByTestId("fake-publish"));
+    await waitFor(() => expect(screen.getByTestId("onboarding-steps").textContent).toContain("x.com — attested"));
+    // Same card, same form still there with what it showed; the Selfie Check step is below it, not instead.
+    expect(screen.getByTestId("attest")).toHaveAttribute("data-domain", "x.com");
+    expect(screen.getByTestId("step-accounts").textContent).toContain("✓");
+    expect(screen.getByTestId("humanity-gate")).toHaveAttribute("open");
+    expect(screen.getByTestId("fake-human")).toBeInTheDocument();
+  });
+
   it("moves on to the next required account once one is attested", async () => {
     state.links = [{ domain: "github.com", live: true, optedIn: false, ensName: null }];
     render(<VouchFlow candidate="alice" invite={invite} inviteCode="c" />);

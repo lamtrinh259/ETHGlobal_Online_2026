@@ -1687,3 +1687,21 @@ pre > code {
   margin: 0;
   overflow-wrap: anywhere;
 }
+
+/* ── steps a writer proves first: one card, each step folds up once it is done ── */
+details.step {
+  border-top: 1px solid var(--border);
+  padding: var(--sp-sm) 0;
+}
+details.step > summary {
+  cursor: pointer;
+  font-weight: 600;
+  list-style: none;
+}
+details.step > summary::before {
+  content: "▸ ";
+  color: var(--text-secondary);
+}
+details.step[open] > summary::before {
+  content: "▾ ";
+}
