@@ -114,3 +114,49 @@ key that mounts today. Multipass ownership is untouched.
 Do it in that order, on this branch: `setAbout` → factory becomes a mount registry → `DeployLocal` on the root
 resolver → docker e2e green → Sepolia steps 1–3 with `check:live` between each. Two to three days. The
 spike is the risky half and it is done.
+
+
+## Runbook (Sepolia) — `packages/contracts/script/MigrateRoot.s.sol`
+
+Every step is one owner transaction; every step has its rollback; `check:live` between steps resolves
+every name the attester claims through the Universal Resolver and compares wallets.
+
+```bash
+cd packages/contracts
+export RPC=$ETH_SEPOLIA_RPC_URL PRIVATE_KEY=$OPERATOR_KEY            # the registry owner / operator
+export ETH_REGISTRY=0xBDC85dD5b15D7ecb354cd7cb6f2c50b4f2c4F0E2 REGISTRY=0x254D9c7601BD8fa6b6FA7f5A42c860d184E053A7
+export MULTIPASS=0x418F82fd0014a4CA402F145978bfaF0555a9cA06 PERMISSIONED_RESOLVER=0x4E2d9783cEFF2ed72CD77C14206b29fe246b24F7
+export ROOT_LABEL=ketsuban ROOT_DOMAIN=ketsuban ROOT_PARENT=ketsuban.eth
+
+# 1. deploy — prints `rootResolver 0x…`; add it to deployments/11155111.json as "rootResolver"
+#    (the API reads ROOT_RESOLVER from the deployment file, or from env) and redeploy the API
+STEP=deploy forge script script/MigrateRoot.s.sol --rpc-url $RPC --broadcast
+export ROOT_RESOLVER=0x…
+
+# 2. point — the root label resolves through it; every level with no registry of its own follows
+STEP=point forge script script/MigrateRoot.s.sol --rpc-url $RPC --broadcast
+pnpm --filter @ketsuban/web check:live
+
+# 3. unmount, level by level — groupings first, then the subject, then each candidate mount;
+#    the script prints the registry that was mounted, which the rollback needs
+STEP=unmount LABELS=www,private-www forge script script/MigrateRoot.s.sol --rpc-url $RPC --broadcast
+pnpm --filter @ketsuban/web check:live
+STEP=unmount LABELS=@,private@ forge script script/MigrateRoot.s.sol --rpc-url $RPC --broadcast
+STEP=unmount LABELS=kju-is forge script script/MigrateRoot.s.sol --rpc-url $RPC --broadcast
+STEP=unmount LABELS=peersky,alice,… forge script script/MigrateRoot.s.sol --rpc-url $RPC --broadcast
+pnpm --filter @ketsuban/web check:live
+
+# rollbacks
+STEP=remount LABEL=www REGISTRY_TO_MOUNT=0x… forge script script/MigrateRoot.s.sol --rpc-url $RPC --broadcast
+STEP=unpoint RESOLVER=0x178ff1589Be8Af3B19426Aa1d2Bd07cd178E215e forge script script/MigrateRoot.s.sol --rpc-url $RPC --broadcast
+```
+
+After step 1 the API runs in root mode (`ROOT_RESOLVER` set): it reads the tree from Multipass domains
+and the name rule, and provisioning a domain is `initializeDomain` alone. Steps 2–3 change what the
+Universal Resolver walks; the API's own reads go straight to the root resolver either way.
+
+Operator texts for unclaimed labels (`setAbout`) are per instance today; copy the ones that matter onto
+the root resolver (`setAbout(domain, label, key, value)`) before step 3 unmounts the level that held them.
+
+Local proof of the same path: `ROOT_MODE=1` on `DeployLocal.s.sol` deploys the root resolver and points the
+mock ETH registry at it; `E2E_ROOT_MODE=1 pnpm --filter @ketsuban/api test:e2e` runs the API suite that way.

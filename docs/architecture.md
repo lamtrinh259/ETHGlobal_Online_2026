@@ -121,3 +121,18 @@ compromise can remove references this deployment calls permanent, and preflight 
 4. `PermissionedResolver.grantRootRoles(ROLE_SET_TEXT_ADMIN | ROLE_SET_ALIAS, bridge)` once;
    `authorizeDataRoles(ANY, "ketsuban:<key>", oracle, true)` per oracle key once
 5. CRE: add the domain to `nameDomains`, secrets in Vault; API: `NAME_DOMAINS`, `DEPLOYMENT_FILE`
+
+
+## Root resolver mode
+
+A deployment can run with one wildcard resolver at the root (`RootAttestationResolver`, see
+[root-wildcard-resolver.md](root-wildcard-resolver.md)) instead of a registry and resolver per mount. The
+resolver maps a name's path to a Multipass domain — root, subject, `~candidate`, `<dns reversed>.www|@`,
+the masked twin, `<slug>.<question>` — and answers nothing for a path Multipass has no domain for, which is
+the guarantee the per-mount registries gave. Users' own text records, oracle data and aliases are the
+stock PermissionedResolver's, forwarded by full name as before.
+
+The API switches on `ROOT_RESOLVER` (env, or `rootResolver` in the deployment file): the tree is read from
+Multipass domains and the name rule in `packages/registrar/src/namespace.ts`, provisioning a domain is
+`initializeDomain` + `activateDomain` alone, and no factory or registry is touched. The migration is
+level by level and reversible: `script/MigrateRoot.s.sol`.

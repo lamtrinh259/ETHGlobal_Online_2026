@@ -30,7 +30,7 @@ contract RootAttestationResolverTest is BaseTest {
         mp.initializeDomain(registrar, 0, 0, XCOM, 0, 0);
         mp.activateDomain(XCOM);
         vm.stopPrank();
-        root = new RootAttestationResolver(mp, inner, INSTANCE, PARENT);
+        root = new RootAttestationResolver(mp, inner, INSTANCE, PARENT, operator);
 
         // alice holds her name, answered the subject, and holds a public account on x.com;
         // bob wrote a reference for her.
@@ -191,6 +191,38 @@ contract RootAttestationResolverTest is BaseTest {
         vm.prank(operator);
         inner.setText(node("kju-is.acme-alumni.eth"), "description", "Supreme Leader");
         assertEq(_text("kju-is.acme-alumni.eth", "description"), "Supreme Leader");
+    }
+
+    // ---------- answer namespaces, and what an operator says about an unclaimed label ----------
+
+    function test_answerNamespace_readsFromTheQuestionAndSlug() public {
+        vm.startPrank(treasury);
+        mp.initializeDomain(registrar, 0, 0, "kju-is:dictator", 0, 0);
+        mp.activateDomain("kju-is:dictator");
+        vm.stopPrank();
+        registerVia(alice, record("kju-is:dictator", alice, b32("alice"), b32("alice-said"), 1, b32("since 2011")), 0);
+        assertEq(_addr("alice.dictator.kju-is.acme-alumni.eth"), alice);
+        assertEq(_text("alice.dictator.kju-is.acme-alumni.eth", "ketsuban:answer"), "since 2011");
+        // The same shape under a question nobody asked, or a slug nobody answered, is nothing.
+        assertEq(_addr("alice.dictator.nothing.acme-alumni.eth"), address(0));
+        assertEq(_addr("alice.saint.kju-is.acme-alumni.eth"), address(0));
+    }
+
+    function test_about_answersForALabelNobodyHolds_andOnlyTheOwnerWrites() public {
+        vm.prank(operator);
+        root.setAbout(SUBJECT, "kim", "description", "Supreme Leader of North Korea");
+        assertEq(_text("kim.kju-is.acme-alumni.eth", "description"), "Supreme Leader of North Korea");
+        assertEq(root.about(SUBJECT, "kim", "description"), "Supreme Leader of North Korea");
+        vm.prank(bob);
+        vm.expectRevert(abi.encodeWithSelector(RootAttestationResolver.NotOwner.selector, bob));
+        root.setAbout(SUBJECT, "kim", "description", "nope");
+    }
+
+    function test_about_neverOverridesARecordsOwnAnswer() public {
+        vm.prank(operator);
+        root.setAbout(SUBJECT, "alice", "ketsuban:answer", "what the operator thinks");
+        // alice holds a live record in the subject domain, and her answer is hers.
+        assertEq(_text("alice.kju-is.acme-alumni.eth", "ketsuban:answer"), "dictator");
     }
 
     function _hex(address a) internal pure returns (string memory) {

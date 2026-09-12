@@ -43,6 +43,19 @@ contract RootAttestationResolver is IExtendedResolver, IERC165 {
     /// @notice Prefix of a candidate's vouch domain: `~alice` holds the references written for alice.
     bytes1 public constant VOUCH_PREFIX = "~";
     string internal _rootName;
+    /// @notice Who may describe a label nobody holds; the deployer, as with the per-instance resolver.
+    address public immutable OWNER;
+    /// @notice Text an operator wrote about a label, per domain, for names that hold no record: an
+    ///         unclaimed public figure, a question, a namespace. A record's own answer always wins.
+    mapping(bytes32 domain => mapping(bytes32 label => mapping(bytes32 key => string))) internal _about;
+    /// @notice Separator of an answer namespace's domain: `<question>:<slug>` holds everyone who gave
+    ///         that answer, mounted as `<slug>.<question>.<root>`.
+    bytes1 public constant ANSWER_SEPARATOR = ":";
+
+    event AboutSet(bytes32 indexed domain, bytes32 indexed label, string key, string value);
+
+    error NotOwner(address caller);
+    error LabelDoesNotFit(string label);
 
     bytes32 internal constant KEY_ANSWER = keccak256("ketsuban:answer");
     bytes32 internal constant KEY_EXPIRY = keccak256("ketsuban:expiry");
@@ -59,9 +72,10 @@ contract RootAttestationResolver is IExtendedResolver, IERC165 {
         bool masked;
     }
 
-    constructor(IMultipass mp, IPermissionedResolver inner, bytes32 rootDomain, string memory rootName) {
+    constructor(IMultipass mp, IPermissionedResolver inner, bytes32 rootDomain, string memory rootName, address owner) {
         MP = mp;
         INNER = inner;
+        OWNER = owner;
         ROOT_DOMAIN = rootDomain;
         _rootName = rootName;
         ROOT_HASH = keccak256(NameCoder.encode(rootName));
@@ -69,6 +83,22 @@ contract RootAttestationResolver is IExtendedResolver, IERC165 {
 
     function rootName() external view returns (string memory) {
         return _rootName;
+    }
+
+    /// @notice Describe a label in a domain. Only the owner: a page anyone could write would say
+    ///         whatever the last writer wanted.
+    function setAbout(bytes32 domain, string calldata label, string calldata key, string calldata value) external {
+        if (msg.sender != OWNER) revert NotOwner(msg.sender);
+        (bool fits, bytes32 id) = LibLabel.toBytes32(bytes(label));
+        if (!fits) revert LabelDoesNotFit(label);
+        _about[domain][id][keccak256(bytes(key))] = value;
+        emit AboutSet(domain, id, key, value);
+    }
+
+    /// @notice What was written about a label in a domain, if anything.
+    function about(bytes32 domain, string calldata label, string calldata key) external view returns (string memory) {
+        (, bytes32 id) = LibLabel.toBytes32(bytes(label));
+        return _about[domain][id][keccak256(bytes(key))];
     }
 
     /// @inheritdoc IExtendedResolver
@@ -88,6 +118,12 @@ contract RootAttestationResolver is IExtendedResolver, IERC165 {
             if (k == KEY_EXPIRY) return _expiry(at);
             if (k == KEY_HUMANITY) return _humanity(at);
             if (k == KEY_HUMANITY_UNTIL) return _humanityUntil(at);
+            // Last, and only where there is something to say: any other key still reaches the stock
+            // resolver, where a name's own profile records live.
+            if (at.known && !at.masked) {
+                string memory said = _about[at.domain][at.label][k];
+                if (bytes(said).length != 0) return abi.encode(said);
+            }
         } else if (sel == IDataResolver.data.selector) {
             (, string memory key) = abi.decode(data[4:], (bytes32, string));
             (bool isLink, bytes32 domain) = _linkDomain(bytes(key));
@@ -129,6 +165,12 @@ contract RootAttestationResolver is IExtendedResolver, IERC165 {
             if (vouch != bytes32(0) && _isDomain(vouch)) return _found(at, vouch);
             return at;
         }
+        // Everyone who gave one answer: `<slug>.<question>.<root>` reads from `<question>:<slug>`.
+        if (depth == 2 && _isDomain(labels[2])) {
+            bytes32 answers = _answerDomain(labels[2], labels[1]);
+            if (answers != bytes32(0) && _isDomain(answers)) return _found(at, answers);
+            return at;
+        }
         // A platform or a mail host: the last label is the grouping, the rest is the DNS name reversed.
         (bool open, bool masked) = _grouping(labels[depth]);
         if (!open && !masked) return at;
@@ -154,6 +196,15 @@ contract RootAttestationResolver is IExtendedResolver, IERC165 {
         bytes memory raw = bytes(LibLabel.fromBytes32(label));
         if (raw.length == 0 || raw.length > 30) return bytes32(0);
         (, bytes32 out) = LibLabel.toBytes32(abi.encodePacked(VOUCH_PREFIX, raw));
+        return out;
+    }
+
+    /// @dev `kju-is` + `dictator` → `kju-is:dictator`, or nothing where the two do not fit a domain.
+    function _answerDomain(bytes32 question, bytes32 slug) internal pure returns (bytes32) {
+        bytes memory q = bytes(LibLabel.fromBytes32(question));
+        bytes memory a = bytes(LibLabel.fromBytes32(slug));
+        if (q.length == 0 || a.length == 0 || q.length + 1 + a.length > 31) return bytes32(0);
+        (, bytes32 out) = LibLabel.toBytes32(abi.encodePacked(q, ANSWER_SEPARATOR, a));
         return out;
     }
 

@@ -75,6 +75,12 @@ export const configSchema = z.object({
     .default(30 * 24 * 3600),
   /** Root instance registry (mounted under .eth) — vouch instances nest beneath it */
   REGISTRY: address.optional(),
+  /**
+   * The one wildcard resolver at the root, when the deployment has migrated to it. Set, the tree is read
+   * from Multipass domains and the name rule rather than from the factory: no registry per mount, and
+   * provisioning a domain is `initializeDomain` alone. Unset, the factory and its registries are the tree.
+   */
+  ROOT_RESOLVER: address.optional(),
   /** ENSv2 UniversalResolver; set it to expose the independent resolution path (`/v1/ens/:name`) */
   UNIVERSAL_RESOLVER: address.optional(),
   /** Stock PermissionedResolver every instance forwards to */
@@ -236,6 +242,7 @@ export type Config = Omit<
   | "REGISTRY"
   | "PERMISSIONED_RESOLVER"
   | "UNIVERSAL_RESOLVER"
+  | "ROOT_RESOLVER"
   | "REGISTRAR_ADDRESS"
   | "NAMESPACE_FACTORY"
   | "ETH_REGISTRY"
@@ -252,6 +259,7 @@ export type Config = Omit<
   REGISTRY?: Address;
   PERMISSIONED_RESOLVER?: Address;
   UNIVERSAL_RESOLVER?: Address;
+  ROOT_RESOLVER?: Address;
   REGISTRAR_ADDRESS?: Address;
   NAMESPACE_FACTORY?: Address;
   ETH_REGISTRY?: Address;
@@ -282,6 +290,7 @@ const deploymentFile = z.object({
   bridge: address,
   factory: address,
   namespaceFactory: address.optional(),
+  rootResolver: address.optional(),
   ethRegistry: address.optional(),
   ethRegistrar: address.optional(),
   paymentToken: address.optional(),
@@ -298,6 +307,7 @@ function fromDeployment(d: z.infer<typeof deploymentFile>): Record<string, strin
     BRIDGE: d.bridge,
     FACTORY: d.factory,
     ...(d.namespaceFactory ? { NAMESPACE_FACTORY: d.namespaceFactory } : {}),
+    ...(d.rootResolver ? { ROOT_RESOLVER: d.rootResolver } : {}),
     ...(d.ethRegistry ? { ETH_REGISTRY: d.ethRegistry } : {}),
     ...(d.ethRegistrar ? { ETH_REGISTRAR: d.ethRegistrar } : {}),
     ...(d.paymentToken ? { PAYMENT_TOKEN: d.paymentToken } : {}),
