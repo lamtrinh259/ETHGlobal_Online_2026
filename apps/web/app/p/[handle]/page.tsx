@@ -140,6 +140,7 @@ export default async function ProfilePage({ params, searchParams }: Params) {
         rootParent={root.parentName}
         policy={asked ? policy : undefined}
         heldOnce={read?.standing.taken ?? false}
+        standing={read ? { given: read.standing.given, withdrawn: read.standing.withdrawn } : undefined}
       />
 
       {/* The shape behind the count: who stands behind them, and whether those people know each other. */}

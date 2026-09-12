@@ -323,7 +323,7 @@ export const routes = [
         handle,
         names: [{ instance: "ketsuban", name: `${handle}.${ROOT}`, verification: verification(`${handle}.${ROOT}`) }],
         vouches: vouches(handle).vouches,
-        standing: { claimed: true, taken: true, given: 1, received: 1 },
+        standing: { claimed: true, taken: true, given: 1, withdrawn: 1, received: 1 },
         warning: verification("x").warning,
       };
     },

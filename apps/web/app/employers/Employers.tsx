@@ -216,6 +216,9 @@ function Standing({
             {shape.data.edges.filter((e) => e.to === entry.handle).length} referrers know each other
             {shape.data.seeds > 0 && <> · trust {shape.data.rank.toFixed(3)}</>}
             {shape.data.human && <> · proved human</>}
+            {(read.data?.standing.withdrawn ?? 0) > 0 && (
+              <> · has taken back {read.data!.standing.withdrawn}</>
+            )}
           </small>
         )}
       </span>

@@ -989,7 +989,7 @@ describe("GET /v1/vouches/:handle", () => {
           solicited: false,
           invite: null,
           letterHash: null,
-          standing: { claimed: true, taken: true, given: 2, received: 2 },
+          standing: { claimed: true, taken: true, given: 2, withdrawn: 0, received: 2 },
           letter: "Bob managed the platform team at Acme while Alice led infra.",
         },
         {
@@ -2303,7 +2303,7 @@ describe("GET /v1/profile/:handle", () => {
     expect(body.names[0].verification.status).toBe("active");
     expect(body.vouches).toHaveLength(1);
     expect(body.vouches[0]).toMatchObject({ voucher: "bob", statement: "worked together", live: true });
-    expect(body.standing).toEqual({ claimed: true, taken: true, given: 0, received: 1 });
+    expect(body.standing).toEqual({ claimed: true, taken: true, given: 0, withdrawn: 0, received: 1 });
     // Facts only: the API never grades a person.
     expect(body.score).toBeUndefined();
     expect(body.complete).toBeUndefined();
@@ -2845,6 +2845,7 @@ describe("GET /v1/standing/:handle", () => {
       // Never registered, which is not the same as registered once and let lapse.
       taken: false,
       given: 0,
+      withdrawn: 0,
       received: 1,
       warning: WARNING,
     });
@@ -2853,6 +2854,7 @@ describe("GET /v1/standing/:handle", () => {
       claimed: true,
       taken: true,
       given: 1,
+      withdrawn: 0,
       received: 0,
       warning: WARNING,
     });
@@ -4611,5 +4613,41 @@ describe("GET /v1/graph/:handle — rank and shape", () => {
     const body = await (await app(chain).request("/v1/graph")).json();
     expect(body.seeds).toBe(0);
     expect(body.nodes.every((n: { rank: number }) => n.rank === 0)).toBe(true);
+  });
+});
+
+/**
+ * The rating of references given.
+ *
+ * A reference somebody withdrew stays on chain, which is the point of withdrawal — so it counted as
+ * one they had given. It is the opposite: a claim taken back. A long record with nothing withdrawn is
+ * a credential; one with several is worth a verifier knowing before they weigh what else this person
+ * has said.
+ */
+describe("what a writer has taken back", () => {
+  const wrote = (candidate: string, statement: string) => ({
+    name: "bob",
+    id: toBytes32(`bob>${candidate}`),
+    wallet: user.account.address,
+    payload: toBytes32(statement),
+    validUntil: 9_000_000_000n,
+    nonce: 2n,
+    live: true,
+    domain: `~${candidate}`,
+  });
+
+  it("counts a withdrawn reference as withdrawn, not as given", async () => {
+    const { chain } = fakeChain({
+      names: { "kju-is/bob": { taken: true, wallet: user.account.address, live: true } },
+      byWallet: [wrote("alice", "great engineer"), wrote("carol", "withdrawn"), wrote("dan", "solid")],
+    });
+    const body = await (await app(chain).request("/v1/standing/bob")).json();
+    expect(body).toMatchObject({ given: 2, withdrawn: 1 });
+  });
+
+  it("does not count a withdrawn reference as received either", async () => {
+    const { chain } = fakeChain({ listed: { "~alice": [wrote("alice", "withdrawn")] } });
+    const body = await (await app(chain).request("/v1/standing/alice")).json();
+    expect(body.received).toBe(0);
   });
 });

@@ -463,3 +463,23 @@ describe("an answer that lapsed", () => {
     expect(screen.getByTestId("answers")).toHaveTextContent("not answered");
   });
 });
+
+describe("the rating of references given", () => {
+  it("says what stands and what was taken back, on the tab that lists them", () => {
+    render(<ProfileCard p={profile} rootParent="ketsuban.eth" standing={{ given: 3, withdrawn: 1 }} />);
+    fireEvent.click(screen.getByTestId("tab-given"));
+    expect(screen.getByTestId("given-record")).toHaveTextContent("3 standing · 1 taken back");
+  });
+
+  it("says none were taken back where none were, rather than nothing", () => {
+    render(<ProfileCard p={profile} rootParent="ketsuban.eth" standing={{ given: 2, withdrawn: 0 }} />);
+    fireEvent.click(screen.getByTestId("tab-given"));
+    expect(screen.getByTestId("given-record")).toHaveTextContent("2 standing · none taken back");
+  });
+
+  it("says nothing at all where nothing was ever written", () => {
+    render(<ProfileCard p={profile} rootParent="ketsuban.eth" standing={{ given: 0, withdrawn: 0 }} />);
+    fireEvent.click(screen.getByTestId("tab-given"));
+    expect(screen.queryByTestId("given-record")).toBeNull();
+  });
+});

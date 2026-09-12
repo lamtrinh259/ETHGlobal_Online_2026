@@ -15,7 +15,7 @@ const empty: ProfileRead = {
   handle: "x",
   names: [],
   vouches: [],
-  standing: { claimed: false, taken: false, given: 0, received: 0 },
+  standing: { claimed: false, taken: false, given: 0, withdrawn: 0, received: 0 },
   warning: "This is not identity verification.",
 };
 

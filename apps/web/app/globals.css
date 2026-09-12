@@ -1451,3 +1451,10 @@ pre > code {
   margin-top: var(--sp-md);
   font-size: 0.9rem;
 }
+/* The picture waits behind a fold; the line above it is what a reader gets first. */
+.refmap-fold {
+  margin-top: var(--sp-sm);
+}
+.refmap-fold > summary {
+  cursor: pointer;
+}

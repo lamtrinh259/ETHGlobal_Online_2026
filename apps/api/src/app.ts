@@ -43,7 +43,7 @@ import {
   type OnchainState,
 } from "@ketsuban/registrar";
 import { decodeRecord, fromBytes32, isOptedIn, maskName, toBytes32 } from "@peeramid-labs/multipass-client";
-import { explainName, HANDLE_RE, isDnsName, platformOf, storable } from "@ketsuban/registrar";
+import { explainName, HANDLE_RE, isDnsName, platformOf, storable, WITHDRAWN } from "@ketsuban/registrar";
 import { neighbourhood, personMetrics, referenceGraph, sybilRank, type ReferenceGraph } from "./graph.js";
 import type { ChainReader, Instance } from "./chain.js";
 import { explainRevert } from "./errors.js";
@@ -1895,19 +1895,32 @@ export function createApp({
    */
   async function standing(
     handle: string
-  ): Promise<{ claimed: boolean; taken: boolean; given: number; received: number }> {
+  ): Promise<{ claimed: boolean; taken: boolean; given: number; withdrawn: number; received: number }> {
     const rootDomain = config.NAME_DOMAINS[0] ?? "";
     const status = await chain.nameStatus(rootDomain, handle);
+    const isWithdrawn = (r: { payload: Hex }) => fromBytes32(r.payload) === WITHDRAWN;
+    // What stands behind them: a reference withdrawn by its writer is a live record and not a reference.
     const received = new Set(
-      (await chain.listRecords(`${config.VOUCH_PREFIX}${handle}`)).filter((r) => r.live).map((r) => r.name)
+      (await chain.listRecords(`${config.VOUCH_PREFIX}${handle}`))
+        .filter((r) => r.live && !isWithdrawn(r))
+        .map((r) => r.name)
     ).size;
-    if (!status.live || !status.wallet) return { claimed: false, taken: status.taken, given: 0, received };
-    const given = new Set(
-      (await chain.listRecordsByWallet(status.wallet))
-        .filter((r) => r.live && isVouchDomain(r.domain))
-        .map((r) => r.domain)
-    ).size;
-    return { claimed: true, taken: true, given, received };
+    if (!status.live || !status.wallet) {
+      return { claimed: false, taken: status.taken, given: 0, withdrawn: 0, received };
+    }
+    /*
+     * Their track record as a writer, which is the rating of references given.
+     *
+     * A reference somebody withdrew is still on chain — that is the point of withdrawal here — so it
+     * counted as one they had given. It is the opposite: a claim they have since taken back. A long
+     * record with nothing withdrawn is itself a credential, and one with several is worth knowing.
+     */
+    const written = (await chain.listRecordsByWallet(status.wallet)).filter(
+      (r) => r.live && isVouchDomain(r.domain)
+    );
+    const given = new Set(written.filter((r) => !isWithdrawn(r)).map((r) => r.domain)).size;
+    const withdrawn = new Set(written.filter(isWithdrawn).map((r) => r.domain)).size;
+    return { claimed: true, taken: true, given, withdrawn, received };
   }
 
   app.get("/v1/standing/:handle", async (c) => {

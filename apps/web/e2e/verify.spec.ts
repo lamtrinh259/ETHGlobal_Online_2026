@@ -224,11 +224,29 @@ test("a person's page draws who stands behind them, and says what shape it is", 
   await page.goto("/p/alice");
   const map = page.getByTestId("reference-map");
   await expect(map).toBeVisible();
+  // One line first, which is what a reader gets in the time they have.
+  await expect(map.getByTestId("shape-summary")).toContainText("2 people stand behind them");
+  await expect(map.getByTestId("shape-summary")).toContainText("1 of those know each other");
+  await expect(map.getByTestId("shape-summary")).toContainText("trust 0.188");
+  // The picture waits behind a fold.
+  await expect(map.getByTestId("node-alice")).toBeHidden();
+  await map.getByText("Show the map").click();
   await expect(map.getByTestId("node-alice")).toBeVisible();
-  // A vertical line has no width, which Playwright reads as invisible; drawn is what matters.
   await expect(map.getByTestId("edge-carol-bob")).toHaveCount(1);
   await expect(map.getByTestId("fact-among")).toContainText("1 of 2");
-  await expect(map.getByTestId("fact-rank")).toContainText("0.188");
   // And the caveat travels with it: a signal, never a verdict.
   await expect(map).toContainText("not a verdict");
+});
+
+/**
+ * The rating of references given.
+ *
+ * A reference taken back stays on chain, so it counted as one given. What somebody said about others
+ * is weighed by whether they stand by it, and a record of withdrawals is worth a reader knowing
+ * before they weigh what remains.
+ */
+test("the given tab says what stands and what was taken back", async ({ page }) => {
+  await page.goto("/p/alice");
+  await page.getByTestId("tab-given").click();
+  await expect(page.getByTestId("given-record")).toContainText("1 standing · 1 taken back");
 });

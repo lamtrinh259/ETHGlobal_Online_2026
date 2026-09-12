@@ -17,11 +17,14 @@ export function ReferenceTabs({
   handle,
   vouches,
   references,
+  standing,
 }: {
   handle: string;
   vouches: Parameters<typeof VouchList>[0]["vouches"];
   /** Absent when nobody holds the name: there is no wallet to have written anything from */
   references?: Verification["references"];
+  /** Their record as a writer: what stands, and what they have taken back */
+  standing?: { given: number; withdrawn: number };
 }) {
   const [tab, setTab] = useState<"received" | "given">("received");
   const given = references ?? [];
@@ -62,6 +65,18 @@ export function ReferenceTabs({
         </div>
       ) : (
         <div role="tabpanel" aria-label="references given">
+          {/*
+            The rating of references given.
+            What somebody has said about others is weighed by whether they stand by it. A reference
+            taken back stays on chain, which is the point of withdrawal — and so a record of many
+            withdrawals is worth a reader knowing before they weigh the ones that remain.
+          */}
+          {standing && (standing.given > 0 || standing.withdrawn > 0) && (
+            <p className="muted" data-testid="given-record">
+              {standing.given} standing
+              {standing.withdrawn > 0 ? ` · ${standing.withdrawn} taken back` : " · none taken back"}
+            </p>
+          )}
           {given.length ? (
             <ReferencesGiven references={given} />
           ) : (

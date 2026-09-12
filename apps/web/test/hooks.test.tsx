@@ -110,7 +110,7 @@ function fakeApi(): Api {
       return { ok: true as const, txHash: `0x${"ab".repeat(32)}` as `0x${string}` };
     }),
     vouches: vi.fn(async (handle: string) => ({ handle, domain: `~${handle}`, vouches: [], warning: "w" })),
-    standing: vi.fn(async () => ({ claimed: true, taken: true, given: 0, received: 0 })),
+    standing: vi.fn(async () => ({ claimed: true, taken: true, given: 0, withdrawn: 0, received: 0 })),
     graph: vi.fn(async (handle: string) => ({
       handle,
       nodes: [],
@@ -125,7 +125,7 @@ function fakeApi(): Api {
       handle,
       names: [],
       vouches: [],
-      standing: { claimed: true, taken: true, given: 0, received: 0 },
+      standing: { claimed: true, taken: true, given: 0, withdrawn: 0, received: 0 },
       warning: "w",
     })),
     nameStatus: vi.fn(async (domain: string, handle: string) => ({

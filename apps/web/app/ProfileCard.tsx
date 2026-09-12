@@ -13,11 +13,14 @@ export function ProfileCard({
   rootParent,
   policy,
   heldOnce = false,
+  standing,
 }: {
   p: Profile;
   rootParent: string;
   /** The bar the reader asked for; absent means nobody asked, so nothing is graded */
   policy?: Policy;
+  /** Their record as a writer, for the tab that lists what they said */
+  standing?: { given: number; withdrawn: number };
   /**
    * Whether anybody has ever held this name.
    *
@@ -203,7 +206,12 @@ export function ProfileCard({
 
       {/* What they said about others, alongside what others said about them: one question with two
           halves, and a reader wants one of them at a time. */}
-      <ReferenceTabs handle={p.handle} vouches={p.vouches} references={p.identity?.references} />
+      <ReferenceTabs
+        handle={p.handle}
+        vouches={p.vouches}
+        references={p.identity?.references}
+        standing={standing}
+      />
 
       {!blank && (
         <>
