@@ -1688,36 +1688,7 @@ pre > code {
   overflow-wrap: anywhere;
 }
 
-/* ── steps a writer proves first: one card, each step folds up once it is done ── */
-details.step {
-  border-top: 1px solid var(--border);
-  padding: var(--sp-sm) 0;
-}
-details.step > summary {
-  cursor: pointer;
-  font-weight: 600;
-  list-style: none;
-}
-details.step > summary::before {
-  content: "▸ ";
-  color: var(--text-secondary);
-}
-details.step[open] > summary::before {
-  content: "▾ ";
-}
 
-/* ── the reference page: you on one side, the reference on the other ── */
-.vouch-boxes {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: var(--sp-md);
-  align-items: start;
-}
-@media (max-width: 900px) {
-  .vouch-boxes {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
 
 /* a subject's own picture on its row */
 .pin-avatar {
@@ -1726,4 +1697,38 @@ details.step[open] > summary::before {
   border-radius: 50%;
   object-fit: cover;
   flex: none;
+}
+
+/* ── the reference page: one card, a rail of steps, one panel at a time ── */
+.stepper-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--sp-md);
+}
+.stepper-nav button {
+  font: inherit;
+  font-size: 13px;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+.stepper-nav li.current button {
+  color: var(--flame);
+  border-color: var(--flame);
+}
+.stepper-nav li.done button {
+  color: var(--consensus);
+}
+.step-panel {
+  min-width: 0;
+}
+.stepper-actions {
+  justify-content: space-between;
+  margin-top: var(--sp-md);
 }

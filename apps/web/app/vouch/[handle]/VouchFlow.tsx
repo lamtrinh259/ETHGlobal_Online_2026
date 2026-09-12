@@ -93,6 +93,8 @@ export function VouchFlow({
   const [attesting, setAttesting] = useState<string>();
   /** Whether the name was claimed on this page, so its step stays open with the confirmation inside. */
   const [claimedHere, setClaimedHere] = useState(false);
+  /** The step the writer is looking at; unset, it is the first one not done. */
+  const [chosen, setChosen] = useState<string>();
   const dash = useWalletDashboard(api, authenticated ? wallet : undefined, awaitingLink);
   const contracts = useContracts(api);
   const onChain = voucherProgress(dash.data, root?.domain ?? "", candidate);
@@ -165,6 +167,15 @@ export function VouchFlow({
     setLetterState("writing");
     setLetterError(undefined);
     try {
+      // The reference went through the relay for free; the letter is the wallet's own transaction. An
+      // empty wallet is topped up by the relay first, and the write waits for the gas to land.
+      if (wallet && dash.data?.gasTopup?.available) {
+        await api.gas(wallet);
+        for (let i = 0; i < 20; i++) {
+          if (BigInt((await api.wallet(wallet)).balance) > 0n) break;
+          await new Promise((r) => setTimeout(r, 1500));
+        }
+      }
       const onChain = letterBytes(text) > LETTER_MAX ? (await api.storeLetter(text)).ref : text;
       await letterWrite.mutateAsync({ signer: await getSigner(), resolver, name, letter: onChain });
       setLetterState("done");
@@ -175,12 +186,56 @@ export function VouchFlow({
   }
   const loading = !ready || (authenticated && !!wallet && dash.isPending);
 
-  /* What the writer proves, in order, in one place; each step folds up once it is done. */
-  const you = (
-    <section className="card" data-testid="you-box">
-      <h2>You</h2>
-      <details className="step" open={stage === "signin"}>
-        <summary data-testid="step-signin">{authenticated ? "✓ " : ""}Sign in</summary>
+  /*
+   * One card, one step at a time. Every panel stays mounted behind the current one, so a confirmation
+   * — the view code above all — is still there when the writer comes back to it; a done step is only
+   * a tick on the rail, not something the page takes away.
+   */
+  type StepId = "signin" | "name" | "accounts" | "human" | "reference";
+  const steps: { id: StepId; label: string; done: boolean }[] = [
+    { id: "signin", label: "Sign in", done: authenticated },
+    { id: "name", label: "Your name", done: !!onChain.named },
+    ...(askedFor.length > 0
+      ? [
+          {
+            id: "accounts" as const,
+            label: `Accounts ${candidate} asked for`,
+            done: stillToLink.length === 0 && notYou.length === 0,
+          },
+        ]
+      : []),
+    ...(contracts.data?.humanity
+      ? [{ id: "human" as const, label: "Selfie Check", done: humanityDone }]
+      : []),
+    { id: "reference", label: `Reference for ${candidate}`, done: !!published },
+  ];
+  const firstOpen = steps.findIndex((s) => !s.done);
+  const defaultIndex = firstOpen === -1 ? steps.length - 1 : firstOpen;
+  const chosenIndex = chosen ? steps.findIndex((s) => s.id === chosen) : -1;
+  const current = chosenIndex === -1 ? defaultIndex : chosenIndex;
+  const at = steps[current]!;
+  const allDone = steps.slice(0, -1).every((s) => s.done);
+  const panel = (id: StepId) => ({ hidden: at.id !== id, className: "step-panel" });
+
+  return (
+    <section className="card stepper" data-testid="vouch-stepper">
+      <ol className="stepper-nav" aria-label="Steps">
+        {steps.map((s, i) => (
+          <li key={s.id} className={i === current ? "current" : s.done ? "done" : undefined}>
+            <button
+              type="button"
+              onClick={() => setChosen(s.id)}
+              aria-current={i === current ? "step" : undefined}
+              data-testid={`step-${s.id}`}
+            >
+              {s.done ? "✓ " : `${i + 1}. `}
+              {s.label}
+            </button>
+          </li>
+        ))}
+      </ol>
+
+      <div {...panel("signin")}>
         {(invite?.requires.length ?? 0) > 0 && stage === "signin" && (
           <p className={impossibleAsk ? "warning" : "muted"} data-testid="invite-preview">
             {candidate} asks for <strong>{invite?.requires.map(describeRequirement).join(" and ")}</strong>.{" "}
@@ -192,288 +247,329 @@ export function VouchFlow({
         {loading && <p className="muted">loading…</p>}
         {/* Signing in writes nothing, so the gate stands in the root name domain. */}
         {!loading && stage === "signin" && <AttestFlow fixedDomain={root?.domain ?? ""} title="" hideForm />}
-      </details>
+        {authenticated && <p className="muted">Signed in.</p>}
+      </div>
+
       {!loading &&
-        authenticated &&
-        !published &&
-        root &&
-        (needsName || claimedHere || askedFor.length > 0 || contracts.data?.humanity) && (
-          <div data-testid="onboarding-gate">
-            <details className="step" open={needsName || claimedHere}>
-              <summary data-testid="step-name">{onChain.named ? "✓ " : ""}Your name</summary>
-              <p className="muted">
-                {onChain.named ? (
-                  <>
-                    <code>
-                      {onChain.named}.{root.parentName}
-                    </code>{" "}
-                    signs every reference you write.
-                  </>
-                ) : (
-                  "Signs every reference you write. Yours for good."
-                )}
-              </p>
-              {(needsName || claimedHere) && (
+      authenticated &&
+      !published &&
+      root &&
+      (needsName || claimedHere || askedFor.length > 0 || contracts.data?.humanity) ? (
+        <div data-testid="onboarding-gate">
+          <div {...panel("name")}>
+            <p className="muted">
+              {onChain.named ? (
+                <>
+                  <code>
+                    {onChain.named}.{root.parentName}
+                  </code>{" "}
+                  signs every reference you write.
+                </>
+              ) : (
+                "Signs every reference you write. Yours for good."
+              )}
+            </p>
+            {(needsName || claimedHere) && (
+              <AttestFlow
+                key="name"
+                fixedDomain={root.domain}
+                title=""
+                onPublished={() => {
+                  // Stay here: the confirmation is read before the next step, never swapped away.
+                  setChosen("name");
+                  setClaimedHere(true);
+                  setAwaitingLink(true);
+                  void dash.refetch();
+                }}
+              />
+            )}
+          </div>
+          {askedFor.length > 0 && (
+            <div {...panel("accounts")}>
+              <p className="muted">Sign in there, then Sign &amp; publish. Stays masked.</p>
+              <ul className="journey" data-testid="onboarding-steps">
+                {askedFor.map((d) => {
+                  const { domain } = parseRequirement(d);
+                  const platform = platformOf(domain) ?? "";
+                  const linked = connectedAccounts(user as LinkedAccounts | null | undefined).some((a) =>
+                    platform === "email"
+                      ? (a.domain === "email" || a.domain === "google") &&
+                        a.label.toLowerCase().endsWith(`@${domain}`)
+                      : a.domain === platform
+                  );
+                  const todo = stillToLink.includes(d);
+                  return (
+                    <li key={d} className={todo ? "todo" : "done"}>
+                      {describeRequirement(d)}
+                      {!todo
+                        ? " — attested"
+                        : linked
+                          ? " — linked; sign and publish below"
+                          : " — not attested yet"}
+                      {todo && !linked && linkFor[platform] && (
+                        <>
+                          {" "}
+                          <button
+                            className="primary"
+                            onClick={linkFor[platform].link}
+                            data-testid={`link-${d}`}
+                          >
+                            Link {linkFor[platform].label}
+                          </button>
+                        </>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+              {linkError && (
+                <p className="warning" data-testid="gate-link-error">
+                  {linkError}
+                </p>
+              )}
+              {notYou.length > 0 && (
+                <p className="warning" data-testid="not-you">
+                  {notYou.join(" ")} You can still write one; it will be marked as not asked for.
+                </p>
+              )}
+              {(attesting ?? stillToLink[0]) && (
                 <AttestFlow
-                  key="name"
-                  fixedDomain={root.domain}
+                  key={attesting ?? stillToLink[0]}
+                  fixedDomain={parseRequirement(attesting ?? stillToLink[0]!).domain}
+                  allowLinking
                   title=""
                   onPublished={() => {
-                    setClaimedHere(true);
+                    setChosen("accounts");
+                    setAttesting(attesting ?? stillToLink[0]);
                     setAwaitingLink(true);
                     void dash.refetch();
                   }}
                 />
               )}
-            </details>
-            {askedFor.length > 0 && (
-              <details className="step" open={stillToLink.length > 0 || notYou.length > 0 || !!attesting}>
-                <summary data-testid="step-accounts">
-                  {stillToLink.length === 0 && notYou.length === 0 ? "✓ " : ""}Accounts {candidate} asked for
-                </summary>
-                <p className="muted">Sign in there, then Sign &amp; publish. Stays masked.</p>
-                <ul className="journey" data-testid="onboarding-steps">
-                  {askedFor.map((d) => {
-                    const { domain } = parseRequirement(d);
-                    const platform = platformOf(domain) ?? "";
-                    const linked = connectedAccounts(user as LinkedAccounts | null | undefined).some((a) =>
-                      platform === "email"
-                        ? (a.domain === "email" || a.domain === "google") &&
-                          a.label.toLowerCase().endsWith(`@${domain}`)
-                        : a.domain === platform
-                    );
-                    const todo = stillToLink.includes(d);
-                    return (
-                      <li key={d} className={todo ? "todo" : "done"}>
-                        {describeRequirement(d)}
-                        {!todo ? " — attested" : linked ? " — linked; sign and publish below" : " — not attested yet"}
-                        {todo && !linked && linkFor[platform] && (
-                          <>
-                            {" "}
-                            <button
-                              className="primary"
-                              onClick={linkFor[platform].link}
-                              data-testid={`link-${d}`}
-                            >
-                              Link {linkFor[platform].label}
-                            </button>
-                          </>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-                {linkError && (
-                  <p className="warning" data-testid="gate-link-error">
-                    {linkError}
-                  </p>
-                )}
-                {notYou.length > 0 && (
-                  <p className="warning" data-testid="not-you">
-                    {notYou.join(" ")} You can still write one; it will be marked as not asked for.
-                  </p>
-                )}
-                {(attesting ?? stillToLink[0]) && (
-                  <AttestFlow
-                    key={attesting ?? stillToLink[0]}
-                    fixedDomain={parseRequirement(attesting ?? stillToLink[0]!).domain}
-                    allowLinking
-                    title=""
-                    onPublished={() => {
-                      setAttesting(attesting ?? stillToLink[0]);
-                      setAwaitingLink(true);
-                      void dash.refetch();
-                    }}
-                  />
-                )}
-                {attesting && stillToLink.some((d) => d !== attesting) && (
-                  <p>
-                    <button
-                      className="primary"
-                      onClick={() => setAttesting(stillToLink.find((d) => d !== attesting))}
-                      data-testid="next-account"
-                    >
-                      Next: {describeRequirement(stillToLink.find((d) => d !== attesting)!)} →
-                    </button>
-                  </p>
-                )}
-              </details>
-            )}
-            {contracts.data?.humanity && (
-              <details className="step" open={needsHuman} data-testid="humanity-gate">
-                <summary data-testid="step-human">{humanityDone ? "✓ " : ""}Selfie Check</summary>
-                <p className="muted">Once per wallet. Proves one human, not who.</p>
-                {needsHuman && <HumanityCheck api={api} wallet={wallet} onVerified={() => void dash.refetch()} />}
-              </details>
-            )}
-          </div>
-        )}
-      {!loading && authenticated && (stage === "statement" || stage === "done") && (
-        <p className="muted" data-testid="profile-cta">
-          <Link href="/me">Add a photo and a line about you →</Link>
-        </p>
-      )}
-    </section>
-  );
-
-  /* The person being referred, and the reference itself. */
-  const reference = (
-    <section className="card" data-testid="reference-box">
-      <h2>Reference for {candidate}</h2>
-      {candidateCard}
-      {/* What the candidate opened for whoever holds this invitation: the invitation is the permission. */}
-      {inviteCode &&
-        root &&
-        shared.map((domain) => (
-          <Revealed
-            key={domain}
-            name={`${candidate}.${root.parentName}`}
-            domain={domain}
-            linkKey={linkKeyFromInvite(inviteCode)}
-          />
-        ))}
-      {authenticated && (invite?.requires.length ?? 0) > 0 && (
-        <InviteTerms
-          candidate={candidate}
-          parentNames={config.parentNames}
-          requires={invite?.requires ?? []}
-          attested={(dash.data?.links ?? []).filter((l) => l.live).map((l) => l.domain)}
-        />
-      )}
-      {!loading && stage !== "statement" && stage !== "done" && (
-        <p className="muted" data-testid="reference-waits">
-          Finish the steps under <strong>You</strong> first.
-        </p>
-      )}
-
-      {!loading && stage === "statement" && root && onChain.existing && withdraw && (
+              {attesting && stillToLink.some((d) => d !== attesting) && (
+                <p>
+                  <button
+                    className="primary"
+                    onClick={() => setAttesting(stillToLink.find((d) => d !== attesting))}
+                    data-testid="next-account"
+                  >
+                    Next: {describeRequirement(stillToLink.find((d) => d !== attesting)!)} →
+                  </button>
+                </p>
+              )}
+            </div>
+          )}
+          {contracts.data?.humanity && (
+            <div {...panel("human")} data-testid="humanity-gate">
+              <p className="muted">Once per wallet. Proves one human, not who.</p>
+              {needsHuman ? (
+                <HumanityCheck api={api} wallet={wallet} onVerified={() => void dash.refetch()} />
+              ) : (
+                <p className="muted">Passed.</p>
+              )}
+            </div>
+          )}
+        </div>
+      ) : (
         <>
-          <p className="warning" data-testid="withdrawing">
-            Withdrawing. “{onChain.existing.statement}” stays in the history; the live statement becomes{" "}
-            <code>{WITHDRAWN}</code>.
-          </p>
-          <AttestFlow
-            fixedDomain={vouchDomain}
-            fixedHandle={handle}
-            title=""
-            answerLabel="Statement"
-            answerPlaceholder={WITHDRAWN}
-            answerValue={WITHDRAWN}
-            onPublished={setPublished}
-          />
+          <div {...panel("name")}>
+            <p className="muted">{authenticated ? "Done." : "Sign in first."}</p>
+          </div>
+          {askedFor.length > 0 && (
+            <div {...panel("accounts")}>
+              <p className="muted">{authenticated ? "Done." : "Sign in first."}</p>
+            </div>
+          )}
+          {contracts.data?.humanity && (
+            <div {...panel("human")} data-testid="humanity-gate">
+              <p className="muted">{authenticated ? "Done." : "Sign in first."}</p>
+            </div>
+          )}
         </>
       )}
 
-      {!loading && stage === "statement" && root && onChain.org && !withdraw && (
-        <p className="muted" data-testid="issuing-as">
-          Issuing as <strong>{onChain.org.label}</strong>.
-        </p>
-      )}
-
-      {!loading &&
-        stage === "statement" &&
-        root &&
-        !withdraw &&
-        !invite &&
-        !onChain.existing &&
-        !onChain.org && (
-          <p className="muted" data-testid="unsolicited-notice">
-            {candidate} did not ask for this one: it will be marked <strong>unsolicited</strong>. Anyone may
-            refer anyone.
+      <div {...panel("reference")} data-testid="reference-box">
+        {candidateCard}
+        {/* What the candidate opened for whoever holds this invitation: the invitation is the permission. */}
+        {inviteCode &&
+          root &&
+          shared.map((domain) => (
+            <Revealed
+              key={domain}
+              name={`${candidate}.${root.parentName}`}
+              domain={domain}
+              linkKey={linkKeyFromInvite(inviteCode)}
+            />
+          ))}
+        {authenticated && (invite?.requires.length ?? 0) > 0 && (
+          <InviteTerms
+            candidate={candidate}
+            parentNames={config.parentNames}
+            requires={invite?.requires ?? []}
+            attested={(dash.data?.links ?? []).filter((l) => l.live).map((l) => l.domain)}
+          />
+        )}
+        {!loading && !allDone && !published && (
+          <p className="muted" data-testid="reference-waits">
+            Finish the steps first.{" "}
+            <button
+              type="button"
+              onClick={() => setChosen(steps[defaultIndex]!.id)}
+              data-testid="go-first-open"
+            >
+              {steps[defaultIndex]!.label} →
+            </button>
+          </p>
+        )}
+        {!loading && authenticated && (stage === "statement" || stage === "done") && (
+          <p className="muted" data-testid="profile-cta">
+            <Link href="/me">Add a photo and a line about you →</Link>
           </p>
         )}
 
-      {!loading && stage === "statement" && root && !withdraw && (
-        <>
-          <p className="muted" data-testid="statement-intro">
-            Signed as{" "}
-            <code>
-              {handle}.{candidate}.{root.parentName}
-            </code>
-            . Permanent; withdrawable, never deleted.
+        {!loading && stage === "statement" && root && onChain.existing && withdraw && (
+          <>
+            <p className="warning" data-testid="withdrawing">
+              Withdrawing. “{onChain.existing.statement}” stays in the history; the live statement becomes{" "}
+              <code>{WITHDRAWN}</code>.
+            </p>
+            <AttestFlow
+              fixedDomain={vouchDomain}
+              fixedHandle={handle}
+              title=""
+              answerLabel="Statement"
+              answerPlaceholder={WITHDRAWN}
+              answerValue={WITHDRAWN}
+              onPublished={setPublished}
+            />
+          </>
+        )}
+
+        {!loading && stage === "statement" && root && onChain.org && !withdraw && (
+          <p className="muted" data-testid="issuing-as">
+            Issuing as <strong>{onChain.org.label}</strong>.
           </p>
-          {onChain.existing && (
-            <p className="warning" data-testid="existing-statement">
-              Already vouched: “{onChain.existing.statement}” (until {fmtUtc(onChain.existing.validUntil)}).
-              Publishing again supersedes it.
+        )}
+
+        {!loading &&
+          stage === "statement" &&
+          root &&
+          !withdraw &&
+          !invite &&
+          !onChain.existing &&
+          !onChain.org && (
+            <p className="muted" data-testid="unsolicited-notice">
+              {candidate} did not ask for this one: it will be marked <strong>unsolicited</strong>. Anyone may
+              refer anyone.
             </p>
           )}
-          <AttestFlow
-            fixedDomain={vouchDomain}
-            fixedHandle={handle}
-            invite={invite}
-            title=""
-            answerLabel="Title"
-            answerHint="On chain, permanent. 31 bytes."
-            answerPlaceholder="CTO at Acme 2019-22"
-            extra={<LetterField value={letter} onChange={setLetter} candidate={candidate} />}
-            onPublished={(p) => {
-              setPublished(p);
-              // One decision, one form: the letter was written here, so it is not asked for again.
-              if (p.name && letter.trim()) void writeLetter(p.name, letter.trim());
-            }}
-          />
-        </>
-      )}
 
-      {/* A masked writer hands over a reference nobody can attribute. The view code is in this browser
-          now, and they may never come back, so the offer is made here rather than filed for later. */}
-      {stage === "done" && published && handle && root && (
-        <OpenToCandidate
-          api={api}
-          candidate={candidate}
-          rootParent={root.parentName}
-          voucherName={`${handle}.${root.parentName}`}
-          links={dash.data?.links ?? []}
-          required={askedFor.map((d) => parseRequirement(d).domain)}
-        />
-      )}
-
-      {stage === "done" && letterState !== "idle" && (
-        <p
-          className={letterState === "failed" ? "error" : "muted"}
-          role={letterState === "failed" ? "alert" : undefined}
-          data-testid="letter-status"
-        >
-          {letterState === "writing"
-            ? "writing your letter…"
-            : letterState === "done"
-              ? "Letter written."
-              : `Published, but the letter was not written: ${letterError}`}
-        </p>
-      )}
-
-      {stage === "done" && published?.name && letterState !== "done" && (
-        <LetterForm api={api} candidate={candidate} name={published.name} getSigner={getSigner} />
-      )}
-
-      {stage === "done" && published && (
-        <div data-testid="vouch-done">
-          <h3>Published</h3>
-          <p>
-            <code>{published.name}</code>
-            {handle && (
-              <>
-                {" "}
-                · signed by{" "}
-                <code>
-                  {handle}.{root?.parentName}
-                </code>
-              </>
+        {!loading && stage === "statement" && root && !withdraw && (
+          <>
+            <p className="muted" data-testid="statement-intro">
+              Signed as{" "}
+              <code>
+                {handle}.{candidate}.{root.parentName}
+              </code>
+              . Permanent; withdrawable, never deleted.
+            </p>
+            {onChain.existing && (
+              <p className="warning" data-testid="existing-statement">
+                Already vouched: “{onChain.existing.statement}” (until {fmtUtc(onChain.existing.validUntil)}).
+                Publishing again supersedes it.
+              </p>
             )}
-          </p>
-          <p>
-            <Link href={`/p/${candidate}`}>{candidate}&apos;s page →</Link> · <Link href="/me">Your page →</Link>
-          </p>
-        </div>
-      )}
-    </section>
-  );
+            <AttestFlow
+              fixedDomain={vouchDomain}
+              fixedHandle={handle}
+              invite={invite}
+              title=""
+              answerLabel="Title"
+              answerHint="On chain, permanent. 31 bytes."
+              answerPlaceholder="CTO at Acme 2019-22"
+              extra={<LetterField value={letter} onChange={setLetter} candidate={candidate} />}
+              onPublished={(p) => {
+                setPublished(p);
+                // One decision, one form: the letter was written here, so it is not asked for again.
+                if (p.name && letter.trim()) void writeLetter(p.name, letter.trim());
+              }}
+            />
+          </>
+        )}
 
-  return (
-    <div className="vouch-boxes">
-      {you}
-      {reference}
-    </div>
+        {/* A masked writer hands over a reference nobody can attribute. The view code is in this browser
+            now, and they may never come back, so the offer is made here rather than filed for later. */}
+        {stage === "done" && published && handle && root && (
+          <OpenToCandidate
+            api={api}
+            candidate={candidate}
+            rootParent={root.parentName}
+            voucherName={`${handle}.${root.parentName}`}
+            links={dash.data?.links ?? []}
+            required={askedFor.map((d) => parseRequirement(d).domain)}
+          />
+        )}
+
+        {stage === "done" && letterState !== "idle" && (
+          <p
+            className={letterState === "failed" ? "error" : "muted"}
+            role={letterState === "failed" ? "alert" : undefined}
+            data-testid="letter-status"
+          >
+            {letterState === "writing"
+              ? "writing your letter…"
+              : letterState === "done"
+                ? "Letter written."
+                : `Published, but the letter was not written: ${letterError}`}
+          </p>
+        )}
+
+        {stage === "done" && published?.name && letterState !== "done" && (
+          <LetterForm api={api} candidate={candidate} name={published.name} getSigner={getSigner} />
+        )}
+
+        {stage === "done" && published && (
+          <div data-testid="vouch-done">
+            <h3>Published</h3>
+            <p>
+              <code>{published.name}</code>
+              {handle && (
+                <>
+                  {" "}
+                  · signed by{" "}
+                  <code>
+                    {handle}.{root?.parentName}
+                  </code>
+                </>
+              )}
+            </p>
+            <p>
+              <Link href={`/p/${candidate}`}>{candidate}&apos;s page →</Link> ·{" "}
+              <Link href="/me">Your page →</Link>
+            </p>
+          </div>
+        )}
+      </div>
+
+      <p className="row stepper-actions">
+        <button
+          type="button"
+          onClick={() => setChosen(steps[Math.max(0, current - 1)]!.id)}
+          disabled={current === 0}
+          data-testid="step-back"
+        >
+          ← Back
+        </button>
+        <button
+          type="button"
+          className="primary"
+          onClick={() => setChosen(steps[Math.min(steps.length - 1, current + 1)]!.id)}
+          disabled={current === steps.length - 1}
+          data-testid="step-next"
+        >
+          Next →
+        </button>
+      </p>
+    </section>
   );
 }

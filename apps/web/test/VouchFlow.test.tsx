@@ -27,6 +27,9 @@ const state = {
     live: boolean;
     ensName: string | null;
   }[],
+  /** What the fake wallet holds; empty, the relay is asked for gas before the letter is written. */
+  balance: "2000000000000000",
+  calls: [] as string[],
   links: [{ domain: "github.com", live: true, optedIn: false, ensName: null }] as {
     domain: string;
     live: boolean;
@@ -112,12 +115,18 @@ vi.mock("@/lib/hooks", () => ({
       state.stored = text;
       return { ref: `sha256:${"a".repeat(64)}` };
     }),
+    gas: vi.fn(async () => {
+      state.calls.push("gas");
+      return { hash: "0xgas", amount: "2000000000000000" };
+    }),
+    wallet: vi.fn(async () => ({ balance: "2000000000000000" })),
   }),
   useContracts: () => ({ data: { permissionedResolver: state.resolver, humanity: state.checksHumanity } }),
   // What the candidate opened to whoever holds the invitation; none of it, here.
   useDisclosures: () => ({ data: undefined, isPending: false }),
   useWalletDashboard: () => ({
     isPending: false,
+    refetch: vi.fn(async () => undefined),
     // `linked` is what opens the statement stage: a writer must have attested the account they
     // worked from before their reference means anything.
     data: {
@@ -126,11 +135,13 @@ vi.mock("@/lib/hooks", () => ({
       given: [],
       org: null,
       humanity: null,
-      balance: "0",
+      balance: state.balance,
+      gasTopup: { enabled: true, amount: "2000000000000000", available: state.balance === "0" },
     },
   }),
   useLetterWrite: () => ({
     mutateAsync: vi.fn(async (input: { name: string; letter: string }) => {
+      state.calls.push("letter");
       if (state.letterFails) throw state.letterFails;
       state.letter = { name: input.name, letter: input.letter };
       return "0xtx";
@@ -196,6 +207,32 @@ describe("the letter written with the reference", () => {
     await waitFor(() =>
       expect(screen.getByTestId("letter-status")).toHaveTextContent("no permissioned resolver")
     );
+  });
+});
+
+describe("gas for the letter", () => {
+  beforeEach(() => {
+    state.resolver = "0x4E2d9783cEFF2ed72CD77C14206b29fe246b24F7";
+    state.letterFails = undefined;
+  });
+  afterEach(() => {
+    state.balance = "2000000000000000";
+    state.calls = [];
+  });
+
+  it("asks the relay for gas before writing the letter from an empty wallet", async () => {
+    state.balance = "0";
+    state.calls = [];
+    await publishWith("worked together for years");
+    await waitFor(() => expect(state.calls).toContain("letter"));
+    expect(state.calls).toEqual(["gas", "letter"]);
+  });
+
+  it("writes straight away when the wallet already holds gas", async () => {
+    state.calls = [];
+    await publishWith("worked together for years");
+    await waitFor(() => expect(state.calls).toContain("letter"));
+    expect(state.calls).toEqual(["letter"]);
   });
 });
 
@@ -266,7 +303,10 @@ describe("what onboarding still needs", () => {
     // Same card, same form still there with what it showed; the Selfie Check step is below it, not instead.
     expect(screen.getByTestId("attest")).toHaveAttribute("data-domain", "x.com");
     expect(screen.getByTestId("step-accounts").textContent).toContain("✓");
-    expect(screen.getByTestId("humanity-gate")).toHaveAttribute("open");
+    // The confirmation stays in view; the next step is one tap away, never a swap.
+    expect(screen.getByTestId("humanity-gate")).toHaveAttribute("hidden");
+    fireEvent.click(screen.getByTestId("step-next"));
+    expect(screen.getByTestId("humanity-gate")).not.toHaveAttribute("hidden");
     expect(screen.getByTestId("fake-human")).toBeInTheDocument();
   });
 
