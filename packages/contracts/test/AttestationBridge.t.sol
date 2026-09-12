@@ -221,6 +221,23 @@ contract AttestationBridgeTest is BaseTest {
 
     /// @dev Where the tree is one resolver at the root, the factory knows nothing about a vouch domain;
     ///      the bridge asks the root resolver where the name lives and grants the voucher their keys.
+    function test_verifyWithText_writesTheLetterInTheSameTransaction() public {
+        // The reference goes through the relay for free; the letter used to be the wallet's own
+        // transaction, and an empty wallet could not send it. Both land in one call now.
+        LibMultipass.Record memory r = record(INSTANCE, bob, b32("bob"), keccak256("did:bob"), 1, b32("hi"));
+        bridge.verifyWithText(r, signRecord(r), emptyQuery(), "", "description", "CTO at Acme 2019-22");
+        assertEq(inner.text(node("bob.acme-alumni.eth"), "description"), "CTO at Acme 2019-22");
+        // The wallet keeps its own key to change it later; the bridge did not keep the key it borrowed.
+        assertTrue(inner.hasTextGrant(dns("bob.acme-alumni.eth"), "description", bob));
+        assertFalse(inner.hasTextGrant(dns("bob.acme-alumni.eth"), "description", address(bridge)));
+    }
+
+    function test_verifyWithText_writesNothingForANamelessRecordOrAnEmptyLetter() public {
+        LibMultipass.Record memory r = record(INSTANCE, bob, b32("bob"), keccak256("did:bob"), 1, b32("hi"));
+        bridge.verifyWithText(r, signRecord(r), emptyQuery(), "", "description", "");
+        assertEq(inner.text(node("bob.acme-alumni.eth"), "description"), "");
+    }
+
     function test_verify_grantsKeysThroughTheRootResolver_whereTheFactoryHasNoInstance() public {
         RootAttestationResolver root = new RootAttestationResolver(mp, inner, INSTANCE, PARENT, operator);
         vm.prank(bridge.owner());

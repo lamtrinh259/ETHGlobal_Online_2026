@@ -488,10 +488,18 @@ export function VouchFlow({
               answerHint="On chain, permanent. 31 bytes."
               answerPlaceholder="CTO at Acme 2019-22"
               extra={<LetterField value={letter} onChange={setLetter} candidate={candidate} />}
+              // The letter rides with the record: one transaction, paid by the relay. A long one is
+              // kept by its hash and the hash goes on chain.
+              description={async () => {
+                const text = letter.trim();
+                if (!text) return undefined;
+                return letterBytes(text) > LETTER_MAX ? (await api.storeLetter(text)).ref : text;
+              }}
               onPublished={(p) => {
                 setPublished(p);
-                // One decision, one form: the letter was written here, so it is not asked for again.
-                if (p.name && letter.trim()) void writeLetter(p.name, letter.trim());
+                if (p.letterWritten) setLetterState("done");
+                // An older relay writes no letter; then it is the wallet's own transaction, as before.
+                else if (p.name && letter.trim()) void writeLetter(p.name, letter.trim());
               }}
             />
           </>

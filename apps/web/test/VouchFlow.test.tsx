@@ -30,6 +30,9 @@ const state = {
   /** What the fake wallet holds; empty, the relay is asked for gas before the letter is written. */
   balance: "2000000000000000",
   calls: [] as string[],
+  /** What the fake relay was handed as the letter, and whether it writes letters at all */
+  delivered: [] as string[],
+  relayWritesLetters: true,
   links: [{ domain: "github.com", live: true, optedIn: false, ensName: null }] as {
     domain: string;
     live: boolean;
@@ -79,19 +82,29 @@ vi.mock("@/app/AttestFlow", () => ({
     extra,
     onPublished,
     fixedDomain,
+    description,
   }: {
     extra?: React.ReactNode;
     onPublished?: (p: Published) => void;
     fixedDomain?: string;
+    description?: () => Promise<string | undefined>;
   }) =>
     onPublished ? (
       <div data-testid="attest" data-domain={fixedDomain ?? ""}>
         {extra}
         <button
           data-testid="fake-publish"
-          onClick={() =>
-            onPublished({ handle: "lam", domain: "~alice", txHash: "0x1", name: "lam.alice.ketsuban.eth" })
-          }
+          onClick={async () => {
+            const letter = description ? await description() : undefined;
+            if (letter) state.delivered.push(letter);
+            onPublished({
+              handle: "lam",
+              domain: "~alice",
+              txHash: "0x1",
+              name: "lam.alice.ketsuban.eth",
+              letterWritten: !!letter && state.relayWritesLetters,
+            });
+          }}
         >
           publish
         </button>
@@ -160,11 +173,17 @@ const publishWith = async (letter?: string) => {
 };
 
 describe("the letter written with the reference", () => {
+  // The wallet's own write: what happens against a relay that writes no letter. The relay path is
+  // covered in "the letter goes with the record".
   beforeEach(() => {
     state.letter = undefined;
     state.letterFails = undefined;
     state.stored = undefined;
     state.resolver = "0x4E2d9783cEFF2ed72CD77C14206b29fe246b24F7";
+    state.relayWritesLetters = false;
+  });
+  afterEach(() => {
+    state.relayWritesLetters = true;
   });
 
   it("is written onto the name the record just created, without asking again", async () => {
@@ -210,29 +229,32 @@ describe("the letter written with the reference", () => {
   });
 });
 
-describe("gas for the letter", () => {
+describe("the letter goes with the record", () => {
   beforeEach(() => {
     state.resolver = "0x4E2d9783cEFF2ed72CD77C14206b29fe246b24F7";
     state.letterFails = undefined;
+    state.delivered = [];
+    state.calls = [];
+    state.relayWritesLetters = true;
   });
   afterEach(() => {
     state.balance = "2000000000000000";
-    state.calls = [];
   });
 
-  it("asks the relay for gas before writing the letter from an empty wallet", async () => {
+  it("hands the letter to the relay with the record: one transaction, no wallet write, no gas", async () => {
     state.balance = "0";
-    state.calls = [];
+    await publishWith("worked together for years");
+    await waitFor(() => expect(screen.getByTestId("letter-status")).toHaveTextContent("Letter written."));
+    expect(state.delivered).toEqual(["worked together for years"]);
+    expect(state.calls).toEqual([]);
+  });
+
+  it("falls back to the wallet's own write, topped up first, where the relay wrote no letter", async () => {
+    state.relayWritesLetters = false;
+    state.balance = "0";
     await publishWith("worked together for years");
     await waitFor(() => expect(state.calls).toContain("letter"));
     expect(state.calls).toEqual(["gas", "letter"]);
-  });
-
-  it("writes straight away when the wallet already holds gas", async () => {
-    state.calls = [];
-    await publishWith("worked together for years");
-    await waitFor(() => expect(state.calls).toContain("letter"));
-    expect(state.calls).toEqual(["letter"]);
   });
 });
 

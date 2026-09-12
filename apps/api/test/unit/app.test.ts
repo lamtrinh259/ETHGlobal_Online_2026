@@ -183,7 +183,7 @@ function fakeChain(state: Partial<State> = {}) {
     index: {},
     ...state,
   };
-  const submitted: { record: RegisterMessage; signature: Hex }[] = [];
+  const submitted: { record: RegisterMessage; signature: Hex; description?: string }[] = [];
   const chain: ChainReader = {
     relayer: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
     readOnchain: vi.fn(
@@ -197,8 +197,8 @@ function fakeChain(state: Partial<State> = {}) {
     ),
     deleteRecord: vi.fn(async () => `0x${"de".repeat(32)}` as Hex),
     instances: vi.fn(async () => s.instances),
-    submit: vi.fn(async (record: RegisterMessage, signature: Hex) => {
-      submitted.push({ record, signature });
+    submit: vi.fn(async (record: RegisterMessage, signature: Hex, description?: string) => {
+      submitted.push({ record, signature, description });
       return `0x${"ab".repeat(32)}` as Hex;
     }),
     resolveText: vi.fn(
@@ -611,7 +611,7 @@ describe("POST /v1/cre/delivery", () => {
       "x-delivery-token": baseEnv.DELIVERY_TOKEN,
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ ok: true, txHash: `0x${"ab".repeat(32)}` });
+    expect(await res.json()).toEqual({ ok: true, letterWritten: false, txHash: `0x${"ab".repeat(32)}` });
     expect(submitted).toHaveLength(1);
     expect(submitted[0].record).toEqual({ ...delivery().record, validUntil: 1800000000n, nonce: 1n });
     expect(submitted[0].signature).toBe(delivery().signature);
@@ -649,6 +649,7 @@ describe("POST /v1/cre/delivery", () => {
     ).json();
     expect(first).toEqual({
       ok: true,
+      letterWritten: false,
       txHash: `0x${"ab".repeat(32)}`,
       vouchInstance: { domain: "~alice", created: true },
     });
@@ -664,7 +665,7 @@ describe("POST /v1/cre/delivery", () => {
     const degraded = await (
       await post(app(chain), "/v1/cre/delivery", root, { "x-delivery-token": baseEnv.DELIVERY_TOKEN })
     ).json();
-    expect(degraded).toEqual({ ok: true, txHash: `0x${"ab".repeat(32)}` });
+    expect(degraded).toEqual({ ok: true, letterWritten: false, txHash: `0x${"ab".repeat(32)}` });
     expect(spy).toHaveBeenCalled();
     spy.mockRestore();
   });
@@ -5312,6 +5313,22 @@ describe("a reference is written by one real person", () => {
     const res = await post(a, "/v1/submit", { record: record("~alice"), signature: "0xabc" });
     expect(res.status).toBe(200);
     expect(submitted).toHaveLength(1);
+  });
+
+  it("carries the letter into the same transaction, and says so", async () => {
+    const { chain, submitted } = fakeChain({ byWallet: [proof] });
+    const res = await post(app(chain, strict), "/v1/submit", {
+      record: record("~alice"),
+      signature: "0xabc",
+      description: "CTO at Acme 2019-22",
+    });
+    expect(res.status).toBe(200);
+    expect((await res.json()).letterWritten).toBe(true);
+    expect(submitted[0].description).toBe("CTO at Acme 2019-22");
+    // A blank letter is no letter: the plain `verify` path, and the browser knows to expect nothing.
+    const bare = await post(app(chain, strict), "/v1/submit", { record: record("~alice"), signature: "0xabc", description: "  " });
+    expect((await bare.json()).letterWritten).toBe(false);
+    expect(submitted[1].description).toBeUndefined();
   });
 
   it("refuses to relay a reference from a wallet with no proof, and says what to do", async () => {

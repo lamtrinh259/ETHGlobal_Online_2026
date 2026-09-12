@@ -71,7 +71,8 @@ export function useAttest(api: Api) {
 export function useDeliver(api: Api, wallet: Address | undefined, domain: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (result: AttestResult) => api.deliver(result),
+    mutationFn: (input: AttestResult | { result: AttestResult; description?: string }) =>
+      "result" in input ? api.deliver(input.result, undefined, input.description) : api.deliver(input),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["nonce", wallet, domain] });
       void qc.invalidateQueries({ queryKey: ["verify"] });

@@ -43,6 +43,7 @@ const linking = {
 };
 
 const state = {
+  delivered: undefined as unknown,
   deliverError: undefined as Error | undefined,
   txHash: undefined as string | undefined,
   attestData: undefined as object | undefined,
@@ -80,7 +81,10 @@ vi.mock("@/lib/hooks", () => ({
     error: state.deliverError,
     isPending: false,
     reset: vi.fn(),
-    mutateAsync: vi.fn(async () => ({ txHash: "0xdead" })),
+    mutateAsync: vi.fn(async (input: unknown) => {
+      state.delivered = input;
+      return { txHash: "0xdead", letterWritten: typeof input === "object" && !!input && "description" in input };
+    }),
   }),
 }));
 
@@ -346,5 +350,23 @@ describe("a mail host is met by an email address", () => {
     render(<AttestFlow fixedDomain="peersky.xyz" allowLinking />);
     expect(screen.queryByTestId("blocked")).toBeNull();
     expect(screen.getByRole("button", { name: /Sign & publish/ })).not.toBeDisabled();
+  });
+});
+
+describe("the letter rides with the record", () => {
+  it("hands the letter to the relay with the record, and reports that it was written", async () => {
+    const published: unknown[] = [];
+    render(
+      <AttestFlow
+        fixedDomain="~alice"
+        fixedHandle="lam"
+        description={async () => "CTO at Acme 2019-22"}
+        onPublished={(p) => published.push(p)}
+      />
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Sign & publish/ }));
+    await waitFor(() => expect(published).toHaveLength(1));
+    expect(state.delivered).toMatchObject({ description: "CTO at Acme 2019-22" });
+    expect(published[0]).toMatchObject({ letterWritten: true });
   });
 });

@@ -71,6 +71,25 @@ contract AttestationBridge is Ownable {
         _grantProfileKeys(rec);
     }
 
+    /// @notice Registration with one text record written in the same transaction: the letter behind
+    ///         a reference. The bridge borrows the key it grants the wallet, writes, and hands it back,
+    ///         so a wallet holding no gas still gets its letter on chain.
+    function verifyWithText(
+        LibMultipass.Record calldata rec,
+        bytes calldata registrarSig,
+        LibMultipass.NameQuery calldata referrer,
+        bytes calldata referralCode,
+        string calldata key,
+        string calldata value
+    ) external payable {
+        MP.register{value: msg.value}(rec, registrarSig, referrer, referralCode);
+        bytes memory n = _grantProfileKeys(rec);
+        if (n.length == 0 || bytes(value).length == 0) return;
+        INNER.authorizeTextRoles(n, key, address(this), true);
+        INNER.setText(NameCoder.namehash(n, 0), key, value);
+        INNER.authorizeTextRoles(n, key, address(this), false);
+    }
+
     /// @notice Org-sponsored registration: the org's treasury pays and is the Multipass referrer, so
     ///         it earns `referrerReward` back in the same transaction.
     function verifyFor(bytes32 orgId, LibMultipass.Record calldata rec, bytes calldata registrarSig) external payable {
@@ -128,12 +147,13 @@ contract AttestationBridge is Ownable {
         return "";
     }
 
-    function _grantProfileKeys(LibMultipass.Record calldata rec) internal {
+    /// @dev Returns the DNS-encoded name the keys were granted on, or nothing where there was none.
+    function _grantProfileKeys(LibMultipass.Record calldata rec) internal returns (bytes memory n) {
         // A masked record has no readable name to grant on; a humanity proof has no name at all.
-        if (rec.name == bytes32(0)) return;
+        if (rec.name == bytes32(0)) return n;
         string memory parent = _parentNameOf(rec.domainName);
-        if (bytes(parent).length == 0) return;
-        bytes memory n = NameCoder.encode(string.concat(LibLabel.fromBytes32(rec.name), ".", parent));
+        if (bytes(parent).length == 0) return n;
+        n = NameCoder.encode(string.concat(LibLabel.fromBytes32(rec.name), ".", parent));
         bytes[] memory calls = new bytes[](4);
         calls[0] = abi.encodeCall(INNER.authorizeTextRoles, (n, "avatar", rec.wallet, true));
         calls[1] = abi.encodeCall(INNER.authorizeTextRoles, (n, "description", rec.wallet, true));

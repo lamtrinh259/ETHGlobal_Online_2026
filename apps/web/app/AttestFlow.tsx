@@ -22,7 +22,14 @@ import { Switch } from "./Switch";
 import { useWebConfig } from "./providers";
 import { fmtUtc, short } from "./ui";
 
-export type Published = { handle: string; domain: string; txHash: Hex; name?: string };
+export type Published = {
+  handle: string;
+  domain: string;
+  txHash: Hex;
+  name?: string;
+  /** Whether the letter went on chain in the same transaction as the record */
+  letterWritten?: boolean;
+};
 
 type Props = {
   /** Lock the domain (journeys sequence domains themselves) */
@@ -52,6 +59,8 @@ type Props = {
   domainOptions?: string[];
   /** Show the Privy account-linking buttons (the profile does; journeys send people there instead) */
   allowLinking?: boolean;
+  /** The letter to write with the record, resolved when the record is delivered; nothing means no letter */
+  description?: () => Promise<string | undefined>;
   onPublished?: (p: Published) => void;
 };
 
@@ -87,6 +96,7 @@ export function AttestFlow({
   platformsOnly,
   domainOptions,
   allowLinking,
+  description,
   onPublished,
 }: Props) {
   const config = useWebConfig();
@@ -282,12 +292,16 @@ export function AttestFlow({
         setViewCode(code);
         saveViewCode(domain, code);
       }
-      const { txHash } = await deliver.mutateAsync(attested);
+      const letter = description ? await description() : undefined;
+      const { txHash, letterWritten } = await deliver.mutateAsync(
+        letter ? { result: attested, description: letter } : attested
+      );
       onPublished?.({
         handle,
         domain,
         txHash,
         name: isNameDomain && parentName ? `${handle}.${parentName}` : undefined,
+        letterWritten: !!letterWritten,
       });
     } catch (e) {
       setSigning(false);

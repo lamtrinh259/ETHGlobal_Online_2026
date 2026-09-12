@@ -150,6 +150,8 @@ export const wireRevocation = z.object({
 export const wireDelivery = z.object({
   record: wireRecord,
   signature: hex,
+  /** The letter behind a reference, written as `description` in the same transaction; a `sha256:` ref when long */
+  description: z.string().max(4096).optional(),
   viewCode: z.object({ ephemeralPubkey: hex, nonce: hex, ciphertext: hex }).nullable().optional(),
 });
 
@@ -1411,10 +1413,11 @@ export function createApp({
     return "a reference is written by one real person: pass the Selfie Check on your profile first";
   }
 
-  async function deliver(record: RegisterMessage, signature: Hex) {
+  async function deliver(record: RegisterMessage, signature: Hex, description?: string) {
     // The candidate's vouch domain has to exist before a statement can be written into it.
     await ensureVouchDomain(record);
-    const txHash = await chain.submit(record, signature);
+    const letter = description?.trim() ? description.trim() : undefined;
+    const txHash = await chain.submit(record, signature, letter);
     // A newly claimed root name gets its own vouch instance, so others can refer that person.
     let vouchInstance: { domain: string; created: boolean } | undefined;
     if (config.NAME_DOMAINS[0] && fromBytes32(record.domainName) === config.NAME_DOMAINS[0]) {
@@ -1432,7 +1435,7 @@ export function createApp({
         );
       }
     }
-    return { ok: true as const, txHash, ...(vouchInstance ? { vouchInstance } : {}) };
+    return { letterWritten: !!letter, ok: true as const, txHash, ...(vouchInstance ? { vouchInstance } : {}) };
   }
 
   /**
@@ -1447,7 +1450,7 @@ export function createApp({
     const notHuman = await humanityGate(record.wallet, fromBytes32(record.domainName));
     if (notHuman) return c.json({ ok: false, error: notHuman }, 403);
     try {
-      return c.json(await deliver(record, parsed.data.signature as Hex));
+      return c.json(await deliver(record, parsed.data.signature as Hex, parsed.data.description));
     } catch (e) {
       return c.json({ ok: false, error: (e as Error).message }, 502);
     }
@@ -1464,7 +1467,7 @@ export function createApp({
     const notHuman = await humanityGate(record.wallet, fromBytes32(record.domainName));
     if (notHuman) return c.json({ ok: false, error: notHuman }, 403);
     try {
-      return c.json(await deliver(record, parsed.data.signature as Hex));
+      return c.json(await deliver(record, parsed.data.signature as Hex, parsed.data.description));
     } catch (e) {
       return c.json({ ok: false, error: (e as Error).message }, 502);
     }

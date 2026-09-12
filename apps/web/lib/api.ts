@@ -621,7 +621,11 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
     },
 
     /** Hand a signed record to the relay, which pays and submits `bridge.verify` */
-    async deliver(result: AttestResult, deliveryToken?: string): Promise<{ ok: true; txHash: Hex }> {
+    async deliver(
+      result: AttestResult,
+      deliveryToken?: string,
+      description?: string
+    ): Promise<{ ok: true; txHash: Hex; letterWritten?: boolean }> {
       // The browser uses the token-free relay; the delivery route belongs to the enclave.
       const path = deliveryToken ? "/v1/cre/delivery" : "/v1/submit";
       const res = await call(`${base}${path}`, {
@@ -630,9 +634,10 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
           "content-type": "application/json",
           ...(deliveryToken ? { "x-delivery-token": deliveryToken } : {}),
         },
-        body: JSON.stringify(result),
+        // The letter rides with the record: the relay writes it in the same transaction.
+        body: JSON.stringify(description ? { ...result, description } : result),
       });
-      return (await readJson(res)) as { ok: true; txHash: Hex };
+      return (await readJson(res)) as { ok: true; txHash: Hex; letterWritten?: boolean };
     },
 
     async ens(name: string, keys?: string[], opts: { signal?: AbortSignal } = {}): Promise<EnsResolution> {

@@ -409,7 +409,7 @@ export class Chain {
    * record goes through the bridge, which also grants the wallet its profile keys, and a renewal goes
    * straight to Multipass, which needs no privileges and leaves those grants alone.
    */
-  async submit(record: RegisterMessage, signature: Hex): Promise<Hex> {
+  async submit(record: RegisterMessage, signature: Hex, description?: string): Promise<Hex> {
     const query = {
       domainName: record.domainName,
       wallet: zeroAddress,
@@ -444,25 +444,43 @@ export class Chain {
             args: [query, record, signature],
             value: domain.renewalFee,
           })
-        : this.walletClient.writeContract({
-            ...common,
-            address: this.config.BRIDGE,
-            abi: bridgeAbi,
-            functionName: "verify",
-            args: [
-              record,
-              signature,
-              {
-                domainName: zeroHash,
-                wallet: zeroAddress,
-                name: zeroHash,
-                id: zeroHash,
-                targetDomain: zeroHash,
-              },
-              "0x",
-            ],
-            value: domain.fee,
-          })
+        : description
+          ? // The letter rides in the same transaction: the bridge writes it as `description` on the
+            // name the record creates, so a wallet with no gas is not asked for a second transaction.
+            this.walletClient.writeContract({
+              ...common,
+              address: this.config.BRIDGE,
+              abi: bridgeAbi,
+              functionName: "verifyWithText",
+              args: [
+                record,
+                signature,
+                { domainName: zeroHash, wallet: zeroAddress, name: zeroHash, id: zeroHash, targetDomain: zeroHash },
+                "0x",
+                "description",
+                description,
+              ],
+              value: domain.fee,
+            })
+          : this.walletClient.writeContract({
+              ...common,
+              address: this.config.BRIDGE,
+              abi: bridgeAbi,
+              functionName: "verify",
+              args: [
+                record,
+                signature,
+                {
+                  domainName: zeroHash,
+                  wallet: zeroAddress,
+                  name: zeroHash,
+                  id: zeroHash,
+                  targetDomain: zeroHash,
+                },
+                "0x",
+              ],
+              value: domain.fee,
+            })
     );
     const receipt = await this.publicClient.waitForTransactionReceipt({ hash });
     if (receipt.status !== "success") throw new Error(`verify reverted in ${hash}`);

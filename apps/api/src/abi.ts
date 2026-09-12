@@ -17,6 +17,7 @@ export const bridgeAbi = withErrors(
     "struct Record { address wallet; bytes32 name; bytes32 id; uint96 nonce; bytes32 domainName; uint256 validUntil; bytes32 payload; }",
     "struct NameQuery { bytes32 domainName; address wallet; bytes32 name; bytes32 id; bytes32 targetDomain; }",
     "function verify(Record rec, bytes registrarSig, NameQuery referrer, bytes referralCode) payable",
+    "function verifyWithText(Record rec, bytes registrarSig, NameQuery referrer, bytes referralCode, string key, string value) payable",
     "function deleteName(NameQuery query)",
     "function verifyFor(bytes32 orgId, Record rec, bytes registrarSig) payable",
     "function linkOwnName(bytes32 domain, string label)",
