@@ -1866,10 +1866,22 @@ export function createApp({
           )
         : []
     );
+    /*
+     * What stands, before what stood.
+     *
+     * The order was whatever the chain listed, so a reference somebody withdrew could sit above the
+     * ones that count, and a reader scanning a wall of them met the history first. Live before lapsed,
+     * and the newest of each ahead of the older, which is the order a reader reads in anyway. Nothing
+     * here ranks a voucher: who is worth believing is the reader's judgement, and the standing beside
+     * each name is what they make it with.
+     */
+    const ordered = [...records].sort(
+      (a, b) => Number(b.live) - Number(a.live) || Number(b.validUntil) - Number(a.validUntil)
+    );
     return {
       handle,
       domain,
-      vouches: records.map((r) => ({
+      vouches: ordered.map((r) => ({
         voucher: r.name,
         voucherName: rootParent ? `${r.name}.${rootParent}` : null,
         // The reference is itself a name, in the candidate's own namespace: `<voucher>.<candidate>.<root>`.

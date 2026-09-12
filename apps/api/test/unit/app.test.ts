@@ -4429,3 +4429,54 @@ describe("a subject with more answers than one read carries", () => {
     expect(body.total).toBe(3);
   });
 });
+
+/**
+ * What stands, before what stood.
+ *
+ * References came back in whatever order the chain listed them, so one somebody withdrew could sit
+ * above the ones that count, and a reader scanning a page of them met the history first.
+ */
+describe("the order references are read in", () => {
+  const ref = (name: string, live: boolean, until: number) => ({
+    name,
+    id: toBytes32(name),
+    wallet: user.account.address,
+    payload: toBytes32(`${name} says so`),
+    validUntil: BigInt(until),
+    nonce: 1n,
+    live,
+    domain: "~alice",
+  });
+
+  it("puts what is live first, and the newest of those ahead of the older", async () => {
+    const { chain } = fakeChain({
+      listed: {
+        "~alice": [
+          ref("lapsed-new", false, 9_000_000_900),
+          ref("live-old", true, 9_000_000_100),
+          ref("lapsed-old", false, 9_000_000_000),
+          ref("live-new", true, 9_000_000_500),
+        ],
+      },
+    });
+    const body = await (await app(chain).request("/v1/vouches/alice")).json();
+    expect(body.vouches.map((v: { voucher: string }) => v.voucher)).toEqual([
+      "live-new",
+      "live-old",
+      "lapsed-new",
+      "lapsed-old",
+    ]);
+  });
+
+  it("ranks no voucher above another, which is the reader's judgement", async () => {
+    // Two live references, one from somebody with standing and one without: the order is by time, and
+    // the standing travels beside each name for the reader to weigh.
+    const { chain } = fakeChain({
+      listed: { "~alice": [ref("nobody", true, 9_000_000_100), ref("somebody", true, 9_000_000_200)] },
+      names: { "kju-is/somebody": { taken: true, wallet: user.account.address, live: true } },
+    });
+    const body = await (await app(chain).request("/v1/vouches/alice")).json();
+    expect(body.vouches.map((v: { voucher: string }) => v.voucher)).toEqual(["somebody", "nobody"]);
+    expect(body.vouches[0].standing).toBeDefined();
+  });
+});
