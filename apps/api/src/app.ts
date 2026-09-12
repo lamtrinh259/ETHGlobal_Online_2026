@@ -399,6 +399,8 @@ export function createApp({
     };
     return {
       chainId: config.CHAIN_ID,
+      // The platform rule: a reference is written by one real person. Off only on a test stack.
+      vouchRequiresHumanity: config.VOUCH_REQUIRES_HUMANITY,
       multipass: config.MULTIPASS,
       bridge: config.BRIDGE,
       factory: config.FACTORY,
@@ -887,16 +889,39 @@ export function createApp({
   app.get("/v1/invites/:handle", async (c) => {
     const handle = c.req.param("handle").toLowerCase();
     const mine = inviteStore.entries();
+    /*
+     * Which invitations were used, and by whom.
+     *
+     * A reference written with an invitation is remembered as solicited, with the invitation's own
+     * signature — and the code is that signature's hash, so the two join without storing anything
+     * more. The candidate's list then says "used by bob" beside the link, with the reference to open,
+     * instead of offering the same link again as if nothing had happened. An invitation that was used
+     * stays listed after it expires: what came of it is the point.
+     */
+    const usedBy = new Map<string, string[]>();
+    for (const [key, s] of solicitedStore.entries()) {
+      const [candidate, voucher] = key.split(":");
+      if (candidate !== handle || !voucher) continue;
+      const code = createHash("sha256").update(s.signature).digest("hex").slice(0, 32);
+      usedBy.set(code, [...(usedBy.get(code) ?? []), voucher]);
+    }
+    const rootParent = (await chain.instances()).find((i) => i.domain === config.NAME_DOMAINS[0])?.parentName;
     const invites = mine
       .filter(
         (e): e is [string, WireInvite] =>
-          !isPolicy(e[1]) && e[1].handle === handle && Number(e[1].exp) > now()
+          !isPolicy(e[1]) && e[1].handle === handle && (Number(e[1].exp) > now() || usedBy.has(e[0]))
       )
       .map(([code, i]) => ({
         code,
         kind: "vouch" as const,
         requires: i.requires,
         expiresAt: new Date(Number(i.exp) * 1000).toISOString(),
+        expired: Number(i.exp) <= now(),
+        // Who wrote with it, and the name each reference answers at, to open it.
+        usedBy: (usedBy.get(code) ?? []).map((voucher) => ({
+          voucher,
+          ensName: rootParent ? `${voucher}.${handle}.${rootParent}` : null,
+        })),
       }))
       .sort((a, b) => a.expiresAt.localeCompare(b.expiresAt));
     // Everyone this name invited to be read against a bar, expired ones included: "never came" is an answer.
@@ -1313,6 +1338,8 @@ export function createApp({
     // signature the user already gave is wasted either way.
     const blocker = await writeBlocker(req.intent.domain);
     if (blocker) return c.json({ error: blocker }, 503);
+    const notHuman = await humanityGate(req.intent.wallet, req.intent.domain);
+    if (notHuman) return c.json({ error: notHuman }, 403);
     const domain = req.intent.domain;
     const plan = await namespacePlan(domain);
     let result;
@@ -1352,6 +1379,21 @@ export function createApp({
    * they drifted, a statement written through the enclave reverted for a candidate who had claimed
    * nothing, and a name claimed from a browser never got the instance others write references into.
    */
+  /**
+   * A reference is written by one real person, or not written.
+   *
+   * Not a policy a verifier sets and not a choice a candidate makes when asking: it is what a
+   * reference here means. The writer's wallet must hold a live humanity proof before a statement in a
+   * candidate's vouch domain is signed or relayed. Only the vouch domains: claiming a name and linking
+   * an account are the writer's own business.
+   */
+  async function humanityGate(wallet: Address, domain: string): Promise<string | null> {
+    if (!config.VOUCH_REQUIRES_HUMANITY || !isVouchDomain(domain)) return null;
+    const proof = await chain.recordFor(wallet, config.HUMANITY_DOMAIN);
+    if (proof?.live) return null;
+    return "a reference is written by one real person: pass the Selfie Check on your profile first";
+  }
+
   async function deliver(record: RegisterMessage, signature: Hex) {
     // The candidate's vouch domain has to exist before a statement can be written into it.
     await ensureVouchDomain(record);
@@ -1384,8 +1426,11 @@ export function createApp({
   app.post("/v1/submit", async (c) => {
     const parsed = wireDelivery.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return c.json({ ok: false, error: "bad request", issues: parsed.error.issues }, 400);
+    const record = toRecord(parsed.data.record);
+    const notHuman = await humanityGate(record.wallet, fromBytes32(record.domainName));
+    if (notHuman) return c.json({ ok: false, error: notHuman }, 403);
     try {
-      return c.json(await deliver(toRecord(parsed.data.record), parsed.data.signature as Hex));
+      return c.json(await deliver(record, parsed.data.signature as Hex));
     } catch (e) {
       return c.json({ ok: false, error: (e as Error).message }, 502);
     }
@@ -1398,8 +1443,11 @@ export function createApp({
     }
     const parsed = wireDelivery.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return c.json({ ok: false, error: "bad request", issues: parsed.error.issues }, 400);
+    const record = toRecord(parsed.data.record);
+    const notHuman = await humanityGate(record.wallet, fromBytes32(record.domainName));
+    if (notHuman) return c.json({ ok: false, error: notHuman }, 403);
     try {
-      return c.json(await deliver(toRecord(parsed.data.record), parsed.data.signature as Hex));
+      return c.json(await deliver(record, parsed.data.signature as Hex));
     } catch (e) {
       return c.json({ ok: false, error: (e as Error).message }, 502);
     }

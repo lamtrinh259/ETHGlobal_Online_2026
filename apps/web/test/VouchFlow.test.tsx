@@ -17,6 +17,8 @@ const state = {
   letterFails: undefined as Error | undefined,
   stored: undefined as string | undefined,
   resolver: "0x4E2d9783cEFF2ed72CD77C14206b29fe246b24F7" as string | undefined,
+  /** Whether the deployment can check humanity at all; the fake writer never holds a proof. */
+  checksHumanity: false,
 };
 
 vi.mock("@privy-io/react-auth", () => ({
@@ -72,7 +74,7 @@ vi.mock("@/lib/hooks", () => ({
       return { ref: `sha256:${"a".repeat(64)}` };
     }),
   }),
-  useContracts: () => ({ data: { permissionedResolver: state.resolver } }),
+  useContracts: () => ({ data: { permissionedResolver: state.resolver, humanity: state.checksHumanity } }),
   // What the candidate opened to whoever holds the invitation; none of it, here.
   useDisclosures: () => ({ data: undefined, isPending: false }),
   useWalletDashboard: () => ({
@@ -155,5 +157,21 @@ describe("the letter written with the reference", () => {
     await waitFor(() =>
       expect(screen.getByTestId("letter-status")).toHaveTextContent("no permissioned resolver")
     );
+  });
+});
+
+describe("one real person writes it", () => {
+  it("sends a writer with no proof to the Selfie Check before asking for a statement", async () => {
+    state.checksHumanity = true;
+    try {
+      render(<VouchFlow candidate="alice" />);
+      await waitFor(() => expect(screen.getByTestId("humanity-gate")).toBeInTheDocument());
+      expect(screen.getByRole("link", { name: /Pass the Selfie Check/ })).toHaveAttribute(
+        "href",
+        "/me?then=%2Fvouch%2Falice"
+      );
+    } finally {
+      state.checksHumanity = false;
+    }
   });
 });

@@ -59,6 +59,8 @@ const user = fakeUser(USER_KEY);
 const registrar = privateKeyToAccount("0x000000000000000000000000000000000000000000000000000000000000b0b0");
 
 const baseEnv = {
+  // Off for the suite at large: its writers never pass a Selfie Check. The gate has its own tests.
+  VOUCH_REQUIRES_HUMANITY: "false",
   RPC_URL: "http://127.0.0.1:8545",
   CHAIN_ID: "31337",
   MULTIPASS: "0x5FbDB2315678afecb367f032d93F642f64180aa3",
@@ -1757,6 +1759,19 @@ describe("POST /v1/attest — vouch invitations", () => {
     expect(bob.solicited).toBe(true);
     // The signature travels with it: a verifier recovers the signer themselves rather than trusting us.
     expect(bob.invite).toMatchObject({ handle: "alice", signature: invite.signature });
+    // And the candidate's own list says the invitation was used, by whom, with the reference to open.
+    const code = createHash("sha256").update(invite.signature).digest("hex").slice(0, 32);
+    const storeRes = await post(a, "/v1/invite", {
+      handle: "alice",
+      voucher: invite.voucher,
+      exp: invite.exp.toString(),
+      requires: invite.requires,
+      signature: invite.signature,
+    });
+    expect((await storeRes.json()).code).toBe(code);
+    const mine = await (await a.request("/v1/invites/alice")).json();
+    const used = mine.invites.find((i: { code: string }) => i.code === code);
+    expect(used.usedBy).toEqual([{ voucher: "bob", ensName: "bob.alice.kju-is.eth" }]);
   });
 
   it("leaves a reference nobody was invited to write unmarked, and still writes it", async () => {
@@ -5187,5 +5202,88 @@ describe("an employer's invitation to somebody who has a page", () => {
       status: "claimed",
       candidate: "bob",
     });
+  });
+});
+
+describe("a reference is written by one real person", () => {
+  /*
+   * Platform default, not a policy: a statement in a vouch domain is signed and relayed only for a
+   * wallet holding a live humanity proof. A name or a link of the writer's own is not gated.
+   */
+  const strict = { ...baseEnv, VOUCH_REQUIRES_HUMANITY: "true" };
+  const aliceHolds = { names: { "kju-is/alice": { taken: true, wallet: user.account.address, live: true } } };
+  const vouchIntent = (now: number) =>
+    baseIntent(user.account, now, {
+      domain: "~alice",
+      handle: "bob",
+      payload: toBytes32("worked together"),
+      exp: BigInt(now + 600),
+    });
+
+  const record = (domain: string) => ({
+    name: toBytes32("bob"),
+    id: toBytes32("b"),
+    domainName: toBytes32(domain),
+    validUntil: String(NOW + 3600),
+    nonce: "1",
+    wallet: user.account.address,
+    payload: toBytes32("worked together"),
+  });
+  const proof = {
+    name: "",
+    id: zeroHash,
+    wallet: user.account.address,
+    payload: toBytes32("selfie"),
+    validUntil: 9_000_000_000n,
+    nonce: 1n,
+    live: true,
+    domain: "humanity",
+  };
+
+  it("refuses to relay a reference from a wallet with no proof, and says what to do", async () => {
+    const { chain, submitted } = fakeChain();
+    const res = await post(app(chain, strict), "/v1/submit", {
+      record: record("~alice"),
+      signature: "0xabc",
+    });
+    expect(res.status).toBe(403);
+    expect((await res.json()).error).toMatch(/Selfie Check/);
+    expect(submitted).toHaveLength(0);
+  });
+
+  it("relays it for a wallet holding a live proof, and a lapsed proof does not count", async () => {
+    const { chain, submitted } = fakeChain({ byWallet: [proof] });
+    expect(
+      (await post(app(chain, strict), "/v1/submit", { record: record("~alice"), signature: "0xabc" })).status
+    ).toBe(200);
+    expect(submitted).toHaveLength(1);
+    const lapsed = fakeChain({ byWallet: [{ ...proof, live: false }] });
+    expect(
+      (await post(app(lapsed.chain, strict), "/v1/submit", { record: record("~alice"), signature: "0xabc" }))
+        .status
+    ).toBe(403);
+  });
+
+  it("gates only the vouch domains: a name of the writer's own is not a reference", async () => {
+    const { chain } = fakeChain();
+    expect(
+      (await post(app(chain, strict), "/v1/submit", { record: record("kju-is"), signature: "0xabc" })).status
+    ).toBe(200);
+  });
+
+  it("refuses at signing too, before the person has signed anything for nothing", async () => {
+    const { chain } = fakeChain(aliceHolds);
+    const wire = toWire(
+      await signedAttestRequest(
+        user.account,
+        { ...vouchIntent(NOW), handle: "bob" },
+        privy.mint({ sub: user.did, linked: user.linked, now: NOW }),
+        31337,
+        baseEnv.MULTIPASS as Hex
+      )
+    );
+    const res = await post(app(chain, strict), "/v1/attest", wire);
+    expect(res.status).toBe(403);
+    expect((await res.json()).error).toMatch(/Selfie Check/);
   });
 });

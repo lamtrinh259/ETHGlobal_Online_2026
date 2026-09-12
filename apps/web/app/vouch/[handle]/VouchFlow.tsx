@@ -23,7 +23,7 @@ import { LETTER_MAX } from "@/lib/chain";
 import { LetterField, letterBytes } from "./LetterField";
 import type { Ask } from "@/lib/asks";
 
-type Stage = "signin" | "onboarding" | "statement" | "done";
+type Stage = "signin" | "onboarding" | "humanity" | "statement" | "done";
 
 /**
  * Sequenced voucher steps, resumed from the wallet's on-chain records so a reload never repeats a
@@ -77,13 +77,18 @@ export function VouchFlow({
   const letterWrite = useLetterWrite(candidate);
   const isLinked = onChain.linked;
   const handle = onChain.named;
+  // One real person writes a reference, or nobody does: where the deployment can check humanity, a
+  // writer without a live proof is sent to pass it before a statement is asked of them.
+  const needsHuman = !!contracts.data?.humanity && dash.data !== undefined && !dash.data.humanity;
   const stage: Stage = !authenticated
     ? "signin"
     : published
       ? "done"
       : !isLinked
         ? "onboarding"
-        : "statement";
+        : needsHuman
+          ? "humanity"
+          : "statement";
   const vouchDomain = `${VOUCH_PREFIX}${candidate}`;
   /*
    * The accounts this candidate has opened to whoever holds a link. The list itself is public — it
@@ -232,6 +237,25 @@ export function VouchFlow({
               className="primary"
             >
               Complete your onboarding →
+            </Link>
+          </p>
+        </section>
+      )}
+
+      {!loading && stage === "humanity" && (
+        <section className="card" data-testid="humanity-gate">
+          <h2>Prove you are one real person first</h2>
+          <p>
+            A reference here means a verified human wrote it. The Selfie Check is done once, on your profile,
+            and shows that without revealing who you are. It is the platform&apos;s rule, not {candidate}
+            &apos;s.
+          </p>
+          <p>
+            <Link
+              href={`/me?then=${encodeURIComponent(`/vouch/${candidate}${inviteCode ? `?invite=${inviteCode}` : ""}`)}`}
+              className="primary"
+            >
+              Pass the Selfie Check →
             </Link>
           </p>
         </section>

@@ -112,6 +112,15 @@ export const configSchema = z.object({
     .default("false")
     .transform((v) => v === "true"),
   /**
+   * Whether a reference may only be written by a wallet holding a live humanity proof. On by default
+   * and not a policy anybody sets: "one real person wrote this" is what a reference here means. Off is
+   * for a test stack whose writers cannot pass a Selfie Check.
+   */
+  VOUCH_REQUIRES_HUMANITY: z
+    .string()
+    .default("true")
+    .transform((v) => v === "true"),
+  /**
    * Multipass domain whose holders are onboarded organisations. A holder may issue a reference for a
    * handle nobody has claimed yet, which is how a university writes to a graduate who has never heard
    * of this product.

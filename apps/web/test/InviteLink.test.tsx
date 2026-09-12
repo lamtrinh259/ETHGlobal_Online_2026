@@ -215,3 +215,19 @@ describe("opening private accounts to the writer", () => {
     expect(wire.audienceName).toBe("");
   });
 });
+
+describe("what came of a link", () => {
+  it("says who wrote with it, with the reference to open, instead of offering it again as new", async () => {
+    existing = [
+      {
+        code: "abcd1234",
+        requires: [],
+        expiresAt: "2027-01-01T00:00:00.000Z",
+        usedBy: [{ voucher: "bob", ensName: "bob.alice.ketsuban.eth" }],
+      } as never,
+    ];
+    render(<InviteLink api={api} handle="alice" />);
+    await waitFor(() => expect(screen.getByTestId("invite-used-abcd1234")).toHaveTextContent("used by bob"));
+    expect(screen.getByRole("link", { name: "bob" })).toHaveAttribute("href", "/v/bob.alice.ketsuban.eth");
+  });
+});

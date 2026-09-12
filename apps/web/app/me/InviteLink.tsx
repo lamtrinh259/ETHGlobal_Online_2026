@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { useSignTypedData, useWallets } from "@privy-io/react-auth";
 import type { Address } from "viem";
@@ -152,9 +153,24 @@ export function InviteLink({
                     <code>{i.code}</code>
                   </strong>
                   <small className="muted">
-                    {i.requires.length ? `asks for ${i.requires.join(", ")}` : "asks for nothing"} · until{" "}
-                    {fmtUtc(i.expiresAt)}
+                    {i.requires.length ? `asks for ${i.requires.join(", ")}` : "asks for nothing"} ·{" "}
+                    {i.expired ? "expired" : "until"} {fmtUtc(i.expiresAt)}
                   </small>
+                  {/* What came of it: the reference written with this link, marked as one you asked for. */}
+                  {(i.usedBy ?? []).length > 0 && (
+                    <small data-testid={`invite-used-${i.code}`}>
+                      used by{" "}
+                      {(i.usedBy ?? []).map((u, n) => (
+                        <span key={u.voucher}>
+                          {n > 0 && ", "}
+                          <Link href={u.ensName ? `/v/${u.ensName}` : `/p/${handle}`}>
+                            <code>{u.voucher}</code>
+                          </Link>
+                        </span>
+                      ))}{" "}
+                      — a reference you asked for, on your page
+                    </small>
+                  )}
                   {/* Signed, so it cannot be repaired — but it can be stopped from being sent again. */}
                   {i.requires.some((r) => whyUnsatisfiable(r, config.parentNames)) && (
                     <small className="warning" data-testid={`invite-dead-${i.code}`}>

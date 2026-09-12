@@ -341,6 +341,9 @@ export const invitesSchema = z.object({
       kind: z.literal("vouch"),
       requires: z.array(z.string()),
       expiresAt: z.string(),
+      expired: z.boolean().default(false),
+      /** Who wrote a reference with it, each with the name the reference answers at */
+      usedBy: z.array(z.object({ voucher: z.string(), ensName: z.string().nullable() })).default([]),
     })
   ),
   asked: z.array(policyInviteSchema).default([]),
