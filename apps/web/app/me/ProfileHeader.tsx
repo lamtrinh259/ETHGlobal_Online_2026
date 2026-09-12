@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { CopyButton } from "@/app/CopyButton";
+import { explorerAddress } from "@/lib/explorer";
 import { displayableImage, SITE_IS_SECURE } from "@/lib/profile";
 import type { ScorePart } from "@/lib/score";
 import { ScoreRing } from "./ScoreRing";
@@ -31,6 +33,8 @@ export function ProfileHeader({
   onClaim,
   editor,
   accounts,
+  wallet,
+  chainId,
 }: {
   name?: string;
   handle?: string;
@@ -45,7 +49,11 @@ export function ProfileHeader({
   editor?: ReactNode;
   /** The accounts behind the name: part of who you are, so they live here rather than in a step */
   accounts?: ReactNode;
+  /** The embedded wallet every record here is written by; shown so the person can find it elsewhere */
+  wallet?: string;
+  chainId?: number;
 }) {
+  const walletHref = wallet && chainId ? explorerAddress(chainId, wallet) : undefined;
   return (
     <section className="card profile-header" id="name" data-testid="profile-header">
       <div className="me-head">
@@ -95,6 +103,19 @@ export function ProfileHeader({
         no way from here to look at it — the owner could see their score, their accounts and their
         references, and not the page a verifier opens.
       */}
+      {wallet && (
+        <p className="row muted" data-testid="my-wallet">
+          wallet{" "}
+          {walletHref ? (
+            <a href={walletHref} rel="noreferrer">
+              <code>{wallet}</code>
+            </a>
+          ) : (
+            <code>{wallet}</code>
+          )}{" "}
+          <CopyButton text={wallet} label="Copy" />
+        </p>
+      )}
       {name && handle && (
         <p className="row" data-testid="my-public-page">
           <Link className="button primary" href={`/p/${handle}`}>

@@ -136,6 +136,8 @@ export function Dashboard() {
       <ProfileHeader
         name={rootRow?.live ? rootRow.ensName : undefined}
         handle={handle}
+        wallet={wallet}
+        chainId={config.chainId}
         profile={rootProfile ?? undefined}
         humanity={rootVerification.data?.humanity ?? null}
         humanityCta={

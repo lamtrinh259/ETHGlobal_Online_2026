@@ -118,3 +118,20 @@ describe("seeing your own page", () => {
     expect(screen.queryByTestId("my-public-page")).toBeNull();
   });
 });
+
+describe("the wallet behind the page", () => {
+  it("shows the embedded wallet's address, with a copy and a link to the explorer", () => {
+    header({ wallet: "0xEE4811b9462956C9C3535E79c08776D769CA9F3a", chainId: 11155111 });
+    const row = screen.getByTestId("my-wallet");
+    expect(row.textContent).toContain("0xEE4811b9462956C9C3535E79c08776D769CA9F3a");
+    expect(row.querySelector("a")?.getAttribute("href")).toBe(
+      "https://sepolia.etherscan.io/address/0xEE4811b9462956C9C3535E79c08776D769CA9F3a"
+    );
+    expect(screen.getByRole("button", { name: /copy/i })).toBeInTheDocument();
+  });
+
+  it("says nothing about a wallet that is not there yet", () => {
+    header({});
+    expect(screen.queryByTestId("my-wallet")).toBeNull();
+  });
+});
