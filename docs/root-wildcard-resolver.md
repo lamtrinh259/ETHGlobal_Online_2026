@@ -157,15 +157,11 @@ Still mounted, on purpose: the legacy per-platform instances `x`, `telegram`, `d
 `google`, `linkedin`, `email` (`<handle>.x.ketsuban.eth` naming, superseded by `www`/`@`). The root
 resolver has no rule for them, so unmounting would stop those names resolving.
 
-Open, each one action:
+Open, each one action (1 is done):
 
-1. **Resolver roles for the new bridge.** The stock resolver's admin is `0x6Cf8d74C7875de8C2FfB09228F4bf2A21b25e583`
-   (the key that ran `DeploySepolia`), not the operator, which holds no root roles there. Until it sends
-   the grant, the bridge registers names but cannot give a new name its four profile keys:
-   ```bash
-   cast send 0x4E2d9783cEFF2ed72CD77C14206b29fe246b24F7 'grantRootRoles(uint256,address)' \
-     5444517870735015415413993718908559818752 0x9607Ec6f14A3cB7128B1e7EC0C8e8CFBa1643F61 --rpc-url $RPC --private-key <0x6Cf8… key>
-   ```
+1. ~~Resolver roles for the new bridge~~ — done, tx `0xc1c7780054763ba712b5f72f3a3352d0ae0e84a4e9d7999580f49559a6fbd05d`.
+   The stock resolver's admin is `0x6Cf8d74C7875de8C2FfB09228F4bf2A21b25e583`, index 0 of `ETH_SEPOLIA_MNEMONIC`
+   (the key that ran `DeploySepolia`), not the operator; the bridge now holds `ROLE_SET_TEXT_ADMIN | ROLE_SET_ALIAS`.
 2. **Coolify env.** The API takes `BRIDGE` from its environment, which still names the old bridge; set
    `BRIDGE=0x9607Ec6f14A3cB7128B1e7EC0C8e8CFBa1643F61` there. `ROOT_RESOLVER` needs nothing: it comes
    from the bundled deployment file since the image started shipping it.
