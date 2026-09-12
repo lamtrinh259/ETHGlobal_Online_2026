@@ -38,8 +38,18 @@ const dash: WalletDashboard = {
   ],
   links: [{ ...rec("x", "bob_x", "", false), optedIn: false }],
   given: [
-    { ...rec("~alice", "bob", "worked together"), candidate: "alice", ensName: "bob.alice.ketsuban.eth" },
-    { ...rec("~carol", "bob", "expired", false), candidate: "carol", ensName: "bob.carol.ketsuban.eth" },
+    {
+      ...rec("~alice", "bob", "worked together"),
+      kind: "reference" as const,
+      candidate: "alice",
+      ensName: "bob.alice.ketsuban.eth",
+    },
+    {
+      ...rec("~carol", "bob", "expired", false),
+      kind: "reference" as const,
+      candidate: "carol",
+      ensName: "bob.carol.ketsuban.eth",
+    },
   ],
   balance: "0",
   gasTopup: { enabled: false, amount: "0", available: false },
@@ -115,12 +125,14 @@ describe("needsAttention", () => {
         {
           ...rec("~alice", "bob", "w"),
           validUntil: "2026-12-31T00:00:00.000Z",
+          kind: "reference" as const,
           candidate: "alice",
           ensName: null,
         },
         {
           ...rec("~carol", "bob", "w", false),
           validUntil: "2026-12-01T00:00:00.000Z",
+          kind: "reference" as const,
           candidate: "carol",
           ensName: null,
         },

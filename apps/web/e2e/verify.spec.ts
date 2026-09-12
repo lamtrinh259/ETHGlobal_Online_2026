@@ -67,6 +67,12 @@ test("a wallet address routes to the wallet page, and it reads what the wallet h
   // A masked account: held, and not saying which one.
   await expect(page.getByTestId("wallet-accounts")).toContainText("google.com");
   await expect(page.getByTestId("wallet-given")).toContainText("worked with them for years");
+  // And what it answered about a subject, which is written to a page like any reference.
+  await expect(page.getByTestId("wallet-given")).toContainText("a terrible dictator");
+  await expect(page.getByTestId("wallet-given").getByRole("link", { name: "kju-is" })).toHaveAttribute(
+    "href",
+    "/v/alice.kju-is.ketsuban.eth"
+  );
 });
 
 test("a wallet page says so rather than crashing when it cannot be read", async ({ page }) => {

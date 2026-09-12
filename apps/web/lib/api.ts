@@ -468,7 +468,14 @@ export const walletSchema = z.object({
       nameless: z.string().nullable().optional(),
     })
   ),
-  given: z.array(walletRecord.extend({ candidate: z.string(), ensName: z.string().nullable() })),
+  given: z.array(
+    walletRecord.extend({
+      /** A reference about a person, or an answer about a subject; an older attester says nothing */
+      kind: z.enum(["reference", "answer"]).default("reference"),
+      candidate: z.string(),
+      ensName: z.string().nullable(),
+    })
+  ),
   balance: z.string().regex(/^\d+$/),
   gasTopup: z.object({ enabled: z.boolean(), amount: z.string().regex(/^\d+$/), available: z.boolean() }),
   warning: z.string(),

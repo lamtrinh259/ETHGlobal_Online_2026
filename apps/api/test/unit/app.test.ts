@@ -3236,8 +3236,14 @@ describe("GET /v1/wallet/:address", () => {
       live,
     });
     const { chain } = fakeChain({
+      instances: [
+        instance,
+        xInstance,
+        { ...instance, domain: "uni", parentName: "uni.kju-is.eth", parentLabel: "uni" },
+      ],
       byWallet: [
         rec("kju-is", "alice", "hi"),
+        rec("uni", "alice", "a terrible dictator"),
         rec("x", "alice_x", ""),
         rec("~bob", "alice", "great colleague", false),
       ],
@@ -3252,6 +3258,15 @@ describe("GET /v1/wallet/:address", () => {
         nonce: "1",
         live: true,
         ensName: "alice.kju-is.eth",
+      },
+      {
+        domain: "uni",
+        name: "alice",
+        payload: "a terrible dictator",
+        validUntil: "2027-01-15T08:00:00.000Z",
+        nonce: "1",
+        live: true,
+        ensName: "alice.uni.kju-is.eth",
       },
     ]);
     expect(body.links).toEqual([
@@ -3268,7 +3283,21 @@ describe("GET /v1/wallet/:address", () => {
         nameless: null,
       },
     ]);
+    // What the wallet wrote about others: the answer about a subject beside the reference about a
+    // person, as `/v1/verify` lists them. The answer is a name too, and stays under `names` for the
+    // dashboard; a page titled "references this wallet wrote" must not leave it out.
     expect(body.given).toEqual([
+      {
+        domain: "uni",
+        name: "alice",
+        payload: "a terrible dictator",
+        validUntil: "2027-01-15T08:00:00.000Z",
+        nonce: "1",
+        live: true,
+        kind: "answer",
+        candidate: "uni",
+        ensName: "alice.uni.kju-is.eth",
+      },
       {
         domain: "~bob",
         name: "alice",
@@ -3276,6 +3305,7 @@ describe("GET /v1/wallet/:address", () => {
         validUntil: "2027-01-15T08:00:00.000Z",
         nonce: "1",
         live: false,
+        kind: "reference",
         candidate: "bob",
         ensName: "alice.bob.kju-is.eth",
       },
