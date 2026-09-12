@@ -213,3 +213,22 @@ test("an answer leads to the person who wrote it", async ({ page }) => {
   await expect(page).toHaveURL(/\/p\/alice$/);
   await expect(page.getByTestId("score")).toBeVisible();
 });
+
+/**
+ * The shape behind the count.
+ *
+ * A person's page said how many stand behind them and nothing about whether those people know each
+ * other, which is the difference between three colleagues and a ring of bought accounts.
+ */
+test("a person's page draws who stands behind them, and says what shape it is", async ({ page }) => {
+  await page.goto("/p/alice");
+  const map = page.getByTestId("reference-map");
+  await expect(map).toBeVisible();
+  await expect(map.getByTestId("node-alice")).toBeVisible();
+  // A vertical line has no width, which Playwright reads as invisible; drawn is what matters.
+  await expect(map.getByTestId("edge-carol-bob")).toHaveCount(1);
+  await expect(map.getByTestId("fact-among")).toContainText("1 of 2");
+  await expect(map.getByTestId("fact-rank")).toContainText("0.188");
+  // And the caveat travels with it: a signal, never a verdict.
+  await expect(map).toContainText("not a verdict");
+});

@@ -108,12 +108,22 @@ describe("one person's neighbourhood", () => {
 });
 
 describe("the shape of one person's references", () => {
-  const rec = (candidate: string, referrer: string) => ({ domain: `~${candidate}`, name: referrer, live: true });
+  const rec = (candidate: string, referrer: string) => ({
+    domain: `~${candidate}`,
+    name: referrer,
+    live: true,
+  });
 
   it("says how many referrers refer each other, and how dense that is", () => {
     // alice is referred by bob, carol and dan; bob and carol refer each other; dan knows nobody.
     const g = referenceGraph(
-      [rec("alice", "bob"), rec("alice", "carol"), rec("alice", "dan"), rec("bob", "carol"), rec("carol", "bob")],
+      [
+        rec("alice", "bob"),
+        rec("alice", "carol"),
+        rec("alice", "dan"),
+        rec("bob", "carol"),
+        rec("carol", "bob"),
+      ],
       "~"
     );
     const m = personMetrics(g, "alice");
@@ -145,7 +155,11 @@ describe("the shape of one person's references", () => {
 });
 
 describe("a sybil rank", () => {
-  const rec = (candidate: string, referrer: string) => ({ domain: `~${candidate}`, name: referrer, live: true });
+  const rec = (candidate: string, referrer: string) => ({
+    domain: `~${candidate}`,
+    name: referrer,
+    live: true,
+  });
   /*
    * One honest cluster around a proved human, one ring wired only to itself, and a single edge from
    * the ring into the honest side — the shape SybilRank was built to tell apart.

@@ -936,7 +936,11 @@ export function createApp({
    * each other are the same number, and the difference is what a verifier wants. Every edge here is a
    * signed record anybody can resolve; nothing is inferred.
    */
-  async function wholeGraph(): Promise<{ graph: ReferenceGraph; human: Set<string>; rank: Map<string, number> }> {
+  async function wholeGraph(): Promise<{
+    graph: ReferenceGraph;
+    human: Set<string>;
+    rank: Map<string, number>;
+  }> {
     const instances = await chain.instances();
     const domains = instances.map((i) => i.domain).filter((d) => d.startsWith(config.VOUCH_PREFIX));
     const rootDomain = config.NAME_DOMAINS[0] ?? "";
@@ -957,9 +961,7 @@ export function createApp({
      */
     const provedWallets = new Set(proofs.filter((r) => r.live).map((r) => r.wallet.toLowerCase()));
     const human = new Set(
-      held
-        .filter((r) => r.live && provedWallets.has(r.wallet.toLowerCase()))
-        .map((r) => r.name.toLowerCase())
+      held.filter((r) => r.live && provedWallets.has(r.wallet.toLowerCase())).map((r) => r.name.toLowerCase())
     );
     return { graph, human, rank: sybilRank(graph, human) };
   }
@@ -975,7 +977,12 @@ export function createApp({
 
   app.get("/v1/graph", async (c) => {
     const { graph, human, rank } = await wholeGraph();
-    return c.json({ nodes: describe(graph, human, rank), edges: graph.edges, seeds: human.size, warning: WARNING });
+    return c.json({
+      nodes: describe(graph, human, rank),
+      edges: graph.edges,
+      seeds: human.size,
+      warning: WARNING,
+    });
   });
 
   app.get("/v1/graph/:handle", async (c) => {

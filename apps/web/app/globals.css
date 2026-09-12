@@ -1386,3 +1386,68 @@ pre > code {
   }
 }
 
+
+/*
+ * The reference map: the person in the middle, whoever stands behind them around the edge, and a line
+ * for every reference among that set. Lines among the referrers are the ones that close into a shape.
+ */
+.refmap-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 240px) 1fr;
+  gap: var(--sp-md);
+  align-items: start;
+}
+@media (max-width: 560px) {
+  .refmap-row {
+    grid-template-columns: 1fr;
+  }
+}
+.refmap-svg {
+  width: 100%;
+  max-width: 240px;
+  height: auto;
+  display: block;
+}
+.refmap-edge {
+  stroke: var(--text-secondary);
+  stroke-width: 1.5;
+  opacity: 0.7;
+}
+/* Referrers referring each other: the lines that mean something, drawn so they read as a set. */
+.refmap-among {
+  stroke: var(--consensus);
+  stroke-width: 2;
+  opacity: 0.9;
+}
+.refmap-node {
+  fill: var(--panel-2);
+  stroke: var(--text-secondary);
+  stroke-width: 1.5;
+}
+/* Somebody who proved humanity: where trust starts, so marked where it starts. */
+.refmap-human {
+  fill: var(--consensus);
+  stroke: var(--consensus);
+}
+.refmap-label {
+  font-size: 11px;
+  fill: var(--text-primary);
+  font-family: var(--font-mono);
+}
+.refmap-facts {
+  margin: 0;
+  display: grid;
+  gap: var(--sp-sm);
+}
+.refmap-facts dt {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+.refmap-facts dd {
+  margin: 0;
+  font-weight: 600;
+}
+.refmap-caveat {
+  margin-top: var(--sp-md);
+  font-size: 0.9rem;
+}

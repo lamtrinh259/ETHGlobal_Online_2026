@@ -4595,7 +4595,12 @@ describe("GET /v1/graph/:handle — rank and shape", () => {
 
   it("measures the shape on the whole graph, not on the cut it draws", async () => {
     const body = await (await app(chainWith()).request("/v1/graph/alice")).json();
-    expect(body.metrics).toEqual({ mutual: 1, referrerDensity: 0, referrersReferringEachOther: 0, clusterSize: 2 });
+    expect(body.metrics).toEqual({
+      mutual: 1,
+      referrerDensity: 0,
+      referrersReferringEachOther: 0,
+      clusterSize: 2,
+    });
   });
 
   it("has no rank at all where nobody has proved anything", async () => {

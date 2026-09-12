@@ -111,6 +111,16 @@ function fakeApi(): Api {
     }),
     vouches: vi.fn(async (handle: string) => ({ handle, domain: `~${handle}`, vouches: [], warning: "w" })),
     standing: vi.fn(async () => ({ claimed: true, taken: true, given: 0, received: 0 })),
+    graph: vi.fn(async (handle: string) => ({
+      handle,
+      nodes: [],
+      edges: [],
+      metrics: { mutual: 0, referrerDensity: 0, referrersReferringEachOther: 0, clusterSize: 1 },
+      rank: 0,
+      human: false,
+      seeds: 0,
+      warning: "w",
+    })),
     profile: vi.fn(async (handle: string) => ({
       handle,
       names: [],

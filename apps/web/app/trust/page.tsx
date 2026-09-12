@@ -158,6 +158,37 @@ export default async function TrustPage() {
         </p>
       </section>
 
+      <section className="card" data-testid="how-rank">
+        <h2>How the reference map is scored</h2>
+        <ol className="flow">
+          <li>
+            <strong>edges</strong>
+            <span>every live reference, from whoever wrote it to whoever it is for</span>
+            <small className="muted">a signed record anyone can resolve; nothing inferred</small>
+          </li>
+          <li>
+            <strong>seeds</strong>
+            <span>whoever holds a live Selfie Check proof</span>
+            <small className="muted">the only part of this nobody can hold twice</small>
+          </li>
+          <li>
+            <strong>walk</strong>
+            <span>trust spreads from the seeds along references, a few steps, edges taken either way</span>
+            <small className="muted">after SybilRank, NSDI 2012: honest regions fill, rings barely do</small>
+          </li>
+          <li>
+            <strong>rank</strong>
+            <span>trust per connection, so connections alone earn nothing</span>
+            <small className="muted">a signal, shown beside the count and the shape, never a verdict</small>
+          </li>
+        </ol>
+        <p className="muted">
+          A newcomer with one honest reference and a ring with one bought one look alike until more people
+          speak. What the map adds is whether the people behind somebody know each other — which is what a
+          count cannot say.
+        </p>
+      </section>
+
       <section className="card">
         <h2>Outside the enclave, deliberately</h2>
         <ul className="self-reported">
