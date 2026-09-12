@@ -87,10 +87,12 @@ PermissionedResolver, the bridge, the factory, the CRE workflow, the API.
 ## Humanity
 
 The `humanity` domain is global and keyed by wallet, so the instance resolver hops into it from any name
-the same wallet holds and answers `ketsuban:humanity[:until]`. The record's id is a World ID nullifier —
-stable for one human, this app and one action — and its payload is the credential (`orb`,
-`proof_of_human`). One human, one account is that id: Multipass refuses a second record carrying it, and
-the relay refuses before spending anything, from a binding kept in `DATA_DIR`.
+the same wallet holds and answers `ketsuban:humanity[:until]`. The record's id is derived from the wallet
+(`humanityRecordId`), never the World nullifier: Multipass keeps an id for a record's whole life and keeps
+a nonce per id even after deletion, and the nullifier is neither that stable (it is per action and per
+credential) nor something to publish. Its payload is the credential (`selfie`, `proof_of_human`). One
+human, one account is the nullifier's job, done off chain: the relay keeps nullifier → wallet in
+`DATA_DIR` and refuses a second wallet before spending anything.
 
 The proof is verified in the relay rather than the enclave: it carries no secret of the person's, and
 World is the party that decides whether the mathematics holds. `apps/api/README.md` has the exchange.

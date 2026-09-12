@@ -6,17 +6,23 @@ import { short } from "@/app/ui";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Where each step runs",
-  description: "Which part of Ketsuban sees what, read back from the deployment itself.",
+  title: "Who can see what",
+  description:
+    "How a reference is made, where the secret part runs, and what this deployment admits about itself.",
 };
 
-/** One step of an attestation: where it happens, and what it can see while it does. */
+/** One step of writing a record: where it happens, and what it can see while it does. */
 const STEPS = [
-  { at: "your browser", does: "signs an intent", sees: "everything you typed", inside: false },
-  { at: "the enclave", does: "reads your identity token", sees: "every linked account", inside: true },
-  { at: "the enclave", does: "signs as registrar", sees: "the one account you chose", inside: true },
-  { at: "the DON", does: "carries the report", sees: "the signed record", inside: false },
-  { at: "the chain", does: "registers the name", sees: "the signed record", inside: false },
+  { at: "your browser", does: "you sign what you want written", sees: "everything you typed", inside: false },
+  { at: "the enclave", does: "checks your login token", sees: "every account you linked", inside: true },
+  {
+    at: "the enclave",
+    does: "writes and signs one record",
+    sees: "only the account you chose",
+    inside: true,
+  },
+  { at: "the DON", does: "carries the signed record", sees: "the record, nothing else", inside: false },
+  { at: "the chain", does: "Multipass keeps it", sees: "the record, nothing else", inside: false },
 ];
 
 /** A chain of steps, each one an arrow away from the next. */
@@ -41,11 +47,11 @@ function Chain({
 }
 
 /**
- * What this deployment can and cannot see.
+ * Who can see what, said so a first-time reader gets it.
  *
- * Every other page asks a reader to trust names rather than this service. This one is about the step
- * the chain cannot show them, and it is read from the deployment rather than asserted: a claim about
- * an enclave is worth nothing from a page that would make it either way.
+ * Every other page asks a reader to trust names rather than this service. This one explains the
+ * three parts and the one step the chain cannot show them, and it is read from the deployment rather
+ * than asserted: a claim about a sealed box is worth nothing from a page that would make it either way.
  */
 export default async function TrustPage() {
   const config = loadWebConfig();
@@ -64,24 +70,66 @@ export default async function TrustPage() {
   return (
     <>
       <section className="hero">
-        <h1>Where each step runs</h1>
-        <p>Your identity token lists every account you linked. This is who holds it while it is read.</p>
-      </section>
-
-      <section className="card trust">
-        <h2>
-          {config.confidential ? "Read inside a Chainlink CRE enclave" : "Signed on this deployment's node"}
-        </h2>
-        <Chain steps={STEPS} testid="flow" />
-        <p className="muted" data-testid="stance">
-          {config.confidential
-            ? "Green steps run in an AWS Nitro enclave that neither this service nor its operator controls."
-            : "Green steps are written for an enclave and tested in its simulator. This deployment has not been enrolled, so its operator could read them. Not claimed here until it is."}
+        <h1>Who can see what</h1>
+        <p>
+          A reference is a signed note on a public register. Here is who touches it, and what each one sees.
         </p>
       </section>
 
       <section className="card trust">
-        <h2>The key the chain trusts</h2>
+        <h2>The three parts</h2>
+        <Chain
+          steps={[
+            {
+              at: "Multipass",
+              does: "the register, on chain",
+              sees: "one record per name per domain; nobody can edit it in place",
+            },
+            {
+              at: "the registrar",
+              does: "the one key Multipass trusts",
+              sees: "a record counts only if this key signed it",
+            },
+            {
+              at: "the name",
+              does: "what you hand people",
+              sees: "alice.ketsuban.eth reads the record back, in any ENS client",
+            },
+          ]}
+        />
+        <p className="muted">
+          You never write to the register yourself. You ask; the registrar checks; the registrar signs; the
+          chain keeps the signed record. The registrar is the whole game, so where it runs is the question.
+        </p>
+      </section>
+
+      <section className="card trust">
+        <h2>Why the registrar sits in a sealed box</h2>
+        <p>
+          To prove an account is yours, the registrar must read your login token. That token lists{" "}
+          <em>every</em> account you ever linked, not only the one you chose to show. Whoever holds the
+          registrar could read all of it.
+        </p>
+        <p>
+          So the registrar runs inside a sealed box — a Chainlink CRE enclave, a TEE. The box reads the token,
+          writes one record naming only the account you chose, signs it, and forgets the rest. Not even the
+          people running this site can look inside. A masked account&apos;s view code is sealed to the same
+          box, so nobody else can open it either.
+        </p>
+        <Chain steps={STEPS} testid="flow" />
+        <p className={config.confidential ? "muted" : "warning"} data-testid="stance">
+          {config.confidential
+            ? "Here, the green steps run inside an AWS Nitro enclave that neither this site nor its operator controls."
+            : "Here, honestly: the green steps are written for the box and tested in its simulator, but this deployment has not been enrolled, so the registrar runs on this site's own server and its operator could read them. Not claimed here until it is."}
+        </p>
+      </section>
+
+      <section className="card trust">
+        <h2>One key, three places it must match</h2>
+        <p className="muted">
+          The chain expects a registrar key. The site signs with a key. View codes are sealed to a key. Same
+          key in all three, or nothing works — and nothing can be faked.
+        </p>
         <table data-testid="keys">
           <tbody>
             {(
@@ -116,7 +164,7 @@ export default async function TrustPage() {
       </section>
 
       <section className="card trust">
-        <h2>It has written a record</h2>
+        <h2>It has done it for real</h2>
         <table data-testid="proven-run">
           <tbody>
             <tr>
@@ -144,35 +192,43 @@ export default async function TrustPage() {
           </tbody>
         </table>
         <p className="muted">
-          The private one stores no handle: a one-time pad and a view-code commitment. Nodes simulated,
-          forwarder Chainlink&apos;s MockKeystoneForwarder; handler, signature, bridge and record real.
+          The private one stores no handle at all: scrambled bytes and a lock only a view code opens. Nodes
+          simulated, forwarder Chainlink&apos;s MockKeystoneForwarder; handler, signature, bridge and record
+          real.
         </p>
       </section>
 
       <section className="card trust" data-testid="how-rank">
-        <h2>How the reference map is scored</h2>
+        <h2>How SybilScore is counted</h2>
+        <p className="muted">
+          Fake accounts can vouch for each other all day. What they cannot do is be a real person.
+        </p>
         <Chain
           steps={[
             {
               at: "edges",
-              does: "every live reference, writer → subject",
-              sees: "signed records, nothing inferred",
+              does: "every live reference is a line, writer → subject",
+              sees: "signed records, nothing guessed",
             },
             {
               at: "seeds",
-              does: "whoever holds a live Selfie Check",
-              sees: "the one thing nobody holds twice",
+              does: "people who passed a Selfie Check",
+              sees: "the one thing you cannot hold twice",
             },
             {
               at: "walk",
-              does: "trust spreads from seeds along references",
-              sees: "SybilRank: teams fill, rings barely do",
+              does: "trust flows from seeds along the lines",
+              sees: "teams fill up; rings of fakes barely do",
             },
-            { at: "rank", does: "trust per connection", sees: "connections alone earn nothing" },
+            {
+              at: "rank",
+              does: "trust divided by connections",
+              sees: "collecting connections earns nothing",
+            },
             {
               at: "SybilScore",
-              does: "0–100: humanity 20, each reference up to 15 of its writer's score",
-              sees: "a newcomer starts at 0; a ring nobody proved sums to 0",
+              does: "0–100: a real person is 20, each reference adds up to 15 of its writer's score",
+              sees: "a newcomer starts at 0; a ring nobody proved stays at 0",
             },
           ]}
         />
@@ -180,24 +236,24 @@ export default async function TrustPage() {
       </section>
 
       <section className="card trust" data-testid="how-read">
-        <h2>How statements are read</h2>
+        <h2>How a reference is read</h2>
         <Chain
           steps={[
             { at: "the words", does: "31 bytes somebody signed", sees: "always shown as written" },
             {
               at: "the council",
-              does: "Noolog fast council: three models, one round",
-              sees: "data to read, never instructions",
+              does: "three AI models read them, once",
+              sees: "the words are data, never instructions",
             },
             {
               at: "polarity",
-              does: "−1 critical … +1 supportive, one sentence of why",
+              does: "critical … supportive, and one sentence why",
               sees: "same words, same reading",
             },
             {
               at: "provisional",
-              does: "until peers in a cohort have judged",
-              sees: "no council configured → unread",
+              does: "until real peers have judged",
+              sees: "no council configured → shown unread",
             },
           ]}
         />
@@ -205,16 +261,17 @@ export default async function TrustPage() {
       </section>
 
       <section className="card trust">
-        <h2>Outside the enclave, deliberately</h2>
+        <h2>Outside the box, on purpose</h2>
         <ul className="self-reported">
           <li>
-            <strong>World ID proof</strong> — no secret of yours; World decides.
+            <strong>Your World ID proof</strong> — has no secret of yours in it; World says whether it holds.
           </li>
           <li>
-            <strong>Reference letters</strong> — kept here; only the hash is permanent.
+            <strong>Reference letters</strong> — kept on this site; only their fingerprint is on chain,
+            forever.
           </li>
           <li>
-            <strong>Who may read a masked account</strong> — kept here; opens only where the registrar key is.
+            <strong>Who may read a masked account</strong> — kept on this site; opens only inside the box.
           </li>
         </ul>
         {preflight && preflight.warnings.length > 0 && (
