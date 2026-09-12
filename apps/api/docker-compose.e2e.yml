@@ -4,10 +4,10 @@
 # published on loopback only under env-overridable defaults, so the stack coexists with other
 # compose projects on the same machine (nothing here touches the default bridge or 172.18–20/16).
 # Keys below are anvil's well-known dev keys; never reuse them anywhere real.
-# Per run where runs can overlap: a push landing while the previous run is still composing cancels
-# it, and its teardown then removes containers from under the run that replaced it, because both
-# were one project of one fixed name on one host. The name is fixed by default, so a developer's
-# machine keeps one stack; a runner sets it per run.
+# Per run where runs can overlap: two runs on one host that share a project name, a network name, a
+# subnet or a host port take each other down — a cancelled run's teardown removed the containers of
+# the run that replaced it, and a second stack's network failed with "Pool overlaps". Every one of
+# those is fixed by default, so a developer's machine keeps one stack; a runner sets them per run.
 name: ${COMPOSE_PROJECT:-ketsuban-e2e}
 
 volumes:

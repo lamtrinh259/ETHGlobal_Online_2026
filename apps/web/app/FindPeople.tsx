@@ -50,6 +50,9 @@ export function FindPeople({
             s.answers === undefined
               ? s.title
               : `${s.answers} ${s.answers === 1 ? "answer" : "answers"} · ${s.title}`,
+          // The same second action a person row has. Referring a person is writing about them;
+          // for a subject that is answering its question, which happens on your own page.
+          also: { label: "Answer", href: "/me#refer" },
         }))}
       />
     </section>

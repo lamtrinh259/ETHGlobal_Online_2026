@@ -60,7 +60,13 @@ export function PersonSearch({
    * A subject is not a person and never appears in a search for one, but it is the thing most readers
    * here have actually come to look at. Ranking cannot put it first because it is not in the ranking.
    */
-  pinned?: { href: string; label: string; note?: string }[];
+  pinned?: {
+    href: string;
+    label: string;
+    note?: string;
+    /** The second thing to do with it, as every person row has one: for a subject, answering */
+    also?: { label: string; href: string };
+  }[];
   /** The front page is this box, so there it is the size of the thing people came to do */
   big?: boolean;
   /**
@@ -345,6 +351,12 @@ export function PersonSearch({
                     <Link className="button" href={x.href}>
                       {action}
                     </Link>
+                    {/* A subject is a row like any other: what a person row offers second, this offers too. */}
+                    {x.also && (
+                      <Link className="button" href={x.also.href} data-testid="pinned-also">
+                        {x.also.label}
+                      </Link>
+                    )}
                   </span>
                 </li>
               ))}
