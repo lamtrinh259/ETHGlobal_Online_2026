@@ -216,29 +216,23 @@ code {
     border-bottom: 1px solid var(--border);
     background: var(--panel);
   }
-  /*
-   * The brand takes the slack, so what follows it is against the right edge whether or not anybody is
-   * signed in. Hung off `.sh-who`, the theme toggle floated in the middle of the bar for every visitor
-   * who was not, because that element renders nothing until it has somebody to name.
-   */
+  /* The bar holds the burger and the brand, nothing that could squeeze the wordmark into a column. */
   .sh-mobtop .sh-brand {
-    margin-right: auto;
+    flex: none;
+    white-space: nowrap;
   }
-  /* An email address is the name most people are signed in under, and it is wider than the bar. */
-  .sh-mobtop .sh-who {
+  /* A finger, not a pointer: 32px of width was the smallest target on every screen. */
+  .sh-side .th-opt {
+    min-width: 44px;
+  }
+  /* An email address is the name most people are signed in under, and it is wider than the drawer. */
+  .sh-side .sh-who {
     min-width: 0;
   }
-  .sh-mobtop .sh-who a {
+  .sh-side .sh-who a {
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
-  }
-  .sh-mobtop .th-toggle {
-    flex: none;
-  }
-  /* A finger, not a pointer: 32px of width was the smallest target on every screen. */
-  .sh-mobtop .th-opt {
-    min-width: 44px;
   }
   .sh-burger {
     flex: none;

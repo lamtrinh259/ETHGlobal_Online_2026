@@ -58,7 +58,10 @@ test("the nav is a sidebar on a wide screen and a drawer on a narrow one", async
     // Closed drawer: off-screen and out of the a11y tree, so its links are not reachable.
     await expect(burger).toBeVisible();
     await expect(side).toHaveAttribute("inert", "");
+    // The bar is the burger and the brand: the theme toggle lives in the drawer, not beside them.
+    await expect(page.locator(".sh-mobtop").getByRole("button", { name: "Light" })).toHaveCount(0);
     await burger.click();
+    await expect(side.getByRole("button", { name: "Light" })).toBeVisible();
     await expect(side).not.toHaveAttribute("inert", "");
     await expect(page.getByRole("dialog", { name: "Menu" })).toBeVisible();
     await side.getByRole("link", { name: "Trust" }).click();
@@ -76,8 +79,9 @@ test("the nav is a sidebar on a wide screen and a drawer on a narrow one", async
   await noOverflow(page);
 });
 
-test("theme toggle persists and stamps <html>", async ({ page }) => {
+test("theme toggle persists and stamps <html>", async ({ page, isMobile }) => {
   await page.goto("/");
+  if (isMobile) await page.getByRole("button", { name: "Menu", exact: true }).click();
   await page.getByRole("button", { name: "Light" }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
   await page.reload();

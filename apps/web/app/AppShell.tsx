@@ -96,12 +96,6 @@ export function AppShell({ children }: { children: ReactNode }) {
           <img src="/mark.svg" alt="" aria-hidden className="sh-logo" width={22} height={22} />
           <Wordmark />
         </Link>
-        {compact && (
-          <>
-            <WhoAmI />
-            <ThemeToggle />
-          </>
-        )}
       </header>
 
       <aside
@@ -132,12 +126,10 @@ export function AppShell({ children }: { children: ReactNode }) {
           ))}
         </nav>
         <div className="sh-sideFoot">
-          {!compact && (
-            <>
-              <WhoAmI />
-              <ThemeToggle />
-            </>
-          )}
+          {/* Who is signed in and the theme live here on every screen: a phone's bar has room for the
+              burger and the brand, and everything else is one tap away in the drawer. */}
+          <WhoAmI />
+          <ThemeToggle />
           <p className="sh-note muted">
             {buildStamp(build.sha, build.builtAt)} · every record is permanent · this is not identity
             verification
