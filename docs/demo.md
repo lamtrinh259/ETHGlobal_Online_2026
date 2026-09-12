@@ -143,7 +143,9 @@ reference is unclaimed rather than pretending its writer has no history.
    the link to attest it — on the profile page, which brings them back here with the invitation still
    in hand, so the reference they then write counts as one the candidate asked for.
 3. `/p/<handle>` — the reference page, graded against the verifier's own policy, with the raw names to
-   resolve independently. Each reference received carries how it reads — supportive, neutral or
+   resolve independently. Under the name, the sybil signal in one line: *trust 0.188 · 2 behind them,
+   1 know each other · proved human · reads 1 supportive / 1 critical · details ↓* — the cards below
+   are what it is drawn from. Each reference received carries how it reads — supportive, neutral or
    critical, the council's provisional reading of the words — and a switch sets the unsolicited ones
    aside, counted. Below the list: the shape behind the count (who stands behind them, whether those
    people know each other, the trust that reached them) and what the references say, summed into one

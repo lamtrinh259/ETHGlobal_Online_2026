@@ -4,6 +4,7 @@ import { questionTitle } from "@/lib/questions";
 import { ProfileHead } from "./ProfileHead";
 import { ReferenceTabs } from "./ReferenceTabs";
 import { ScoreRing } from "./me/ScoreRing";
+import { SybilLine } from "./SybilLine";
 import { profileScore } from "@/lib/score";
 import { fmtUtc, short } from "./ui";
 
@@ -44,6 +45,8 @@ export function ProfileCard({
           avatar: p.identity?.profile?.avatar ?? undefined,
         }}
       >
+        {/* The sybil signal, one line, where a reader looks first; the cards below carry the rest. */}
+        <SybilLine handle={p.handle} />
         <p className="row">
           {/* A word passing judgement on somebody, for a bar they were never told about, is not a
               reading of their records. It belongs to the reader who set the bar, and only then. */}

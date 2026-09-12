@@ -25,7 +25,7 @@ export function ReferenceMap({ handle }: { handle: string }) {
 
   if (graph.isPending) {
     return (
-      <section className="card refmap" data-testid="reference-map">
+      <section className="card refmap" id="who-stands-behind" data-testid="reference-map">
         <h3>Who stands behind them</h3>
         <p className="muted">reading the graph…</p>
       </section>
@@ -33,7 +33,7 @@ export function ReferenceMap({ handle }: { handle: string }) {
   }
   if (graph.isError || !graph.data) {
     return (
-      <section className="card refmap" data-testid="reference-map">
+      <section className="card refmap" id="who-stands-behind" data-testid="reference-map">
         <h3>Who stands behind them</h3>
         <p className="warning" data-testid="reference-map-unread">
           The graph could not be read just now, which says nothing about this person.
@@ -56,7 +56,7 @@ export function ReferenceMap({ handle }: { handle: string }) {
   const m = g.metrics;
 
   return (
-    <section className="card refmap" data-testid="reference-map">
+    <section className="card refmap" id="who-stands-behind" data-testid="reference-map">
       <h3>Who stands behind them</h3>
       {referrers === 0 ? (
         <p className="muted" data-testid="reference-map-empty">

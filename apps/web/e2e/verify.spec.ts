@@ -323,3 +323,19 @@ test("a policy can ask that no reference read as critical, and the page says how
   await expect(checks).toContainText("1 of 2 read as critical");
   await expect(page.getByTestId("policy-line")).toContainText("none reading as critical");
 });
+
+/**
+ * The sybil signal where the eye lands: one line under the name, from the same reads the cards below
+ * are drawn from — trust, who stands behind them, whether they know each other, how the words read.
+ */
+test("a person's page says the sybil signal in one line under the name", async ({ page }) => {
+  await page.goto("/p/alice");
+  const line = page.getByTestId("sybil-line");
+  await expect(line.getByTestId("sybil-trust")).toContainText("0.188");
+  await expect(line.getByTestId("sybil-behind")).toContainText("2");
+  await expect(line.getByTestId("sybil-among")).toContainText("1");
+  await expect(line.getByTestId("sybil-human")).toContainText("proved human");
+  await expect(line.getByTestId("sybil-read")).toContainText("reads 1 supportive / 1 critical");
+  await line.getByRole("link", { name: /details/ }).click();
+  await expect(page).toHaveURL(/#who-stands-behind$/);
+});

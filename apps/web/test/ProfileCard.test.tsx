@@ -8,7 +8,12 @@ vi.mock("@/app/providers", () => ({
 }));
 vi.mock("@/lib/hooks", async (orig) => {
   const real = await orig<typeof import("@/lib/hooks")>();
-  return { ...real, apiFor: () => ({}), useReadings: () => ({ data: undefined, isPending: false }) };
+  return {
+    ...real,
+    apiFor: () => ({}),
+    useReadings: () => ({ data: undefined, isPending: false }),
+    useGraph: () => ({ data: undefined, isPending: true, isError: false }),
+  };
 });
 import { ProfileCard } from "@/app/ProfileCard";
 import type { Profile } from "@/lib/profile";

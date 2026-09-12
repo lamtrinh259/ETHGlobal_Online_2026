@@ -1084,7 +1084,6 @@ details.advanced[open] > summary {
   cursor: pointer;
 }
 
-
 /* The profile as a page: a picture you change in place, then the name and the line under it. */
 .me-head {
   display: flex;
@@ -1408,7 +1407,6 @@ pre > code {
   }
 }
 
-
 /*
  * The reference map: the person in the middle, whoever stands behind them around the edge, and a line
  * for every reference among that set. Lines among the referrers are the ones that close into a shape.
@@ -1519,5 +1517,11 @@ pre > code {
 }
 .readings-caveat {
   margin-top: var(--sp-md);
+  font-size: 0.9rem;
+}
+
+/* The sybil signal under the name: one line, small, its numbers bold so they can be found again. */
+.sybil-line {
+  margin: var(--sp-xs) 0 0;
   font-size: 0.9rem;
 }
