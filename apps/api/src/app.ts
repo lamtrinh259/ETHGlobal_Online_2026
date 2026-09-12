@@ -2039,8 +2039,16 @@ export function createApp({
       names: records
         .filter((r) => isNameDomain(r.domain))
         .map((r) => ({ ...fmt(r), ensName: `${r.name}.${parentOf.get(r.domain)}` })),
+      // A humanity record is answered as `humanity` above; listed as a link it read as a private account
+      // — one the page then offered to open to a candidate, with no view code to open it with.
       links: records
-        .filter((r) => !isNameDomain(r.domain) && !isVouch(r.domain) && r.domain !== config.ORG_DOMAIN)
+        .filter(
+          (r) =>
+            !isNameDomain(r.domain) &&
+            !isVouch(r.domain) &&
+            r.domain !== config.ORG_DOMAIN &&
+            r.domain !== config.HUMANITY_DOMAIN
+        )
         .map((r) => {
           const optedIn = r.payload !== zeroHash;
           const held = records.find((k) => k.live && isNameDomain(k.domain))?.name;

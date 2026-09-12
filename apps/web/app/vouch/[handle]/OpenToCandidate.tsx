@@ -43,7 +43,8 @@ export function OpenToCandidate({
   const [done, setDone] = useState<string[]>();
   const [error, setError] = useState<string>();
 
-  const masked = links.filter((l) => l.live && l.optedIn);
+  // An account is at a DNS domain; a record without a dot (a humanity proof, an organisation) is not one.
+  const masked = links.filter((l) => l.live && l.optedIn && l.domain.includes("."));
   if (masked.length === 0 || !voucherName || !rootParent) return null;
   const audienceName = `${candidate}.${rootParent}`;
 

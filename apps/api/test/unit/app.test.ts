@@ -3246,9 +3246,13 @@ describe("GET /v1/wallet/:address", () => {
         rec("uni", "alice", "a terrible dictator"),
         rec("x", "alice_x", ""),
         rec("~bob", "alice", "great colleague", false),
+        // The humanity proof: answered on its own, never as a linked account somebody could be asked to open.
+        rec("humanity", "", "selfie"),
       ],
     });
     const body = await (await app(chain).request(`/v1/wallet/${user.account.address}`)).json();
+    expect(body.humanity).toMatchObject({ level: "selfie" });
+    expect(body.links.map((l: { domain: string }) => l.domain)).not.toContain("humanity");
     expect(body.names).toEqual([
       {
         domain: "kju-is",

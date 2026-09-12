@@ -91,3 +91,21 @@ describe("opening a masked account to the person you referred", () => {
     expect(api.disclose).not.toHaveBeenCalled();
   });
 });
+
+describe("what can be opened at all", () => {
+  /*
+   * A humanity proof is a record in a domain with no dot, masked like a private account, and it was
+   * offered as one — with no view code anywhere to open it, so the offer ended in an error. Only an
+   * account somewhere can be opened to a candidate.
+   */
+  it("offers nothing where the only masked record is the humanity proof", () => {
+    const { container } = show([link("humanity", true)]);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("offers the accounts and leaves the humanity proof out", () => {
+    show([link("humanity", true), link("github.com", true)]);
+    expect(screen.getByText("github.com")).toBeInTheDocument();
+    expect(screen.queryByText("humanity")).toBeNull();
+  });
+});
