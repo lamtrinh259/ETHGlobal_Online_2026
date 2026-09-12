@@ -328,7 +328,7 @@ export function Employers({ subjectDomains }: { subjectDomains: string[] }) {
       )}
 
       <section className="card" id="employer-report" data-testid="employer-report">
-        <h2>3 · Your checks</h2>
+        <h2>Your checks</h2>
         {list.length === 0 ? (
           <p className="muted">
             Nobody on the list yet. Add somebody above and this reads their records against the bar.
