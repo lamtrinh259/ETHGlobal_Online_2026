@@ -40,6 +40,15 @@ contract MigrateRootTest is BaseTest {
         // deploy: a root resolver that reads the same Multipass
         RootAttestationResolver root = new RootAttestationResolver(mp, inner, INSTANCE, PARENT, vm.addr(operatorKey));
 
+        // bridge: the bridge asks the root resolver where a name lives
+        vm.prank(bridge.owner());
+        bridge.transferOwnership(vm.addr(operatorKey));
+        vm.setEnv("STEP", "bridge");
+        vm.setEnv("BRIDGE", vm.toString(address(bridge)));
+        vm.setEnv("ROOT_RESOLVER", vm.toString(address(root)));
+        script.run();
+        assertEq(address(bridge.rootResolver()), address(root));
+
         // point: the root label now resolves through it
         vm.setEnv("STEP", "point");
         vm.setEnv("ROOT_RESOLVER", vm.toString(address(root)));
@@ -74,7 +83,7 @@ contract MigrateRootTest is BaseTest {
 
     function test_refusesAStepItDoesNotKnow() public {
         vm.setEnv("STEP", "explode");
-        vm.expectRevert(bytes("STEP must be deploy, point, unpoint, unmount or remount"));
+        vm.expectRevert(bytes("STEP must be deploy, bridge, point, unpoint, unmount or remount"));
         script.run();
     }
 }

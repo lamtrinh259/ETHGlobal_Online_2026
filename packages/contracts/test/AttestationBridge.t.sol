@@ -6,6 +6,7 @@ import {IMultipass} from "@peeramid-labs/multipass/src/interfaces/IMultipass.sol
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {AttestationBridge} from "../src/AttestationBridge.sol";
 import {AttestationFactory} from "../src/AttestationFactory.sol";
+import {RootAttestationResolver} from "../src/RootAttestationResolver.sol";
 import {BaseTest} from "./Base.t.sol";
 
 contract AttestationBridgeTest is BaseTest {
@@ -216,5 +217,22 @@ contract AttestationBridgeTest is BaseTest {
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(AttestationFactory.UnknownInstance.selector, bytes32("orphan")));
         bridge.linkOwnName("orphan", "alice");
+    }
+
+    /// @dev Where the tree is one resolver at the root, the factory knows nothing about a vouch domain;
+    ///      the bridge asks the root resolver where the name lives and grants the voucher their keys.
+    function test_verify_grantsKeysThroughTheRootResolver_whereTheFactoryHasNoInstance() public {
+        RootAttestationResolver root = new RootAttestationResolver(mp, inner, INSTANCE, PARENT, operator);
+        vm.prank(bridge.owner());
+        bridge.setRootResolver(root);
+        vm.startPrank(treasury);
+        mp.initializeDomain(registrar, 0, 0, "~alice", 0, 0);
+        mp.activateDomain("~alice");
+        vm.stopPrank();
+        LibMultipass.Record memory r = record("~alice", bob, b32("bob"), b32("bob>alice"), 1, b32("great colleague"));
+        bridge.verify(r, signRecord(r), emptyQuery(), "");
+        assertTrue(inner.hasTextGrant(dns("bob.alice.acme-alumni.eth"), "description", bob));
+        assertTrue(inner.hasTextGrant(dns("bob.alice.acme-alumni.eth"), "avatar", bob));
+        assertFalse(inner.hasTextGrant(dns("bob.acme-alumni.eth"), "description", bob));
     }
 }

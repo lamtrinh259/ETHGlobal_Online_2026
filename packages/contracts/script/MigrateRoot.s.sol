@@ -4,6 +4,7 @@ pragma solidity ^0.8.28;
 import {Script, console} from "forge-std/Script.sol";
 import {IRegistry} from "@ensv2/registry/IRegistry.sol";
 import {Multipass} from "@peeramid-labs/multipass/src/Multipass.sol";
+import {AttestationBridge} from "../src/AttestationBridge.sol";
 import {AttestationRegistry} from "../src/AttestationRegistry.sol";
 import {RootAttestationResolver} from "../src/RootAttestationResolver.sol";
 import {IPermissionedResolver} from "../src/interfaces/IPermissionedResolver.sol";
@@ -22,6 +23,8 @@ interface IEthRegistryAdmin {
  *
  *   STEP=deploy   deploys RootAttestationResolver and prints its address (put it in the deployment
  *                 file as `rootResolver`, or in the API's env as ROOT_RESOLVER)
+ *   STEP=bridge   BRIDGE=0x… ROOT_RESOLVER=0x…: the bridge grants a new name its text records by asking
+ *                 the root resolver where the factory has no answer
  *   STEP=point    ETHRegistry.setResolver(<root label>, ROOT_RESOLVER): every level with no registry
  *                 of its own now resolves through the new resolver
  *   STEP=unmount  LABELS=<comma list: www, the at-sign level, private-www, its private twin, kju-is, alice, …>
@@ -40,11 +43,12 @@ contract MigrateRoot is Script {
         uint256 pk = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(pk);
         if (which == keccak256("deploy")) _deploy(vm.addr(pk));
+        else if (which == keccak256("bridge")) _bridge(vm.envAddress("BRIDGE"), vm.envAddress("ROOT_RESOLVER"));
         else if (which == keccak256("point")) _point(vm.envAddress("ROOT_RESOLVER"));
         else if (which == keccak256("unpoint")) _point(vm.envAddress("RESOLVER"));
         else if (which == keccak256("unmount")) _unmount(vm.envString("LABELS"));
         else if (which == keccak256("remount")) _remount(vm.envString("LABEL"), vm.envAddress("REGISTRY_TO_MOUNT"));
-        else revert("STEP must be deploy, point, unpoint, unmount or remount");
+        else revert("STEP must be deploy, bridge, point, unpoint, unmount or remount");
         vm.stopBroadcast();
     }
 
@@ -57,6 +61,11 @@ contract MigrateRoot is Script {
             owner
         );
         console.log("rootResolver", address(root));
+    }
+
+    function _bridge(address bridge, address resolver) internal {
+        AttestationBridge(bridge).setRootResolver(RootAttestationResolver(resolver));
+        console.log("bridge asks", resolver);
     }
 
     function _point(address resolver) internal {

@@ -7,6 +7,7 @@ import {IOwnedRegistry} from "@ensv2/registry/IOwnedRegistry.sol";
 import {IMultipass} from "@peeramid-labs/multipass/src/interfaces/IMultipass.sol";
 import {LibMultipass} from "@peeramid-labs/multipass/src/libraries/LibMultipass.sol";
 import {AttestationFactory} from "./AttestationFactory.sol";
+import {RootAttestationResolver} from "./RootAttestationResolver.sol";
 import {IPermissionedResolver} from "./interfaces/IPermissionedResolver.sol";
 import {LibLabel} from "./libraries/LibLabel.sol";
 
@@ -32,6 +33,11 @@ contract AttestationBridge is Ownable {
     AttestationFactory public immutable FACTORY;
 
     mapping(bytes32 orgId => Org) internal _orgs;
+    /// @notice Where the tree is one resolver at the root, the name a record answers at comes from it
+    ///         rather than from the factory, which no longer knows every mount. Zero until migrated.
+    RootAttestationResolver public rootResolver;
+
+    event RootResolverSet(address resolver);
 
     event Sponsored(bytes32 indexed orgId, bytes32 indexed id, bytes32 domainName);
     event OrgSet(bytes32 indexed orgId, address treasury, bool active);
@@ -108,10 +114,26 @@ contract AttestationBridge is Ownable {
         emit NameLinked(msg.sender, domain, label, canonical);
     }
 
+    /// @notice Point the bridge at the root resolver, once the deployment has one.
+    function setRootResolver(RootAttestationResolver resolver) external onlyOwner {
+        rootResolver = resolver;
+        emit RootResolverSet(address(resolver));
+    }
+
+    /// @dev The parent name a record's domain hangs under: the factory's answer where it has one, the
+    ///      root resolver's where the tree lives there, nothing otherwise.
+    function _parentNameOf(bytes32 domain) internal view returns (string memory) {
+        if (FACTORY.isInstance(domain)) return FACTORY.parentNameOf(domain);
+        if (address(rootResolver) != address(0)) return rootResolver.parentNameOf(domain);
+        return "";
+    }
+
     function _grantProfileKeys(LibMultipass.Record calldata rec) internal {
-        if (!FACTORY.isInstance(rec.domainName)) return;
-        bytes memory n =
-            NameCoder.encode(string.concat(LibLabel.fromBytes32(rec.name), ".", FACTORY.parentNameOf(rec.domainName)));
+        // A masked record has no readable name to grant on; a humanity proof has no name at all.
+        if (rec.name == bytes32(0)) return;
+        string memory parent = _parentNameOf(rec.domainName);
+        if (bytes(parent).length == 0) return;
+        bytes memory n = NameCoder.encode(string.concat(LibLabel.fromBytes32(rec.name), ".", parent));
         bytes[] memory calls = new bytes[](4);
         calls[0] = abi.encodeCall(INNER.authorizeTextRoles, (n, "avatar", rec.wallet, true));
         calls[1] = abi.encodeCall(INNER.authorizeTextRoles, (n, "description", rec.wallet, true));

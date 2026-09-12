@@ -87,6 +87,7 @@ contract DeployLocal is Script {
         RootAttestationResolver root =
             new RootAttestationResolver(d.mp, d.inner, bytes32(bytes(d.label)), d.parentName, deployer);
         d.eth.setLabel(d.label, deployer, IRegistry(address(0)), address(root));
+        d.bridge.setRootResolver(root);
         return address(root);
     }
 
@@ -103,7 +104,8 @@ contract DeployLocal is Script {
         vm.serializeAddress(json, "reporter", address(d.reporter));
         vm.serializeAddress(json, "registry", address(d.registry));
         vm.serializeAddress(json, "resolver", address(d.resolver));
-        if (d.rootResolver != address(0)) vm.serializeAddress(json, "rootResolver", d.rootResolver);
+        // `rootResolver` is taken: the Sepolia file uses it for the root instance's own resolver.
+        if (d.rootResolver != address(0)) vm.serializeAddress(json, "wildcardResolver", d.rootResolver);
         vm.serializeString(json, "instanceDomain", d.label);
         string memory out = vm.serializeString(json, "instanceParent", d.parentName);
         vm.writeJson(out, "deployments/local.json");

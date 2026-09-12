@@ -225,6 +225,19 @@ contract RootAttestationResolverTest is BaseTest {
         assertEq(_text("alice.kju-is.acme-alumni.eth", "ketsuban:answer"), "dictator");
     }
 
+    // ---------- the inverse: where a record in a domain is named ----------
+
+    function test_parentNameOf_isTheInverseOfLocate() public view {
+        assertEq(root.parentNameOf(INSTANCE), "acme-alumni.eth");
+        assertEq(root.parentNameOf(SUBJECT), "kju-is.acme-alumni.eth");
+        assertEq(root.parentNameOf(VOUCH_ALICE), "alice.acme-alumni.eth");
+        assertEq(root.parentNameOf(XCOM), "com.x.www.acme-alumni.eth");
+        assertEq(root.parentNameOf("gmail.com"), "com.gmail.@.acme-alumni.eth");
+        assertEq(root.parentNameOf("kju-is:dictator"), "dictator.kju-is.acme-alumni.eth");
+        assertEq(root.parentNameOf(HUMANITY), "");
+        assertEq(root.parentNameOf(bytes32(0)), "");
+    }
+
     function _hex(address a) internal pure returns (string memory) {
         bytes memory raw = abi.encodePacked(a);
         bytes memory out = new bytes(40);

@@ -64,6 +64,18 @@ Same keys as today: `addr`, `ketsuban:answer`, `ketsuban:expiry`, `ketsuban:huma
 4. **Domain names longer than 31 bytes** cannot be Multipass domains at all; a long DNS host under `www`
    answers nothing, as it does today.
 
+## What the spike lacked, now in
+
+- `setAbout(domain, label, key, value)` on the root resolver; answer namespaces (`<slug>.<question>`);
+  `parentNameOf(domain)`, the inverse rule, which the bridge asks where the factory has no instance
+  (`AttestationBridge.setRootResolver`), so a new name still gets its four text-record grants.
+- Two caveats the tree now carries: any name domain without a dot resolves as a subject
+  (`<label>.<domain>.<root>`), so the flat platform domains an early deployment initialised (`x`,
+  `github`, …) resolve their public records that way — nothing private, and nothing the old tree did not
+  hold; and `parentNameOf` decides `www` versus the at-sign level from a constant list of platform hosts
+  that mirrors `PLATFORM_DNS_NAMES` off chain (every other host is mail). Adding a platform means adding
+  it in both.
+
 ## Migration on Sepolia — no downtime, reversible
 
 ENSv2 resolves by walking registries: a level that has a subregistry uses that registry's resolver, a level
@@ -128,16 +140,20 @@ export ETH_REGISTRY=0xBDC85dD5b15D7ecb354cd7cb6f2c50b4f2c4F0E2 REGISTRY=0x254D9c
 export MULTIPASS=0x418F82fd0014a4CA402F145978bfaF0555a9cA06 PERMISSIONED_RESOLVER=0x4E2d9783cEFF2ed72CD77C14206b29fe246b24F7
 export ROOT_LABEL=ketsuban ROOT_DOMAIN=ketsuban ROOT_PARENT=ketsuban.eth
 
-# 1. deploy — prints `rootResolver 0x…`; add it to deployments/11155111.json as "rootResolver"
+# 1. deploy — prints `rootResolver 0x…`; add it to deployments/11155111.json as "wildcardResolver"
+#    (`rootResolver` there is the old root instance resolver, kept for the rollback)
 #    (the API reads ROOT_RESOLVER from the deployment file, or from env) and redeploy the API
 STEP=deploy forge script script/MigrateRoot.s.sol --rpc-url $RPC --broadcast
 export ROOT_RESOLVER=0x…
 
-# 2. point — the root label resolves through it; every level with no registry of its own follows
+# 2. bridge — the bridge grants a new name its text records by asking the root resolver
+STEP=bridge BRIDGE=0xC7283bD9Aad1B08947C841536946Ce4dA9c99929 forge script script/MigrateRoot.s.sol --rpc-url $RPC --broadcast
+
+# 3. point — the root label resolves through it; every level with no registry of its own follows
 STEP=point forge script script/MigrateRoot.s.sol --rpc-url $RPC --broadcast
 pnpm --filter @ketsuban/web check:live
 
-# 3. unmount, level by level — groupings first, then the subject, then each candidate mount;
+# 4. unmount, level by level — groupings first, then the subject, then each candidate mount;
 #    the script prints the registry that was mounted, which the rollback needs
 STEP=unmount LABELS=www,private-www forge script script/MigrateRoot.s.sol --rpc-url $RPC --broadcast
 pnpm --filter @ketsuban/web check:live

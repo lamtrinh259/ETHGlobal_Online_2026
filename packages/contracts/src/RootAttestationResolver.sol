@@ -145,7 +145,72 @@ contract RootAttestationResolver is IExtendedResolver, IERC165 {
         return id == type(IExtendedResolver).interfaceId || id == type(IERC165).interfaceId;
     }
 
-    // ---------- where a name lands ----------
+    // ---------- where a record lives, and where a name lands ----------
+
+    /// @notice The parent name a record in `domain` is named under: the inverse of `locate`. What the
+    ///         bridge needs to grant a new name its own text records, without a factory to ask. Empty
+    ///         for a domain that names nothing here (the humanity proofs), so the caller grants nothing.
+    function parentNameOf(bytes32 domain) external view returns (string memory) {
+        if (domain == bytes32(0) || domain == HUMANITY) return "";
+        if (domain == ROOT_DOMAIN) return _rootName;
+        bytes memory raw = bytes(LibLabel.fromBytes32(domain));
+        if (raw.length == 0) return "";
+        if (raw[0] == VOUCH_PREFIX) return string.concat(_slice(raw, 1, raw.length), ".", _rootName);
+        (bool isAnswer, uint256 sep) = _find(raw, ANSWER_SEPARATOR);
+        if (isAnswer) {
+            return string.concat(_slice(raw, sep + 1, raw.length), ".", _slice(raw, 0, sep), ".", _rootName);
+        }
+        (bool isDns,) = _find(raw, ".");
+        if (isDns) return string.concat(_reversed(raw), ".", _openGroupingFor(raw), ".", _rootName);
+        // A name domain: a subject, or one of the flat platform domains an early deployment made.
+        return string.concat(string(raw), ".", _rootName);
+    }
+
+    /// @dev A platform hangs under `www`, and everything else with a dot is a mail host under the
+    ///      at-sign level: the same rule as `platformOf` off chain, which decides where a record is
+    ///      written in the first place — so the two lists must agree. Kept as a constant on purpose;
+    ///      adding a platform is adding it in both places.
+    function _openGroupingFor(bytes memory dns) internal pure returns (string memory) {
+        bytes32 h = keccak256(dns);
+        if (
+            h == keccak256("apple.com") || h == keccak256("discord.com") || h == keccak256("farcaster.xyz")
+                || h == keccak256("github.com") || h == keccak256("google.com") || h == keccak256("instagram.com")
+                || h == keccak256("line.me") || h == keccak256("linkedin.com") || h == keccak256("spotify.com")
+                || h == keccak256("t.me") || h == keccak256("tiktok.com") || h == keccak256("twitch.tv")
+                || h == keccak256("x.com")
+        ) {
+            return "www";
+        }
+        return "@";
+    }
+
+    function _find(bytes memory raw, bytes1 what) internal pure returns (bool, uint256) {
+        for (uint256 i; i < raw.length; ++i) {
+            if (raw[i] == what) return (true, i);
+        }
+        return (false, 0);
+    }
+
+    function _slice(bytes memory raw, uint256 from, uint256 to) internal pure returns (string memory) {
+        bytes memory out = new bytes(to - from);
+        for (uint256 i; i < out.length; ++i) {
+            out[i] = raw[from + i];
+        }
+        return string(out);
+    }
+
+    /// @dev `x.com` → `com.x`: the labels of a DNS name in the order ENS reads them.
+    function _reversed(bytes memory dns) internal pure returns (string memory out) {
+        uint256 end = dns.length;
+        for (uint256 i = dns.length; i > 0; --i) {
+            if (dns[i - 1] == "." || i == 1) {
+                uint256 start = dns[i - 1] == "." ? i : 0;
+                string memory part = _slice(dns, start, end);
+                out = bytes(out).length == 0 ? part : string.concat(out, ".", part);
+                end = i - 1;
+            }
+        }
+    }
 
     /// @notice Which Multipass domain a DNS-encoded name under the root is read from, and which label.
     ///         `known` is false for a name the tree does not have: nothing answers for it, which is the
