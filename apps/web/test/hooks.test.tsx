@@ -67,6 +67,7 @@ function fakeApi(): Api {
     adminHumanityReset: vi.fn(),
     adminSelfieCheck: vi.fn(),
     adminSelfieCheckSet: vi.fn(),
+    viewCodes: vi.fn(),
     instance: vi.fn(async (domain: string) => ({
       domain,
       parentName: `${domain}.ketsuban.eth`,

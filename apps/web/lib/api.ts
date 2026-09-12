@@ -753,6 +753,18 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
       });
       return adminResetSchema.parse(await readJson(res));
     },
+    /**
+     * The view codes this session's wallets hold, re-derived by the service from the Privy identity
+     * token: nothing for the person to keep, and the same answer on every device.
+     */
+    async viewCodes(idToken: string): Promise<Record<string, Hex>> {
+      const res = await call(`${base}/v1/viewcodes`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ idToken }),
+      });
+      return z.object({ codes: z.record(z.string(), hex) }).parse(await readJson(res)).codes;
+    },
     /** Demo only: whether the Selfie Check is in force for everyone. */
     async adminSelfieCheck(token: string): Promise<AdminSelfieCheck> {
       return adminSelfieCheckSchema.parse(

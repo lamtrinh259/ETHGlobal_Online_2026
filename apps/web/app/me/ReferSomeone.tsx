@@ -24,12 +24,10 @@ export function ReferSomeone({ api, onGo }: { api: Api; onGo: (handle: string, a
   const [how, setHow] = useState<"account" | "name">("account");
   const [platform, setPlatform] = useState<string>("x.com");
   const [account, setAccount] = useState("");
-  const [hasCode, setHasCode] = useState(false);
-  const [viewCode, setViewCode] = useState("");
   const [query, setQuery] = useState("");
 
   const dns = platform;
-  const who = useWho(api, dns, account, hasCode ? viewCode.trim() : undefined);
+  const who = useWho(api, dns, account);
   const found = useFind(api, query);
   const clean = query.trim().toLowerCase().replace(/^@/, "");
   /** Opening with an ask in hand keeps the choice: nobody should be asked the same thing twice. */
@@ -87,27 +85,6 @@ export function ReferSomeone({ api, onGo }: { api: Api; onGo: (handle: string, a
                     data-testid="account-handle"
                   />
                 </label>
-                {/* A private account is a one-time pad on chain, so nothing can search it. The view code is
-                    the exception, and it is one the candidate chose to hand over. */}
-                {!hasCode ? (
-                  <p>
-                    <button className="linkish" onClick={() => setHasCode(true)} data-testid="have-viewcode">
-                      They gave me a view code
-                    </button>
-                  </p>
-                ) : (
-                  <label>
-                    Their view code
-                    <input
-                      value={viewCode}
-                      onChange={(e) => setViewCode(e.target.value)}
-                      placeholder="0x…"
-                      aria-label="view code"
-                      data-testid="viewcode"
-                    />
-                    <small className="muted">A private account is unsearchable without it.</small>
-                  </label>
-                )}
 
                 <p className="muted" data-testid="who-result">
                   {account.trim().length < 2 ? (

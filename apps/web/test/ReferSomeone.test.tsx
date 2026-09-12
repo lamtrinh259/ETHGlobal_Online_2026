@@ -55,17 +55,12 @@ describe("referring someone by their account", () => {
     expect(screen.getByTestId("who-result")).toHaveTextContent("4");
   });
 
-  it("finds a private account when the searcher was given its view code", async () => {
-    // The code is the permission: nothing else can find a masked record, and the candidate chose to
-    // hand it over. Offering the field is what makes a private account referable at all.
-    const code = `0x${"5a".repeat(32)}`;
-    state.who = { found: true, candidate: "bobby", standing: { claimed: true, given: 0, received: 2 } };
+  it("asks for no view code: a private account is opened by the candidate, through the service", () => {
+    // The person never holds a code. What the candidate opened to them is read through the service,
+    // so the modal has nothing to type a code into.
     refer();
-    fireEvent.change(screen.getByTestId("account-handle"), { target: { value: "bob" } });
-    fireEvent.click(screen.getByTestId("have-viewcode"));
-    fireEvent.change(screen.getByTestId("viewcode"), { target: { value: code } });
-    await waitFor(() => expect(state.askedWith).toBe(code));
-    await waitFor(() => expect(screen.getByTestId("who-result")).toHaveTextContent("bobby"));
+    expect(screen.queryByTestId("have-viewcode")).toBeNull();
+    expect(screen.queryByTestId("viewcode")).toBeNull();
   });
 
   it("says a private account cannot be searched, instead of offering to start a second page", async () => {

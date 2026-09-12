@@ -1,6 +1,8 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useIdentityToken, usePrivy } from "@privy-io/react-auth";
+import { mergeViewCodes } from "@/lib/keys";
 import { useState } from "react";
 import type { Address, Hex } from "viem";
 import { createApi, type Api, type AttestResult, type Verification } from "./api";
@@ -292,5 +294,33 @@ export function useReverse(api: Api, address: Address | undefined) {
     queryKey: ["reverse", address],
     queryFn: () => api.reverse(address as Address),
     enabled: !!address,
+  });
+}
+
+/**
+ * Pull the session's view codes from the service into this browser. Failing is fine: the codes this
+ * browser already holds still work, and the next sign-in tries again.
+ */
+export async function syncViewCodes(api: Api, idToken: string | null | undefined): Promise<void> {
+  if (!idToken || typeof api.viewCodes !== "function") return;
+  try {
+    mergeViewCodes(await api.viewCodes(idToken));
+  } catch {
+    // Offline, or an older service: the browser's own store stands.
+  }
+}
+
+/** The codes follow the session: once signed in, they are here on every device. */
+export function useViewCodeSync(api: Api) {
+  const { authenticated } = usePrivy();
+  const { identityToken } = useIdentityToken();
+  return useQuery({
+    queryKey: ["viewcodes", identityToken ? identityToken.slice(-24) : ""],
+    queryFn: async () => {
+      await syncViewCodes(api, identityToken);
+      return true;
+    },
+    enabled: authenticated && !!identityToken,
+    staleTime: 60_000,
   });
 }

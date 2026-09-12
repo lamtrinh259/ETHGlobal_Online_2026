@@ -9,7 +9,7 @@ import { WITHDRAWN } from "@ketsuban/registrar";
 import { useWebConfig } from "@/app/providers";
 import { CopyButton } from "@/app/CopyButton";
 import { fmtUtc, short } from "@/app/ui";
-import { apiFor, useVerification, useVouches, useWalletDashboard } from "@/lib/hooks";
+import { apiFor, useVerification, useVouches, useWalletDashboard, useViewCodeSync } from "@/lib/hooks";
 import type { Signer } from "@/lib/chain";
 import { nameRows, needsAttention } from "@/lib/journey";
 import { vouchRequest } from "@/lib/profile";
@@ -57,6 +57,7 @@ export function Dashboard() {
   // After publishing, the record has to reach the index before this page can show it.
   const [awaiting, setAwaiting] = useState<string>();
   const dash = useWalletDashboard(api, wallet, !!awaiting);
+  useViewCodeSync(api);
   // The wait ends as soon as the record shows up, whichever domain it was for.
   useEffect(() => {
     if (!awaiting || !dash.data) return;

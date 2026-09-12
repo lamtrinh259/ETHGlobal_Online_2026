@@ -44,6 +44,7 @@ const state = {
 const linksAsked: string[] = [];
 
 vi.mock("@privy-io/react-auth", () => ({
+  useIdentityToken: () => ({ identityToken: "token" }),
   usePrivy: () => ({
     ready: true,
     authenticated: true,
@@ -139,6 +140,8 @@ vi.mock("@/lib/hooks", () => ({
     wallet: vi.fn(async () => ({ balance: "2000000000000000" })),
   }),
   useContracts: () => ({ data: { permissionedResolver: state.resolver, humanity: state.checksHumanity } }),
+  useViewCodeSync: () => ({}),
+  syncViewCodes: vi.fn(async () => undefined),
   // What the candidate opened to whoever holds the invitation; none of it, here.
   useDisclosures: () => ({ data: undefined, isPending: false }),
   useWalletDashboard: () => ({

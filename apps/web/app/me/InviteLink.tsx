@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { useSignTypedData, useWallets } from "@privy-io/react-auth";
+import { useIdentityToken, useSignTypedData, useWallets } from "@privy-io/react-auth";
 import type { Address } from "viem";
 import { ZERO_ADDRESS, type SignedInvite } from "@ketsuban/registrar";
 import { useWebConfig } from "@/app/providers";
@@ -17,6 +17,7 @@ import { PlatformPicker } from "@/app/PlatformPicker";
 import { inviteTypedData } from "@/lib/intent";
 import { buildDisclosure, disclosureTypedData, linkKeyFromInvite, toDisclosureWire } from "@/lib/disclose";
 import { loadViewCodes } from "@/lib/keys";
+import { syncViewCodes } from "@/lib/hooks";
 import { Switch } from "@/app/Switch";
 
 const WEEK = 7 * 24 * 3600;
@@ -45,6 +46,7 @@ export function InviteLink({
   const config = useWebConfig();
   const { wallets } = useWallets();
   const { signTypedData } = useSignTypedData();
+  const { identityToken } = useIdentityToken();
   const [link, setLink] = useState<string>();
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
@@ -96,6 +98,8 @@ export function InviteLink({
       // permission is a second statement, addressed exactly as far as the link reaches: whoever holds
       // it, which is who the invitation already lets write.
       if (shared.length > 0 && name) {
+        // The service knows the codes; the browser is only a cache of them.
+        await syncViewCodes(api, identityToken);
         const codes = loadViewCodes();
         const accounts = shared.map((d) => {
           const viewCode = codes[d];

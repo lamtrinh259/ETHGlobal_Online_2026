@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useSignTypedData, useWallets } from "@privy-io/react-auth";
+import { useIdentityToken, useSignTypedData, useWallets } from "@privy-io/react-auth";
 import type { Address, Hex } from "viem";
 import type { Api, WalletDashboard } from "@/lib/api";
 import { Switch } from "@/app/Switch";
 import { useWebConfig } from "@/app/providers";
 import { buildDisclosure, disclosureTypedData, toDisclosureWire } from "@/lib/disclose";
 import { loadViewCodes } from "@/lib/keys";
+import { syncViewCodes } from "@/lib/hooks";
 
 /**
  * A reference signed by somebody whose accounts are all masked.
@@ -41,6 +42,7 @@ export function OpenToCandidate({
   const config = useWebConfig();
   const { wallets } = useWallets();
   const { signTypedData } = useSignTypedData();
+  const { identityToken } = useIdentityToken();
   const [picked, setPicked] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<string[]>();
@@ -67,6 +69,8 @@ export function OpenToCandidate({
       const wallet = (wallets.find((w) => w.walletClientType === "privy") ?? wallets[0])?.address as
         Address | undefined;
       if (!wallet) throw new Error("no wallet yet — Privy is still creating it");
+      // The service knows the codes; the browser is only a cache of them.
+      await syncViewCodes(api, identityToken);
       const codes = loadViewCodes();
       const accounts = domains.map((domain) => {
         const viewCode = codes[domain];

@@ -54,3 +54,8 @@ export function saveViewCode(domain: string, code: Hex, storage: Store = localSt
     // storage unavailable (private mode, quota): the code is still shown once on screen
   }
 }
+
+/** Codes the service handed back, kept beside the ones this browser already holds. */
+export function mergeViewCodes(codes: Record<string, Hex>, storage: Store = localStorage): void {
+  for (const [domain, code] of Object.entries(codes)) saveViewCode(domain, code, storage);
+}

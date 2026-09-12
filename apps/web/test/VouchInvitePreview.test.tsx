@@ -36,6 +36,7 @@ vi.mock("@/lib/hooks", () => ({
   // What the candidate opened to whoever holds the invitation; none of it, here.
   useDisclosures: () => ({ data: undefined, isPending: false }),
   useContracts: () => ({ data: undefined }),
+  useViewCodeSync: () => ({}),
   useLetterWrite: () => ({ write: vi.fn(), state: "idle" }),
 }));
 

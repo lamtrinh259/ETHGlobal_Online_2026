@@ -13,7 +13,14 @@ import { InviteTerms } from "./InviteTerms";
 import { LetterForm } from "./LetterForm";
 import { useWebConfig } from "@/app/providers";
 import { fmtUtc } from "@/app/ui";
-import { apiFor, useContracts, useDisclosures, useLetterWrite, useWalletDashboard } from "@/lib/hooks";
+import {
+  apiFor,
+  useContracts,
+  useDisclosures,
+  useLetterWrite,
+  useViewCodeSync,
+  useWalletDashboard,
+} from "@/lib/hooks";
 import type { SignedInvite } from "@ketsuban/registrar";
 import type { Signer } from "@/lib/chain";
 import { WITHDRAWN } from "@ketsuban/registrar";
@@ -97,6 +104,7 @@ export function VouchFlow({
   /** The step the writer is looking at; unset, it is the first one not done. */
   const [chosen, setChosen] = useState<string>();
   const dash = useWalletDashboard(api, authenticated ? wallet : undefined, awaitingLink);
+  useViewCodeSync(api);
   const contracts = useContracts(api);
   const onChain = voucherProgress(dash.data, root?.domain ?? "", candidate);
 

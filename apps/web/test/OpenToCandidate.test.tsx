@@ -9,6 +9,7 @@ import type { Api, WalletDashboard } from "@/lib/api";
 const WALLET = "0xEE4811b9462956C9C3535E79c08776D769CA9F3a";
 
 vi.mock("@privy-io/react-auth", () => ({
+  useIdentityToken: () => ({ identityToken: "token" }),
   useWallets: () => ({ wallets: [{ walletClientType: "privy", address: WALLET }] }),
   useSignTypedData: () => ({ signTypedData: vi.fn(async () => ({ signature: "0x01" })) }),
 }));
