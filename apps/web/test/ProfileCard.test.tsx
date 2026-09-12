@@ -16,6 +16,7 @@ const profile: Profile = {
       name: "alice.kju-is.ketsuban.eth",
       answer: "terrible dictator",
       status: "active",
+      taken: true,
       expiresAt: "2026-10-08T09:14:22.000Z",
     },
   ],
@@ -427,5 +428,38 @@ describe("a name that lapsed", () => {
     const blank = { ...gone, answers: [], links: [], vouches: [] };
     render(<ProfileCard p={blank} rootParent="ketsuban.eth" heldOnce />);
     expect(screen.getByTestId("blank-page")).toHaveTextContent("Nobody holds this name now");
+  });
+});
+
+describe("an answer that lapsed", () => {
+  /*
+   * The record ran out and the resolver stops answering, which is the same nothing a question nobody
+   * touched produces — so somebody who answered and let it lapse read as somebody who never did, on
+   * the page of the question they answered.
+   */
+  const answered = (over: object) => ({
+    ...profile,
+    answers: [{ domain: "kju-is", name: "alice.kju-is.ketsuban.eth", answer: null, ...over }],
+  });
+
+  it("says the record ran out, rather than that nobody answered", () => {
+    render(
+      <ProfileCard
+        p={answered({ status: "inactive", taken: true, expiresAt: null }) as never}
+        rootParent="ketsuban.eth"
+      />
+    );
+    expect(screen.getByTestId("lapsed-kju-is")).toHaveTextContent("answered once");
+  });
+
+  it("still says nothing was answered where nothing was", () => {
+    render(
+      <ProfileCard
+        p={answered({ status: "inactive", taken: false, expiresAt: null }) as never}
+        rootParent="ketsuban.eth"
+      />
+    );
+    expect(screen.queryByTestId("lapsed-kju-is")).toBeNull();
+    expect(screen.getByTestId("answers")).toHaveTextContent("not answered");
   });
 });

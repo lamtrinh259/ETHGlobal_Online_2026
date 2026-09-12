@@ -173,6 +173,7 @@ function fakeApi(): Api {
       name,
       instance: { domain: "ketsuban", parentName: "ketsuban.eth" },
       status: "inactive" as const,
+      taken: false,
       wallet: null,
       answer: null,
       expiresAt: null,

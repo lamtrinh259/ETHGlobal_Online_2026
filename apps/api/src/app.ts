@@ -1960,6 +1960,19 @@ export function createApp({
         chain.resolveText(r, name, "email"),
       ]);
     const active = wallet !== "0x0000000000000000000000000000000000000000";
+    /*
+     * Whether this name was ever held, which is not whether it resolves now.
+     *
+     * A record that ran out and a name nobody registered both resolve to nothing, so an answer
+     * somebody gave and let lapse read as one they never gave — on the page of the question they
+     * answered. The registry knows the difference; the resolver cannot.
+     */
+    const taken = active
+      ? true
+      : await chain
+          .nameStatus(instance.domain, name.split(".")[0] ?? "")
+          .then((n) => n.taken)
+          .catch(() => false);
     const mounts = new Map((await chain.instances()).map((i) => [i.domain, i]));
     /*
      * The label the person holds: what the private branch names their masked accounts after.
@@ -2028,6 +2041,8 @@ export function createApp({
       // reading rather than inferring it from the shape of the name.
       branch: located.masked ? ("private" as const) : ("open" as const),
       status: active ? "active" : "inactive",
+      /** Held once, whether or not it resolves now: a lapsed record is not a name nobody ever had. */
+      taken,
       wallet: active ? wallet : null,
       answer: active ? answer : null,
       expiresAt: expiry ? new Date(Number(expiry) * 1000).toISOString() : null,

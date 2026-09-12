@@ -17,6 +17,7 @@ const verification: Verification = {
   name: "alice.ketsuban.eth",
   instance: { domain: "ketsuban", parentName: "ketsuban.eth" },
   status: "active" as const,
+  taken: true,
   wallet: "0xEE4811b9462956C9C3535E79c08776D769CA9F3a",
   answer: null,
   expiresAt: "2027-01-01T00:00:00.000Z",

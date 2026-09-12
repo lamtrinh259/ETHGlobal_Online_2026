@@ -151,6 +151,10 @@ export function ProfileCard({
                     <>
                       “{a.answer}” <small className="muted">valid until {fmtUtc(a.expiresAt)}</small>
                     </>
+                  ) : a.taken ? (
+                    /* They answered; the record ran out. Saying "not answered" makes the lapse look
+                       like a decision they never took. */
+                    <em data-testid={`lapsed-${a.domain}`}>answered once — the record has lapsed</em>
                   ) : (
                     <em>not answered</em>
                   )}

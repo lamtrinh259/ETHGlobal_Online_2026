@@ -125,6 +125,8 @@ export type Profile = {
     name: string;
     answer: string | null;
     status: "active" | "inactive";
+    /** Answered once: a record that ran out is not an answer nobody ever gave. */
+    taken: boolean;
     expiresAt: string | null;
   }[];
   links: Verification["links"];
@@ -153,6 +155,8 @@ export function assessProfile(
     name: r.name,
     answer: r.v?.answer ?? null,
     status: r.v?.status ?? ("inactive" as const),
+    /** Answered once: a record that ran out is not an answer nobody ever gave. */
+    taken: r.v?.taken ?? false,
     expiresAt: r.v?.expiresAt ?? null,
   }));
   const links = identity?.links ?? [];

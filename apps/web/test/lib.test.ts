@@ -212,6 +212,8 @@ describe("api client", () => {
     name: "alice.ketsuban.eth",
     instance: { domain: "ketsuban", parentName: "ketsuban.eth" },
     status: "active",
+    // Held: the flag exists to tell a record that ran out from a name nobody ever registered.
+    taken: true,
     wallet: account.address,
     answer: "terrible dictator",
     expiresAt: "2026-10-08T09:14:22.000Z",

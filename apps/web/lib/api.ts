@@ -28,6 +28,8 @@ export const verifySchema = z.object({
   /** Which half of the namespace this name lives in: the open one, or the private mirror */
   branch: z.enum(["open", "private"]).optional(),
   status: z.enum(["active", "inactive"]),
+  /** Held once, whether or not it resolves now: a lapsed record is not a name nobody ever had. */
+  taken: z.boolean().default(false),
   wallet: z.string().nullable(),
   answer: z.string().nullable(),
   expiresAt: z.string().nullable(),

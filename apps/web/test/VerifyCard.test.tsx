@@ -7,6 +7,7 @@ const base: Verification = {
   name: "alice.ketsuban.eth",
   instance: { domain: "ketsuban", parentName: "ketsuban.eth" },
   status: "active",
+  taken: true,
   wallet: "0xEE4811b9462956C9C3535E79c08776D769CA9F3a",
   answer: "terrible dictator",
   expiresAt: "2026-10-08T09:14:22.000Z",

@@ -678,6 +678,8 @@ describe("GET /v1/verify/:name", () => {
       instance: { domain: "kju-is", parentName: "kju-is.eth" },
       branch: "open",
       status: "inactive",
+      // Nobody has ever held it, which is what makes this different from a record that ran out.
+      taken: false,
       wallet: null,
       answer: null,
       expiresAt: null,
@@ -4311,5 +4313,41 @@ describe("an instance whose texts cannot be read", () => {
     const res = await app(chain).request("/v1/instance/kju-is");
     expect(res.status).toBe(200);
     expect((await res.json()).description).toBeNull();
+  });
+});
+
+/**
+ * A record that ran out is not a name nobody ever registered.
+ *
+ * Both resolve to nothing, so both came back `inactive` — and an answer somebody gave and let lapse
+ * read as one they never gave, on the page of the question they answered. The registry knows the
+ * difference even when the resolver cannot.
+ */
+describe("a name whose record has lapsed", () => {
+  it("is inactive, and says it was held", async () => {
+    const { chain } = fakeChain({
+      names: { "kju-is/alice": { taken: true, wallet: zeroAddress, live: false } },
+    });
+    const body = await (await app(chain).request("/v1/verify/alice.kju-is.eth")).json();
+    expect(body.status).toBe("inactive");
+    expect(body.taken).toBe(true);
+  });
+
+  it("is inactive and untaken where nobody ever registered it", async () => {
+    const { chain } = fakeChain();
+    const body = await (await app(chain).request("/v1/verify/nobody.kju-is.eth")).json();
+    expect(body.status).toBe("inactive");
+    expect(body.taken).toBe(false);
+  });
+
+  it("costs no extra read where the name resolves", async () => {
+    // A name that answers is held by definition; asking the registry as well would be a read per name
+    // on every page, for a fact the resolver has already settled.
+    const { chain } = fakeChain({ addr: user.account.address });
+    chain.nameStatus = vi.fn(async () => {
+      throw new Error("the registry should not have been asked");
+    });
+    const body = await (await app(chain).request("/v1/verify/alice.kju-is.eth")).json();
+    expect(body.taken).toBe(true);
   });
 });
