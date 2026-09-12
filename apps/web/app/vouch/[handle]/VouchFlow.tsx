@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { whyUnsatisfiable } from "@/lib/invite";
+import { describeRequirement, whyUnsatisfiable, wrongAccount } from "@/lib/invite";
+import { connectedAccounts, type LinkedAccounts } from "@/lib/identity";
+import { parseRequirement } from "@ketsuban/registrar";
 import { useMemo, useState } from "react";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import type { Address } from "viem";
@@ -50,7 +52,7 @@ export function VouchFlow({
   const config = useWebConfig();
   const root = config.instances[0];
   const api = useMemo(() => apiFor(config), [config]);
-  const { ready, authenticated } = usePrivy();
+  const { ready, authenticated, user } = usePrivy();
   const { wallets } = useWallets();
   const embedded = wallets.find((w) => w.walletClientType === "privy") ?? wallets[0];
   const wallet = embedded?.address as Address | undefined;
@@ -86,12 +88,16 @@ export function VouchFlow({
   // a masked account counts, so this is answered without publishing which account it is.
   const attestedNow = (dash.data?.links ?? []).filter((l) => l.live).map((l) => l.domain.toLowerCase());
   const askedFor = (invite?.requires ?? []).filter((d) => !whyUnsatisfiable(d, config.parentNames));
-  const stillToLink = askedFor.filter((d) => !attestedNow.includes(d.trim().toLowerCase()));
+  const stillToLink = askedFor.filter((d) => !attestedNow.includes(parseRequirement(d).domain));
+  // A requirement naming one account that this sign-in is not: nothing to link can change it.
+  const notYou = askedFor
+    .map((d) => wrongAccount(d, connectedAccounts(user as LinkedAccounts | null | undefined)))
+    .filter((why): why is string => !!why);
   const stage: Stage = !authenticated
     ? "signin"
     : published
       ? "done"
-      : stillToLink.length > 0
+      : stillToLink.length > 0 || notYou.length > 0
         ? "onboarding"
         : needsHuman
           ? "humanity"
@@ -215,7 +221,7 @@ export function VouchFlow({
           </p>
           <h3>1. The account you know {candidate} from</h3>
           <p>
-            {candidate} asked for references from people who hold <strong>{askedFor.join(" and ")}</strong>.
+            {candidate} asked for references from people who hold <strong>{askedFor.map(describeRequirement).join(" and ")}</strong>.
             {" "}Sign in to {stillToLink.length > 1 ? "each" : "it"} below and <em>Sign &amp; publish</em>. The
             account is attested to your wallet on chain and stays masked: the reference shows it came from
             someone who holds such an account, never which one.
@@ -223,21 +229,29 @@ export function VouchFlow({
           <ul className="journey" data-testid="onboarding-steps">
             {askedFor.map((d) => (
               <li key={d} className={stillToLink.includes(d) ? "todo" : "done"}>
-                {d}
+                {describeRequirement(d)}
                 {stillToLink.includes(d) ? " — not attested yet" : " — attested"}
               </li>
             ))}
           </ul>
-          <AttestFlow
-            key={stillToLink[0]}
-            fixedDomain={stillToLink[0]}
-            allowLinking
-            title=""
-            onPublished={() => {
-              setAwaitingLink(true);
-              void dash.refetch();
-            }}
-          />
+          {notYou.length > 0 && (
+            <p className="warning" data-testid="not-you">
+              {notYou.join(" ")} You can still write a reference, marked as one {candidate} did not ask for;
+              or ask them for a link meant for you.
+            </p>
+          )}
+          {stillToLink.length > 0 && (
+            <AttestFlow
+              key={stillToLink[0]}
+              fixedDomain={parseRequirement(stillToLink[0]).domain}
+              allowLinking
+              title=""
+              onPublished={() => {
+                setAwaitingLink(true);
+                void dash.refetch();
+              }}
+            />
+          )}
           {contracts.data?.humanity && (
             <>
               <h3>2. One person, one voice</h3>

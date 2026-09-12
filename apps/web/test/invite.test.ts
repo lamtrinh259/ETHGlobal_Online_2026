@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { missingRequirements, whyUnsatisfiable } from "@/lib/invite";
+import { describeRequirement, missingRequirements, whyUnsatisfiable, wrongAccount } from "@/lib/invite";
 
 const parents = ["ketsuban.eth", "kju-is.ketsuban.eth"];
 
@@ -7,6 +7,22 @@ describe("an invitation somebody could actually satisfy", () => {
   it("takes a mail host, which is what the field is for", () => {
     expect(whyUnsatisfiable("mit.edu", parents)).toBeNull();
     expect(whyUnsatisfiable("peeramid.xyz", parents)).toBeNull();
+  });
+
+  it("takes one person on a platform, and knows when the writer is somebody else", () => {
+    expect(whyUnsatisfiable("github.com/lam", parents)).toBeNull();
+    expect(whyUnsatisfiable("github.com/not a handle", parents)).toMatch(/not a handle/);
+    expect(describeRequirement("github.com/Lam")).toBe("github.com as @lam");
+    // The domain is what has to be attested; the handle is checked against the sign-in.
+    expect(missingRequirements(["github.com/lam"], ["github.com"], parents)).toEqual([]);
+    expect(missingRequirements(["github.com/lam"], [], parents)).toEqual(["github.com/lam"]);
+    expect(wrongAccount("github.com/lam", [{ domain: "github", label: "lam" }])).toBeNull();
+    expect(wrongAccount("github.com/lam", [{ domain: "github", label: "bob" }])).toMatch(
+      /for @lam on github.com; the account linked here is @bob/
+    );
+    expect(wrongAccount("github.com/lam", [])).toMatch(/no account there is linked here/);
+    expect(wrongAccount("mit.edu/tim", [{ domain: "google", label: "tim@mit.edu" }])).toBeNull();
+    expect(wrongAccount("mit.edu", [])).toBeNull();
   });
 
   it("refuses Telegram, which this deployment cannot link", () => {

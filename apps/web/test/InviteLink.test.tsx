@@ -88,6 +88,17 @@ describe("inviting someone to refer you", () => {
     expect(screen.getByTestId("invite-abcd1234")).toHaveTextContent("abcd1234");
   });
 
+  it("asks for one person on a platform when a handle is typed next to it", async () => {
+    render(<InviteLink api={api} handle="alice" />);
+    fireEvent.click(screen.getByTestId("open-invite"));
+    expect(screen.queryByTestId("require-handles")).toBeNull();
+    fireEvent.click(screen.getByTestId("platform-github.com"));
+    fireEvent.change(screen.getByTestId("handle-github.com"), { target: { value: "@Lam" } });
+    fireEvent.click(screen.getByTestId("make-invite"));
+    await waitFor(() => expect(signed).toHaveLength(1));
+    expect(signed[0]).toMatchObject({ handle: "alice", requires: ["github.com/lam"] });
+  });
+
   it("asks the writer for the accounts the candidate picked, and signs over them", async () => {
     render(<InviteLink api={api} handle="alice" />);
     fireEvent.click(screen.getByTestId("open-invite"));

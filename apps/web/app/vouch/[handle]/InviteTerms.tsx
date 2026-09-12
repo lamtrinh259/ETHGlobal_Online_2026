@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { PlatformIcon } from "@/app/PlatformIcon";
-import { whyUnsatisfiable } from "@/lib/invite";
+import { describeRequirement, whyUnsatisfiable } from "@/lib/invite";
+import { parseRequirement } from "@ketsuban/registrar";
 
 /**
  * What the candidate asked the writer to show, and whether they show it.
@@ -43,7 +44,7 @@ export function InviteTerms({
   const impossible = new Map(
     requires.map((d) => [d, whyUnsatisfiable(d, parentNames)] as const).filter(([, why]) => why)
   );
-  const met = requires.every((d) => held.has(d.toLowerCase()));
+  const met = requires.every((d) => held.has(parseRequirement(d).domain));
 
   return (
     <div className={met ? "muted" : "warning"} data-testid="invite-terms">
@@ -56,7 +57,7 @@ export function InviteTerms({
             {" "}
             <Link href={linkHref} className="button primary" data-testid="link-required">
               Link{" "}
-              {requires.filter((d) => !held.has(d.toLowerCase()) && !impossible.has(d)).length > 1
+              {requires.filter((d) => !held.has(parseRequirement(d).domain) && !impossible.has(d)).length > 1
                 ? "them"
                 : "it"}{" "}
               and come back
@@ -75,17 +76,17 @@ export function InviteTerms({
         {requires.map((d) => (
           <li
             key={d}
-            className={impossible.has(d) ? "todo" : held.has(d.toLowerCase()) ? "done" : "todo"}
+            className={impossible.has(d) ? "todo" : held.has(parseRequirement(d).domain) ? "done" : "todo"}
             data-testid={`term-${d}`}
           >
-            <PlatformIcon domain={d} size={16} />
+            <PlatformIcon domain={parseRequirement(d).domain} size={16} />
             <span className="acct-id">
-              <strong>{d}</strong>
+              <strong>{describeRequirement(d)}</strong>
             </span>
             <span className="acct-state">
               {impossible.has(d) ? (
                 "cannot be attested"
-              ) : held.has(d.toLowerCase()) ? (
+              ) : held.has(parseRequirement(d).domain) ? (
                 "attested"
               ) : linkHref ? (
                 <Link href={linkHref} data-testid={`link-${d}`}>

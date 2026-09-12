@@ -6,7 +6,7 @@ import { useSignTypedData, useWallets } from "@privy-io/react-auth";
 import type { Address } from "viem";
 import { ZERO_ADDRESS, type SignedInvite } from "@ketsuban/registrar";
 import { useWebConfig } from "@/app/providers";
-import { whyUnsatisfiable } from "@/lib/invite";
+import { describeRequirement, whyUnsatisfiable } from "@/lib/invite";
 import { CopyButton } from "@/app/CopyButton";
 import { fmtUtc } from "@/app/ui";
 import { useInvites } from "@/lib/hooks";
@@ -49,6 +49,8 @@ export function InviteLink({
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
   const [picked, setPicked] = useState<string[]>([]);
+  /** Who on that platform, when the invitation is for one person: `github.com` → `lam` */
+  const [handles, setHandles] = useState<Record<string, string>>({});
   const [shared, setShared] = useState<string[]>([]);
   const [domain, setDomain] = useState("");
   const [open, setOpen] = useState(false);
@@ -63,7 +65,10 @@ export function InviteLink({
         Address | undefined;
       if (!wallet) throw new Error("no wallet yet — Privy is still creating it");
       // A domain is a domain however it was typed, and what is asked for has to be what was signed.
-      const requires = [...picked, ...(domain.trim() ? [domain.trim()] : [])].map((d) => d.toLowerCase());
+      const requires = [...picked, ...(domain.trim() ? [domain.trim()] : [])].map((d) => {
+        const who = (handles[d] ?? "").trim().replace(/^@/, "");
+        return (who ? `${d}/${who}` : d).toLowerCase();
+      });
       /*
        * Refused before it is signed, because an invitation nobody can satisfy fails silently: the
        * writer follows the link, vouches, and their reference comes back unsolicited with nothing
@@ -153,7 +158,7 @@ export function InviteLink({
                     <code>{i.code}</code>
                   </strong>
                   <small className="muted">
-                    {i.requires.length ? `asks for ${i.requires.join(", ")}` : "asks for nothing"} ·{" "}
+                    {i.requires.length ? `asks for ${i.requires.map(describeRequirement).join(", ")}` : "asks for nothing"} ·{" "}
                     {i.expired ? "expired" : "until"} {fmtUtc(i.expiresAt)}
                   </small>
                   {/* What came of it: the reference written with this link, marked as one you asked for. */}
@@ -201,6 +206,27 @@ export function InviteLink({
             selected={picked}
             onToggle={(d) => setPicked((p) => (p.includes(d) ? p.filter((x) => x !== d) : [...p, d]))}
           />
+          {picked.length > 0 && (
+            <fieldset data-testid="require-handles">
+              <legend>From one person in particular?</legend>
+              <p className="muted">
+                Leave empty to accept anyone with an account there. Name a handle and only that person&apos;s
+                reference counts as asked for.
+              </p>
+              {picked.map((d) => (
+                <label key={d}>
+                  {d}{" "}
+                  <input
+                    value={handles[d] ?? ""}
+                    onChange={(e) => setHandles((h) => ({ ...h, [d]: e.target.value }))}
+                    placeholder="their handle there"
+                    aria-label={`required handle on ${d}`}
+                    data-testid={`handle-${d}`}
+                  />
+                </label>
+              ))}
+            </fieldset>
+          )}
           <label>
             Or a mail host
             <input

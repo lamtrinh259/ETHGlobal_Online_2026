@@ -29,7 +29,7 @@ const state = {
 };
 
 vi.mock("@privy-io/react-auth", () => ({
-  usePrivy: () => ({ ready: true, authenticated: true }),
+  usePrivy: () => ({ ready: true, authenticated: true, user: { id: "did:privy:x", github: { username: "bob" } } }),
   useSignTypedData: () => ({ signTypedData: vi.fn(async () => ({ signature: "0x01" })) }),
   useWallets: () => ({
     wallets: [
@@ -208,6 +208,17 @@ describe("what onboarding still needs", () => {
     expect(screen.getByTestId("attest")).toHaveAttribute("data-domain", "github.com");
     expect(screen.getByTestId("fake-human")).toBeInTheDocument();
     expect(gate.querySelector("a[href^='/me']")).toBeNull();
+  });
+
+  it("tells a writer signed in as somebody else that the invitation is not theirs, and links nothing", async () => {
+    state.links = [{ domain: "github.com", live: true, optedIn: false, ensName: null }];
+    const forLam = { ...invite, requires: ["github.com/lam"] } as typeof invite;
+    render(<VouchFlow candidate="alice" invite={forLam} inviteCode="c" />);
+    await waitFor(() => expect(screen.getByTestId("onboarding-gate")).toBeInTheDocument());
+    expect(screen.getByTestId("not-you").textContent).toContain("for @lam on github.com");
+    expect(screen.getByTestId("not-you").textContent).toContain("@bob");
+    expect(screen.queryByTestId("attest")).toBeNull();
+    expect(screen.getByTestId("onboarding-steps").textContent).toContain("github.com as @lam");
   });
 
   it("moves on to the next required account once one is attested", async () => {

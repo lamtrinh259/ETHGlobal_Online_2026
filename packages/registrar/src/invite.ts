@@ -8,6 +8,8 @@ import {
 } from "viem";
 import type { PrivateKeyAccount } from "viem/accounts";
 import { base64urlDecode, base64urlEncode } from "./base64url.js";
+import { dnsNameFor, labelFor, pickPlatformAccount, platformOf } from "./accounts.js";
+import type { LinkedAccount } from "./types.js";
 
 /**
  * A candidate's invitation to be vouched for. Without it anyone could write a statement into a
@@ -44,9 +46,47 @@ export type Invite = {
  * Does this writer hold what the invitation asked for. Domains are compared whole and lowercased: a
  * suffix match would let `notmit.edu` pass for `mit.edu`, which is a different institution.
  */
-export function meetsInvite(invite: Pick<Invite, "requires">, attested: readonly string[]): boolean {
+export function meetsInvite(
+  invite: Pick<Invite, "requires">,
+  attested: readonly string[],
+  linked: readonly LinkedAccount[] = []
+): boolean {
   const held = new Set(attested.map((d) => d.toLowerCase()));
-  return invite.requires.every((d) => held.has(d.toLowerCase()));
+  return invite.requires.every((entry) => {
+    const { domain, handle } = parseRequirement(entry);
+    if (!held.has(domain)) return false;
+    return !handle || holdsHandle(linked, domain, handle);
+  });
+}
+
+/** `github.com` asks for an account there; `github.com/lam` asks for that one account. */
+export type Requirement = { domain: string; handle?: string };
+
+export function parseRequirement(entry: string): Requirement {
+  const [domain = "", ...rest] = entry.trim().toLowerCase().split("/");
+  const handle = rest.join("/").trim().replace(/^@/, "");
+  return handle ? { domain, handle } : { domain };
+}
+
+/**
+ * Whether one of these linked accounts is `handle` on the platform `domain` names. An attested record
+ * is masked, so the handle is read from the accounts the identity token carries, not from the chain;
+ * a mail host takes an email address on that host, or a Google account with one.
+ */
+export function holdsHandle(linked: readonly LinkedAccount[], domain: string, handle: string): boolean {
+  const platform = platformOf(domain);
+  if (!platform) return false;
+  const want = handle.toLowerCase();
+  const kinds = platform === "email" ? ["email", "google"] : [platform];
+  return kinds.some((kind) => {
+    try {
+      const account = pickPlatformAccount([...linked], kind);
+      if (platform === "email" && dnsNameFor(kind, account) !== domain) return false;
+      return labelFor(kind, account) === want;
+    } catch {
+      return false;
+    }
+  });
 }
 
 export type SignedInvite = Invite & { signature: Hex };

@@ -42,6 +42,8 @@ export {
   INVITE_TYPES,
   inviteDomain,
   meetsInvite,
+  parseRequirement,
+  holdsHandle,
   recoverInviteSigner,
   signInvite,
   WITHDRAWN,

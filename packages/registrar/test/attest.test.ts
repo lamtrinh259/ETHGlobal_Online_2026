@@ -226,6 +226,24 @@ describe("attest — vouch instance (~candidate) domain", () => {
     ).resolves.toBeUndefined();
   });
 
+  it("counts an invitation naming one account only for the writer signed in as that account", async () => {
+    // "From lam on GitHub", not "from someone on GitHub". The chain holds a masked record, so the
+    // handle is read from the writer's sign-in; the test writer is alice on X and alice@example.com.
+    const intent = makeIntent({ domain: "~alice", handle: "bob", payload: toBytes32("hi") });
+    const asked = async (requires: string[], writerDomains: string[]) =>
+      solicitedBy(
+        await signedRequest(intent, undefined, undefined, await makeInvite({ requires })),
+        { ...noVouchRecord, writerDomains },
+        env
+      );
+    expect(await asked(["x.com/alice"], ["x.com"])).toBe(true);
+    expect(await asked(["x.com/@Alice"], ["x.com"])).toBe(true);
+    expect(await asked(["x.com/bob"], ["x.com"])).toBe(false);
+    expect(await asked(["x.com/alice"], [])).toBe(false);
+    expect(await asked(["example.com/alice"], ["example.com"])).toBe(true);
+    expect(await asked(["example.com/carol"], ["example.com"])).toBe(false);
+  });
+
   it("still turns away the uninvited where a deployment asked for that", async () => {
     const intent = makeIntent({ domain: "~alice", handle: "bob", payload: toBytes32("hi") });
     const closed = { ...env, requireInvite: true };

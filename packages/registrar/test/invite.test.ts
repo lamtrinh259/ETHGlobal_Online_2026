@@ -3,6 +3,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import {
   candidateOf,
   meetsInvite,
+  parseRequirement,
   decodeInvite,
   encodeInvite,
   inviteDomain,
@@ -109,6 +110,27 @@ describe("an invitation that asks something of the writer", () => {
     expect(meetsInvite(asked, [])).toBe(false);
     // An invitation that asks for nothing is met by anyone, which is the common case.
     expect(meetsInvite(base, [])).toBe(true);
+  });
+
+  it("is met by the one account it names, read from the writer's sign-in rather than the chain", () => {
+    const asked = { ...base, requires: ["github.com/Lam", "mit.edu/tim"] };
+    const lam = [
+      { type: "github_oauth", subject: "1", username: "lam" },
+      { type: "email", address: "tim@mit.edu" },
+    ];
+    expect(meetsInvite(asked, ["github.com", "mit.edu"], lam)).toBe(true);
+    // The right platforms, the wrong people.
+    expect(meetsInvite(asked, ["github.com", "mit.edu"], [{ type: "github_oauth", subject: "2", username: "bob" }])).toBe(false);
+    // The account has to be attested there too; a sign-in alone is not a record.
+    expect(meetsInvite(asked, ["mit.edu"], lam)).toBe(false);
+    // A Google sign-in on the host counts for a mail host.
+    expect(
+      meetsInvite({ ...base, requires: ["mit.edu/tim"] }, ["mit.edu"], [
+        { type: "google_oauth", subject: "3", email: "Tim@MIT.edu" },
+      ])
+    ).toBe(true);
+    expect(parseRequirement("GitHub.com/@Lam")).toEqual({ domain: "github.com", handle: "lam" });
+    expect(parseRequirement("mit.edu")).toEqual({ domain: "mit.edu" });
   });
 
   it("compares domains as domains, not as text", () => {

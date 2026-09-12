@@ -32,7 +32,14 @@ import {
 import { intentDomain, recoverIntentSigner } from "./intent.js";
 import { candidateOf, inviteDomain, meetsInvite, recoverInviteSigner, ZERO_ADDRESS } from "./invite.js";
 import { verifyEs256Jwt } from "./jwt.js";
-import type { AttestEnv, AttestRequest, AttestResult, OnchainState, RegistrarSecrets } from "./types.js";
+import type {
+  AttestEnv,
+  AttestRequest,
+  AttestResult,
+  LinkedAccount,
+  OnchainState,
+  RegistrarSecrets,
+} from "./types.js";
 
 const DAY = 24 * 60 * 60;
 /**
@@ -168,7 +175,21 @@ export async function solicitedBy(
   if (!candidateWallet || candidateWallet.toLowerCase() === ZERO_ADDRESS) return false;
   // What the candidate asked the writer to show. Unmet is not solicited: the invitation was for
   // someone who could show it, and this writer is not that person.
-  if (!meetsInvite(invite, onchain.writerDomains ?? [])) return false;
+  // A requirement naming one account is checked against the accounts the writer signed in with: the
+  // record on chain is masked, so the chain cannot say who holds it. A token the attester cannot read
+  // carries no accounts; the write itself refuses such a token on its own.
+  let linked: LinkedAccount[] = [];
+  try {
+    const claims = verifyEs256Jwt(req.idToken, env.privy.verificationKey, {
+      issuer: "privy.io",
+      audience: env.privy.appId,
+      now: env.now,
+    });
+    linked = parseLinkedAccounts(claims.linked_accounts);
+  } catch {
+    linked = [];
+  }
+  if (!meetsInvite(invite, onchain.writerDomains ?? [], linked)) return false;
   const signer = await recoverInviteSigner(
     { handle: invite.handle, voucher: invite.voucher, exp: invite.exp, requires: invite.requires },
     invite.signature,

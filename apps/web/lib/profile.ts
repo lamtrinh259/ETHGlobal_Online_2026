@@ -1,4 +1,5 @@
 import { matchesAudienceName, WITHDRAWN } from "@ketsuban/registrar";
+import { describeRequirement } from "@/lib/invite";
 import type { Verification, Vouch } from "./api";
 import type { WebConfig } from "./config";
 import { siteIsSecure } from "./config";
@@ -354,7 +355,7 @@ export function vouchRequest(
   // A message that omits the requirement sends someone to a page where their reference quietly comes
   // out unsolicited; the requirement is enforced either way, so it belongs in the ask.
   const asks = invite?.requires.length
-    ? ` Please connect ${invite.requires.join(" and ")} first, so it counts as one I asked for.`
+    ? ` Please connect ${invite.requires.map(describeRequirement).join(" and ")} first, so it counts as one I asked for.`
     : "";
   return `Could you vouch for me? It takes five minutes and lands as your own permanent name: ${link} (my page: ${handle}.${rootParent})${asks}`;
 }
