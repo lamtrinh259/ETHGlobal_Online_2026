@@ -32,6 +32,8 @@ export function PolicyForm({
   const [minVouches, setMinVouches] = useState(3);
   const [humanity, setHumanity] = useState(false);
   const [onlySolicited, setOnlySolicited] = useState(false);
+  // Empty means the bar does not ask how the references read.
+  const [maxCritical, setMaxCritical] = useState("");
   const [from, setFrom] = useState("");
   const [mine, setMine] = useState<SavedPolicy[]>([]);
   const [saveAs, setSaveAs] = useState("");
@@ -44,6 +46,7 @@ export function PolicyForm({
     requireHumanity: humanity,
     minVouches,
     onlySolicited,
+    ...(/^\d+$/.test(maxCritical) ? { maxCritical: Number(maxCritical) } : {}),
     from: from
       .split(",")
       .map((f) => f.trim())
@@ -57,6 +60,7 @@ export function PolicyForm({
     setMinVouches(entry.policy.minVouches);
     setHumanity(entry.policy.requireHumanity);
     setOnlySolicited(!!entry.policy.onlySolicited);
+    setMaxCritical(entry.policy.maxCritical === undefined ? "" : String(entry.policy.maxCritical));
     setFrom((entry.policy.from ?? []).join(", "));
     setPreset(undefined);
   }
@@ -75,6 +79,7 @@ export function PolicyForm({
     setMinVouches(pol.minVouches);
     setHumanity(pol.requireHumanity);
     setOnlySolicited(!!pol.onlySolicited);
+    setMaxCritical(pol.maxCritical === undefined ? "" : String(pol.maxCritical));
     setPreset(id);
   }
   /*
@@ -147,6 +152,21 @@ export function PolicyForm({
             value={minVouches}
             onChange={(e) => custom(setMinVouches)(Number(e.target.value))}
             aria-label="minimum live references"
+          />
+        </label>
+        {/* How the references read, counted: the council's provisional polarity of each statement.
+            Empty asks nothing; where no council reads them the check says so rather than passing. */}
+        <label>
+          at most this many reading as critical{" "}
+          <input
+            type="number"
+            min={0}
+            max={99}
+            value={maxCritical}
+            onChange={(e) => custom(setMaxCritical)(e.target.value)}
+            placeholder="any"
+            aria-label="at most this many reading as critical"
+            data-testid="policy-max-critical"
           />
         </label>
         <label>

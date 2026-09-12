@@ -307,3 +307,19 @@ test("each reference on the page reads one of three ways, and the unasked-for ca
   await expect(toggle.getByRole("switch")).not.toBeChecked();
   await expect(page.getByTestId("vouch-bob")).toBeVisible();
 });
+
+/**
+ * A bar on how the references read.
+ *
+ * The council's reading of each statement, counted against a ceiling the verifier set. On this page
+ * one of alice's references reads as critical, so a bar of none is not met, and the row says why.
+ */
+test("a policy can ask that no reference read as critical, and the page says how many do", async ({
+  page,
+}) => {
+  await page.goto("/p/alice?answers=&minLinks=0&minVouches=0&maxCritical=0");
+  const checks = page.getByTestId("checks");
+  await expect(checks).toContainText("Critical readings (≤0)");
+  await expect(checks).toContainText("1 of 2 read as critical");
+  await expect(page.getByTestId("policy-line")).toContainText("none reading as critical");
+});

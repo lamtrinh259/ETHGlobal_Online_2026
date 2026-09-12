@@ -131,7 +131,15 @@ export default async function ProfilePage({ params, searchParams }: Params) {
   const asked = policyAsked(q);
   const ens = await api.ens(names[0], undefined, { signal: flourish() }).catch(() => null);
   const vouches = read?.vouches ?? [];
-  const profile = assessProfile(handle, results, policy, vouches);
+  // Only where the bar asks how the references read; the card below reads them for everyone else.
+  const readings =
+    policy.maxCritical !== undefined
+      ? await api
+          .readings(handle, { signal: flourish() })
+          .then((r) => ({ council: r.council, ...r.summary.received }))
+          .catch(() => undefined)
+      : undefined;
+  const profile = assessProfile(handle, results, policy, vouches, readings);
   const site = siteUrl();
 
   return (

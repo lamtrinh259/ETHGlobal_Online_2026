@@ -386,7 +386,8 @@ function Standing({
           v: read.data?.names.find((n) => n.name === name)?.verification ?? null,
         })),
         policy,
-        read.data.vouches
+        read.data.vouches,
+        readings.data ? { council: readings.data.council, ...readings.data.summary.received } : undefined
       )
     : undefined;
   const failed = profile?.checks.filter((c) => !c.ok) ?? [];

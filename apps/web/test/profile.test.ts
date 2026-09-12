@@ -530,3 +530,48 @@ describe("socialCard", () => {
     expect(card.title).toBe("peersky — 3 references");
   });
 });
+
+describe("a bar on how the references read", () => {
+  /*
+   * The council's reading of each statement, counted against a ceiling. A deployment where nothing
+   * reads statements cannot meet the bar, and says so — it does not pass by default.
+   */
+  const policy = { ...DEFAULT_POLICY, minVouches: 0, maxCritical: 0 };
+  const results = [
+    { instanceDomain: "ketsuban", name: "alice.ketsuban.eth", v: active("alice.ketsuban.eth") },
+  ];
+
+  it("travels in the query and is described", () => {
+    const q = policyToQuery(policy);
+    expect(q).toContain("maxCritical=0");
+    expect(policyFromQuery(Object.fromEntries(new URLSearchParams(q)), ["kju-is"]).maxCritical).toBe(0);
+    expect(policyFromQuery({ maxCritical: "x" }, ["kju-is"]).maxCritical).toBeUndefined();
+    expect(describePolicy(policy)).toContain("none reading as critical");
+    expect(describePolicy({ ...policy, maxCritical: 2 })).toContain("≤2 reading as critical");
+    expect(describePolicy(DEFAULT_POLICY)).not.toContain("critical");
+  });
+
+  it("passes when the critical readings are within the ceiling, and fails when they are not", () => {
+    const ok = assessProfile("alice", results, policy, [], { council: true, read: 3, critical: 0 });
+    expect(ok.checks.find((c) => c.id === "critical")).toMatchObject({
+      ok: true,
+      detail: "0 of 3 read as critical",
+    });
+    const no = assessProfile("alice", results, policy, [], { council: true, read: 3, critical: 1 });
+    expect(no.checks.find((c) => c.id === "critical")?.ok).toBe(false);
+    expect(no.complete).toBe(false);
+  });
+
+  it("cannot be met where no council reads statements, and says that", () => {
+    const none = assessProfile("alice", results, policy, [], { council: false, read: 0, critical: 0 });
+    expect(none.checks.find((c) => c.id === "critical")).toMatchObject({ ok: false });
+    expect(none.checks.find((c) => c.id === "critical")?.detail).toMatch(/no council/);
+    const unread = assessProfile("alice", results, policy, []);
+    expect(unread.checks.find((c) => c.id === "critical")?.ok).toBe(false);
+  });
+
+  it("asks nothing about readings unless the bar does", () => {
+    const p = assessProfile("alice", results, { ...DEFAULT_POLICY, minVouches: 0 }, []);
+    expect(p.checks.some((c) => c.id === "critical")).toBe(false);
+  });
+});

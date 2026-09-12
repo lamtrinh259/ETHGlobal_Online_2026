@@ -70,3 +70,11 @@ so `GET /v1/invite/:code` reads as `claimed` at once and the person is told to b
 The prose "ask" that carried the bar in a paragraph is gone; every message an employer sends is the
 invitation above, and it is listed under "Whom you invited" like any other. The policy itself is found
 by typing its name — presets and the reader's own — as on a person's page.
+
+## A bar on how the references read
+
+A policy may cap how many references read as critical (`maxCritical`, in the builder as "at most this
+many reading as critical"). The count comes from the same council reading a person's page sums up, so
+the check is a reading of text, not a judgement of the person — and where no council is configured the
+check says so and is not met, rather than passing by default. Each row on `/employers` also says how
+many of a candidate's references read as supportive and as critical.

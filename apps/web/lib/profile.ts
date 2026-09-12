@@ -39,6 +39,12 @@ export type Policy = {
    * discounting the uninvited by default would put the old permission rule back in through the policy.
    */
   onlySolicited?: boolean;
+  /**
+   * At most this many references received may read as critical — the council's provisional reading of
+   * each statement, three kinds. Unset means the bar does not ask. Where no council reads statements,
+   * the check says so and does not pass: a bar that cannot be read is not a bar that was met.
+   */
+  maxCritical?: number;
 };
 
 export const DEFAULT_POLICY: Policy = {
@@ -99,6 +105,7 @@ export function policyToQuery(policy: Policy, presetId?: string): string {
   if (policy.from?.length) q.set("from", policy.from.join(","));
   if (policy.requireHumanity) q.set("humanity", "1");
   if (policy.onlySolicited) q.set("solicited", "1");
+  if (policy.maxCritical !== undefined) q.set("maxCritical", String(policy.maxCritical));
   if (presetId) q.set("preset", presetId);
   return q.toString();
 }
@@ -114,8 +121,15 @@ export function describePolicy(policy: Policy): string {
   ];
   if (policy.onlySolicited) parts.push("only references they asked for");
   if (policy.requireHumanity) parts.push("humanity attested");
+  if (policy.maxCritical !== undefined)
+    parts.push(
+      policy.maxCritical === 0 ? "none reading as critical" : `≤${policy.maxCritical} reading as critical`
+    );
   return parts.join(" · ");
 }
+
+/** How a person's received references read, as a bar needs it: how many were read, and how many critically. */
+export type ReadingsForPolicy = { council: boolean; read: number; critical: number };
 
 export type Profile = {
   handle: string;
@@ -146,7 +160,8 @@ export function assessProfile(
   handle: string,
   results: { instanceDomain: string; name: string; v: Verification | null }[],
   policy: Policy = DEFAULT_POLICY,
-  vouches: Vouch[] = []
+  vouches: Vouch[] = [],
+  readings?: ReadingsForPolicy
 ): Profile {
   const root = results[0]?.v ?? undefined;
   const identity = root && root.status === "active" ? root : undefined;
@@ -229,6 +244,19 @@ export function assessProfile(
       detail: humanity ? `level ${humanity.level}` : "not attested",
     });
   }
+  if (policy.maxCritical !== undefined) {
+    // Read, not judged: the council's provisional polarity of each statement, counted. Where nothing
+    // reads them the bar cannot be met here, and the detail says that rather than passing by default.
+    const readable = !!readings?.council;
+    checks.push({
+      id: "critical",
+      label: `Critical readings (≤${policy.maxCritical})`,
+      ok: readable && readings!.critical <= policy.maxCritical,
+      detail: !readable
+        ? "no council reads statements on this deployment, so this cannot be checked"
+        : `${readings!.critical} of ${readings!.read} read as critical`,
+    });
+  }
 
   return {
     handle,
@@ -257,7 +285,16 @@ export { HANDLE_RE };
 
 /** Verifier policy from a query string; `preset` wins, otherwise defaults require every subject answered. */
 /** Every parameter a policy is carried in, so a page can tell a bar somebody set from the default. */
-const POLICY_PARAMS = ["preset", "answers", "minLinks", "minVouches", "humanity", "solicited", "from"];
+const POLICY_PARAMS = [
+  "preset",
+  "answers",
+  "minLinks",
+  "minVouches",
+  "humanity",
+  "solicited",
+  "from",
+  "maxCritical",
+];
 
 /**
  * Whether a reader asked for a verdict, rather than just opening somebody's page.
@@ -286,6 +323,9 @@ export function policyFromQuery(q: Record<string, string | undefined>, subjectDo
       q.minVouches !== undefined && /^\d+$/.test(q.minVouches)
         ? Number(q.minVouches)
         : DEFAULT_POLICY.minVouches,
+    ...(q.maxCritical !== undefined && /^\d+$/.test(q.maxCritical)
+      ? { maxCritical: Number(q.maxCritical) }
+      : {}),
   };
 }
 
