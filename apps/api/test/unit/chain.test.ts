@@ -165,6 +165,144 @@ describe("reading the mounts", () => {
   });
 });
 
+/**
+ * One wildcard resolver at the root: Multipass is the tree, and a mount is the name rule applied to a
+ * domain's name rather than a pair of contracts somebody deployed for it.
+ */
+describe("the tree read from Multipass under one root resolver", () => {
+  const ROOT = "0x8888888888888888888888888888888888888888" as Address;
+  const rootConfig = {
+    ...config,
+    ROOT_RESOLVER: ROOT,
+    NAME_DOMAINS: ["kju-is", "alumni"],
+    REGISTRAR_ADDRESS: "0x7777777777777777777777777777777777777777" as Address,
+  };
+
+  /** Multipass as the chain answers it: how many domains there are, then one state per index from 1. */
+  function multipass(chain: Chain, domains: { name: string; isActive?: boolean }[]) {
+    const writes: { functionName: string; args: unknown[] }[] = [];
+    const state = (d: { name: string; isActive?: boolean }) => ({
+      name: toBytes32(d.name),
+      isActive: d.isActive ?? true,
+    });
+    Object.assign(chain, {
+      indexer: { catchUp: async () => undefined },
+      publicClient: {
+        readContract: vi.fn(async ({ functionName, args }: { functionName: string; args?: unknown[] }) => {
+          if (functionName === "rootName") return "ketsuban.eth";
+          if (functionName === "getContractState") return BigInt(domains.length);
+          if (functionName === "getDomainStateById")
+            return state(domains[Number(args?.[0] as bigint) - 1] as { name: string });
+          if (functionName === "getDomainState") {
+            const at = args?.[0] as string;
+            const found = domains.find((d) => toBytes32(d.name) === at);
+            return found ? state(found) : { name: zeroHash, isActive: false };
+          }
+          throw new Error(`unexpected read ${functionName}`);
+        }),
+        waitForTransactionReceipt: vi.fn(async () => ({ status: "success", blockNumber: 1n })),
+      },
+      walletClient: {
+        chain: { id: 31337 },
+        account: { address: "0x5555555555555555555555555555555555555555" },
+        writeContract: vi.fn(async (call: { functionName: string; args: unknown[] }) => {
+          writes.push({ functionName: call.functionName, args: call.args });
+          return "0xfeed";
+        }),
+      },
+    });
+    return writes;
+  }
+
+  it("names every kind of domain the resolver answers for, and leaves out the rest", async () => {
+    const chain = new Chain(rootConfig);
+    multipass(chain, [
+      { name: "kju-is" },
+      { name: "alumni" },
+      { name: "~alice" },
+      { name: "x.com" },
+      { name: "peeramid.xyz" },
+      { name: "kju-is:dictator" },
+      // Both hold records read by wallet from elsewhere; neither is a name anybody holds.
+      { name: "humanity" },
+      { name: "org" },
+      // A flat word nobody can reach, and a domain nothing may be written into yet.
+      { name: "myspace" },
+      { name: "github.com", isActive: false },
+    ]);
+    const found = new Map((await chain.instances()).map((i) => [i.domain, i]));
+
+    expect([...found.keys()]).toEqual([
+      "kju-is",
+      "alumni",
+      "~alice",
+      "x.com",
+      "peeramid.xyz",
+      "kju-is:dictator",
+    ]);
+    // The first name domain is the root itself: a name in it has no path under the root at all.
+    expect(found.get("kju-is")).toMatchObject({
+      parentName: "ketsuban.eth",
+      parentLabel: "ketsuban",
+      registry: zeroAddress,
+      resolver: ROOT,
+    });
+    expect(found.get("kju-is")?.maskedParentName).toBeUndefined();
+    expect(found.get("alumni")).toMatchObject({ parentName: "alumni.ketsuban.eth", parentLabel: "alumni" });
+    // A candidate's references hang under the candidate's own name, not under the prefix.
+    expect(found.get("~alice")).toMatchObject({ parentName: "alice.ketsuban.eth", parentLabel: "alice" });
+    expect(found.get("x.com")).toMatchObject({
+      parentName: "com.x.www.ketsuban.eth",
+      parentLabel: "com",
+      maskedParentName: "com.x.private-www.ketsuban.eth",
+      maskedResolver: ROOT,
+    });
+    // A mail host lands under the at-sign level instead, mirror included.
+    expect(found.get("peeramid.xyz")).toMatchObject({
+      parentName: "xyz.peeramid.@.ketsuban.eth",
+      maskedParentName: "xyz.peeramid.private@.ketsuban.eth",
+    });
+    expect(found.get("kju-is:dictator")).toMatchObject({
+      parentName: "dictator.kju-is.ketsuban.eth",
+      parentLabel: "dictator",
+    });
+  });
+
+  it("provisions a candidate's mount as a Multipass domain and nothing else", async () => {
+    // No factory, no registry, nothing to point at it: the domain existing is the whole mount.
+    const chain = new Chain(rootConfig);
+    const writes = multipass(chain, [{ name: "kju-is" }]);
+    expect(await chain.ensureVouchInstance("alice")).toEqual({ domain: "~alice", created: true });
+    expect(writes.map((w) => w.functionName)).toEqual(["initializeDomain", "activateDomain"]);
+    expect(writes[0]?.args[3]).toBe(toBytes32("~alice"));
+  });
+
+  it("writes nothing for a mount that is already there", async () => {
+    const chain = new Chain(rootConfig);
+    const writes = multipass(chain, [{ name: "kju-is" }, { name: "~alice" }]);
+    expect(await chain.ensureVouchInstance("alice")).toEqual({ domain: "~alice", created: false });
+    expect(writes).toEqual([]);
+  });
+
+  it("mounts a DNS domain by initialising it, and says where it is named", async () => {
+    const chain = new Chain(rootConfig);
+    const writes = multipass(chain, [{ name: "kju-is" }]);
+    expect(await chain.ensureNamespace("x.com")).toEqual({
+      domain: "x.com",
+      created: true,
+      parentName: "com.x.www.ketsuban.eth",
+    });
+    // Any registry read would throw in the stub above; the levels and the mirror are gone with them.
+    expect(writes.map((w) => w.functionName)).toEqual(["initializeDomain", "activateDomain"]);
+  });
+
+  it("still refuses what cannot be mounted", async () => {
+    const chain = new Chain(rootConfig);
+    multipass(chain, [{ name: "kju-is" }]);
+    await expect(chain.ensureNamespace("myspace")).rejects.toThrow(/not a DNS name/);
+  });
+});
+
 describe("provisioning a candidate's namespace", () => {
   it("creates it in the bridge's factory, even when a newer one exists", async () => {
     // The bridge grants the voucher the roles for their letter by asking its own factory. An instance it

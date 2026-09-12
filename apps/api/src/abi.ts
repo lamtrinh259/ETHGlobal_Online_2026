@@ -91,3 +91,10 @@ export const universalResolverAbi = parseAbi([
   // resolution by the resolver itself. Empty when the wallet has set none.
   "function reverse(bytes lookupAddress, uint256 coinType) view returns (string name, address resolver, address reverseResolver)",
 ]);
+
+/**
+ * The one wildcard resolver at the root, when a deployment has migrated to it. Only its root name is
+ * read here: everything beneath it is a Multipass domain, and the name a domain mounts at is that root
+ * name plus the rule the registrar package already spells out.
+ */
+export const rootResolverAbi = withErrors(parseAbi(["function rootName() view returns (string)"]));

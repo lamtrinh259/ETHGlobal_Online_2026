@@ -405,6 +405,8 @@ export function createApp({
       bridge: config.BRIDGE,
       factory: config.FACTORY,
       namespaceFactory: config.NAMESPACE_FACTORY ?? null,
+      // Set, the tree is read from Multipass through this one resolver rather than from the factory.
+      rootResolver: config.ROOT_RESOLVER ?? null,
       registry: config.REGISTRY ?? null,
       permissionedResolver: config.PERMISSIONED_RESOLVER ?? null,
       universalResolver: config.UNIVERSAL_RESOLVER ?? null,

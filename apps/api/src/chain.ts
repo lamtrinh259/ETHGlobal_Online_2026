@@ -19,6 +19,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { MultipassAbi, fromBytes32, toBytes32 } from "@peeramid-labs/multipass-client";
 import {
   answerDomain,
+  answerOf,
   answerSlug,
   groupingFor,
   isDnsName,
@@ -34,6 +35,7 @@ import {
   factoryAbi,
   registryAbi,
   resolverAbi,
+  rootResolverAbi,
   universalResolverAbi,
 } from "./abi.js";
 import { RpcSource } from "./logs.js";
@@ -139,6 +141,8 @@ export class Chain {
   readonly walletClient: WalletClient;
   readonly relayer: Address;
   private mounts?: { at: number; value: Instance[] };
+  /** The root name, once read off the root resolver; it cannot change under a deployment. */
+  private root?: string;
 
   constructor(readonly config: Config) {
     const transport = http(config.RPC_URL);
@@ -191,23 +195,135 @@ export class Chain {
   }
 
   /**
-   * Every mount this deployment has. A deployment can run two factories: the one that made the root
-   * instance, and a later one carrying the DNS namespace, which the first is too old to build. The
-   * later factory wins for a domain both know, and only it answers about private mirrors.
+   * Every mount this deployment has, read from whatever holds the tree.
+   *
+   * With one wildcard resolver at the root, Multipass is the tree: a domain's mount is the name rule
+   * applied to its name, and nothing was deployed to record it. Otherwise the factories hold it — a
+   * deployment can run two, the one that made the root instance and a later one carrying the DNS
+   * namespace, which the first is too old to build. The later factory wins for a domain both know,
+   * and only it answers about private mirrors.
    */
   async instances(): Promise<Instance[]> {
     // Reading the mounts costs two calls per domain, and every page asks. They change when something
     // is provisioned, which is when this is cleared, so a short reuse is free correctness.
     const fresh = this.mounts && Date.now() - this.mounts.at < this.config.MOUNT_CACHE_SECONDS * 1000;
     if (fresh && this.mounts) return this.mounts.value;
+    const root = this.config.ROOT_RESOLVER;
+    const value = root ? await this.instancesFromMultipass(root) : await this.instancesFromFactories();
+    this.mounts = { at: Date.now(), value };
+    return value;
+  }
+
+  private async instancesFromFactories(): Promise<Instance[]> {
     const factories = [this.config.FACTORY, this.config.NAMESPACE_FACTORY].filter((a): a is Address => !!a);
     const found = new Map<string, Instance>();
     for (const factory of factories) {
       for (const instance of await this.instancesOf(factory)) found.set(instance.domain, instance);
     }
-    const value = [...found.values()];
-    this.mounts = { at: Date.now(), value };
-    return value;
+    return [...found.values()];
+  }
+
+  /**
+   * The tree as Multipass holds it: every active domain, mounted where the root resolver would answer
+   * for it. A domain whose name fits none of the shapes the resolver knows — the humanity and
+   * organisation domains, or anything an operator initialised by hand — is left out rather than given
+   * a name nothing resolves at.
+   */
+  private async instancesFromMultipass(resolver: Address): Promise<Instance[]> {
+    const [rootName, count] = await Promise.all([
+      this.rootName(resolver),
+      this.publicClient.readContract({
+        address: this.config.MULTIPASS,
+        abi: MultipassAbi,
+        functionName: "getContractState",
+      }),
+    ]);
+    // Domains are numbered from one: `_initializeDomain` writes at `numDomains + 1`, so index 0 is
+    // never a domain and `getContractState` is the last index rather than a length.
+    const states = await Promise.all(
+      Array.from({ length: Number(count) }, (_, i) =>
+        this.publicClient.readContract({
+          address: this.config.MULTIPASS,
+          abi: MultipassAbi,
+          functionName: "getDomainStateById",
+          args: [BigInt(i + 1)],
+        })
+      )
+    );
+    const found: Instance[] = [];
+    for (const state of states) {
+      // An inactive domain takes no records, so it is not a mount: the resolver answers nothing there.
+      if (!state.isActive) continue;
+      const domain = fromBytes32(state.name);
+      const mount = domain ? this.mountUnderRoot(domain, rootName) : undefined;
+      if (!domain || !mount) continue;
+      found.push({
+        domain,
+        // Nothing is registered per mount any more, and every name under the root is answered by the
+        // one resolver — including the masked branch, which is a path rather than a contract.
+        registry: zeroAddress,
+        resolver,
+        ...mount,
+        ...(mount.maskedParentName ? { maskedResolver: resolver } : {}),
+      });
+    }
+    return found;
+  }
+
+  /**
+   * Where a Multipass domain is named under the root, or nothing when the root resolver would not
+   * answer for it. This is the same rule the resolver walks in reverse: it takes a name apart into a
+   * label and a path and asks Multipass for the path's domain, so a mount is that path plus the root.
+   */
+  private mountUnderRoot(
+    domain: string,
+    rootName: string
+  ): Pick<Instance, "parentName" | "parentLabel" | "maskedParentName"> | undefined {
+    const { NAME_DOMAINS, VOUCH_PREFIX, HUMANITY_DOMAIN, ORG_DOMAIN } = this.config;
+    // Both hold records read by wallet from elsewhere in the tree; neither is a name anybody holds.
+    if (domain === HUMANITY_DOMAIN || domain === ORG_DOMAIN) return undefined;
+    // The first name domain is the root itself: `alice` there is `alice.<root>`, with no path.
+    if (domain === NAME_DOMAINS[0])
+      return { parentName: rootName, parentLabel: rootName.split(".")[0] ?? rootName };
+    if (NAME_DOMAINS.includes(domain)) return { parentName: `${domain}.${rootName}`, parentLabel: domain };
+    if (domain.startsWith(VOUCH_PREFIX) && domain.length > VOUCH_PREFIX.length) {
+      // A candidate's references hang under the candidate's own name, not under the prefix.
+      const handle = domain.slice(VOUCH_PREFIX.length);
+      return { parentName: `${handle}.${rootName}`, parentLabel: handle };
+    }
+    if (isDnsName(domain)) {
+      const group = groupingFor(platformOf(domain) ?? "email");
+      const labels = domain.toLowerCase().split(".");
+      const reversed = [...labels].reverse();
+      return {
+        parentName: [...reversed, group.open, rootName].join("."),
+        parentLabel: labels[labels.length - 1] as string,
+        maskedParentName: [...reversed, group.masked, rootName].join("."),
+      };
+    }
+    const answer = answerOf(domain);
+    // Round-tripped rather than trusted: only a domain this service could have written is a mount.
+    if (answer && answerDomain(answer.question, answer.answer) === domain)
+      return {
+        parentName: `${answer.answer}.${answer.question}.${rootName}`,
+        parentLabel: answer.answer,
+      };
+    return undefined;
+  }
+
+  /**
+   * The name this deployment's tree hangs under, read from the resolver that owns it. Immutable on the
+   * contract, so it is read once and kept: every mount's name is built from it.
+   */
+  private async rootName(resolver: Address): Promise<string> {
+    if (this.root === undefined) {
+      this.root = await this.publicClient.readContract({
+        address: resolver,
+        abi: rootResolverAbi,
+        functionName: "rootName",
+      });
+    }
+    return this.root;
   }
 
   /**
@@ -363,6 +479,10 @@ export class Chain {
    * Needs the relayer to own Multipass, the factory and the root registry.
    */
   async ensureVouchInstance(handle: string): Promise<{ domain: string; created: boolean }> {
+    const domain = `${this.config.VOUCH_PREFIX}${handle}`;
+    // With the resolver at the root, `alice.<root>` is answered from `~alice` by the name rule alone:
+    // the domain existing is the whole mount, and there is no registry to point anywhere.
+    if (this.config.ROOT_RESOLVER) return this.ensureRootDomain(domain);
     const { REGISTRY } = this.config;
     if (!REGISTRY)
       throw new Error("vouch instances need REGISTRY, PERMISSIONED_RESOLVER and REGISTRAR_ADDRESS");
@@ -371,7 +491,7 @@ export class Chain {
     )?.parentName;
     if (!rootParent) throw new Error("root registry is not a known instance");
     return this.ensureChildInstance({
-      domain: `${this.config.VOUCH_PREFIX}${handle}`,
+      domain,
       label: handle,
       parentRegistry: REGISTRY,
       parentName: rootParent,
@@ -394,6 +514,9 @@ export class Chain {
     if (!slug || !domain) throw new Error(`"${answer}" cannot be an answer namespace: it has no label`);
     const parent = (await this.instances()).find((i) => i.domain === question);
     if (!parent) throw new Error(`no instance called "${question}" to hang an answer under`);
+    // The mount is the domain: `dictator.kju-is.<root>` is what the root resolver reads `kju-is:dictator`
+    // as, so there is nothing to deploy and nothing to point at it.
+    if (this.config.ROOT_RESOLVER) return this.ensureRootDomain(domain);
     return this.ensureChildInstance({
       domain,
       label: slug,
@@ -498,6 +621,8 @@ export class Chain {
    * Idempotent and safe to call for a domain that already exists: every step checks first.
    */
   async ensureNamespace(domain: string): Promise<{ domain: string; created: boolean; parentName: string }> {
+    const rootResolver = this.config.ROOT_RESOLVER;
+    if (rootResolver) return this.ensureRootNamespace(domain, rootResolver);
     const factory = this.config.NAMESPACE_FACTORY;
     const { REGISTRY, PERMISSIONED_RESOLVER, REGISTRAR_ADDRESS } = this.config;
     if (!factory || !REGISTRY || !PERMISSIONED_RESOLVER || !REGISTRAR_ADDRESS)
@@ -559,8 +684,38 @@ export class Chain {
     return { domain, created: true, parentName };
   }
 
-  /** Initialise and activate a Multipass domain that has never been used. */
-  private async ensureDomainOnMultipass(domainB: Hex, registrar: Address): Promise<void> {
+  /**
+   * A mount under one root resolver is a Multipass domain and nothing else: the resolver derives the
+   * name from the domain, so there is no registry to deploy and no parent to point at it.
+   */
+  private async ensureRootDomain(domain: string): Promise<{ domain: string; created: boolean }> {
+    const { REGISTRAR_ADDRESS } = this.config;
+    if (!REGISTRAR_ADDRESS)
+      throw new Error("a mount needs REGISTRAR_ADDRESS to initialise its Multipass domain");
+    const created = await this.ensureDomainOnMultipass(toBytes32(domain), REGISTRAR_ADDRESS);
+    // A domain that was inactive was not a mount either: either write makes one appear.
+    if (created) this.mountsChanged();
+    return { domain, created };
+  }
+
+  /** The DNS half of the same thing, which also has to say where the mount is named. */
+  private async ensureRootNamespace(
+    domain: string,
+    resolver: Address
+  ): Promise<{ domain: string; created: boolean; parentName: string }> {
+    if (!this.config.REGISTRAR_ADDRESS) throw new Error("a namespace needs REGISTRAR_ADDRESS");
+    if (!isDnsName(domain)) throw new Error(`"${domain}" is not a DNS name`);
+    const mount = this.mountUnderRoot(domain, await this.rootName(resolver));
+    if (!mount) throw new Error(`"${domain}" is not a name this deployment mounts`);
+    const { created } = await this.ensureRootDomain(domain);
+    return { domain, created, parentName: mount.parentName };
+  }
+
+  /**
+   * Initialise and activate a Multipass domain that has never been used. Answers whether anything was
+   * written: a domain that was already there and active is a mount that already existed.
+   */
+  private async ensureDomainOnMultipass(domainB: Hex, registrar: Address): Promise<boolean> {
     const state = await this.publicClient.readContract({
       address: this.config.MULTIPASS,
       abi: MultipassAbi,
@@ -583,6 +738,7 @@ export class Chain {
         args: [domainB],
       });
     }
+    return state.name === zeroHash || !state.isActive;
   }
 
   /**
@@ -761,14 +917,16 @@ export class Chain {
     }
 
     // Without it, a domain nobody deployed cannot be mounted on demand and the person is turned away.
-    // Pointed at nothing is worse than unset: every page that lists the mounts fails instead.
+    // Pointed at nothing is worse than unset: every page that lists the mounts fails instead. Under a
+    // root resolver there is nothing to deploy for one, so its absence is not a fault.
     const namespaceFactory = this.config.NAMESPACE_FACTORY;
     const namespaceCode = namespaceFactory
       ? await this.publicClient.getCode({ address: namespaceFactory })
       : undefined;
-    if (!namespaceFactory)
-      warnings.push("NAMESPACE_FACTORY is unset: a domain nobody deployed yet cannot be mounted");
-    else if (!deployed(namespaceCode)) warnings.push(`NAMESPACE_FACTORY ${namespaceFactory} has no code`);
+    if (!namespaceFactory) {
+      if (!this.config.ROOT_RESOLVER)
+        warnings.push("NAMESPACE_FACTORY is unset: a domain nobody deployed yet cannot be mounted");
+    } else if (!deployed(namespaceCode)) warnings.push(`NAMESPACE_FACTORY ${namespaceFactory} has no code`);
 
     // solc puts every external selector in the dispatch table, so its absence from the bytecode means
     // the deployed contract simply does not have that function.
