@@ -120,12 +120,12 @@ immutable and set to Sepolia's **production** forwarder:
 |---|---|
 | Production `KeystoneForwarder` | `0xF8344CFd5c43616a4366C34E3EEE75af79a74482` |
 | `MockKeystoneForwarder` (what `--broadcast` calls through) | `0x15fC6ae953E024d975e77382eEeC56A9101f9F88` |
-| Reporter deployed today | `0x4888d736a196c49CAf404FD626eB9CBbf175b140` (production forwarder) |
+| Reporter deployed today | `0x7A84212487DEa31a7E2068D81E2ffCAe70104e0a` (production forwarder) |
 
 Check it rather than take it on trust — this needs no key and spends nothing:
 
 ```bash
-R=0x4888d736a196c49CAf404FD626eB9CBbf175b140
+R=0x7A84212487DEa31a7E2068D81E2ffCAe70104e0a
 cast call $R "onReport(bytes,bytes)" 0x 0x --from 0x15fC6ae953E024d975e77382eEeC56A9101f9F88 --rpc-url $RPC
 # -> execution reverted: UnauthorizedForwarder(0x15fC6ae9…)   the mock is refused by name
 cast call $R "onReport(bytes,bytes)" 0x 0x --from 0xF8344CFd5c43616a4366C34E3EEE75af79a74482 --rpc-url $RPC
@@ -137,7 +137,7 @@ The reporter holds no privileges and nothing points at it, so a second one costs
 ```bash
 cd packages/contracts
 MULTIPASS=0x418F82fd0014a4CA402F145978bfaF0555a9cA06 \
-BRIDGE=0xC7283bD9Aad1B08947C841536946Ce4dA9c99929 \
+BRIDGE=0x9607Ec6f14A3cB7128B1e7EC0C8e8CFBa1643F61 \
 CRE_FORWARDER=0x15fC6ae953E024d975e77382eEeC56A9101f9F88 \
 PRIVATE_KEY=… forge script script/DeployReporter.s.sol --rpc-url $SEPOLIA_RPC --broadcast
 ```

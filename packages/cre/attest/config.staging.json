@@ -27,7 +27,7 @@
   "authorizedKeys": [],
   "deliveryUrl": "",
   "reportGasLimit": "1200000",
-  "reporter": "0x4888d736a196c49CAf404FD626eB9CBbf175b140",
+  "reporter": "0x7A84212487DEa31a7E2068D81E2ffCAe70104e0a",
   "provisionUrl": "https://ketsuban-api.peeramid.xyz/v1/provision",
   "platformDomains": [
     "x.com",

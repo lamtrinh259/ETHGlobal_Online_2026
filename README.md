@@ -89,7 +89,7 @@ Environment variables are listed in `.env.example`; never commit `.env`.
 |---|---|
 | Root name | `ketsuban.eth` → `AttestationRegistry` `0x254D9c7601BD8fa6b6FA7f5A42c860d184E053A7`, resolver `0x178ff1589Be8Af3B19426Aa1d2Bd07cd178E215e` |
 | Child instance | `kju-is.ketsuban.eth` → registry `0xA976CB21597c555F92e7A5de2dAAF06A3c0D63F7`, resolver `0x24d0F1dc28D9d05342C2c2ceA459C3f0Dffb18D8` |
-| Factory / Bridge | `0xc0281d75974155fE8513F623de726F040c4bcC51` / `0xC7283bD9Aad1B08947C841536946Ce4dA9c99929` |
+| Factory / Bridge | `0xc0281d75974155fE8513F623de726F040c4bcC51` / `0x9607Ec6f14A3cB7128B1e7EC0C8e8CFBa1643F61` |
 | Stock PermissionedResolver | `0x4E2d9783cEFF2ed72CD77C14206b29fe246b24F7` (Verifiable Factory proxy) |
 
 ```bash

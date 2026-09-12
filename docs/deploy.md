@@ -199,12 +199,12 @@ can be added to a live deployment without moving a single role.
 
 | Chain | KeystoneForwarder | AttestationReporter |
 |---|---|---|
-| Ethereum Sepolia | `0xF8344CFd5c43616a4366C34E3EEE75af79a74482` | `0x4888d736a196c49CAf404FD626eB9CBbf175b140` |
+| Ethereum Sepolia | `0xF8344CFd5c43616a4366C34E3EEE75af79a74482` | `0x7A84212487DEa31a7E2068D81E2ffCAe70104e0a` |
 
 ```bash
 cd packages/contracts
 MULTIPASS=0x418F82fd0014a4CA402F145978bfaF0555a9cA06 \
-BRIDGE=0xC7283bD9Aad1B08947C841536946Ce4dA9c99929 \
+BRIDGE=0x9607Ec6f14A3cB7128B1e7EC0C8e8CFBa1643F61 \
 CRE_FORWARDER=0xF8344CFd5c43616a4366C34E3EEE75af79a74482 \
 PRIVATE_KEY=$OPERATOR_KEY \
 forge script script/DeployReporter.s.sol --rpc-url $SEPOLIA_RPC --broadcast --verify

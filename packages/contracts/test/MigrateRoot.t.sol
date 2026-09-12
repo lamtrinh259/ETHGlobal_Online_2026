@@ -89,6 +89,20 @@ contract MigrateRootTest is BaseTest {
         assertEq(ethRegistry.getResolver(LABEL), before);
     }
 
+    function test_bridge_leavesTheGrantToTheResolverAdmin_whenAsked() public {
+        RootAttestationResolver root = new RootAttestationResolver(mp, inner, INSTANCE, PARENT, vm.addr(operatorKey));
+        vm.setEnv("STEP", "bridge");
+        vm.setEnv("FACTORY", vm.toString(address(factory)));
+        vm.setEnv("ROOT_RESOLVER", vm.toString(address(root)));
+        vm.setEnv("GRANT_ROLES", "0");
+        uint64 nonce = vm.getNonce(vm.addr(operatorKey));
+        script.run();
+        AttestationBridge fresh = AttestationBridge(payable(vm.computeCreateAddress(vm.addr(operatorKey), nonce)));
+        assertEq(address(fresh.rootResolver()), address(root));
+        assertEq(inner.rootRoles(address(fresh)), 0);
+        vm.setEnv("GRANT_ROLES", "1");
+    }
+
     function test_refusesAStepItDoesNotKnow() public {
         vm.setEnv("STEP", "explode");
         vm.expectRevert(bytes("STEP must be deploy, bridge, point, unpoint, unmount or remount"));

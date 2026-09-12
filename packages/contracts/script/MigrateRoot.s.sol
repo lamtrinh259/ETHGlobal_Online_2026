@@ -32,7 +32,7 @@ interface IEthRegistryAdmin {
  *
  *   STEP=deploy   deploys RootAttestationResolver and prints its address (put it in the deployment
  *                 file as `rootResolver`, or in the API's env as ROOT_RESOLVER)
- *   STEP=bridge   FACTORY=0x… ROOT_RESOLVER=0x… [CRE_FORWARDER=0x…]: a new bridge that asks the root
+ *   STEP=bridge   FACTORY=0x… ROOT_RESOLVER=0x… [CRE_FORWARDER=0x…] [GRANT_ROLES=0]: a new bridge that asks the root
  *                 resolver where the factory has no answer, with the resolver roles the old one had, and
  *                 a new reporter in front of it when a forwarder is given. The deployed bridge is not
  *                 upgradeable, so this replaces it: put both addresses in the deployment file and the
@@ -85,7 +85,18 @@ contract MigrateRoot is Script {
             AttestationFactory(vm.envAddress("FACTORY")),
             owner
         );
-        IRoleAdmin(inner).grantRootRoles(R.ROLE_SET_TEXT_ADMIN | R.ROLE_SET_ALIAS, address(bridge));
+        // The resolver's admin is whoever initialised it, not always the operator; GRANT_ROLES=0 leaves
+        // the grant to that key, and prints what it has to send.
+        if (vm.envOr("GRANT_ROLES", uint256(1)) == 1) {
+            IRoleAdmin(inner).grantRootRoles(R.ROLE_SET_TEXT_ADMIN | R.ROLE_SET_ALIAS, address(bridge));
+        } else {
+            console.log(
+                "resolver admin must send: grantRootRoles(",
+                R.ROLE_SET_TEXT_ADMIN | R.ROLE_SET_ALIAS,
+                ",",
+                address(bridge)
+            );
+        }
         bridge.setRootResolver(RootAttestationResolver(resolver));
         console.log("bridge", address(bridge));
         address forwarder = vm.envOr("CRE_FORWARDER", address(0));
