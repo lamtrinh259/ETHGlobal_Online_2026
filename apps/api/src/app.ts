@@ -44,6 +44,7 @@ import {
 } from "@ketsuban/registrar";
 import { decodeRecord, fromBytes32, isOptedIn, maskName, toBytes32 } from "@peeramid-labs/multipass-client";
 import { explainName, HANDLE_RE, isDnsName, platformOf, storable } from "@ketsuban/registrar";
+import { neighbourhood, personMetrics, referenceGraph, sybilRank, type ReferenceGraph } from "./graph.js";
 import type { ChainReader, Instance } from "./chain.js";
 import { explainRevert } from "./errors.js";
 import type { Config } from "./config.js";
@@ -927,6 +928,73 @@ export function createApp({
    */
   const viewCodeOf = (c: { req: { header: (name: string) => string | undefined } }): string | undefined =>
     c.req.header("x-view-code");
+
+  /**
+   * The reference graph, read from every vouch domain this deployment holds.
+   *
+   * A count is not a shape: three references from strangers and three from a ring that only refers
+   * each other are the same number, and the difference is what a verifier wants. Every edge here is a
+   * signed record anybody can resolve; nothing is inferred.
+   */
+  async function wholeGraph(): Promise<{ graph: ReferenceGraph; human: Set<string>; rank: Map<string, number> }> {
+    const instances = await chain.instances();
+    const domains = instances.map((i) => i.domain).filter((d) => d.startsWith(config.VOUCH_PREFIX));
+    const rootDomain = config.NAME_DOMAINS[0] ?? "";
+    const [records, held, proofs] = await Promise.all([
+      Promise.all(
+        domains.map(async (domain) =>
+          (await chain.listRecords(domain)).map((r) => ({ domain, name: r.name, live: r.live }))
+        )
+      ).then((all) => all.flat()),
+      chain.listRecords(rootDomain),
+      // Who has proved humanity: a live record in the humanity domain, keyed by wallet.
+      config.HUMANITY_DOMAIN ? chain.listRecords(config.HUMANITY_DOMAIN) : Promise.resolve([]),
+    ]);
+    const graph = referenceGraph(records, config.VOUCH_PREFIX);
+    /*
+     * Seeds are people, and a proof is on a wallet: join through the name each wallet holds. Only a
+     * live proof counts, and only a live name — a lapsed name is not somebody trust should start from.
+     */
+    const provedWallets = new Set(proofs.filter((r) => r.live).map((r) => r.wallet.toLowerCase()));
+    const human = new Set(
+      held
+        .filter((r) => r.live && provedWallets.has(r.wallet.toLowerCase()))
+        .map((r) => r.name.toLowerCase())
+    );
+    return { graph, human, rank: sybilRank(graph, human) };
+  }
+
+  /** A node as the routes answer it: the counts, whether they proved humanity, and their rank. */
+  const describe = (g: ReferenceGraph, human: Set<string>, rank: Map<string, number>) =>
+    g.nodes.map((n) => ({
+      ...n,
+      human: human.has(n.handle),
+      // Four places: enough to compare, not enough to read as precision this signal does not have.
+      rank: Number((rank.get(n.handle) ?? 0).toFixed(4)),
+    }));
+
+  app.get("/v1/graph", async (c) => {
+    const { graph, human, rank } = await wholeGraph();
+    return c.json({ nodes: describe(graph, human, rank), edges: graph.edges, seeds: human.size, warning: WARNING });
+  });
+
+  app.get("/v1/graph/:handle", async (c) => {
+    const handle = c.req.param("handle").toLowerCase();
+    if (!HANDLE_RE.test(handle)) return c.json({ error: "bad handle" }, 400);
+    const { graph, human, rank } = await wholeGraph();
+    const near = neighbourhood(graph, handle);
+    return c.json({
+      handle,
+      nodes: describe(near, human, rank),
+      edges: near.edges,
+      // Measured on the whole graph: a cluster does not stop at the edge of what is drawn.
+      metrics: personMetrics(graph, handle),
+      rank: Number((rank.get(handle) ?? 0).toFixed(4)),
+      human: human.has(handle),
+      seeds: human.size,
+      warning: WARNING,
+    });
+  });
 
   /** How many answers one read of a subject carries; the rest are counted, not sent. */
   const ANSWER_PAGE = 50;

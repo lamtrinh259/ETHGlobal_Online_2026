@@ -264,6 +264,32 @@ export const routes = [
         : { found: false, domain, handle };
     },
   ],
+  // One person's neighbourhood: alice referred by bob and carol, who refer each other; alice proved humanity.
+  [
+    /^\/v1\/graph\/([^/?]+)/,
+    (m) => {
+      const handle = decodeURIComponent(m[1]);
+      return {
+        handle,
+        nodes: [
+          { handle, received: 2, given: 1, human: true, rank: 0.1875 },
+          { handle: "bob", received: 2, given: 1, human: false, rank: 0.0625 },
+          { handle: "carol", received: 1, given: 2, human: false, rank: 0.0417 },
+        ],
+        edges: [
+          { from: "bob", to: handle },
+          { from: "carol", to: handle },
+          { from: "carol", to: "bob" },
+          { from: handle, to: "bob" },
+        ],
+        metrics: { mutual: 1, referrerDensity: 0.5, referrersReferringEachOther: 1, clusterSize: 3 },
+        rank: 0.1875,
+        human: true,
+        seeds: 1,
+        warning: "w",
+      };
+    },
+  ],
   [/^\/v1\/explain\/([^/?]+)/, (m) => ({ name: decodeURIComponent(m[1]), says: "alice is a person's name here.", kind: "person" })],
   [
     /^\/v1\/name\/([^/]+)\/([^/?]+)/,

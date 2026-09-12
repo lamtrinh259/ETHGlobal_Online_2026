@@ -176,6 +176,16 @@ export function useProfile(api: Api, handle: string | undefined) {
   });
 }
 
+/** One person's neighbourhood in the reference graph, with its shape and rank. */
+export function useGraph(api: Api, handle: string | undefined) {
+  return useQuery({
+    queryKey: ["graph", handle],
+    queryFn: () => api.graph(handle as string),
+    enabled: !!handle,
+    staleTime: 30_000,
+  });
+}
+
 export function useContracts(api: Api) {
   return useQuery({ queryKey: ["contracts"], queryFn: () => api.contracts(), staleTime: Infinity });
 }

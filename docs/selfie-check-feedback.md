@@ -75,7 +75,27 @@ they configured without reading the SDK.
   A voucher proves they are a person without telling the candidate, or us, who.
 - IDKit's browser flow needed no styling work to look like it belonged.
 
-## 7. Where this lives in the code
+## 7. The "Sybil score" from the presentation is not in the API
+
+The hackathon presentation described Selfie Check returning a *"Sybil score, a similarity signal
+that flags whether the user has created an abnormal number of accounts on your platform."* We went
+to wire it into a profile, and could not find it.
+
+`POST /api/v4/verify/{rp_id}` documents `success`, `action`, `nullifier`, `created_at`,
+`environment`, `session_id`, `results[]` and `message` — no score, no similarity, nothing about
+account counts. The Selfie Check credential page says it outright: *"It returns a proof of the
+completed check, not a numeric Sybil or uniqueness score."* The sandbox testing page is silent.
+
+So either the score is delivered somewhere the docs do not name — a webhook, the portal, a header —
+or it was announced ahead of the API. Either way an integrator cannot build on it today. What we
+built instead is a sybil signal from our own reference graph, seeded by who holds a live Selfie
+Check proof; if the score turns up, it has a place to go (`.issues/open/T003-sybil-graph.md`, item 1).
+
+The ask: say where the score is, or say that it is not yet exposed. A feature on a slide that is
+absent from the reference is the most expensive kind to integrate, because the search for it has no
+end condition.
+
+## 8. Where this lives in the code
 
 | Piece | Where |
 |---|---|

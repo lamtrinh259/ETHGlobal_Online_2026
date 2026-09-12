@@ -4133,6 +4133,8 @@ describe("the caveat on a claim about somebody", () => {
     "/v1/instance/kju-is",
     "/v1/find?q=ali",
     "/v1/who?domain=x.com&handle=alice_x",
+    "/v1/graph",
+    "/v1/graph/alice",
   ];
 
   for (const path of aboutAPerson) {
@@ -4478,5 +4480,131 @@ describe("the order references are read in", () => {
     const body = await (await app(chain).request("/v1/vouches/alice")).json();
     expect(body.vouches.map((v: { voucher: string }) => v.voucher)).toEqual(["somebody", "nobody"]);
     expect(body.vouches[0].standing).toBeDefined();
+  });
+});
+
+/**
+ * The graph, read through the routes.
+ *
+ * The builder is pure and tested on its own; this is that the routes feed it every vouch domain the
+ * deployment holds and nothing else, and that one person's read is a cut around them.
+ */
+describe("GET /v1/graph", () => {
+  const ref = (candidate: string, referrer: string, live = true) => ({
+    name: referrer,
+    id: toBytes32(`${referrer}>${candidate}`),
+    wallet: user.account.address,
+    payload: toBytes32("works hard"),
+    validUntil: 9_000_000_000n,
+    nonce: 1n,
+    live,
+    domain: `~${candidate}`,
+  });
+  const withRefs = () =>
+    fakeChain({
+      instances: [
+        instance,
+        { ...instance, domain: "~alice", parentName: "alice.kju-is.eth" },
+        { ...instance, domain: "~bob", parentName: "bob.kju-is.eth" },
+      ],
+      listed: {
+        "~alice": [ref("alice", "bob"), ref("alice", "carol"), ref("alice", "dan", false)],
+        "~bob": [ref("bob", "carol")],
+      },
+    }).chain;
+
+  it("answers with every live reference as an edge, and what each person received", async () => {
+    const body = await (await app(withRefs()).request("/v1/graph")).json();
+    expect(body.edges).toEqual([
+      { from: "bob", to: "alice" },
+      { from: "carol", to: "alice" },
+      { from: "carol", to: "bob" },
+    ]);
+    // The counts, and beside them whether they proved humanity and where trust reached; none here.
+    expect(body.nodes[0]).toMatchObject({ handle: "alice", received: 2, given: 0, human: false, rank: 0 });
+    // A lapsed reference is history, and history is not an edge.
+    expect(body.nodes.some((n: { handle: string }) => n.handle === "dan")).toBe(false);
+  });
+
+  it("cuts one person's neighbourhood, and refuses a handle that is not one", async () => {
+    const body = await (await app(withRefs()).request("/v1/graph/bob")).json();
+    expect(body.handle).toBe("bob");
+    expect(body.nodes.map((n: { handle: string }) => n.handle).sort()).toEqual(["alice", "bob", "carol"]);
+    expect((await app(withRefs()).request("/v1/graph/not%20one")).status).toBe(400);
+  });
+});
+
+/**
+ * Rank, seeded from who has proved humanity.
+ *
+ * A proof is on a wallet and a person is a name, so the seeds are the names whose wallets hold a live
+ * proof. One proved human in a cluster is enough for trust to reach the people around them and not
+ * the ring wired only to itself.
+ */
+describe("GET /v1/graph/:handle — rank and shape", () => {
+  const ref = (candidate: string, referrer: string) => ({
+    name: referrer,
+    id: toBytes32(`${referrer}>${candidate}`),
+    wallet: user.account.address,
+    payload: toBytes32("works hard"),
+    validUntil: 9_000_000_000n,
+    nonce: 1n,
+    live: true,
+    domain: `~${candidate}`,
+  });
+  const held = (name: string, wallet: `0x${string}`) => ({
+    name,
+    id: toBytes32(name),
+    wallet,
+    payload: zeroHash,
+    validUntil: 9_000_000_000n,
+    nonce: 1n,
+    live: true,
+    domain: "kju-is",
+  });
+  const chainWith = () =>
+    fakeChain({
+      instances: [
+        instance,
+        { ...instance, domain: "~alice", parentName: "alice.kju-is.eth" },
+        { ...instance, domain: "~bob", parentName: "bob.kju-is.eth" },
+        { ...instance, domain: "~s1", parentName: "s1.kju-is.eth" },
+        { ...instance, domain: "~s2", parentName: "s2.kju-is.eth" },
+      ],
+      listed: {
+        "kju-is": [held("alice", user.account.address), held("s1", registrar.address)],
+        // alice's wallet holds a live proof; the ring's does not.
+        humanity: [{ ...held("alice", user.account.address), domain: "humanity" }],
+        "~alice": [ref("alice", "bob")],
+        "~bob": [ref("bob", "alice")],
+        "~s1": [ref("s1", "s2")],
+        "~s2": [ref("s2", "s1")],
+      },
+    }).chain;
+
+  it("marks who proved humanity and ranks the honest side above the ring", async () => {
+    const a = app(chainWith());
+    const alice = await (await a.request("/v1/graph/alice")).json();
+    expect(alice.human).toBe(true);
+    expect(alice.seeds).toBe(1);
+    expect(alice.rank).toBeGreaterThan(0);
+    const s1 = await (await a.request("/v1/graph/s1")).json();
+    expect(s1.human).toBe(false);
+    expect(s1.rank).toBe(0);
+  });
+
+  it("measures the shape on the whole graph, not on the cut it draws", async () => {
+    const body = await (await app(chainWith()).request("/v1/graph/alice")).json();
+    expect(body.metrics).toEqual({ mutual: 1, referrerDensity: 0, referrersReferringEachOther: 0, clusterSize: 2 });
+  });
+
+  it("has no rank at all where nobody has proved anything", async () => {
+    const { chain } = fakeChain({
+      instances: [instance, { ...instance, domain: "~alice", parentName: "alice.kju-is.eth" }],
+      listed: { "~alice": [ref("alice", "bob")] },
+    });
+    const body = await (await app(chain).request("/v1/graph")).json();
+    expect(body.seeds).toBe(0);
+    expect(body.nodes.every((n: { rank: number }) => n.rank === 0)).toBe(true);
   });
 });

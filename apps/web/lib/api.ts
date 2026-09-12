@@ -227,6 +227,36 @@ export const standingSchema = z.object({
 });
 export type Standing = z.infer<typeof standingSchema>;
 
+/**
+ * One person's neighbourhood in the reference graph, with its shape and where trust reached.
+ * A count is not a shape: this is what tells three strangers from a ring that only refers itself.
+ */
+export const graphSchema = z.object({
+  handle: z.string(),
+  nodes: z.array(
+    z.object({
+      handle: z.string(),
+      received: z.number(),
+      given: z.number(),
+      human: z.boolean(),
+      rank: z.number(),
+    })
+  ),
+  edges: z.array(z.object({ from: z.string(), to: z.string() })),
+  metrics: z.object({
+    mutual: z.number(),
+    referrerDensity: z.number(),
+    referrersReferringEachOther: z.number(),
+    clusterSize: z.number(),
+  }),
+  rank: z.number(),
+  human: z.boolean(),
+  /** How many people in the whole graph have proved humanity: where trust starts from */
+  seeds: z.number(),
+  warning: z.string(),
+});
+export type Graph = z.infer<typeof graphSchema>;
+
 export const disclosedSchema = z.object({
   name: z.string(),
   domain: z.string(),
@@ -706,6 +736,11 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
         await readJson(
           await call(`${base}/v1/standing/${encodeURIComponent(handle)}`, { signal: opts.signal })
         )
+      );
+    },
+    async graph(handle: string, opts: { signal?: AbortSignal } = {}): Promise<Graph> {
+      return graphSchema.parse(
+        await readJson(await call(`${base}/v1/graph/${encodeURIComponent(handle)}`, { signal: opts.signal }))
       );
     },
     async vouches(handle: string): Promise<Vouches> {

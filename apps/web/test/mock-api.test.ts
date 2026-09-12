@@ -5,6 +5,7 @@ import {
   ensSchema,
   explainSchema,
   findSchema,
+  graphSchema,
   instanceReadSchema,
   nameStatusSchema,
   profileSchema,
@@ -40,6 +41,7 @@ const cases: [string, { parse: (v: unknown) => unknown }][] = [
   ["/v1/find?q=ali", findSchema],
   ["/v1/name/ketsuban/alice", nameStatusSchema],
   ["/v1/who?domain=x.com&handle=alice", whoSchema],
+  ["/v1/graph/alice", graphSchema],
 ];
 
 describe("what the mock attester answers", () => {
