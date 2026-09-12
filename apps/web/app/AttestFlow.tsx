@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { connectedAccounts, domainFor, type LinkedAccounts } from "@/lib/identity";
+import { PLATFORM_DNS_NAMES } from "@ketsuban/registrar";
 import {
   useIdentityToken,
   useLinkAccount,
@@ -10,7 +12,6 @@ import {
 } from "@privy-io/react-auth";
 import type { Address, Hex } from "viem";
 import type { SignedInvite } from "@ketsuban/registrar";
-import { PLATFORM_DOMAIN_NAMES } from "@ketsuban/registrar";
 import { fromBytes32 } from "@peeramid-labs/multipass-client";
 import { Hint } from "./Hint";
 import { apiFor, useAttest, useContracts, useDeliver, useNameStatus, useNonce } from "@/lib/hooks";
@@ -59,6 +60,9 @@ type Props = {
  * Privy identity token are the only inputs the attester needs; nothing here talks to the chain.
  * Server state (nonce) and the two mutations go through react-query (`lib/hooks`).
  */
+/** Privy's `linkMethod` names for the platforms this deployment attests */
+const LINK_METHOD_PLATFORM: Readonly<Record<string, string>> = { twitter: "x" };
+
 export function AttestFlow({
   fixedDomain,
   fixedHandle,
@@ -77,24 +81,53 @@ export function AttestFlow({
   onPublished,
 }: Props) {
   const config = useWebConfig();
-  const { ready, authenticated, login } = usePrivy();
+  const { ready, authenticated, login, user } = usePrivy();
   const { wallets } = useWallets();
   const { identityToken } = useIdentityToken();
   const { signTypedData } = useSignTypedData();
-  const { linkTwitter, linkTelegram, linkGithub, linkDiscord, linkGoogle } = useLinkAccount();
+  // Linking an account is choosing it: the record's domain follows the platform that was just linked,
+  // so nobody links GitHub and then publishes into a domain they never picked.
+  const { linkTwitter, linkTelegram, linkGithub, linkDiscord, linkGoogle } = useLinkAccount({
+    onSuccess: ({ linkMethod }) => {
+      const chosen = platformDomain(LINK_METHOD_PLATFORM[linkMethod] ?? linkMethod);
+      if (chosen) setDomain(chosen);
+    },
+  });
   const api = useMemo(() => apiFor(config), [config]);
 
   // What this deployment can actually attest into, which is a DNS name wherever the namespace is
   // deployed. The flat list is the fallback for a deployment that has no platform instances at all.
-  const deployed = config.instances.map((i) => i.domain).filter((d) => !isNameDomainFor(d, config));
-  const platforms = domainOptions?.length
+  const contracts = useContracts(api);
+  // What is deployed comes from the chain when it has answered; before that, every platform's own
+  // DNS name, which is where a new account lands anyway. Never the flat legacy names.
+  const deployed = (contracts.data?.instances ?? config.instances)
+    .map((i) => i.domain)
+    .filter((d) => !isNameDomainFor(d, config));
+  const offered = domainOptions?.length
     ? domainOptions
     : deployed.length
       ? deployed
-      : [...PLATFORM_DOMAIN_NAMES];
+      : [...new Set(Object.values(PLATFORM_DNS_NAMES))];
+  const connected = connectedAccounts(user as LinkedAccounts | null | undefined);
+  /** Where an account on this platform is attested here; the first linked platform is the default. */
+  const platformDomain = (platform: string) =>
+    domainFor({ domain: platform, label: "" }, offered) ?? PLATFORM_DNS_NAMES[platform];
   const [domain, setDomain] = useState(
-    fixedDomain ?? (platformsOnly ? platforms[0] : config.instances[0]?.domain) ?? ""
+    fixedDomain ??
+      (platformsOnly
+        ? (connected.map((a) => platformDomain(a.domain)).find(Boolean) ?? offered[0])
+        : config.instances[0]?.domain) ??
+      ""
   );
+  // The picker offers what is deployed, where each linked account would land, and whatever is chosen:
+  // a select whose value is not among its options silently shows the first one instead.
+  const platforms = [
+    ...new Set(
+      [...offered, ...connected.map((a) => platformDomain(a.domain)), domain].filter(
+        (d): d is string => !!d && !isNameDomainFor(d, config)
+      )
+    ),
+  ];
   const [handle, setHandle] = useState(fixedHandle ?? "");
   const [answer, setAnswer] = useState(answerValue ?? "");
   // A linked account is masked by default: the commitment proves control, the handle stays private.
@@ -132,7 +165,6 @@ export function AttestFlow({
   const deliver = useDeliver(api, wallet, domain);
   // Nobody has attested an account in this domain here yet, so publishing also builds its namespace:
   // a few deployments, a minute of waiting, and worth saying before the button is pressed.
-  const contracts = useContracts(api);
   const mounting =
     !!contracts.data && domain.includes(".") && !contracts.data.instances.some((i) => i.domain === domain);
 
@@ -247,11 +279,29 @@ export function AttestFlow({
         <fieldset>
           <legend>Link an account</legend>
           <div className="row">
-            <button onClick={() => linkTwitter()}>X</button>
-            <button onClick={() => linkTelegram()}>Telegram</button>
-            <button onClick={() => linkGithub()}>GitHub</button>
-            <button onClick={() => linkDiscord()}>Discord</button>
-            <button onClick={() => linkGoogle()}>Google</button>
+            {(
+              [
+                ["x", "X", linkTwitter],
+                ["telegram", "Telegram", linkTelegram],
+                ["github", "GitHub", linkGithub],
+                ["discord", "Discord", linkDiscord],
+                ["google", "Google", linkGoogle],
+              ] as const
+            ).map(([platform, label, link]) => {
+              const linked = connected.some((a) => a.domain === platform);
+              const target = platformDomain(platform);
+              return (
+                // An account already linked is picked, not linked again.
+                <button
+                  key={platform}
+                  aria-pressed={!!target && domain === target}
+                  onClick={() => (linked && target ? setDomain(target) : link())}
+                >
+                  {label}
+                  {linked ? " · linked" : ""}
+                </button>
+              );
+            })}
           </div>
         </fieldset>
       )}

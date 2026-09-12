@@ -78,7 +78,6 @@ export function VouchFlow({
   const [letterState, setLetterState] = useState<"idle" | "writing" | "done" | "failed">("idle");
   const [letterError, setLetterError] = useState<string>();
   const letterWrite = useLetterWrite(candidate);
-  const isLinked = onChain.linked;
   const handle = onChain.named;
   // One real person writes a reference, or nobody does: where the deployment can check humanity, a
   // writer without a live proof is sent to pass it before a statement is asked of them.
@@ -92,7 +91,7 @@ export function VouchFlow({
     ? "signin"
     : published
       ? "done"
-      : !isLinked || stillToLink.length > 0
+      : stillToLink.length > 0
         ? "onboarding"
         : needsHuman
           ? "humanity"
@@ -215,34 +214,23 @@ export function VouchFlow({
             page continues by itself.
           </p>
           <h3>1. The account you know {candidate} from</h3>
-          {askedFor.length ? (
-            <p>
-              {candidate} asked for references from people who hold <strong>{askedFor.join(" and ")}</strong>.
-              {" "}Sign in to {stillToLink.length > 1 ? "each" : "it"} below. The account is attested to your
-              wallet on chain and stays masked: the reference shows it came from someone who holds such an
-              account, never which one.
-            </p>
-          ) : (
-            <p>
-              Sign in to the account you worked together on: GitHub, X, Google, Discord or Telegram. It is
-              attested to your wallet on chain and stays masked: the reference shows it came from a real
-              account, never which one.
-            </p>
-          )}
-          {askedFor.length > 0 && (
-            <ul className="journey" data-testid="onboarding-steps">
-              {askedFor.map((d) => (
-                <li key={d} className={stillToLink.includes(d) ? "todo" : "done"}>
-                  {d}
-                  {stillToLink.includes(d) ? " — not attested yet" : " — attested"}
-                </li>
-              ))}
-            </ul>
-          )}
+          <p>
+            {candidate} asked for references from people who hold <strong>{askedFor.join(" and ")}</strong>.
+            {" "}Sign in to {stillToLink.length > 1 ? "each" : "it"} below and <em>Sign &amp; publish</em>. The
+            account is attested to your wallet on chain and stays masked: the reference shows it came from
+            someone who holds such an account, never which one.
+          </p>
+          <ul className="journey" data-testid="onboarding-steps">
+            {askedFor.map((d) => (
+              <li key={d} className={stillToLink.includes(d) ? "todo" : "done"}>
+                {d}
+                {stillToLink.includes(d) ? " — not attested yet" : " — attested"}
+              </li>
+            ))}
+          </ul>
           <AttestFlow
-            key={stillToLink[0] ?? "any"}
+            key={stillToLink[0]}
             fixedDomain={stillToLink[0]}
-            platformsOnly
             allowLinking
             title=""
             onPublished={() => {

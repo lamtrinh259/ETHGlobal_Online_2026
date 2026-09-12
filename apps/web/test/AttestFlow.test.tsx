@@ -1,5 +1,5 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi, beforeEach } from "vitest";
 
 /**
  * AttestFlow is mostly wallet plumbing, so these tests cover the one thing a reader of the screen
@@ -19,14 +19,21 @@ vi.mock("@privy-io/react-auth", () => ({
   useWallets: () => ({ wallets }),
   useIdentityToken: () => ({ identityToken: "token" }),
   useSignTypedData: () => ({ signTypedData: vi.fn(async () => ({ signature: "0xsig" })) }),
-  useLinkAccount: () => ({
-    linkTwitter: vi.fn(),
-    linkTelegram: vi.fn(),
-    linkGithub: vi.fn(),
-    linkDiscord: vi.fn(),
-    linkGoogle: vi.fn(),
-  }),
+  useLinkAccount: (opts?: { onSuccess?: (r: { linkMethod: string }) => void }) => {
+    linking.onSuccess = opts?.onSuccess;
+    return {
+      linkTwitter: vi.fn(),
+      linkTelegram: vi.fn(),
+      linkGithub: linking.linkGithub,
+      linkDiscord: vi.fn(),
+      linkGoogle: vi.fn(),
+    };
+  },
 }));
+const linking = {
+  onSuccess: undefined as undefined | ((r: { linkMethod: string }) => void),
+  linkGithub: vi.fn(),
+};
 
 const state = {
   deliverError: undefined as Error | undefined,
@@ -250,5 +257,32 @@ describe("what a refused republish says", () => {
     state.attestError = new Error("intent: expired");
     render(<AttestFlow fixedDomain="~alice" fixedHandle="peersky" />);
     expect(screen.getByRole("alert")).toHaveTextContent("intent: expired");
+  });
+});
+
+describe("linking an account is choosing it", () => {
+  afterEach(() => {
+    privy.user = { id: "did:privy:x" };
+  });
+
+  it("moves the record to the platform just linked", async () => {
+    render(<AttestFlow platformsOnly allowLinking />);
+    fireEvent.click(screen.getByRole("button", { name: "GitHub" }));
+    expect(linking.linkGithub).toHaveBeenCalled();
+    act(() => linking.onSuccess?.({ linkMethod: "github" }));
+    expect(screen.getByLabelText("domain")).toHaveValue("github.com");
+    act(() => linking.onSuccess?.({ linkMethod: "twitter" }));
+    expect(screen.getByLabelText("domain")).toHaveValue("x.com");
+  });
+
+  it("starts on an account already linked, and picking it again does not re-link", async () => {
+    privy.user = { id: "did:privy:x", github: { username: "lam" } } as typeof privy.user;
+    linking.linkGithub.mockClear();
+    render(<AttestFlow platformsOnly allowLinking />);
+    expect(screen.getByLabelText("domain")).toHaveValue("github.com");
+    const github = screen.getByRole("button", { name: "GitHub · linked" });
+    expect(github).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(github);
+    expect(linking.linkGithub).not.toHaveBeenCalled();
   });
 });

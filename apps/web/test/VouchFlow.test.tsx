@@ -218,15 +218,11 @@ describe("what onboarding still needs", () => {
     expect(screen.getByTestId("attest")).toHaveAttribute("data-domain", "x.com");
   });
 
-  it("asks for any account they worked from when nothing in particular was required", async () => {
+  it("asks for nothing when the invitation named nothing: straight to the statement", async () => {
     state.links = [];
     render(<VouchFlow candidate="alice" />);
-    await waitFor(() => expect(screen.getByTestId("onboarding-gate")).toBeInTheDocument());
-    const gate = screen.getByTestId("onboarding-gate");
-    expect(gate.textContent).toContain("the account you worked together on");
-    expect(screen.queryByTestId("onboarding-steps")).toBeNull();
-    expect(screen.getByTestId("attest")).toHaveAttribute("data-domain", "");
-    expect(screen.queryByTestId("fake-human")).toBeNull();
+    await waitFor(() => expect(screen.getByTestId("fake-publish")).toBeInTheDocument());
+    expect(screen.queryByTestId("onboarding-gate")).toBeNull();
   });
 });
 
