@@ -90,3 +90,4 @@ export {
 } from "./namespace.js";
 export { base64urlDecode, base64urlEncode } from "./base64url.js";
 export { forPreview, previewId } from "./preview.js";
+export { deriveViewCode } from "@peeramid-labs/multipass-client";

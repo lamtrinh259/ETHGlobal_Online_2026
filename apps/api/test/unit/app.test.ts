@@ -37,6 +37,7 @@ import {
   policyInviteDomain,
   signPolicyInvite,
 } from "@ketsuban/registrar";
+import { deriveViewCode } from "@ketsuban/registrar";
 import {
   decodeRecord,
   fromBytes32,
@@ -5262,6 +5263,33 @@ describe("an employer's invitation to somebody who has a page", () => {
       status: "claimed",
       candidate: "bob",
     });
+  });
+});
+
+describe("the view codes a person holds", () => {
+  it("hands back the code for every private record the session's wallet holds, derived, never stored", async () => {
+    // The code the attester made for the private X record: key, domain, platform account.
+    const masked = {
+      name: `0x${"ab".repeat(32)}` as Hex,
+      id: `0x${"cd".repeat(32)}` as Hex,
+      wallet: user.account.address,
+      payload: `0x${"ef".repeat(32)}` as Hex,
+      validUntil: 9_000_000_000n,
+      nonce: 1n,
+      live: true,
+      domain: "x.com",
+    };
+    const open = { ...masked, payload: zeroHash, domain: "github.com" };
+    const { chain } = fakeChain({ byWallet: [masked, open] });
+    const idToken = privy.mint({ sub: user.did, linked: user.linked, now: NOW });
+    const res = await post(app(chain), "/v1/viewcodes", { idToken });
+    expect(res.status).toBe(200);
+    const { codes } = await res.json();
+    const twitter = user.linked.find((a) => a.type === "twitter_oauth")!;
+    expect(codes).toEqual({ "x.com": deriveViewCode(baseEnv.VIEWCODE_KEY as Hex, "x.com", twitter.subject!) });
+    // A forged or foreign token gets nothing.
+    expect((await post(app(chain), "/v1/viewcodes", { idToken: "not.a.token" })).status).toBe(401);
+    expect((await post(app(chain), "/v1/viewcodes", {})).status).toBe(400);
   });
 });
 

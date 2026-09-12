@@ -41,6 +41,11 @@ import {
   type AttestResult,
   type RegisterMessage,
   type OnchainState,
+  deriveViewCode,
+  hasLinkedWallet,
+  parseLinkedAccounts,
+  pickAccountFor,
+  verifyEs256Jwt,
 } from "@ketsuban/registrar";
 import { decodeRecord, fromBytes32, isOptedIn, maskName, toBytes32 } from "@peeramid-labs/multipass-client";
 import {
@@ -1346,6 +1351,48 @@ export function createApp({
       standing: candidate ? await standing(candidate) : null,
       warning: WARNING,
     });
+  });
+
+  /**
+   * The view codes a person holds, without their having to keep any.
+   *
+   * A view code is derived by the attester from its key, the domain and the platform account, so it
+   * never needs storing: whoever can prove the Privy session that holds those accounts gets the codes
+   * for every private record their wallet holds, on any device. The identity token is the proof.
+   */
+  app.post("/v1/viewcodes", async (c) => {
+    if (!config.VIEWCODE_KEY) return c.json({ error: "registrar disabled" }, 501);
+    const body = z.object({ idToken: z.string() }).safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: "idToken required" }, 400);
+    let claims;
+    try {
+      claims = verifyEs256Jwt(body.data.idToken, config.PRIVY_VERIFICATION_KEY_JWK, {
+        issuer: "privy.io",
+        audience: config.PRIVY_APP_ID,
+        now: Math.floor(Date.now() / 1000),
+      });
+    } catch (e) {
+      return c.json({ error: `identity: ${(e as Error).message}` }, 401);
+    }
+    const linked = parseLinkedAccounts(claims.linked_accounts);
+    const wallets = linked
+      .filter((a) => a.type === "wallet" && typeof a.address === "string")
+      .map((a) => getAddress(a.address as string));
+    const codes: Record<string, Hex> = {};
+    for (const wallet of wallets) {
+      if (!hasLinkedWallet(linked, wallet)) continue;
+      for (const r of await chain.listRecordsByWallet(wallet)) {
+        if (!r.live || r.payload === zeroHash || config.NAME_DOMAINS.includes(r.domain) || isVouchDomain(r.domain)) continue;
+        if (r.domain === config.ORG_DOMAIN || r.domain === config.HUMANITY_DOMAIN) continue;
+        try {
+          const acct = pickAccountFor(linked, r.domain);
+          codes[r.domain] = deriveViewCode(config.VIEWCODE_KEY, r.domain, acct.subject);
+        } catch {
+          // An account no longer linked to this session: its code is not this session's to hand out.
+        }
+      }
+    }
+    return c.json({ codes });
   });
 
   app.post("/v1/attest", async (c) => {
