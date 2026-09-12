@@ -11,6 +11,8 @@ COPY apps/api/package.json apps/api/
 RUN pnpm install --frozen-lockfile --filter @ketsuban/api... --config.dedupe-peer-dependents=false
 COPY packages/registrar packages/registrar
 COPY packages/contracts/abi packages/contracts/abi
+# The deployment files travel too: an address the environment leaves unset comes from the bundle.
+COPY packages/contracts/deployments packages/contracts/deployments
 COPY apps/api apps/api
 RUN pnpm --filter @ketsuban/registrar build && pnpm --filter @ketsuban/api build
 RUN pnpm deploy --filter @ketsuban/api --prod /out
