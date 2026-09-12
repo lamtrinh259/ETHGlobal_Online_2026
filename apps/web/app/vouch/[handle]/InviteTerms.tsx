@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { PlatformIcon } from "@/app/PlatformIcon";
 import { whyUnsatisfiable } from "@/lib/invite";
 
@@ -14,6 +15,7 @@ export function InviteTerms({
   requires,
   attested,
   parentNames = [],
+  linkHref,
 }: {
   candidate: string;
   requires: readonly string[];
@@ -21,6 +23,12 @@ export function InviteTerms({
   attested: readonly string[];
   /** The deployment's own name parents, for telling a domain from a name it answers for */
   parentNames?: readonly string[];
+  /**
+   * Where linking an account happens, carrying the way back here with the invitation. An unmet row
+   * that only said "not attested" left the writer to find the profile page on their own; the thing
+   * to do belongs on the row that says it is not done.
+   */
+  linkHref?: string;
 }) {
   if (requires.length === 0) return null;
   const held = new Set(attested.map((d) => d.toLowerCase()));
@@ -43,6 +51,18 @@ export function InviteTerms({
         {candidate} asked for a reference from someone with{" "}
         {met ? "these accounts, which you have attested." : "these accounts."}
         {!met && " You can still write one; it will be marked unsolicited."}
+        {!met && linkHref && (
+          <>
+            {" "}
+            <Link href={linkHref} className="button primary" data-testid="link-required">
+              Link{" "}
+              {requires.filter((d) => !held.has(d.toLowerCase()) && !impossible.has(d)).length > 1
+                ? "them"
+                : "it"}{" "}
+              and come back
+            </Link>
+          </>
+        )}
       </p>
       {impossible.size > 0 && (
         <p data-testid="invite-impossible">
@@ -63,11 +83,17 @@ export function InviteTerms({
               <strong>{d}</strong>
             </span>
             <span className="acct-state">
-              {impossible.has(d)
-                ? "cannot be attested"
-                : held.has(d.toLowerCase())
-                  ? "attested"
-                  : "not attested"}
+              {impossible.has(d) ? (
+                "cannot be attested"
+              ) : held.has(d.toLowerCase()) ? (
+                "attested"
+              ) : linkHref ? (
+                <Link href={linkHref} data-testid={`link-${d}`}>
+                  not attested — link it
+                </Link>
+              ) : (
+                "not attested"
+              )}
             </span>
           </li>
         ))}

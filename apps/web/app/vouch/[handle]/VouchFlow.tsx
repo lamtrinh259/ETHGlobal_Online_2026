@@ -117,7 +117,9 @@ export function VouchFlow({
     <>
       {candidate} asked for a reference from someone who has attested {missing.join(" and ")}.{" "}
       {/* Said "come back" and left them to find their way; the link carries who they were referring. */}
-      <Link href={`/me?then=${encodeURIComponent(`/vouch/${candidate}`)}#link`}>
+      <Link
+        href={`/me?then=${encodeURIComponent(`/vouch/${candidate}${inviteCode ? `?invite=${inviteCode}` : ""}`)}#link`}
+      >
         Link {missing.length > 1 ? "them" : "it"} on your profile
       </Link>{" "}
       and come back — a masked account counts, so this need not say which account it is.
@@ -186,6 +188,20 @@ export function VouchFlow({
           {impossibleAsk
             ? `${impossibleAsk} Write the reference if you mean to — it is published either way — but it cannot count as one ${candidate} asked for, so ask them for a new link.`
             : "A masked account counts, so this need not say which account it is."}
+          {!impossibleAsk && (
+            <>
+              {" "}
+              {/* The thing to do, before three steps in: linking happens on the profile page, which
+                  sends them back here with the invitation. */}
+              <Link
+                href={`/me?then=${encodeURIComponent(`/vouch/${candidate}${inviteCode ? `?invite=${inviteCode}` : ""}`)}#link`}
+                data-testid="link-required-preview"
+              >
+                Sign in and link {(invite?.requires.length ?? 0) > 1 ? "them" : "it"}, and this brings you
+                back →
+              </Link>
+            </>
+          )}
         </p>
       )}
 
@@ -211,7 +227,10 @@ export function VouchFlow({
           <p>
             {/* Carries who they were referring, so finishing there comes back here rather than
                 leaving them to remember the name and find it again. */}
-            <Link href={`/me?then=${encodeURIComponent(`/vouch/${candidate}`)}#link`} className="primary">
+            <Link
+              href={`/me?then=${encodeURIComponent(`/vouch/${candidate}${inviteCode ? `?invite=${inviteCode}` : ""}`)}#link`}
+              className="primary"
+            >
               Complete your onboarding →
             </Link>
           </p>
@@ -304,6 +323,7 @@ export function VouchFlow({
             parentNames={config.parentNames}
             requires={invite?.requires ?? []}
             attested={(dash.data?.links ?? []).filter((l) => l.live).map((l) => l.domain)}
+            linkHref={`/me?then=${encodeURIComponent(`/vouch/${candidate}${inviteCode ? `?invite=${inviteCode}` : ""}`)}#link`}
           />
           <AttestFlow
             fixedDomain={vouchDomain}

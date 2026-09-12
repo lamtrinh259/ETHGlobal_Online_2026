@@ -356,6 +356,20 @@ export const routes = [
       const code = decodeURIComponent(m[1]);
       // Nothing kept under this one: the server answers 404, which is what a falsy body becomes here.
       if (!/^[0-9a-f]{32}$/.test(code) || code === "ffffffffffffffffffffffffffffffff") return undefined;
+      // A code ending in `e` is the other kind: alice's invitation to a writer who has attested github.com.
+      if (code.endsWith("e")) {
+        return {
+          code,
+          kind: "vouch",
+          invite: {
+            handle: "alice",
+            voucher: "0x0000000000000000000000000000000000000000",
+            exp: "4102444800",
+            requires: ["github.com"],
+            signature: "0x01",
+          },
+        };
+      }
       return {
         code,
         kind: "policy",

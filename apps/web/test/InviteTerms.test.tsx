@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { InviteTerms } from "@/app/vouch/[handle]/InviteTerms";
 
@@ -54,5 +54,49 @@ describe("what an invitation asks of the writer", () => {
     const said = screen.getByTestId("invite-impossible").textContent ?? "";
     expect(said).toMatch(/cannot be satisfied by anyone/);
     expect(said).toMatch(/username, not a domain/);
+  });
+});
+
+const back = "/me?then=%2Fvouch%2Falice%3Finvite%3Dabc#link";
+
+describe("the thing to do about an unmet requirement", () => {
+  it("offers the link to attest an account the writer has not, on the row and above it", () => {
+    render(<InviteTerms candidate="alice" requires={["github.com"]} attested={[]} linkHref={back} />);
+    expect(screen.getByTestId("term-github.com")).toHaveTextContent("not attested");
+    expect(screen.getByTestId("link-github.com")).toHaveAttribute("href", back);
+    expect(screen.getByTestId("link-required")).toHaveAttribute("href", back);
+    expect(screen.getByTestId("link-required")).toHaveTextContent("Link it and come back");
+  });
+
+  it("says 'them' where more than one is missing", () => {
+    render(
+      <InviteTerms
+        candidate="alice"
+        requires={["github.com", "x.com"]}
+        attested={["x.com"]}
+        linkHref={back}
+      />
+    );
+    expect(screen.getByTestId("link-required")).toHaveTextContent("Link it and come back");
+    cleanup();
+    render(
+      <InviteTerms candidate="alice" requires={["github.com", "x.com"]} attested={[]} linkHref={back} />
+    );
+    expect(screen.getByTestId("link-required")).toHaveTextContent("Link them and come back");
+  });
+
+  it("offers nothing to do where everything asked for is attested", () => {
+    render(
+      <InviteTerms candidate="alice" requires={["github.com"]} attested={["GitHub.com"]} linkHref={back} />
+    );
+    expect(screen.getByTestId("term-github.com")).toHaveTextContent("attested");
+    expect(screen.queryByTestId("link-github.com")).toBeNull();
+    expect(screen.queryByTestId("link-required")).toBeNull();
+  });
+
+  it("offers no link for a requirement nobody can satisfy", () => {
+    render(<InviteTerms candidate="alice" requires={["lamtrinh259"]} attested={[]} linkHref={back} />);
+    expect(screen.getByTestId("term-lamtrinh259")).toHaveTextContent("cannot be attested");
+    expect(screen.queryByTestId("link-lamtrinh259")).toBeNull();
   });
 });

@@ -139,6 +139,9 @@ reference is unclaimed rather than pretending its writer has no history.
 2. `/vouch/<handle>` — anyone can write a reference for anyone, invitation or not. An invitation makes
    it a reference the candidate asked for; without one it is written all the same and marked
    unsolicited. `?ask=<id>` opens it on one of the references people are commonly asked for.
+   Where the invitation asks for an account the writer has not attested, the row says so and offers
+   the link to attest it — on the profile page, which brings them back here with the invitation still
+   in hand, so the reference they then write counts as one the candidate asked for.
 3. `/p/<handle>` — the reference page, graded against the verifier's own policy, with the raw names to
    resolve independently. Each reference received carries how it reads — supportive, neutral or
    critical, the council's provisional reading of the words — and a switch sets the unsolicited ones
