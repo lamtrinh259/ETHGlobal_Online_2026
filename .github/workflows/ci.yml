@@ -104,9 +104,16 @@ jobs:
       # anvil, the contracts deployed from this source, and the api image: the whole loop from outside.
       # The summary is kept whatever happens: on a forge whose logs need a login, which of these
       # thirty-five failed is otherwise readable by nobody who was not already signed in.
-      - run: pnpm --filter @ketsuban/api test:e2e --reporter=default --reporter=junit --outputFile=e2e-results.xml
+      # Kept whatever happens, and kept as two things: which tests failed, and what the run said on
+      # its way there. A run that writes no results file at all is the case the second one answers.
+      - run: |
+          set -o pipefail
+          pnpm --filter @ketsuban/api test:e2e --reporter=default --reporter=junit \
+            --outputFile=e2e-results.xml 2>&1 | tee apps/api/e2e-output.txt
       - if: always()
         uses: actions/upload-artifact@v3
         with:
           name: e2e-results
-          path: apps/api/e2e-results.xml
+          path: |
+            apps/api/e2e-results.xml
+            apps/api/e2e-output.txt
