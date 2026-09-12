@@ -70,7 +70,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   // The closed drawer is `inert` only on mobile: on a wide screen the same <aside> is the sidebar.
   const [compact, setCompact] = useState(false);
   useEffect(() => {
-    const mq = window.matchMedia("(max-width: 900px)");
+    const mq = window.matchMedia("(max-width: 900px), (max-height: 520px)");
     const sync = () => setCompact(mq.matches);
     sync();
     mq.addEventListener("change", sync);
