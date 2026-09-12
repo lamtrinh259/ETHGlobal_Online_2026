@@ -74,14 +74,25 @@ export function ReferenceMap({ handle }: { handle: string }) {
               const a = at.get(e.from);
               const b = at.get(e.to);
               if (!a || !b) return null;
+              const mine = e.to === me || e.from === me;
+              /*
+               * A reference among the referrers bows outward.
+               * Two referrers sit opposite each other, and a straight line between them runs through
+               * the person in the middle — reading as two references to them rather than one between
+               * the pair. Bowed away from the centre it reads as what it is.
+               */
+              const mx = (a.x + b.x) / 2;
+              const my = (a.y + b.y) / 2;
+              const len = Math.hypot(mx, my) || 1;
+              const bow = R * 1.35;
+              const cx = mine ? mx : (mx / len) * bow || (a.y - b.y) * 0.4;
+              const cy = mine ? my : (my / len) * bow || (b.x - a.x) * 0.4;
               return (
-                <line
+                <path
                   key={`${e.from}>${e.to}`}
-                  x1={a.x}
-                  y1={a.y}
-                  x2={b.x}
-                  y2={b.y}
-                  className={e.to === me || e.from === me ? "refmap-edge" : "refmap-edge refmap-among"}
+                  d={mine ? `M${a.x} ${a.y} L${b.x} ${b.y}` : `M${a.x} ${a.y} Q${cx} ${cy} ${b.x} ${b.y}`}
+                  fill="none"
+                  className={mine ? "refmap-edge" : "refmap-edge refmap-among"}
                   data-testid={`edge-${e.from}-${e.to}`}
                 />
               );
