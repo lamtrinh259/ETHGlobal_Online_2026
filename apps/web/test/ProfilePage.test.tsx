@@ -20,6 +20,7 @@ const empty: ProfileRead = {
 };
 
 vi.mock("@privy-io/react-auth", () => ({
+  usePrivy: () => ({ ready: true, authenticated: false, login: () => undefined }),
   useIdentityToken: () => ({ identityToken: null }),
   useWallets: () => ({ wallets: [] }),
 }));
