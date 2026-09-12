@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { plan, walletFor } from "../../scripts/seed-graph.js";
+import { plan, walletFor } from "../../src/seed.js";
 import { personMetrics, referenceGraph, sybilRank } from "../../src/graph.js";
 
 /**

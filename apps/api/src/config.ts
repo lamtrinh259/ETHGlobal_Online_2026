@@ -158,6 +158,18 @@ export const configSchema = z.object({
   /** Prefix of per-candidate vouch domains (`~alice`) */
   VOUCH_PREFIX: z.string().min(1).default("~"),
   /**
+   * Write the demo namespace (`src/seed.ts`: a team, a ring, a bridge, a newcomer) through this
+   * service's own relay once it is listening. For a pull request's preview, which starts empty and
+   * has nothing for the reference map to show. Needs `REGISTRAR_KEY`; idempotent across restarts.
+   * The records are real, on whatever chain this deployment is on.
+   */
+  SEED_GRAPH: z
+    .string()
+    .default("false")
+    .transform((v) => v === "true"),
+  /** What the seeded wallets are derived from; the same salt seeds the same wallets again */
+  SEED_SALT: z.string().min(1).default("demo"),
+  /**
    * The Noolog orchestrator that reads reference statements (spec §E.8): an OpenAI-compatible
    * `POST /v1/chat/completions` answered by a registered council policy. Unset leaves every statement
    * unread rather than scored by anything else.

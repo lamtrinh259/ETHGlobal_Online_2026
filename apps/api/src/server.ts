@@ -2,6 +2,7 @@ import { serve } from "@hono/node-server";
 import { createApp } from "./app.js";
 import { Chain } from "./chain.js";
 import { startIndexer } from "./indexer.js";
+import { seedOnBoot } from "./seed.js";
 import { probeStorage, VOLATILE_WITHOUT_DATA_DIR } from "./store.js";
 import { explainConfigError, loadConfig } from "./config.js";
 
@@ -49,6 +50,12 @@ void chain
 
 const server = serve({ fetch: app.fetch, port: config.PORT }, (info) => {
   console.log(JSON.stringify({ msg: "api listening", port: info.port, chainId: config.CHAIN_ID }));
+  // A deployment that asked to start with the demo namespace writes it now, through its own relay.
+  void seedOnBoot({
+    config,
+    apiUrl: `http://127.0.0.1:${info.port}`,
+    log: (msg) => process.stdout.write(`${JSON.stringify({ msg })}\n`),
+  });
 });
 
 // A deploy replaces this container: stop polling and let the in-flight tick finish, so the snapshot on

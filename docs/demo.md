@@ -323,6 +323,12 @@ shaped like the real thing:
 API_URL=https://ketsuban-api.peeramid.xyz REGISTRAR_KEY=0x… pnpm --filter @ketsuban/api seed:graph
 ```
 
+Or let the deployment write it itself: `SEED_GRAPH=true` on the API (a pull request's preview, say) seeds
+the same namespace once the service is listening, idempotently. See docs/deploy.md.
+
+```bash
+```
+
 It writes, in order: a name for each person, a humanity record for the ones who "proved" it, and then
 every reference. Every record is registrar-signed and relayed through `/v1/submit`, so each one is a
 real Multipass record readable in any ENS client. What the seeder skips is the identity token, which

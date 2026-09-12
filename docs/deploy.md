@@ -71,6 +71,18 @@ Each side derives the other from that one variable (`previewId` / `forPreview` i
   beside `https://ketsuban.peeramid.xyz`), and `/healthz` reports `preview: "1"` (`null` in production).
 
 The id is the first label of the host, and only when it is a number; a production host derives nothing.
+
+### A preview with something in it
+
+A preview API starts against the same chain as production, so it shows whatever the namespace already
+holds. For a pull request whose point is the reference map, set `SEED_GRAPH=true` on the API's preview
+environment (Coolify → Environment Variables, marked available in previews): once listening, the API
+writes the demo namespace from `src/seed.ts` through its own relay — a team of five with three proved
+humans, a ring of five, one bridge, one newcomer — signed with `REGISTRAR_KEY`, idempotent across
+restarts. `SEED_SALT` (default `demo`) decides the seeded wallets. Two things to know before flipping it:
+the records are real, on Sepolia, and the namespace is shared, so production reads them too; and the
+"proved human" marks on the team are seeded records, not Selfie Checks. The same namespace can be written
+by hand with `pnpm --filter @ketsuban/api seed:graph`.
 Nothing needs setting per preview. If Coolify's preview template is changed away from `{{pr_id}}.{{domain}}`,
 this rule has to follow it.
 
