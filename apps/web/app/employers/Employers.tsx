@@ -8,7 +8,7 @@ import { CopyButton } from "@/app/CopyButton";
 import { PolicyForm } from "@/app/PolicyForm";
 import { PersonSearch } from "@/app/PersonSearch";
 import { useWebConfig } from "@/app/providers";
-import { apiFor, useGraph, useInvites, useProfile, useWalletDashboard } from "@/lib/hooks";
+import { apiFor, useGraph, useInvites, useProfile, useReadings, useWalletDashboard } from "@/lib/hooks";
 import { policyInviteTypedData } from "@/lib/intent";
 import { nameRows } from "@/lib/journey";
 import { loadPolicies, type SavedPolicy } from "@/lib/policies";
@@ -370,6 +370,10 @@ function Standing({
    * are the same count in every row. What the map says on one page is said here in a phrase.
    */
   const shape = useGraph(api, entry.handle);
+  // How their references read, in the row: a list is where people are compared, and three references
+  // that read as warnings and three that read as praise are the same count in every row.
+  const readings = useReadings(api, entry.handle);
+  const readLine = readings.data?.council ? readings.data.summary.received : undefined;
   const names = [config.instances[0], ...config.instances.slice(1)].map(
     (i) => `${entry.handle}.${i.parentName}`
   );
@@ -412,6 +416,12 @@ function Standing({
             {(read.data?.standing.withdrawn ?? 0) > 0 && (
               <> · has taken back {read.data!.standing.withdrawn}</>
             )}
+          </small>
+        )}
+        {readLine && readLine.read > 0 && (
+          <small className="muted" data-testid={`read-${entry.handle}`}>
+            {readLine.supportive} of {readLine.read} read as supportive · {readLine.critical} critical
+            {readLine.of > readLine.read && <> · {readLine.of - readLine.read} unread</>}
           </small>
         )}
       </span>

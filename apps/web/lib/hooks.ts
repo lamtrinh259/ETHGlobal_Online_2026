@@ -163,6 +163,8 @@ export function useInvites(api: Api, handle: string | undefined) {
     queryKey: ["invites", handle],
     queryFn: () => api.invites(handle as string),
     enabled: !!handle,
+    // An employer's pending checks change when the invited person acts, somewhere else entirely.
+    refetchInterval: 30_000,
   });
 }
 

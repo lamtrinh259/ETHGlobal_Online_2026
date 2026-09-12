@@ -24,6 +24,8 @@ test("a bar, a list, and where each of them stands", async ({ page }) => {
   // And the shape behind the count, since a shortlist is where people are compared.
   await expect(row.getByTestId("shape-alice")).toContainText("1 of 2 referrers know each other");
   await expect(row.getByTestId("shape-alice")).toContainText("proved human");
+  // And how her references read, in the row, where people are compared.
+  await expect(row.getByTestId("read-alice")).toContainText("1 of 2 read as supportive · 1 critical");
   // Reading them opens their page carrying the same bar, so the row and the page cannot disagree.
   await row.getByRole("link", { name: "Read" }).click();
   await expect(page).toHaveURL(/\/p\/alice\?.*preset=dao/);
