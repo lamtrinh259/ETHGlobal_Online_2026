@@ -309,6 +309,13 @@ export const adminResetSchema = z.object({
   deleted: z.union([z.object({ txHash: z.string() }), z.object({ error: z.string() })]).nullable(),
 });
 export type AdminReset = z.infer<typeof adminResetSchema>;
+/** Demo only: whether a reference needs the Selfie Check right now, for everyone. */
+export const adminSelfieCheckSchema = z.object({
+  required: z.boolean(),
+  configured: z.boolean(),
+  offered: z.boolean(),
+});
+export type AdminSelfieCheck = z.infer<typeof adminSelfieCheckSchema>;
 
 /** A candidate's invitation as it is kept: the signed message, its number as a string. */
 export type WireInvite = {
@@ -740,6 +747,21 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
         body: JSON.stringify(q),
       });
       return adminResetSchema.parse(await readJson(res));
+    },
+    /** Demo only: whether the Selfie Check is in force for everyone. */
+    async adminSelfieCheck(token: string): Promise<AdminSelfieCheck> {
+      return adminSelfieCheckSchema.parse(
+        await readJson(await call(`${base}/v1/admin/selfie-check`, { headers: { "x-admin-token": token } }))
+      );
+    },
+    /** Demo only: turn the Selfie Check off, or back on, for everyone at once. */
+    async adminSelfieCheckSet(token: string, required: boolean): Promise<AdminSelfieCheck> {
+      const res = await call(`${base}/v1/admin/selfie-check`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-admin-token": token },
+        body: JSON.stringify({ required }),
+      });
+      return adminSelfieCheckSchema.parse(await readJson(res));
     },
     /** Keep a signed invitation of either kind and get the short code that stands for it. */
     async storeInvite(wire: object): Promise<{ code: string }> {

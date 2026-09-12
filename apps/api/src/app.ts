@@ -400,7 +400,7 @@ export function createApp({
     return {
       chainId: config.CHAIN_ID,
       // The platform rule: a reference is written by one real person. Off only on a test stack.
-      vouchRequiresHumanity: config.VOUCH_REQUIRES_HUMANITY,
+      vouchRequiresHumanity: selfieCheckRequired(),
       multipass: config.MULTIPASS,
       bridge: config.BRIDGE,
       factory: config.FACTORY,
@@ -604,7 +604,7 @@ export function createApp({
       paymentToken: config.PAYMENT_TOKEN ?? null,
       // Whether a proof of humanity can be asked for at all. Unconfigured, those routes answer 501,
       // and a button or a step that leads there is a dead end.
-      humanity: !!worldFrom(config),
+      humanity: selfieCheckOffered(),
     })
   );
 
@@ -670,6 +670,20 @@ export function createApp({
    * this records which ones were invited — with the invitation itself, so the claim is checkable by
    * whoever reads it rather than trusted because this service says so.
    */
+  /*
+   * Demo switches an admin flips at run time. One so far: whether a reference needs the Selfie Check.
+   * Off, the gate stands down for everyone and the browser stops asking; the configured default is
+   * what the switch returns to.
+   */
+  const switches = new PersistentMap<boolean>(
+    "switches",
+    config.DATA_DIR || undefined,
+    (raw) => raw === true,
+    (value) => value
+  );
+  const selfieCheckRequired = () => config.VOUCH_REQUIRES_HUMANITY && switches.get("selfieCheck") !== false;
+  const selfieCheckOffered = () => !!worldFrom(config) && switches.get("selfieCheck") !== false;
+
   const solicitedStore = new PersistentMap<{ handle: string; voucher: Address; exp: string; signature: Hex }>(
     "solicited",
     config.DATA_DIR || undefined,
@@ -1391,7 +1405,7 @@ export function createApp({
    * an account are the writer's own business.
    */
   async function humanityGate(wallet: Address, domain: string): Promise<string | null> {
-    if (!config.VOUCH_REQUIRES_HUMANITY || !isVouchDomain(domain)) return null;
+    if (!selfieCheckRequired() || !isVouchDomain(domain)) return null;
     const proof = await chain.recordFor(wallet, config.HUMANITY_DOMAIN);
     if (proof?.live) return null;
     return "a reference is written by one real person: pass the Selfie Check on your profile first";
@@ -1945,6 +1959,26 @@ export function createApp({
     const bound = humans.entries().filter(([, w]) => w.toLowerCase() === wallet.toLowerCase()).length;
     return { onchain: { exists: onchain.exists, nonce: onchain.nonce.toString() }, bound };
   };
+
+  /** Demo only: whether a reference needs the Selfie Check right now, for everyone. */
+  const selfieCheckState = () => ({
+    required: selfieCheckRequired(),
+    configured: config.VOUCH_REQUIRES_HUMANITY,
+    offered: selfieCheckOffered(),
+  });
+  app.get("/v1/admin/selfie-check", (c) => {
+    const refused = adminGate(c);
+    if (refused) return refused;
+    return c.json(selfieCheckState());
+  });
+  app.post("/v1/admin/selfie-check", async (c) => {
+    const refused = adminGate(c);
+    if (refused) return refused;
+    const body = z.object({ required: z.boolean() }).safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: "required: boolean" }, 400);
+    switches.set("selfieCheck", body.data.required);
+    return c.json(selfieCheckState());
+  });
 
   app.get("/v1/admin/humanity", async (c) => {
     const refused = adminGate(c);

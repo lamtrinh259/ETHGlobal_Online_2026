@@ -86,3 +86,37 @@ describe("the admin reset", () => {
     expect(screen.getByTestId("admin-reset")).toBeDisabled();
   });
 });
+
+describe("the switch for everyone", () => {
+  it("reads whether the check is in force and flips it after a confirmation", async () => {
+    const calls: boolean[] = [];
+    let required = true;
+    await show({
+      adminSelfieCheck: vi.fn(async () => ({ required, configured: true, offered: required })),
+      adminSelfieCheckSet: vi.fn(async (_t: string, next: boolean) => {
+        calls.push(next);
+        required = next;
+        return { required, configured: true, offered: required };
+      }),
+    });
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    fireEvent.click(screen.getByTestId("admin-policy-read"));
+    await waitFor(() => expect(screen.getByTestId("admin-policy-state")).toHaveTextContent("Right now: required"));
+    expect(screen.getByTestId("admin-policy-flip")).toHaveTextContent("Turn the Selfie Check off for everyone");
+    fireEvent.click(screen.getByTestId("admin-policy-flip"));
+    await waitFor(() => expect(screen.getByTestId("admin-policy-state")).toHaveTextContent("Right now: off"));
+    expect(screen.getByTestId("admin-policy-state")).toHaveTextContent("configured: required");
+    expect(screen.getByTestId("admin-policy-flip")).toHaveTextContent("Require the Selfie Check again");
+    expect(calls).toEqual([false]);
+  });
+
+  it("shows the API's refusal on the switch as it is", async () => {
+    await show({
+      adminSelfieCheck: vi.fn(async () => {
+        throw new Error("admin disabled");
+      }),
+    });
+    fireEvent.click(screen.getByTestId("admin-policy-read"));
+    await waitFor(() => expect(screen.getByTestId("admin-policy-error")).toHaveTextContent("admin disabled"));
+  });
+});

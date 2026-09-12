@@ -4202,6 +4202,44 @@ describe("the humanity check", () => {
       ).toBe(401);
     });
 
+    it("turns the Selfie Check off for everyone, and back on, and says so wherever it is asked about", async () => {
+      const { chain } = fakeChain();
+      const a = humanApp(chain, portal(), { ...adminEnv, VOUCH_REQUIRES_HUMANITY: "true" });
+      expect((await a.request("/v1/admin/selfie-check")).status).toBe(401);
+      expect(await (await a.request("/v1/admin/selfie-check", { headers })).json()).toEqual({
+        required: true,
+        configured: true,
+        offered: true,
+      });
+      expect((await (await a.request("/v1/instances")).json()).humanity).toBe(true);
+
+      const off = await a.request("/v1/admin/selfie-check", {
+        method: "POST",
+        headers: { ...headers, "content-type": "application/json" },
+        body: JSON.stringify({ required: false }),
+      });
+      expect(await off.json()).toMatchObject({ required: false, configured: true, offered: false });
+      // The browser stops asking, and the report says what is in force rather than what was configured.
+      expect((await (await a.request("/v1/instances")).json()).humanity).toBe(false);
+      expect((await (await a.request("/healthz")).json()).config.vouchRequiresHumanity).toBe(false);
+
+      const on = await a.request("/v1/admin/selfie-check", {
+        method: "POST",
+        headers: { ...headers, "content-type": "application/json" },
+        body: JSON.stringify({ required: true }),
+      });
+      expect(await on.json()).toMatchObject({ required: true, offered: true });
+      expect(
+        (
+          await a.request("/v1/admin/selfie-check", {
+            method: "POST",
+            headers: { ...headers, "content-type": "application/json" },
+            body: JSON.stringify({ required: "yes" }),
+          })
+        ).status
+      ).toBe(400);
+    });
+
     it("forgets the nullifier and deletes the record, so the person can pass the check again", async () => {
       const { chain } = fakeChain({
         records: {
@@ -5246,6 +5284,21 @@ describe("a reference is written by one real person", () => {
     live: true,
     domain: "humanity",
   };
+
+  it("relays it for anyone once an admin has turned the check off for everyone", async () => {
+    const { chain, submitted } = fakeChain();
+    const a = app(chain, { ...strict, ADMIN_TOKEN: "admin-token-0123456789abcdef" });
+    const headers = { "x-admin-token": "admin-token-0123456789abcdef", "content-type": "application/json" };
+    expect((await post(a, "/v1/submit", { record: record("~alice"), signature: "0xabc" })).status).toBe(403);
+    await a.request("/v1/admin/selfie-check", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ required: false }),
+    });
+    const res = await post(a, "/v1/submit", { record: record("~alice"), signature: "0xabc" });
+    expect(res.status).toBe(200);
+    expect(submitted).toHaveLength(1);
+  });
 
   it("refuses to relay a reference from a wallet with no proof, and says what to do", async () => {
     const { chain, submitted } = fakeChain();

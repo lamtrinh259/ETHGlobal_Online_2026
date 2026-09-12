@@ -1,4 +1,5 @@
 import { createApi } from "@/lib/api";
+import { HeroAuth } from "@/app/HeroAuth";
 import { loadWebConfig } from "@/lib/config";
 import { flourish } from "@/lib/patience";
 import { questionTitle } from "@/lib/questions";
@@ -37,6 +38,7 @@ export default async function Home() {
           A reference that cannot be <span className="knot">deleted</span>
         </h1>
         <p>Verified humans put their permanent name behind yours, as an ENS name anyone can read.</p>
+        <HeroAuth />
       </section>
 
       <FindPeople

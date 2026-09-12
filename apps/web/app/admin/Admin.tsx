@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useWebConfig } from "@/app/providers";
-import type { AdminHumanity, AdminReset } from "@/lib/api";
+import type { AdminHumanity, AdminReset, AdminSelfieCheck } from "@/lib/api";
 import { apiFor } from "@/lib/hooks";
 
 const TOKEN_KEY = "ketsuban:admin-token";
@@ -23,7 +23,9 @@ export function Admin() {
   const [state, setState] = useState<AdminHumanity>();
   const [result, setResult] = useState<AdminReset>();
   const [error, setError] = useState<string>();
-  const [busy, setBusy] = useState<"look" | "reset">();
+  const [busy, setBusy] = useState<"look" | "reset" | "switch">();
+  const [policy, setPolicy] = useState<AdminSelfieCheck>();
+  const [policyError, setPolicyError] = useState<string>();
   useEffect(() => {
     try {
       setToken(sessionStorage.getItem(TOKEN_KEY) ?? "");
@@ -71,12 +73,39 @@ export function Admin() {
     }
   };
 
+  const readPolicy = async () => {
+    setPolicyError(undefined);
+    setBusy("switch");
+    try {
+      setPolicy(await api.adminSelfieCheck(token));
+    } catch (e) {
+      setPolicy(undefined);
+      setPolicyError((e as Error).message);
+    } finally {
+      setBusy(undefined);
+    }
+  };
+  const flip = async () => {
+    if (!policy) return;
+    const next = !policy.required;
+    if (!window.confirm(next ? "Require the Selfie Check again, for everyone?" : "Turn the Selfie Check off for everyone?")) return;
+    setPolicyError(undefined);
+    setBusy("switch");
+    try {
+      setPolicy(await api.adminSelfieCheckSet(token, next));
+    } catch (e) {
+      setPolicyError((e as Error).message);
+    } finally {
+      setBusy(undefined);
+    }
+  };
   return (
-    <section className="card" data-testid="admin">
-      <h2>Reset a Selfie Check</h2>
+    <>
+    <section className="card" data-testid="admin-policy">
+      <h2>Selfie Check, for everyone</h2>
       <p className="warning">
-        Demo only. This forgets the person&apos;s nullifier and deletes their humanity record on chain, so
-        they can pass the check again. It answers only where the registrar is this deployment&apos;s own node.
+        Demo only. Off, no reference needs a proof of humanity and the browser stops asking for one, on
+        every account at once. It comes back on with the same switch.
       </p>
       <label>
         Admin token
@@ -90,6 +119,38 @@ export function Admin() {
         />
         <small className="muted">Kept in this tab only.</small>
       </label>
+      <p className="row">
+        <button type="button" onClick={readPolicy} disabled={!token || !!busy} data-testid="admin-policy-read">
+          {busy === "switch" && !policy ? "reading…" : "Read the switch"}
+        </button>
+        <button
+          type="button"
+          className="primary"
+          onClick={flip}
+          disabled={!policy || !!busy}
+          data-testid="admin-policy-flip"
+        >
+          {policy?.required ? "Turn the Selfie Check off for everyone" : "Require the Selfie Check again"}
+        </button>
+      </p>
+      {policy && (
+        <p className="muted" data-testid="admin-policy-state">
+          Right now: {policy.required ? "required" : "off"}
+          {policy.configured !== policy.required && ` (configured: ${policy.configured ? "required" : "off"})`}.
+        </p>
+      )}
+      {policyError && (
+        <p className="error" role="alert" data-testid="admin-policy-error">
+          {policyError}
+        </p>
+      )}
+    </section>
+    <section className="card" data-testid="admin">
+      <h2>Reset a Selfie Check</h2>
+      <p className="warning">
+        Demo only. This forgets the person&apos;s nullifier and deletes their humanity record on chain, so
+        they can pass the check again. It answers only where the registrar is this deployment&apos;s own node.
+      </p>
       <label>
         Account
         <input
@@ -156,5 +217,6 @@ export function Admin() {
         </p>
       )}
     </section>
+    </>
   );
 }
