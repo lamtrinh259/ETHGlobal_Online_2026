@@ -63,7 +63,7 @@ import { explainRevert } from "./errors.js";
 import type { Config } from "./config.js";
 import { PersistentMap, PersistentSet, VOLATILE_WITHOUT_DATA_DIR } from "./store.js";
 import { commitFromEnv } from "./commit.js";
-import { signRequest, verifyHumanProof, worldFrom, type Fetch } from "./world.js";
+import { humanityRecordId, signRequest, verifyHumanProof, worldFrom, type Fetch } from "./world.js";
 
 const hex = z.string().regex(/^0x[0-9a-fA-F]*$/);
 const decimal = z.string().regex(/^\d+$/);
@@ -1770,10 +1770,12 @@ export function createApp({
   /**
    * Verify a World ID proof and write the human into the humanity domain.
    *
-   * The record is keyed by the nullifier and carries the credential as its payload, which is what the
-   * instance resolver hops into to answer `ketsuban:humanity` on a person's own name. Multipass gives
-   * the same guarantee a second time on chain — an id is unique within a domain — so a nullifier that
-   * slipped past the store still cannot land twice.
+   * The record is keyed by the wallet — an id derived from it, since Multipass keeps a record's id for
+   * its whole life and the World nullifier is neither that stable nor something to publish — and it
+   * carries the credential as its payload, which is what the instance resolver hops into to answer
+   * `ketsuban:humanity` on a person's own name. That one human holds one account is the nullifier's
+   * job, done off chain in `humans`: a second wallet presenting the same nullifier is refused before
+   * anything is signed.
    */
   app.post("/v1/humanity", async (c) => {
     if (!world) return c.json({ error: "World ID not configured" }, 501);
@@ -1811,7 +1813,7 @@ export function createApp({
       const record: RegisterMessage = {
         // A humanity record has no readable label: the resolver reaches it by wallet, never by name.
         name: zeroHash,
-        id: human.nullifier,
+        id: humanityRecordId(wallet),
         domainName: toBytes32(config.HUMANITY_DOMAIN),
         validUntil,
         nonce: onchain.nonce + 1n,

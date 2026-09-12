@@ -1,4 +1,4 @@
-import { concatHex, hexToBytes, keccak256, numberToHex, stringToBytes, type Hex } from "viem";
+import { concatHex, hexToBytes, keccak256, numberToHex, stringToBytes, type Address, type Hex } from "viem";
 import { signMessage } from "viem/accounts";
 
 /**
@@ -147,6 +147,21 @@ type VerifyAnswer = {
 };
 
 export type HumanProof = { nullifier: Hex; level: string };
+
+/**
+ * The id a wallet's humanity record is written under.
+ *
+ * Multipass keeps a record's id for the record's whole life: `register` refuses an id that already
+ * resolves, a renewal must carry the same id, and the nonce is kept per id even after the owner
+ * deletes the record. The World nullifier is none of those things — it is per action and per
+ * credential, a later proof from the same person need not carry the same one, and putting it on chain
+ * ties a wallet to a World identity for anyone reading. So the id is derived from the wallet, which
+ * is what the resolver reaches the record by, and the nullifier stays off chain, in `humans`, where
+ * it does the one job it has: refusing a second wallet claiming the same person.
+ */
+export function humanityRecordId(wallet: Address): Hex {
+  return keccak256(stringToBytes(`ketsuban:humanity:${wallet.toLowerCase()}`));
+}
 
 /** Just enough of `fetch` to be replaceable in a test without pretending to be the whole of it. */
 export type Fetch = (url: string, init: RequestInit) => Promise<Response>;

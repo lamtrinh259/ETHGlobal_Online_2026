@@ -20,6 +20,7 @@
 import { keccak256, stringToBytes, toHex, type Address, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { signRecord } from "@ketsuban/registrar";
+import { humanityRecordId } from "./world.js";
 import { toBytes32 } from "@peeramid-labs/multipass-client";
 
 /** Who exists, who proved humanity, and who stands behind whom. */
@@ -202,8 +203,8 @@ export async function apply(
         await write(opts.api, opts.registrarKey, d, opts.eip712, {
           domain: d.humanityDomain,
           name: toHex(0, { size: 32 }),
-          // Where World would put a nullifier: one that nobody else can have, derived the same way.
-          id: keccak256(stringToBytes(`seed-nullifier:${opts.salt}:${person.handle}`)),
+          // The same id a real check writes under: derived from the wallet, never a nullifier.
+          id: humanityRecordId(w.address),
           wallet: w.address,
           payload: toBytes32("selfie"),
         });

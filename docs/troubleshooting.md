@@ -203,3 +203,23 @@ curl -s https://<site>/api/health | jq '{sha, shaFrom}'
 `shaFrom: "none"` means the variable has to be set as a **build argument**, not a runtime one: the
 value is inlined at build time. `apps/web/Dockerfile` already declares `ARG SOURCE_COMMIT` before the
 build step, so setting it in the app's build environment is enough.
+
+## `POST /v1/humanity` → 502 `invalidNonceIncrement: nonce must increase: on chain 2, signed 1`
+
+World verified the proof; Multipass refused the record. Until `bc97a5d`'s successor the humanity record
+was keyed by the World nullifier, and Multipass keeps a record's id for the record's whole life:
+`register` refuses an id that already resolves (`recordExists`), a renewal must carry the same id, and
+the nonce is kept **per id** — even after the owner deletes the record. A nullifier the chain had seen
+and forgotten the record of kept its nonce, and the API, reading by wallet, signed from zero.
+
+The nullifier is the wrong id anyway: it is per action and per credential, a later proof from the same
+person need not carry the same one, and on chain it ties a wallet to a World identity for anyone reading.
+So the record is now written under `humanityRecordId(wallet)` — `keccak256("ketsuban:humanity:<wallet>")`
+— which never changes for a wallet, renews cleanly, and exposes nothing. The nullifier stays off chain, in
+`DATA_DIR/humans.json`, doing its one job: a second wallet presenting the same nullifier is refused (409).
+
+What the record holds: `domain = humanity`, `id = humanityRecordId(wallet)`, `name = 0x0` (no label; the
+resolver reaches it by wallet), `wallet`, `payload = credential level` (`selfie` or `proof_of_human`),
+`validUntil = now + RECORD_TERM_SECONDS`. Nothing from World — no nullifier, no proof, no merkle root —
+is written to the chain. Records written under a nullifier before this change lapse on their own at
+their `validUntil`; a fresh check writes the wallet's record beside them.

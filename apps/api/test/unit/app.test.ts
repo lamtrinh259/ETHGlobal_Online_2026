@@ -48,7 +48,7 @@ import {
 } from "@peeramid-labs/multipass-client";
 import { createApp, locate, WARNING } from "../../src/app.js";
 import { COMMIT_VARS } from "../../src/commit.js";
-import { hashSignal, rpSignatureMessage, type Fetch } from "../../src/world.js";
+import { hashSignal, humanityRecordId, rpSignatureMessage, type Fetch } from "../../src/world.js";
 import type { ChainReader, Instance, ListedRecord, Preflight } from "../../src/chain.js";
 import { explainConfigError, loadConfig } from "../../src/config.js";
 
@@ -3935,7 +3935,7 @@ describe("the humanity check", () => {
     const record = submitted[0].record;
     expect(record).toMatchObject({
       name: zeroHash,
-      id: NULLIFIER,
+      id: humanityRecordId(wallet),
       domainName: toBytes32("humanity"),
       payload: toBytes32("orb"),
       wallet,
@@ -3988,7 +3988,12 @@ describe("the humanity check", () => {
     // simply burnt, the person who verified would have no way back once theirs lapsed.
     const { chain, submitted } = fakeChain({
       records: {
-        [`${wallet.toLowerCase()}:humanity`]: { exists: true, nonce: 4n, id: NULLIFIER, wallet },
+        [`${wallet.toLowerCase()}:humanity`]: {
+          exists: true,
+          nonce: 4n,
+          id: humanityRecordId(wallet),
+          wallet,
+        },
       },
     });
     const res = await post(humanApp(chain, portal()), "/v1/humanity", { wallet, proof: proof(signal) });
@@ -4097,6 +4102,41 @@ describe("the humanity check", () => {
     });
     expect(body.config.secrets.worldSigningKey).toBe(true);
     expect(JSON.stringify(body)).not.toContain("cafe");
+  });
+
+  /*
+   * Multipass keeps a record's id for its whole life — `register` refuses an id that already resolves,
+   * a renewal must carry the same id, a deleted id keeps its nonce — and the World nullifier is none of
+   * that, nor something to publish. The production failure, "nonce must increase: on chain 2, signed
+   * 1", was a record keyed by a nullifier the chain had seen and forgotten the record of. The id is the
+   * wallet's; the nullifier stays off chain.
+   */
+  it("writes the record under an id derived from the wallet, whatever nullifier the proof carries", async () => {
+    const { chain, submitted } = fakeChain();
+    expect(
+      (await post(humanApp(chain, portal()), "/v1/humanity", { wallet, proof: proof(signal) })).status
+    ).toBe(200);
+    expect(submitted[0].record.id).toBe(humanityRecordId(wallet));
+    expect(submitted[0].record.id).not.toBe(NULLIFIER);
+    // The same person again, with a different nullifier as World may hand out: the same id, renewed.
+    chain.readOnchain = vi.fn(async () => ({
+      exists: true,
+      nonce: 1n,
+      id: humanityRecordId(wallet),
+      wallet,
+    })) as never;
+    const other = "0x1111111111111111111111111111111111111111111111111111111111111111";
+    const again = await post(
+      humanApp(
+        chain,
+        portal(200, { success: true, results: [{ identifier: "orb", success: true, nullifier: other }] })
+      ),
+      "/v1/humanity",
+      { wallet, proof: proof(signal) }
+    );
+    expect(again.status).toBe(200);
+    expect(submitted[1].record.id).toBe(humanityRecordId(wallet));
+    expect(submitted[1].record.nonce).toBe(2n);
   });
 });
 
