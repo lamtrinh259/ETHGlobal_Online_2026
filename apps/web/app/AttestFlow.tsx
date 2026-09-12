@@ -62,7 +62,6 @@ type Props = {
  */
 const PLATFORM_LABELS: Readonly<Record<string, string>> = {
   x: "X",
-  telegram: "Telegram",
   github: "GitHub",
   discord: "Discord",
   google: "Google",
@@ -100,10 +99,15 @@ export function AttestFlow({
   // A link that fails used to fail in the console only; the button looked dead. The reason is said
   // under the buttons, since the usual one is a platform the Privy app has not been set up for.
   const [linkError, setLinkError] = useState<string>();
-  const { linkTwitter, linkTelegram, linkGithub, linkDiscord, linkGoogle } = useLinkAccount({
-    onSuccess: ({ linkMethod }) => {
+  const { linkTwitter, linkGithub, linkDiscord, linkGoogle, linkEmail } = useLinkAccount({
+    onSuccess: ({ linkMethod, linkedAccount }) => {
       setLinkError(undefined);
-      const chosen = platformDomain(LINK_METHOD_PLATFORM[linkMethod] ?? linkMethod);
+      // An email lands in the domain that issued the address; a platform in its own DNS name.
+      const address = (linkedAccount as { address?: string } | undefined)?.address;
+      const chosen =
+        linkMethod === "email"
+          ? address?.split("@")[1]?.toLowerCase()
+          : platformDomain(LINK_METHOD_PLATFORM[linkMethod] ?? linkMethod);
       if (chosen) setDomain(chosen);
     },
     onError: (error, details) => {
@@ -322,14 +326,15 @@ export function AttestFlow({
             {(
               [
                 ["x", "X", linkTwitter],
-                ["telegram", "Telegram", linkTelegram],
                 ["github", "GitHub", linkGithub],
                 ["discord", "Discord", linkDiscord],
                 ["google", "Google", linkGoogle],
+                ["email", "Email", linkEmail],
               ] as const
             ).map(([platform, label, link]) => {
               const linked = connected.some((a) => a.domain === platform);
-              const target = platformDomain(platform);
+              // A second email address is a new host to attest in, so Email always links.
+              const target = platform === "email" ? undefined : platformDomain(platform);
               return (
                 // An account already linked is picked, not linked again; the one this record still
                 // needs is the button that stands out.

@@ -1,3 +1,6 @@
+import { platformOf } from "@ketsuban/registrar";
+import { UNLINKABLE_PLATFORMS } from "@/lib/platforms";
+
 /**
  * Whether an invitation could ever be satisfied.
  *
@@ -15,6 +18,10 @@ export function whyUnsatisfiable(entry: string, parentNames: readonly string[] =
   if (!want) return null;
   if (!want.includes(".")) {
     return `“${want}” is a username, not a domain. Ask for the platform itself, and the writer's own account there is what gets attested.`;
+  }
+  const platform = platformOf(want);
+  if (platform && UNLINKABLE_PLATFORMS.has(platform)) {
+    return `“${want}” cannot be linked here: Telegram is not enabled on this deployment, so nobody could attest an account there.`;
   }
   const mine = (parentNames ?? []).find(
     (p) => want === p.toLowerCase() || want.endsWith(`.${p.toLowerCase()}`)

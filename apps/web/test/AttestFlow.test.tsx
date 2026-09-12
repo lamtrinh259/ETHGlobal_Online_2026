@@ -20,22 +20,24 @@ vi.mock("@privy-io/react-auth", () => ({
   useIdentityToken: () => ({ identityToken: "token" }),
   useSignTypedData: () => ({ signTypedData: vi.fn(async () => ({ signature: "0xsig" })) }),
   useLinkAccount: (opts?: {
-    onSuccess?: (r: { linkMethod: string }) => void;
+    onSuccess?: (r: { linkMethod: string; linkedAccount?: { address?: string } }) => void;
     onError?: (error: string, details: { linkMethod?: string }) => void;
   }) => {
     linking.onSuccess = opts?.onSuccess;
     linking.onError = opts?.onError;
     return {
       linkTwitter: vi.fn(),
-      linkTelegram: vi.fn(),
       linkGithub: linking.linkGithub,
       linkDiscord: vi.fn(),
       linkGoogle: vi.fn(),
+      linkEmail: vi.fn(),
     };
   },
 }));
 const linking = {
-  onSuccess: undefined as undefined | ((r: { linkMethod: string }) => void),
+  onSuccess: undefined as
+    | undefined
+    | ((r: { linkMethod: string; linkedAccount?: { address?: string } }) => void),
   onError: undefined as undefined | ((error: string, details: { linkMethod?: string }) => void),
   linkGithub: vi.fn(),
 };
@@ -299,15 +301,15 @@ describe("a record needs the account it attests", () => {
 
   it("refuses to sign for a platform that is not linked, and says which button to press", async () => {
     privy.user = { id: "did:privy:x", github: { username: "lam" } } as typeof privy.user;
-    render(<AttestFlow fixedDomain="t.me" allowLinking />);
-    expect(screen.getByTestId("blocked").textContent).toContain("Link Telegram above first");
+    render(<AttestFlow fixedDomain="discord.com" allowLinking />);
+    expect(screen.getByTestId("blocked").textContent).toContain("Link Discord above first");
     expect(screen.getByRole("button", { name: /Sign & publish/ })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Telegram" })).toHaveClass("primary");
+    expect(screen.getByRole("button", { name: "Discord" })).toHaveClass("primary");
   });
 
   it("signs once the account is there", async () => {
-    privy.user = { id: "did:privy:x", telegram: { username: "lam" } } as typeof privy.user;
-    render(<AttestFlow fixedDomain="t.me" allowLinking />);
+    privy.user = { id: "did:privy:x", discord: { username: "lam#1" } } as typeof privy.user;
+    render(<AttestFlow fixedDomain="discord.com" allowLinking />);
     expect(screen.queryByTestId("blocked")).toBeNull();
     expect(screen.getByRole("button", { name: /Sign & publish/ })).not.toBeDisabled();
   });
@@ -315,10 +317,34 @@ describe("a record needs the account it attests", () => {
 
 describe("a link that fails says so", () => {
   it("names the platform and the reason under the buttons", async () => {
-    render(<AttestFlow fixedDomain="t.me" allowLinking />);
-    act(() => linking.onError?.("telegram_not_enabled", { linkMethod: "telegram" }));
+    render(<AttestFlow fixedDomain="github.com" allowLinking />);
+    act(() => linking.onError?.("popup_closed", { linkMethod: "github" }));
     const err = screen.getByTestId("link-error").textContent ?? "";
-    expect(err).toContain("Linking Telegram failed: telegram_not_enabled");
+    expect(err).toContain("Linking GitHub failed: popup_closed");
     expect(err).toContain("Privy app");
+  });
+});
+
+describe("a mail host is met by an email address", () => {
+  afterEach(() => {
+    privy.user = { id: "did:privy:x" };
+  });
+
+  it("offers Email, not Telegram, and a linked address moves the record to its host", async () => {
+    const { unmount } = render(<AttestFlow fixedDomain="peersky.xyz" allowLinking />);
+    expect(screen.queryByRole("button", { name: /Telegram/ })).toBeNull();
+    expect(screen.getByTestId("blocked").textContent).toContain("Link an email address above first");
+    expect(screen.getByRole("button", { name: "Email" })).toHaveClass("primary");
+    unmount();
+    render(<AttestFlow platformsOnly allowLinking />);
+    act(() => linking.onSuccess?.({ linkMethod: "email", linkedAccount: { address: "Tim@Peersky.xyz" } }));
+    expect(screen.getByLabelText("domain")).toHaveValue("peersky.xyz");
+  });
+
+  it("is satisfied by a linked address on that host", async () => {
+    privy.user = { id: "did:privy:x", email: { address: "tim@peersky.xyz" } } as typeof privy.user;
+    render(<AttestFlow fixedDomain="peersky.xyz" allowLinking />);
+    expect(screen.queryByTestId("blocked")).toBeNull();
+    expect(screen.getByRole("button", { name: /Sign & publish/ })).not.toBeDisabled();
   });
 });

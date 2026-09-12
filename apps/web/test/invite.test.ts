@@ -9,6 +9,11 @@ describe("an invitation somebody could actually satisfy", () => {
     expect(whyUnsatisfiable("peeramid.xyz", parents)).toBeNull();
   });
 
+  it("refuses Telegram, which this deployment cannot link", () => {
+    expect(whyUnsatisfiable("t.me", parents)).toMatch(/Telegram is not enabled/);
+    expect(whyUnsatisfiable("github.com", parents)).toBeNull();
+  });
+
   it("refuses a username, which has no record of its own to find", () => {
     // The one that cost a real invitation: asking for `lamtrinh259` alongside `github.com` made the
     // whole invitation impossible, and the writer was told only that their reference was unsolicited.

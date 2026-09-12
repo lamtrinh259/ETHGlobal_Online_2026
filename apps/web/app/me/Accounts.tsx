@@ -57,7 +57,6 @@ export function Accounts({ links, handle, awaiting, onPublished }: Props) {
     google: link.linkGoogle,
     github: link.linkGithub,
     discord: link.linkDiscord,
-    telegram: link.linkTelegram,
     linkedin: link.linkLinkedIn,
     apple: link.linkApple,
     instagram: link.linkInstagram,

@@ -180,7 +180,8 @@ describe("connecting another account", () => {
     fireEvent.click(screen.getByTestId("add-account"));
     const chooser = screen.getByTestId("connect-list");
     expect(chooser).toHaveTextContent("GitHub");
-    expect(chooser).toHaveTextContent("Telegram");
+    // Telegram is not enabled on the Privy app, so it is not offered: a button that fails is worse than none.
+    expect(chooser).not.toHaveTextContent("Telegram");
     expect(chooser).toHaveTextContent("Discord");
     // X and Google are already linked in this fixture: offering them again is offering a no-op.
     expect(screen.queryByTestId("connect-x")).toBeNull();

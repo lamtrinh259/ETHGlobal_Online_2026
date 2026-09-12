@@ -8,10 +8,12 @@ describe("choosing platforms", () => {
     // three hand-written subsets drifting apart.
     render(<PlatformPicker selected={[]} onToggle={vi.fn()} />);
     for (const p of PLATFORMS) expect(screen.getByTestId(`platform-${p.dns}`)).toBeInTheDocument();
+    // Telegram cannot be linked on this deployment's Privy app, so it is not something to ask for either.
+    expect(PLATFORMS.map((p) => p.dns)).not.toContain("t.me");
     expect(PLATFORMS.length).toBeGreaterThan(8);
     // The ones Privy actually links, named as the domains a record lives in.
     const dns = PLATFORMS.map((p) => p.dns);
-    expect(dns).toEqual(expect.arrayContaining(["x.com", "linkedin.com", "tiktok.com", "t.me"]));
+    expect(dns).toEqual(expect.arrayContaining(["x.com", "linkedin.com", "tiktok.com"]));
   });
 
   it("marks what is chosen and reports a change by its domain", () => {

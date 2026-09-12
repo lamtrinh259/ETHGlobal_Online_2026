@@ -2,6 +2,7 @@
 
 import { PLATFORM_DNS_NAMES } from "@ketsuban/registrar";
 import { PlatformIcon } from "./PlatformIcon";
+import { UNLINKABLE_PLATFORMS } from "@/lib/platforms";
 
 export type Platform = {
   /** The Privy login method, as the SDK names it */
@@ -34,11 +35,9 @@ const LABELS: Record<string, string> = {
  * Written once because it was written three times: the accounts card, the invite requirements and the
  * refer form each had their own subset, and a platform added to one was missing from the others.
  */
-export const PLATFORMS: Platform[] = Object.entries(PLATFORM_DNS_NAMES).map(([id, dns]) => ({
-  id,
-  label: LABELS[id] ?? id,
-  dns,
-}));
+export const PLATFORMS: Platform[] = Object.entries(PLATFORM_DNS_NAMES)
+  .filter(([id]) => !UNLINKABLE_PLATFORMS.has(id))
+  .map(([id, dns]) => ({ id, label: LABELS[id] ?? id, dns }));
 
 /**
  * Pick platforms, by the domain their records live in. `single` narrows it to asking which one rather
