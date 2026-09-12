@@ -286,3 +286,24 @@ describe("linking an account is choosing it", () => {
     expect(linking.linkGithub).not.toHaveBeenCalled();
   });
 });
+
+describe("a record needs the account it attests", () => {
+  afterEach(() => {
+    privy.user = { id: "did:privy:x" };
+  });
+
+  it("refuses to sign for a platform that is not linked, and says which button to press", async () => {
+    privy.user = { id: "did:privy:x", github: { username: "lam" } } as typeof privy.user;
+    render(<AttestFlow fixedDomain="t.me" allowLinking />);
+    expect(screen.getByTestId("blocked").textContent).toContain("Link Telegram above first");
+    expect(screen.getByRole("button", { name: /Sign & publish/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Telegram" })).toHaveClass("primary");
+  });
+
+  it("signs once the account is there", async () => {
+    privy.user = { id: "did:privy:x", telegram: { username: "lam" } } as typeof privy.user;
+    render(<AttestFlow fixedDomain="t.me" allowLinking />);
+    expect(screen.queryByTestId("blocked")).toBeNull();
+    expect(screen.getByRole("button", { name: /Sign & publish/ })).not.toBeDisabled();
+  });
+});

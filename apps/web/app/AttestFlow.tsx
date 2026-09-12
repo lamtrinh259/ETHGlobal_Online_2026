@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { connectedAccounts, domainFor, type LinkedAccounts } from "@/lib/identity";
-import { PLATFORM_DNS_NAMES } from "@ketsuban/registrar";
+import { PLATFORM_DNS_NAMES, platformOf } from "@ketsuban/registrar";
 import {
   useIdentityToken,
   useLinkAccount,
@@ -60,6 +60,16 @@ type Props = {
  * Privy identity token are the only inputs the attester needs; nothing here talks to the chain.
  * Server state (nonce) and the two mutations go through react-query (`lib/hooks`).
  */
+const PLATFORM_LABELS: Readonly<Record<string, string>> = {
+  x: "X",
+  telegram: "Telegram",
+  github: "GitHub",
+  discord: "Discord",
+  google: "Google",
+  linkedin: "LinkedIn",
+  email: "an email address",
+};
+
 /** Privy's `linkMethod` names for the platforms this deployment attests */
 const LINK_METHOD_PLATFORM: Readonly<Record<string, string>> = { twitter: "x" };
 
@@ -139,6 +149,28 @@ export function AttestFlow({
   const embedded = wallets.find((w) => w.walletClientType === "privy") ?? wallets[0];
   const wallet = embedded?.address as Address | undefined;
   const isNameDomain = isNameDomainFor(domain, config);
+  /*
+   * A platform record attests an account the person has linked; without that account the attester
+   * refuses the intent after it was signed. So the platform this domain needs is checked first, and
+   * the form says which button to press instead of offering a signature that cannot succeed.
+   */
+  const platformNeeded = isNameDomain ? undefined : platformOf(domain);
+  const holdsPlatform =
+    !platformNeeded ||
+    connected.some((a) =>
+      platformNeeded === "email"
+        ? (a.domain === "email" || a.domain === "google") && a.label.toLowerCase().endsWith(`@${domain}`)
+        : a.domain === platformNeeded
+    );
+  const missingLink =
+    platformNeeded && !holdsPlatform ? (
+      <>
+        Link {PLATFORM_LABELS[platformNeeded] ?? platformNeeded}
+        {allowLinking ? " above" : " on your profile"} first: this record attests an account there, and
+        none is linked to you yet.
+      </>
+    ) : undefined;
+  const refused = blocked ?? missingLink;
   const parentName = parentNameFor(domain, config);
 
   const nonce = useNonce(api, wallet, domain);
@@ -291,9 +323,11 @@ export function AttestFlow({
               const linked = connected.some((a) => a.domain === platform);
               const target = platformDomain(platform);
               return (
-                // An account already linked is picked, not linked again.
+                // An account already linked is picked, not linked again; the one this record still
+                // needs is the button that stands out.
                 <button
                   key={platform}
+                  className={platform === platformNeeded && !linked ? "primary" : undefined}
                   aria-pressed={!!target && domain === target}
                   onClick={() => (linked && target ? setDomain(target) : link())}
                 >
@@ -416,9 +450,9 @@ export function AttestFlow({
           operator. Only the account above is attested.
         </p>
       )}
-      {!settled && blocked && (
+      {!settled && refused && (
         <p className="warning" data-testid="blocked">
-          {blocked}
+          {refused}
         </p>
       )}
       {!settled && (
@@ -426,7 +460,7 @@ export function AttestFlow({
           className="primary"
           onClick={run}
           disabled={
-            busy || takenByOther || reserved || answerBytes > 31 || nonce.data?.ready === false || !!blocked
+            busy || takenByOther || reserved || answerBytes > 31 || nonce.data?.ready === false || !!refused
           }
           data-testid="publish"
         >
