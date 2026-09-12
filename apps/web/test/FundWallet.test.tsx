@@ -7,6 +7,7 @@ const WALLET = "0xEE4811b9462956C9C3535E79c08776D769CA9F3a";
 const funded: { address?: string; chain?: string } = {};
 
 vi.mock("@privy-io/react-auth", () => ({
+  useIdentityToken: () => ({ identityToken: null }),
   useAddFunds: () => ({
     addFunds: vi.fn(async (opts: { destination: { address: string; chain: string } }) => {
       funded.address = opts.destination.address;

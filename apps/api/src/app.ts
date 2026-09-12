@@ -1360,21 +1360,53 @@ export function createApp({
    * never needs storing: whoever can prove the Privy session that holds those accounts gets the codes
    * for every private record their wallet holds, on any device. The identity token is the proof.
    */
-  app.post("/v1/viewcodes", async (c) => {
-    if (!config.VIEWCODE_KEY) return c.json({ error: "registrar disabled" }, 501);
-    const body = z.object({ idToken: z.string() }).safeParse(await c.req.json().catch(() => null));
-    if (!body.success) return c.json({ error: "idToken required" }, 400);
-    let claims;
+  /** The session behind a Privy identity token, or the refusal to answer with. */
+  const sessionOf = (idToken: string) => {
     try {
-      claims = verifyEs256Jwt(body.data.idToken, config.PRIVY_VERIFICATION_KEY_JWK, {
+      const claims = verifyEs256Jwt(idToken, config.PRIVY_VERIFICATION_KEY_JWK, {
         issuer: "privy.io",
         audience: config.PRIVY_APP_ID,
         now: Math.floor(Date.now() / 1000),
       });
+      return { claims, linked: parseLinkedAccounts(claims.linked_accounts) };
     } catch (e) {
-      return c.json({ error: `identity: ${(e as Error).message}` }, 401);
+      return { error: `identity: ${(e as Error).message}` };
     }
-    const linked = parseLinkedAccounts(claims.linked_accounts);
+  };
+  /*
+   * Codes other people gave this person — a candidate opening an account to whoever holds a link.
+   * Kept against the Privy user, so a code that arrived on one device opens the same page on the next.
+   */
+  const givenCodes = new PersistentMap<Record<string, Hex>>(
+    "given-viewcodes",
+    config.DATA_DIR || undefined,
+    (raw) => raw as Record<string, Hex>,
+    (value) => value
+  );
+  app.post("/v1/viewcodes/given", async (c) => {
+    const body = z
+      .object({ idToken: z.string(), name: z.string().min(1).max(255), viewCode: hex })
+      .safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: "idToken, name and viewCode required" }, 400);
+    if (!/^0x[0-9a-fA-F]{64}$/.test(body.data.viewCode))
+      return c.json({ error: "viewCode must be 32 bytes" }, 400);
+    const session = sessionOf(body.data.idToken);
+    if ("error" in session) return c.json({ error: session.error }, 401);
+    const name = body.data.name.toLowerCase();
+    givenCodes.set(session.claims.sub, {
+      ...(givenCodes.get(session.claims.sub) ?? {}),
+      [name]: body.data.viewCode as Hex,
+    });
+    return c.json({ ok: true, name });
+  });
+
+  app.post("/v1/viewcodes", async (c) => {
+    if (!config.VIEWCODE_KEY) return c.json({ error: "registrar disabled" }, 501);
+    const body = z.object({ idToken: z.string() }).safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: "idToken required" }, 400);
+    const session = sessionOf(body.data.idToken);
+    if ("error" in session) return c.json({ error: session.error }, 401);
+    const { claims, linked } = session;
     const wallets = linked
       .filter((a) => a.type === "wallet" && typeof a.address === "string")
       .map((a) => getAddress(a.address as string));
@@ -1382,7 +1414,13 @@ export function createApp({
     for (const wallet of wallets) {
       if (!hasLinkedWallet(linked, wallet)) continue;
       for (const r of await chain.listRecordsByWallet(wallet)) {
-        if (!r.live || r.payload === zeroHash || config.NAME_DOMAINS.includes(r.domain) || isVouchDomain(r.domain)) continue;
+        if (
+          !r.live ||
+          r.payload === zeroHash ||
+          config.NAME_DOMAINS.includes(r.domain) ||
+          isVouchDomain(r.domain)
+        )
+          continue;
         if (r.domain === config.ORG_DOMAIN || r.domain === config.HUMANITY_DOMAIN) continue;
         try {
           const acct = pickAccountFor(linked, r.domain);
@@ -1392,7 +1430,7 @@ export function createApp({
         }
       }
     }
-    return c.json({ codes });
+    return c.json({ codes, given: givenCodes.get(claims.sub) ?? {} });
   });
 
   app.post("/v1/attest", async (c) => {
@@ -1482,7 +1520,12 @@ export function createApp({
         );
       }
     }
-    return { letterWritten: !!letter, ok: true as const, txHash, ...(vouchInstance ? { vouchInstance } : {}) };
+    return {
+      letterWritten: !!letter,
+      ok: true as const,
+      txHash,
+      ...(vouchInstance ? { vouchInstance } : {}),
+    };
   }
 
   /**

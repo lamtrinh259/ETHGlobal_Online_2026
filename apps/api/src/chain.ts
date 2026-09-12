@@ -455,7 +455,13 @@ export class Chain {
               args: [
                 record,
                 signature,
-                { domainName: zeroHash, wallet: zeroAddress, name: zeroHash, id: zeroHash, targetDomain: zeroHash },
+                {
+                  domainName: zeroHash,
+                  wallet: zeroAddress,
+                  name: zeroHash,
+                  id: zeroHash,
+                  targetDomain: zeroHash,
+                },
                 "0x",
                 "description",
                 description,

@@ -757,13 +757,23 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
      * The view codes this session's wallets hold, re-derived by the service from the Privy identity
      * token: nothing for the person to keep, and the same answer on every device.
      */
-    async viewCodes(idToken: string): Promise<Record<string, Hex>> {
+    async viewCodes(idToken: string): Promise<{ codes: Record<string, Hex>; given: Record<string, Hex> }> {
       const res = await call(`${base}/v1/viewcodes`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ idToken }),
       });
-      return z.object({ codes: z.record(z.string(), hex) }).parse(await readJson(res)).codes;
+      return z
+        .object({ codes: z.record(z.string(), hex), given: z.record(z.string(), hex).default({}) })
+        .parse(await readJson(res));
+    },
+    /** A code somebody gave this person, kept by the service against their session. */
+    async keepViewCode(idToken: string, name: string, viewCode: Hex): Promise<void> {
+      await call(`${base}/v1/viewcodes/given`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ idToken, name, viewCode }),
+      });
     },
     /** Demo only: whether the Selfie Check is in force for everyone. */
     async adminSelfieCheck(token: string): Promise<AdminSelfieCheck> {

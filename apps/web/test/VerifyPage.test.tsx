@@ -42,6 +42,7 @@ const state = {
 // The reveal panel runs in the browser, because a permission addressed to one wallet only opens for it.
 vi.mock("@privy-io/react-auth", () => ({
   useWallets: () => ({ wallets: state.reader ? [{ address: state.reader }] : [] }),
+  useIdentityToken: () => ({ identityToken: null }),
 }));
 vi.mock("@/app/providers", () => ({
   useWebConfig: () => ({ apiUrl: "http://api.test", attestUrl: "http://api.test/v1/attest" }),

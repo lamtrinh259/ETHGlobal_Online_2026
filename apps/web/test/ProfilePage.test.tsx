@@ -19,7 +19,8 @@ const empty: ProfileRead = {
   warning: "This is not identity verification.",
 };
 
-vi.mock("@privy-io/react-auth", () => ({ useWallets: () => ({ wallets: [] }) }));
+vi.mock("@privy-io/react-auth", () => ({
+  useIdentityToken: () => ({ identityToken: null }), useWallets: () => ({ wallets: [] }) }));
 vi.mock("@/app/providers", () => ({
   useWebConfig: () => ({ apiUrl: "http://api.test", attestUrl: "http://api.test/v1/attest" }),
 }));

@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useIdentityToken, usePrivy } from "@privy-io/react-auth";
-import { mergeViewCodes } from "@/lib/keys";
+import { loadGivenCodes, mergeViewCodes, saveGivenCode } from "@/lib/keys";
 import { useState } from "react";
 import type { Address, Hex } from "viem";
 import { createApi, type Api, type AttestResult, type Verification } from "./api";
@@ -304,7 +304,11 @@ export function useReverse(api: Api, address: Address | undefined) {
 export async function syncViewCodes(api: Api, idToken: string | null | undefined): Promise<void> {
   if (!idToken || typeof api.viewCodes !== "function") return;
   try {
-    mergeViewCodes(await api.viewCodes(idToken));
+    // Codes that arrived here before the person signed in go up; what the service holds comes down.
+    for (const [name, code] of Object.entries(loadGivenCodes())) await api.keepViewCode(idToken, name, code);
+    const { codes, given } = await api.viewCodes(idToken);
+    mergeViewCodes(codes);
+    for (const [name, code] of Object.entries(given)) saveGivenCode(name, code);
   } catch {
     // Offline, or an older service: the browser's own store stands.
   }

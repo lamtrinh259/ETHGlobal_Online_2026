@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { WalletDashboard } from "@/lib/api";
 
 vi.mock("@privy-io/react-auth", () => ({
+  useIdentityToken: () => ({ identityToken: null }),
   usePrivy: () => ({ user: { google: { email: "tim@peeramid.xyz" }, twitter: { username: "peersky" } } }),
   useLinkAccount: () => ({
     linkTwitter: () => linked.push("x"),

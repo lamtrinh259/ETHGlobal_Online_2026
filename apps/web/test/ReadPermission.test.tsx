@@ -8,6 +8,7 @@ const BOB = "0xd70B5E8A232Bf67F64658cbDDebe32e1443894a0";
 const ZERO = "0x0000000000000000000000000000000000000000";
 
 vi.mock("@privy-io/react-auth", () => ({
+  useIdentityToken: () => ({ identityToken: null }),
   useWallets: () => ({ wallets: [{ walletClientType: "privy", address: WALLET }] }),
   useSignTypedData: () => ({ signTypedData: vi.fn(async () => ({ signature: "0x01" })) }),
 }));

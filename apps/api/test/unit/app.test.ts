@@ -5286,7 +5286,22 @@ describe("the view codes a person holds", () => {
     expect(res.status).toBe(200);
     const { codes } = await res.json();
     const twitter = user.linked.find((a) => a.type === "twitter_oauth")!;
-    expect(codes).toEqual({ "x.com": deriveViewCode(baseEnv.VIEWCODE_KEY as Hex, "x.com", twitter.subject!) });
+    expect(codes).toEqual({
+      "x.com": deriveViewCode(baseEnv.VIEWCODE_KEY as Hex, "x.com", twitter.subject!),
+    });
+    // A code somebody gave them, kept against the session and handed back with their own.
+    const given = `0x${"5a".repeat(32)}`;
+    const a = app(chain);
+    expect(
+      (await post(a, "/v1/viewcodes/given", { idToken, name: "Alice.ketsuban.eth", viewCode: given })).status
+    ).toBe(200);
+    expect((await (await post(a, "/v1/viewcodes", { idToken })).json()).given).toEqual({
+      "alice.ketsuban.eth": given,
+    });
+    expect(
+      (await post(a, "/v1/viewcodes/given", { idToken: "nope", name: "x", viewCode: given })).status
+    ).toBe(401);
+    expect((await post(a, "/v1/viewcodes/given", { idToken, name: "x", viewCode: "0x12" })).status).toBe(400);
     // A forged or foreign token gets nothing.
     expect((await post(app(chain), "/v1/viewcodes", { idToken: "not.a.token" })).status).toBe(401);
     expect((await post(app(chain), "/v1/viewcodes", {})).status).toBe(400);
@@ -5354,7 +5369,11 @@ describe("a reference is written by one real person", () => {
     expect((await res.json()).letterWritten).toBe(true);
     expect(submitted[0].description).toBe("CTO at Acme 2019-22");
     // A blank letter is no letter: the plain `verify` path, and the browser knows to expect nothing.
-    const bare = await post(app(chain, strict), "/v1/submit", { record: record("~alice"), signature: "0xabc", description: "  " });
+    const bare = await post(app(chain, strict), "/v1/submit", {
+      record: record("~alice"),
+      signature: "0xabc",
+      description: "  ",
+    });
     expect((await bare.json()).letterWritten).toBe(false);
     expect(submitted[1].description).toBeUndefined();
   });

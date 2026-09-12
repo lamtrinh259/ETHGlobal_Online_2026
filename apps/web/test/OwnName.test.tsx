@@ -12,6 +12,7 @@ const state = {
 const claim = vi.fn();
 
 vi.mock("@privy-io/react-auth", () => ({
+  useIdentityToken: () => ({ identityToken: null }),
   useAddFunds: () => ({ addFunds: vi.fn(async () => ({ method: "crypto", status: "completed" })) }),
 }));
 vi.mock("@/app/providers", () => ({

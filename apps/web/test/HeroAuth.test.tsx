@@ -2,7 +2,8 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 const privy = { ready: true, authenticated: false, login: vi.fn() };
-vi.mock("@privy-io/react-auth", () => ({ usePrivy: () => privy }));
+vi.mock("@privy-io/react-auth", () => ({
+  useIdentityToken: () => ({ identityToken: null }), usePrivy: () => privy }));
 
 const { HeroAuth } = await import("@/app/HeroAuth");
 

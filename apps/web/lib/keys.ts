@@ -30,9 +30,13 @@ export function openViewCode(key: ViewKey, box: EciesBox): Hex {
 }
 
 type Store = Pick<Storage, "getItem" | "setItem">;
+/** The browser's store, or nothing where there is none (a test, a browser that refuses it). */
+const browserStore = (): Store | undefined =>
+  typeof localStorage === "undefined" ? undefined : localStorage;
 
 /** View codes opened in this browser, by platform domain — what a disclosure link needs later. */
-export function loadViewCodes(storage: Store = localStorage): Record<string, Hex> {
+export function loadViewCodes(storage: Store | undefined = browserStore()): Record<string, Hex> {
+  if (!storage) return {};
   try {
     const raw = storage.getItem(CODES_KEY);
     const parsed: unknown = raw ? JSON.parse(raw) : {};
@@ -47,7 +51,8 @@ export function loadViewCodes(storage: Store = localStorage): Record<string, Hex
   }
 }
 
-export function saveViewCode(domain: string, code: Hex, storage: Store = localStorage): void {
+export function saveViewCode(domain: string, code: Hex, storage: Store | undefined = browserStore()): void {
+  if (!storage) return;
   try {
     storage.setItem(CODES_KEY, JSON.stringify({ ...loadViewCodes(storage), [domain]: code }));
   } catch {
@@ -56,6 +61,37 @@ export function saveViewCode(domain: string, code: Hex, storage: Store = localSt
 }
 
 /** Codes the service handed back, kept beside the ones this browser already holds. */
-export function mergeViewCodes(codes: Record<string, Hex>, storage: Store = localStorage): void {
+export function mergeViewCodes(
+  codes: Record<string, Hex>,
+  storage: Store | undefined = browserStore()
+): void {
   for (const [domain, code] of Object.entries(codes)) saveViewCode(domain, code, storage);
+}
+
+const GIVEN_KEY = "ketsuban:given-viewcodes";
+
+/** Codes other people gave this person, by the name they open. */
+export function loadGivenCodes(storage: Store | undefined = browserStore()): Record<string, Hex> {
+  if (!storage) return {};
+  try {
+    const raw = storage.getItem(GIVEN_KEY);
+    const parsed: unknown = raw ? JSON.parse(raw) : {};
+    if (!parsed || typeof parsed !== "object") return {};
+    return Object.fromEntries(
+      Object.entries(parsed as Record<string, unknown>).filter(
+        (e): e is [string, Hex] => typeof e[1] === "string" && /^0x[0-9a-fA-F]{64}$/.test(e[1])
+      )
+    );
+  } catch {
+    return {};
+  }
+}
+
+export function saveGivenCode(name: string, code: Hex, storage: Store | undefined = browserStore()): void {
+  if (!storage) return;
+  try {
+    storage.setItem(GIVEN_KEY, JSON.stringify({ ...loadGivenCodes(storage), [name.toLowerCase()]: code }));
+  } catch {
+    // storage unavailable: the code still works for this page load
+  }
 }

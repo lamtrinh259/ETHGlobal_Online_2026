@@ -4,6 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useVerification } from "@/lib/hooks";
 import { apiFor } from "@/lib/hooks";
 import { useWebConfig } from "./providers";
+import { useIdentityToken } from "@privy-io/react-auth";
+import { loadGivenCodes, saveGivenCode } from "@/lib/keys";
+import type { Hex } from "viem";
 
 /**
  * A masked account opened by a view code out of the link's fragment.
@@ -20,11 +23,19 @@ import { useWebConfig } from "./providers";
 export function Unmasked({ name, domains }: { name: string; domains: string[] }) {
   const config = useWebConfig();
   const api = useMemo(() => apiFor(config), [config]);
+  const { identityToken } = useIdentityToken();
   const [code, setCode] = useState<string>();
   useEffect(() => {
-    const found = /(?:^|[#&])viewCode=(0x[0-9a-fA-F]{64})/.exec(window.location.hash);
-    setCode(found?.[1]);
-  }, []);
+    // A code in the link is kept: here, by the name it opens, and with the service against the
+    // session, so the page opens again without the link, on any device. Nothing in the URL is kept
+    // longer than this read; the fragment never reaches a server.
+    const found = /(?:^|[#&])viewCode=(0x[0-9a-fA-F]{64})/.exec(window.location.hash)?.[1] as Hex | undefined;
+    if (found) saveGivenCode(name, found);
+    setCode(found ?? loadGivenCodes()[name.toLowerCase()]);
+  }, [name]);
+  useEffect(() => {
+    if (code && identityToken) void api.keepViewCode(identityToken, name, code as Hex).catch(() => undefined);
+  }, [api, code, identityToken, name]);
 
   const read = useVerification(api, code ? name : "", { links: domains, viewCode: code as `0x${string}` });
   if (!code) return null;
