@@ -208,7 +208,8 @@ export default async function TrustPage() {
                   </tr>
                 );
               })}
-            {config.instances.map((i) => {
+            {/* The root name only: a subject under it is a wildcard name with no page of its own there. */}
+            {config.instances.slice(0, 1).map((i) => {
               const href = ensAppName(config.chainId, i.parentName);
               return (
                 <tr key={i.parentName}>

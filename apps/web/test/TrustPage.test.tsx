@@ -33,7 +33,10 @@ vi.mock("@/lib/config", () => ({
     apiUrl: "http://api.test",
     attestUrl: "http://api.test/v1/attest",
     confidential: state.confidential,
-    instances: [{ domain: "ketsuban", parentName: "ketsuban.eth", parentLabel: "ketsuban" }],
+    instances: [
+      { domain: "ketsuban", parentName: "ketsuban.eth", parentLabel: "ketsuban" },
+      { domain: "kju-is", parentName: "kju-is.ketsuban.eth", parentLabel: "kju-is" },
+    ],
   }),
 }));
 
@@ -62,6 +65,14 @@ describe("the contracts it lists", () => {
     expect(links.textContent).not.toContain(ZERO);
     expect(links.textContent).toContain("the root resolver");
     expect(links.textContent?.split(ROOT).length - 1).toBe(1);
+  });
+
+  it("links the root name in the ENS app, not the subject beneath it", async () => {
+    await renderPage();
+    const text = screen.getByTestId("contract-links").textContent ?? "";
+    expect(text.split("the name, in the ENS app").length - 1).toBe(1);
+    expect(text).toContain("ketsuban.eth");
+    expect(text).not.toContain("kju-is.ketsuban.eth");
   });
 
   it("still lists a mounted registry and its own resolver where a level has them", async () => {
