@@ -120,6 +120,8 @@ type State = {
     snapshotError: string | null;
   }>;
   records: Record<string, { exists: boolean; nonce: bigint; id: Hex; wallet: Address }>;
+  /** The same, keyed by record id — which is what Multipass keys the nonce by */
+  byId: Record<string, { exists: boolean; nonce: bigint; id: Hex; wallet: Address }>;
   texts: Record<string, string>;
   addr: Address;
   /** What a particular name resolves to, when the test needs two names to answer differently */
@@ -143,6 +145,7 @@ type State = {
 function fakeChain(state: Partial<State> = {}) {
   const s: State = {
     records: {},
+    byId: {},
     texts: {},
     addr: zeroAddress,
     addrByName: {},
@@ -192,6 +195,10 @@ function fakeChain(state: Partial<State> = {}) {
           id: zeroHash,
           wallet: zeroAddress,
         }
+    ),
+    readOnchainById: vi.fn(
+      async (id: Hex, domain: string) =>
+        s.byId[`${id}:${domain}`] ?? { exists: false, nonce: 0n, id: zeroHash, wallet: zeroAddress }
     ),
     instances: vi.fn(async () => s.instances),
     submit: vi.fn(async (record: RegisterMessage, signature: Hex) => {
@@ -4097,6 +4104,48 @@ describe("the humanity check", () => {
     });
     expect(body.config.secrets.worldSigningKey).toBe(true);
     expect(JSON.stringify(body)).not.toContain("cafe");
+  });
+
+  /*
+   * Multipass keys the nonce by record id — the nullifier — and a read by wallet cannot see it. The
+   * production failure: a valid Selfie Check, refused with "nonce must increase: on chain 2, signed 1",
+   * because the person had proved before under another wallet and this service signed from zero.
+   */
+  it("signs above the nullifier's own nonce, not only the wallet's", async () => {
+    const { chain, submitted } = fakeChain({
+      byId: { [`${NULLIFIER}:humanity`]: { exists: false, nonce: 2n, id: NULLIFIER, wallet: zeroAddress } },
+    });
+    const res = await post(humanApp(chain, portal()), "/v1/humanity", { wallet, proof: proof(signal) });
+    expect(res.status).toBe(200);
+    expect(submitted[0].record.nonce).toBe(3n);
+  });
+
+  it("refuses a nullifier the chain says another wallet holds, whatever this service remembers", async () => {
+    const other = "0x000000000000000000000000000000000000dEaD";
+    const { chain, submitted } = fakeChain({
+      byId: { [`${NULLIFIER}:humanity`]: { exists: true, nonce: 1n, id: NULLIFIER, wallet: other } },
+    });
+    const res = await post(humanApp(chain, portal()), "/v1/humanity", { wallet, proof: proof(signal) });
+    expect(res.status).toBe(409);
+    expect(submitted).toHaveLength(0);
+    // And the claim is given back: nothing was written for this wallet.
+    const again = await post(humanApp(chain, portal()), "/v1/humanity", { wallet, proof: proof(signal) });
+    expect(again.status).toBe(409);
+  });
+
+  it("retries once with the nonce the chain names, for an id no read can see", async () => {
+    const { chain, submitted } = fakeChain();
+    let calls = 0;
+    chain.submit = vi.fn(async (record: RegisterMessage, signature: Hex) => {
+      calls += 1;
+      if (calls === 1) throw new Error("invalidNonceIncrement: nonce must increase: on chain 2, signed 1");
+      submitted.push({ record, signature });
+      return `0x${"cd".repeat(32)}` as Hex;
+    }) as never;
+    const res = await post(humanApp(chain, portal()), "/v1/humanity", { wallet, proof: proof(signal) });
+    expect(res.status).toBe(200);
+    expect(calls).toBe(2);
+    expect(submitted[0].record.nonce).toBe(3n);
   });
 });
 

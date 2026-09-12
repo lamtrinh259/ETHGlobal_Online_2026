@@ -1806,20 +1806,47 @@ export function createApp({
     // like any other, and a claim released only on some of the ways this can fail is a claim that
     // still strands somebody on a wallet that never got a record.
     try {
-      const onchain = await chain.readOnchain(wallet, config.HUMANITY_DOMAIN);
+      /*
+       * The nonce is the nullifier's, not the wallet's.
+       *
+       * Multipass keys nonces by record id. A person proving again from a new wallet writes under an
+       * id the chain has seen, and a read by wallet says "nothing here, nonce 0" while the chain holds
+       * 2 for that id — which is how a valid Selfie Check came back as `invalidNonceIncrement`. Both
+       * reads, the higher nonce; and the read by id is also the chain's own answer to whether another
+       * account holds this proof, which outlives anything this service remembers.
+       */
+      const [onchain, byId] = await Promise.all([
+        chain.readOnchain(wallet, config.HUMANITY_DOMAIN),
+        chain.readOnchainById(human.nullifier, config.HUMANITY_DOMAIN),
+      ]);
+      if (byId.exists && byId.wallet.toLowerCase() !== wallet.toLowerCase()) {
+        if (!bound) humans.delete(human.nullifier);
+        return c.json({ error: "that proof of humanity is already held by another account" }, 409);
+      }
       const validUntil = BigInt(now() + config.RECORD_TERM_SECONDS);
+      const above = onchain.nonce > byId.nonce ? onchain.nonce : byId.nonce;
       const record: RegisterMessage = {
         // A humanity record has no readable label: the resolver reaches it by wallet, never by name.
         name: zeroHash,
         id: human.nullifier,
         domainName: toBytes32(config.HUMANITY_DOMAIN),
         validUntil,
-        nonce: onchain.nonce + 1n,
+        nonce: above + 1n,
         wallet,
         payload: toBytes32(human.level),
       };
       const signature = await signRecord(record, config.REGISTRAR_KEY, await env());
-      const txHash = await chain.submit(record, signature);
+      let txHash: Hex;
+      try {
+        txHash = await chain.submit(record, signature);
+      } catch (e) {
+        // A deleted id keeps its nonce and resolves to nobody, so no read can see it; the refusal
+        // names the number, and that is the one read that cannot be wrong.
+        const named = (e as Error).message.match(/nonce must increase: on chain (\d+)/);
+        if (!named) throw e;
+        const retried = { ...record, nonce: BigInt(named[1]) + 1n };
+        txHash = await chain.submit(retried, await signRecord(retried, config.REGISTRAR_KEY, await env()));
+      }
       return c.json({
         ok: true,
         level: human.level,
