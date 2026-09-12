@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { createApi } from "@/lib/api";
 import { loadWebConfig } from "@/lib/config";
 import { short } from "@/app/ui";
+import { chainName, ensAppName, explorerAddress } from "@/lib/explorer";
 
 export const dynamic = "force-dynamic";
 
@@ -56,9 +57,10 @@ function Chain({
 export default async function TrustPage() {
   const config = loadWebConfig();
   const api = createApi(config.apiUrl, config.attestUrl);
-  const [enclave, preflight] = await Promise.all([
+  const [enclave, preflight, contracts] = await Promise.all([
     api.enclaveKey().catch(() => null),
     api.preflight().catch(() => null),
+    api.contracts().catch(() => null),
   ]);
 
   const signsAs = preflight?.registrar?.signsAs ?? null;
@@ -161,6 +163,66 @@ export default async function TrustPage() {
               ? "One key in all three: records are accepted on chain, and a view code opens nowhere else."
               : "These disagree: records signed here would be refused at registration."}
         </p>
+      </section>
+
+      <section className="card trust" data-testid="contracts">
+        <h2>Nothing here is mocked: the contracts, on {chainName(config.chainId)}</h2>
+        <p className="muted">
+          Every address this deployment writes to or reads from, on the public explorer. Open any of them and
+          read the same records this site shows.
+        </p>
+        <table data-testid="contract-links">
+          <tbody>
+            {(
+              [
+                ["Multipass, the register", config.multipass],
+                ["the registrar key", trusted],
+                ["the attestation bridge", contracts?.bridge ?? null],
+                ["the permissioned resolver", contracts?.permissionedResolver ?? null],
+                ["the .eth registry", contracts?.ethRegistry ?? null],
+                ...(contracts?.instances ?? []).flatMap((i) => [
+                  [`${i.parentName} registry`, i.registry] as const,
+                  [`${i.parentName} resolver`, i.resolver] as const,
+                ]),
+              ] as const
+            )
+              .filter(([, a]) => !!a)
+              .map(([what, address]) => {
+                const href = explorerAddress(config.chainId, address as string);
+                return (
+                  <tr key={what}>
+                    <td>{what}</td>
+                    <td>
+                      {href ? (
+                        <a href={href} rel="noreferrer">
+                          <code>{address}</code>
+                        </a>
+                      ) : (
+                        <code>{address}</code>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            {config.instances.map((i) => {
+              const href = ensAppName(config.chainId, i.parentName);
+              return (
+                <tr key={i.parentName}>
+                  <td>the name, in the ENS app</td>
+                  <td>
+                    {href ? (
+                      <a href={href} rel="noreferrer">
+                        <code>{i.parentName}</code>
+                      </a>
+                    ) : (
+                      <code>{i.parentName}</code>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </section>
 
       <section className="card trust">

@@ -160,6 +160,26 @@ export class Chain {
     );
   }
 
+  /**
+   * Delete a wallet's record in a domain. A Multipass owner call — this deployment's relayer owns
+   * Multipass, which the preflight warns about — used by the demo-only admin reset and nothing else.
+   * Multipass keeps the record's nonce, so a record written afterwards must sign above it.
+   */
+  async deleteRecord(domain: string, wallet: Address): Promise<Hex> {
+    const common = { chain: this.walletClient.chain, account: this.walletClient.account! } as const;
+    return this.explaining(() =>
+      this.walletClient.writeContract({
+        ...common,
+        address: this.config.MULTIPASS,
+        abi: MultipassAbi,
+        functionName: "deleteName",
+        args: [
+          { domainName: toBytes32(domain), wallet, name: zeroHash, id: zeroHash, targetDomain: zeroHash },
+        ],
+      })
+    );
+  }
+
   async readOnchain(wallet: Address, domain: string): Promise<OnchainState> {
     const [exists, record] = await this.publicClient.readContract({
       address: this.config.MULTIPASS,
@@ -1032,6 +1052,7 @@ export class Chain {
 export type ChainReader = Pick<
   Chain,
   | "readOnchain"
+  | "deleteRecord"
   | "instances"
   | "submit"
   | "resolveText"

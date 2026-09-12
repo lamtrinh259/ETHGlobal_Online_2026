@@ -291,6 +291,23 @@ export const readingsSchema = z.object({
 });
 export type Readings = z.infer<typeof readingsSchema>;
 
+/** Demo only: what the admin page reads and what a reset reports. */
+export const adminHumanitySchema = z.object({
+  wallet: z.string(),
+  handle: z.string().nullable(),
+  onchain: z.object({ exists: z.boolean(), nonce: z.string() }),
+  bound: z.number(),
+});
+export type AdminHumanity = z.infer<typeof adminHumanitySchema>;
+export const adminResetSchema = z.object({
+  wallet: z.string(),
+  handle: z.string().nullable(),
+  forgotten: z.number(),
+  existed: z.boolean(),
+  deleted: z.union([z.object({ txHash: z.string() }), z.object({ error: z.string() })]).nullable(),
+});
+export type AdminReset = z.infer<typeof adminResetSchema>;
+
 /** A candidate's invitation as it is kept: the signed message, its number as a string. */
 export type WireInvite = {
   handle: string;
@@ -701,6 +718,24 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
       );
     },
 
+    /** Demo only: a wallet's humanity state, for the admin page; the token is the whole gate. */
+    async adminHumanity(token: string, q: { wallet?: string; handle?: string }): Promise<AdminHumanity> {
+      const params = new URLSearchParams(q.wallet ? { wallet: q.wallet } : { handle: q.handle ?? "" });
+      return adminHumanitySchema.parse(
+        await readJson(
+          await call(`${base}/v1/admin/humanity?${params}`, { headers: { "x-admin-token": token } })
+        )
+      );
+    },
+    /** Demo only: forget the wallet's nullifiers and delete its humanity record on chain. */
+    async adminHumanityReset(token: string, q: { wallet?: string; handle?: string }): Promise<AdminReset> {
+      const res = await call(`${base}/v1/admin/humanity/reset`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-admin-token": token },
+        body: JSON.stringify(q),
+      });
+      return adminResetSchema.parse(await readJson(res));
+    },
     /** Keep a signed invitation of either kind and get the short code that stands for it. */
     async storeInvite(wire: object): Promise<{ code: string }> {
       const res = await call(`${base}/v1/invite`, {

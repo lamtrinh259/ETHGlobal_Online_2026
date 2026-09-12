@@ -193,6 +193,7 @@ function fakeChain(state: Partial<State> = {}) {
           wallet: zeroAddress,
         }
     ),
+    deleteRecord: vi.fn(async () => `0x${"de".repeat(32)}` as Hex),
     instances: vi.fn(async () => s.instances),
     submit: vi.fn(async (record: RegisterMessage, signature: Hex) => {
       submitted.push({ record, signature });
@@ -4141,6 +4142,110 @@ describe("the humanity check", () => {
     expect(again.status).toBe(200);
     expect(submitted[1].record.id).toBe(humanityRecordId(wallet));
     expect(submitted[1].record.nonce).toBe(2n);
+  });
+
+  it("retries once with the nonce the chain names, since a deleted record keeps its nonce", async () => {
+    const { chain, submitted } = fakeChain();
+    let calls = 0;
+    chain.submit = vi.fn(async (record: RegisterMessage, signature: Hex) => {
+      calls += 1;
+      if (calls === 1) throw new Error("invalidNonceIncrement: nonce must increase: on chain 2, signed 1");
+      submitted.push({ record, signature });
+      return `0x${"cd".repeat(32)}` as Hex;
+    }) as never;
+    const res = await post(humanApp(chain, portal()), "/v1/humanity", { wallet, proof: proof(signal) });
+    expect(res.status).toBe(200);
+    expect(calls).toBe(2);
+    expect(submitted[0].record.nonce).toBe(3n);
+  });
+
+  /*
+   * Demo only: the check has to be run again on the same person, and "one human, one account" is
+   * exactly what stops that. The reset forgets the nullifier and deletes the record on chain.
+   */
+  describe("the admin reset", () => {
+    const adminEnv = { ...worldEnv, ADMIN_TOKEN: "admin-token-0123456789abcdef" };
+    const headers = { "x-admin-token": "admin-token-0123456789abcdef" };
+
+    it("is disabled without a token, and refuses the wrong one", async () => {
+      const { chain } = fakeChain();
+      expect((await humanApp(chain, portal()).request("/v1/admin/humanity?wallet=" + wallet)).status).toBe(
+        501
+      );
+      const a = humanApp(chain, portal(), adminEnv);
+      expect((await a.request("/v1/admin/humanity?wallet=" + wallet)).status).toBe(401);
+      expect(
+        (await a.request("/v1/admin/humanity?wallet=" + wallet, { headers: { "x-admin-token": "nope" } }))
+          .status
+      ).toBe(401);
+    });
+
+    it("forgets the nullifier and deletes the record, so the person can pass the check again", async () => {
+      const { chain } = fakeChain({
+        records: {
+          [`${wallet.toLowerCase()}:humanity`]: {
+            exists: true,
+            nonce: 1n,
+            id: humanityRecordId(wallet),
+            wallet,
+          },
+        },
+      });
+      const a = humanApp(chain, portal(), adminEnv);
+      // Bind a nullifier to the wallet by running the check once.
+      expect((await post(a, "/v1/humanity", { wallet, proof: proof(signal) })).status).toBe(200);
+      const before = await (await a.request("/v1/admin/humanity?wallet=" + wallet, { headers })).json();
+      expect(before).toMatchObject({ wallet, bound: 1, onchain: { exists: true } });
+
+      const res = await a.request("/v1/admin/humanity/reset", {
+        method: "POST",
+        headers: { ...headers, "content-type": "application/json" },
+        body: JSON.stringify({ wallet }),
+      });
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body).toMatchObject({
+        wallet,
+        forgotten: 1,
+        existed: true,
+        deleted: { txHash: `0x${"de".repeat(32)}` },
+      });
+      expect(chain.deleteRecord).toHaveBeenCalledWith("humanity", wallet);
+      // Another wallet may now claim the same person: nothing remembers the nullifier.
+      const other = "0x000000000000000000000000000000000000dEaD";
+      const again = await post(a, "/v1/humanity", { wallet: other, proof: proof(other.toLowerCase()) });
+      expect(again.status).not.toBe(409);
+    });
+
+    it("names the account by handle, refuses one nobody holds, and says when the delete failed", async () => {
+      const { chain } = fakeChain({
+        names: { "kju-is/alice": { taken: true, wallet, live: true } },
+        records: {
+          [`${wallet.toLowerCase()}:humanity`]: {
+            exists: true,
+            nonce: 1n,
+            id: humanityRecordId(wallet),
+            wallet,
+          },
+        },
+      });
+      chain.deleteRecord = vi.fn(async () => {
+        throw new Error("not the owner");
+      }) as never;
+      const a = humanApp(chain, portal(), adminEnv);
+      expect((await a.request("/v1/admin/humanity?handle=ghost", { headers })).status).toBe(404);
+      const res = await a.request("/v1/admin/humanity/reset", {
+        method: "POST",
+        headers: { ...headers, "content-type": "application/json" },
+        body: JSON.stringify({ handle: "alice" }),
+      });
+      expect(await res.json()).toMatchObject({
+        wallet,
+        handle: "alice",
+        existed: true,
+        deleted: { error: "not the owner" },
+      });
+    });
   });
 });
 

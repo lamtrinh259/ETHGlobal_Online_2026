@@ -120,6 +120,12 @@ export const configSchema = z.object({
   /** Shared secret for `POST /v1/org`; without it no organisation can be onboarded through the API */
   ORG_TOKEN: z.string().min(16).optional(),
   /**
+   * Shared secret for the demo-only `/v1/admin/*` routes — resetting a Selfie Check on a named
+   * account. Only answered where the registrar is this node (`REGISTRAR_KEY`): a deployment whose
+   * registrar is an enclave has no business undoing what it wrote.
+   */
+  ADMIN_TOKEN: z.string().min(16).optional(),
+  /**
    * Multipass domain holding humanity attestations. The instance resolver hops into it keyed by the
    * wallet, which is what makes `ketsuban:humanity` answer on a person's own name.
    */

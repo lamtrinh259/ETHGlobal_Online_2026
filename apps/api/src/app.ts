@@ -429,6 +429,7 @@ export function createApp({
         viewcodeKey: !!config.VIEWCODE_KEY,
         deliveryToken: !!config.DELIVERY_TOKEN,
         orgToken: !!config.ORG_TOKEN,
+        adminToken: !!config.ADMIN_TOKEN,
         privyVerificationKey: !!config.PRIVY_VERIFICATION_KEY_JWK,
         worldSigningKey: !!config.WORLD_RP_SIGNING_KEY,
       },
@@ -1837,7 +1838,17 @@ export function createApp({
         payload: toBytes32(human.level),
       };
       const signature = await signRecord(record, config.REGISTRAR_KEY, await env());
-      const txHash = await chain.submit(record, signature);
+      let txHash: Hex;
+      try {
+        txHash = await chain.submit(record, signature);
+      } catch (e) {
+        // A deleted record — the admin reset, or the owner — keeps its nonce and resolves to nobody, so
+        // no read can see it; the refusal names the number, and that is the one read that cannot lie.
+        const named = (e as Error).message.match(/nonce must increase: on chain (\d+)/);
+        if (!named) throw e;
+        const retried = { ...record, nonce: BigInt(named[1]) + 1n };
+        txHash = await chain.submit(retried, await signRecord(retried, config.REGISTRAR_KEY, await env()));
+      }
       return c.json({
         ok: true,
         level: human.level,
@@ -1850,6 +1861,70 @@ export function createApp({
       if (!bound) humans.delete(human.nullifier);
       return c.json({ ok: false, error: (e as Error).message }, 502);
     }
+  });
+
+  /**
+   * Demo only: reset a Selfie Check on a named account.
+   *
+   * A demo needs to run the check again on the same person, and "one human, one account" is exactly
+   * what stops that. This forgets every nullifier bound to the wallet and deletes its humanity record
+   * on chain, an owner call the relayer can make here. Gated twice: a shared secret, and a registrar
+   * that is this node — a deployment whose registrar is an enclave has no business undoing what it
+   * wrote, and answers 501.
+   */
+  const adminGate = (c: Context): Response | null => {
+    if (!config.ADMIN_TOKEN || !config.REGISTRAR_KEY) return c.json({ error: "admin disabled" }, 501);
+    if (c.req.header("x-admin-token") !== config.ADMIN_TOKEN) return c.json({ error: "unauthorized" }, 401);
+    return null;
+  };
+  /** The wallet an admin means: given outright, or held by the handle in the root name domain. */
+  async function adminWallet(q: {
+    wallet?: string;
+    handle?: string;
+  }): Promise<{ wallet: Address; handle: string | null } | null> {
+    if (q.wallet && /^0x[0-9a-fA-F]{40}$/.test(q.wallet))
+      return { wallet: getAddress(q.wallet), handle: q.handle ?? null };
+    const handle = q.handle?.trim().toLowerCase();
+    if (!handle || !HANDLE_RE.test(handle)) return null;
+    const status = await chain.nameStatus(config.NAME_DOMAINS[0] ?? "", handle);
+    return status.wallet ? { wallet: getAddress(status.wallet), handle } : null;
+  }
+  const humanityOf = async (wallet: Address) => {
+    const onchain = await chain.readOnchain(wallet, config.HUMANITY_DOMAIN);
+    const bound = humans.entries().filter(([, w]) => w.toLowerCase() === wallet.toLowerCase()).length;
+    return { onchain: { exists: onchain.exists, nonce: onchain.nonce.toString() }, bound };
+  };
+
+  app.get("/v1/admin/humanity", async (c) => {
+    const refused = adminGate(c);
+    if (refused) return refused;
+    const who = await adminWallet({ wallet: c.req.query("wallet"), handle: c.req.query("handle") });
+    if (!who) return c.json({ error: "no such account here" }, 404);
+    return c.json({ ...who, ...(await humanityOf(who.wallet)) });
+  });
+
+  app.post("/v1/admin/humanity/reset", async (c) => {
+    const refused = adminGate(c);
+    if (refused) return refused;
+    const body = z
+      .object({ wallet: z.string().optional(), handle: z.string().optional() })
+      .safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: "wallet or handle required" }, 400);
+    const who = await adminWallet(body.data);
+    if (!who) return c.json({ error: "no such account here" }, 404);
+    const before = await humanityOf(who.wallet);
+    for (const [nullifier, w] of humans.entries()) {
+      if (w.toLowerCase() === who.wallet.toLowerCase()) humans.delete(nullifier);
+    }
+    let deleted: { txHash: Hex } | { error: string } | null = null;
+    if (before.onchain.exists) {
+      try {
+        deleted = { txHash: await chain.deleteRecord(config.HUMANITY_DOMAIN, who.wallet) };
+      } catch (e) {
+        deleted = { error: (e as Error).message };
+      }
+    }
+    return c.json({ ...who, forgotten: before.bound, existed: before.onchain.exists, deleted });
   });
 
   /**

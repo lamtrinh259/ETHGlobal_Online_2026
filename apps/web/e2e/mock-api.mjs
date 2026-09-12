@@ -388,6 +388,26 @@ export const routes = [
       };
     },
   ],
+  // Demo only: the admin reset. The mock answers whatever the method; the real API gates on a token.
+  [
+    /^\/v1\/admin\/humanity\/reset/,
+    () => ({
+      wallet: "0xEE4811b9462956C9C3535E79c08776D769CA9F3a",
+      handle: "alice",
+      forgotten: 1,
+      existed: true,
+      deleted: { txHash: `0x${"de".repeat(32)}` },
+    }),
+  ],
+  [
+    /^\/v1\/admin\/humanity/,
+    () => ({
+      wallet: "0xEE4811b9462956C9C3535E79c08776D769CA9F3a",
+      handle: "alice",
+      onchain: { exists: true, nonce: "1" },
+      bound: 1,
+    }),
+  ],
   // What the references say: each statement read once by the fast council, one of them unread.
   [
     /^\/v1\/readings\/([^/?]+)/,
@@ -490,6 +510,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     res.writeHead(body ? 200 : 404, {
       "content-type": "application/json",
       "access-control-allow-origin": "*",
+      "access-control-allow-headers": "content-type, x-admin-token, x-view-code, x-delivery-token",
+      "access-control-allow-methods": "GET, POST, OPTIONS",
     });
     res.end(JSON.stringify(body ?? { error: "not found" }));
   }).listen(PORT, "127.0.0.1", () => console.log(`mock api on :${PORT}`));

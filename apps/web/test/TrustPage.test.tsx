@@ -20,6 +20,7 @@ vi.mock("@/lib/api", async (orig) => ({
   ...(await orig<typeof import("@/lib/api")>()),
   createApi: () => ({
     enclaveKey: vi.fn(async () => state.enclave),
+    contracts: vi.fn(async () => null),
     preflight: vi.fn(async () => state.preflight),
   }),
 }));

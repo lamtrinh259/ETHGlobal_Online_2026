@@ -63,6 +63,8 @@ function fakeApi(): Api {
     storeInvite: vi.fn(async () => ({ code: "abcd1234" })),
     invites: vi.fn(async (handle: string) => ({ handle, invites: [], asked: [] })),
     readings: vi.fn(),
+    adminHumanity: vi.fn(),
+    adminHumanityReset: vi.fn(),
     instance: vi.fn(async (domain: string) => ({
       domain,
       parentName: `${domain}.ketsuban.eth`,

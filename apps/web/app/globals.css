@@ -1674,3 +1674,22 @@ pre > code {
     transform: translate(-50%, -50%);
   }
 }
+
+/* The admin page's reading of an account: term, value, one per line. */
+.admin-state {
+  display: grid;
+  gap: var(--sp-xs);
+  margin: var(--sp-md) 0 0;
+}
+.admin-state > div {
+  display: grid;
+  grid-template-columns: minmax(8rem, 14rem) 1fr;
+  gap: var(--sp-sm);
+}
+.admin-state dt {
+  color: var(--text-secondary);
+}
+.admin-state dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
