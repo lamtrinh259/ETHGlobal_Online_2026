@@ -167,26 +167,6 @@ export class Chain {
   }
 
   /**
-   * The record an id resolves to, and the nonce that id has spent.
-   *
-   * Multipass keys nonces by record id, not by wallet: a humanity record is keyed by the nullifier,
-   * and the same human proving again from a new wallet writes under an id the chain has seen, whose
-   * nonce a read by wallet cannot see. It also says which wallet the id is bound to, which is the
-   * chain's own answer to "does another account hold this proof".
-   */
-  async readOnchainById(id: Hex, domain: string): Promise<OnchainState> {
-    const [exists, record] = await this.publicClient.readContract({
-      address: this.config.MULTIPASS,
-      abi: MultipassAbi,
-      functionName: "resolveRecord",
-      args: [
-        { name: zeroHash, id, wallet: zeroAddress, domainName: toBytes32(domain), targetDomain: zeroHash },
-      ],
-    });
-    return { exists, nonce: record.nonce, id: record.id, wallet: record.wallet };
-  }
-
-  /**
    * Every mount this deployment has. A deployment can run two factories: the one that made the root
    * instance, and a later one carrying the DNS namespace, which the first is too old to build. The
    * later factory wins for a domain both know, and only it answers about private mirrors.
@@ -1048,7 +1028,6 @@ export class Chain {
 export type ChainReader = Pick<
   Chain,
   | "readOnchain"
-  | "readOnchainById"
   | "instances"
   | "submit"
   | "resolveText"

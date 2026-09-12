@@ -203,18 +203,3 @@ curl -s https://<site>/api/health | jq '{sha, shaFrom}'
 `shaFrom: "none"` means the variable has to be set as a **build argument**, not a runtime one: the
 value is inlined at build time. `apps/web/Dockerfile` already declares `ARG SOURCE_COMMIT` before the
 build step, so setting it in the app's build environment is enough.
-
-## `POST /v1/humanity` → 502 `invalidNonceIncrement: nonce must increase: on chain 2, signed 1`
-
-World verified the proof; Multipass refused the record. Multipass keys nonces by **record id**, and a
-humanity record's id is the World nullifier — stable per human and action, whatever wallet they use.
-A person who proved before (another wallet, a deleted record, an earlier deployment against the same
-domain) has an id the chain has seen, and a read by wallet says "nothing here, nonce 0". The API now
-reads by id as well and signs above the higher nonce; if the chain still names a higher one (a deleted
-id keeps its nonce and resolves to nobody), it retries once with that number. A nullifier the chain
-shows bound to a *different* wallet is refused with 409, which is the chain's own answer and outlives
-the `humans` store in `DATA_DIR`.
-
-What the record holds: `domain = humanity`, `id = nullifier`, `name = 0x0` (no label; the resolver
-reaches it by wallet), `wallet`, `payload = credential level` (`selfie` or `proof_of_human`),
-`validUntil = now + RECORD_TERM_SECONDS`. Nothing else from World — no proof, no merkle root — is stored.
