@@ -1,6 +1,9 @@
+"use client";
+
 import Link from "next/link";
-import { createApi } from "@/lib/api";
-import { loadWebConfig } from "@/lib/config";
+import { useMemo } from "react";
+import { useWebConfig } from "@/app/providers";
+import { apiFor, useInvite } from "@/lib/hooks";
 import { describePolicy, policyFromQuery } from "@/lib/profile";
 
 /**
@@ -9,14 +12,23 @@ import { describePolicy, policyFromQuery } from "@/lib/profile";
  * The link is `/me?invite=<code>`, the same shape a vouch link has, and the attester holds the signed
  * invitation behind the code. So this says — from the record, not from the link — who is asking, what
  * they require, and which account to begin with; and once the person has a page, reads it against the
- * bar instead.
+ * bar instead. It keeps asking, because the person is on this page doing exactly that: the block that
+ * told them to begin should notice when they have, without a reload.
  */
-export async function InvitedBy({ code }: { code: string | undefined }) {
+export function InvitedBy({ code }: { code: string | undefined }) {
+  const config = useWebConfig();
+  const api = useMemo(() => apiFor(config), [config]);
+  const q = useInvite(api, code);
   if (!code) return null;
-  const config = loadWebConfig();
-  const api = createApi(config.apiUrl, config.attestUrl);
-  const kept = /^[0-9a-f]{32}$/i.test(code) ? await api.invite(code.toLowerCase()).catch(() => null) : null;
 
+  if (q.isPending && /^[0-9a-f]{32}$/i.test(code)) {
+    return (
+      <section className="card" data-testid="invited-reading">
+        <p className="muted">reading the invitation…</p>
+      </section>
+    );
+  }
+  const kept = q.data;
   if (!kept) {
     return (
       <section className="card" data-testid="invited-unknown">
@@ -29,7 +41,7 @@ export async function InvitedBy({ code }: { code: string | undefined }) {
   }
   // A candidate's invitation is for a writer, and its page is the vouch page; send it there.
   if (kept.kind !== "policy") {
-    const handle = (kept.invite as { handle?: string }).handle ?? "";
+    const handle = kept.invite.handle;
     return (
       <section className="card" data-testid="invited-to-vouch">
         <p>
@@ -63,8 +75,16 @@ export async function InvitedBy({ code }: { code: string | undefined }) {
       )}
       {kept.status === "claimed" && kept.candidate ? (
         <p data-testid="invited-claimed">
-          The <code>{kept.platform}</code> account <code>@{kept.account}</code> is linked to{" "}
-          <code>{kept.candidate}</code>.{" "}
+          {kept.platform.includes(".") ? (
+            <>
+              The <code>{kept.platform}</code> account <code>@{kept.account}</code> is linked to{" "}
+              <code>{kept.candidate}</code>.{" "}
+            </>
+          ) : (
+            <>
+              Your page is <code>{kept.candidate}</code>.{" "}
+            </>
+          )}
           <Link className="button primary" href={`/p/${kept.candidate}?${kept.policy}`}>
             Read {kept.candidate} against the bar
           </Link>

@@ -188,6 +188,20 @@ export function useGraph(api: Api, handle: string | undefined) {
   });
 }
 
+/**
+ * The invitation behind a code, kept fresh: the person it names is on this very page linking the
+ * account or claiming the name, and the block that told them to begin should notice when they have.
+ */
+export function useInvite(api: Api, code: string | undefined) {
+  return useQuery({
+    queryKey: ["invite", code],
+    queryFn: () => api.invite(code as string),
+    enabled: !!code && /^[0-9a-f]{32}$/i.test(code),
+    refetchInterval: 10_000,
+    retry: false,
+  });
+}
+
 export function useReadings(api: Api, handle: string | undefined) {
   return useQuery({
     queryKey: ["readings", handle],
