@@ -65,9 +65,6 @@ export function PersonSearch({
     href: string;
     label: string;
     note?: string;
-    /** The subject's own records, so the row is its page in miniature */
-    avatar?: string;
-    about?: string;
     /** The second thing to do with it, as every person row has one: for a subject, answering */
     also?: { label: string; href: string };
   }[];
@@ -349,13 +346,8 @@ export function PersonSearch({
                   className={options[at]?.key === `pin:${x.href}` ? "here" : undefined}
                   data-testid="pinned"
                 >
-                  {x.avatar && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={x.avatar} alt="" className="pin-avatar" data-testid="pinned-avatar" width={40} height={40} />
-                  )}
                   <span className="acct-id">
                     <strong>{x.label}</strong>
-                    {x.about && <small>{x.about}</small>}
                     {x.note && <small className="muted">{x.note}</small>}
                   </span>
                   <span className="acct-state">

@@ -33,8 +33,6 @@ test("landing renders the shell and the search without horizontal overflow", asy
   // row offers to refer. It used to have one action where every person had two.
   await expect(page.getByTestId("pinned").getByRole("link", { name: "Open" })).toBeVisible();
   await expect(page.getByTestId("pinned-also")).toHaveAttribute("href", "/me#refer");
-  // The row is the subject's page in miniature: its picture and its description from its own records.
-  await expect(page.getByTestId("pinned-avatar")).toBeVisible();
   await page.getByTestId("pinned").getByRole("link").first().click();
   // The subject page, at the same address every other row opens: /p/<handle>.
   await expect(page).toHaveURL(/\/p\/kju-is$/);

@@ -35,15 +35,15 @@ const kim = {
 };
 
 describe("the subject row on the landing page", () => {
-  it("renders the subject's avatar, name and description from its records, and opens /p/<handle>", () => {
+  it("names the subject from its records and opens /p/<handle>, with no picture and no description", () => {
+    // The row is a door, not the page: the name and how many have answered, nothing that belongs on the page itself.
     show([kim]);
     const row = screen.getByTestId("pinned");
     expect(row.querySelector("a")?.getAttribute("href")).toBe("/p/kju-is");
     expect(row.textContent).toContain("Kim Jong Un");
-    expect(row.textContent).toContain("Supreme Leader of the DPRK since 2011.");
     expect(row.textContent).toContain("2 answers");
-    const img = row.querySelector("img[data-testid='pinned-avatar']");
-    expect(img?.getAttribute("src")).toBe(kim.avatar);
+    expect(row.textContent).not.toContain("Supreme Leader");
+    expect(row.querySelector("img")).toBeNull();
   });
 
   it("keeps its shape when the records are not there yet: the question stands in for the name", () => {
@@ -51,6 +51,6 @@ describe("the subject row on the landing page", () => {
     const row = screen.getByTestId("pinned");
     expect(row.querySelector("a")?.getAttribute("href")).toBe("/p/kju-is");
     expect(row.textContent).toContain("What do you think of Kim Jong Un?");
-    expect(row.querySelector("img[data-testid='pinned-avatar']")).toBeNull();
+    expect(row.querySelector("img")).toBeNull();
   });
 });

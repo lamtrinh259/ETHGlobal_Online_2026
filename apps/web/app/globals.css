@@ -1008,6 +1008,20 @@ details.advanced[open] > summary {
   background: transparent;
 }
 
+/* The end of a write: the tick is the whole message, the hash is the receipt under it. */
+.tx-done {
+  text-align: center;
+}
+.tx-done code {
+  overflow-wrap: anywhere;
+}
+.tx-done-check {
+  margin: 0 0 var(--sp-sm);
+  color: var(--consensus);
+  font-size: 56px;
+  line-height: 1;
+}
+
 /* ── switch ── */
 .switch {
   display: flex;
@@ -1690,14 +1704,6 @@ pre > code {
 
 
 
-/* a subject's own picture on its row */
-.pin-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  object-fit: cover;
-  flex: none;
-}
 
 /* ── the reference page: one card, a rail of steps, one panel at a time ── */
 .stepper-nav {
