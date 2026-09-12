@@ -11,9 +11,10 @@
     "dev": "tsx watch src/server.ts",
     "test": "vitest run --coverage",
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "prettier --check 'src/**/*.ts' 'test/**/*.ts'",
-    "lint:fix": "prettier --write 'src/**/*.ts' 'test/**/*.ts'"
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.scripts.json",
+    "lint": "prettier --check 'src/**/*.ts' 'test/**/*.ts' 'scripts/**/*.ts'",
+    "lint:fix": "prettier --write 'src/**/*.ts' 'test/**/*.ts' 'scripts/**/*.ts'",
+    "seed:graph": "tsx scripts/seed-graph.ts"
   },
   "dependencies": {
     "@ketsuban/registrar": "workspace:*",

@@ -312,3 +312,33 @@ a stranger, granted key   setText(peersky.ketsuban.eth, "avatar")       refused 
 
 Checked with `eth_call` against Sepolia, from each wallet in turn. The same three cases are asserted in
 `test/AttestationBridge.t.sol`, where the write goes through and reads back, and both refusals revert.
+
+## A namespace worth looking at
+
+The reference map on a person's page shows whether the people behind them know each other. Four
+names and three references give it nothing to show, so there is a seeder that writes a namespace
+shaped like the real thing:
+
+```sh
+API_URL=https://ketsuban-api.peeramid.xyz REGISTRAR_KEY=0x… pnpm --filter @ketsuban/api seed:graph
+```
+
+It writes, in order: a name for each person, a humanity record for the ones who "proved" it, and then
+every reference. Every record is registrar-signed and relayed through `/v1/submit`, so each one is a
+real Multipass record readable in any ENS client. What the seeder skips is the identity token, which
+is why it needs the registrar key and is an operator's tool rather than a route. It is safe to re-run:
+a name already held and a reference already standing are left alone.
+
+What it writes:
+
+| who | shape |
+|---|---|
+| `mira`, `theo`, `sana`, `kofi`, `lena` | a team: most pairs refer each other, some both ways; `mira`, `theo`, `sana` hold humanity proofs |
+| `ring-a` … `ring-e` | five accounts wired to each other in every direction and to nobody else |
+| `ring-a` → `kofi` | the one bridge, which is how a ring tries to look connected |
+| `nadia` | a newcomer with one honest reference from `mira` |
+
+Then walk it: `/p/mira` shows referrers who refer each other and trust from three proved humans;
+`/p/ring-b` shows five referrers who *all* refer each other and trust that barely arrived; `/p/nadia`
+shows one reference and an empty shape — which is what one bought reference would look like too, and
+is the caveat under the map.
