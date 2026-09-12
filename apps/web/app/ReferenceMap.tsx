@@ -65,7 +65,7 @@ export function ReferenceMap({ handle }: { handle: string }) {
       ) : (
         <div className="refmap-row">
           <svg
-            viewBox="-110 -110 220 220"
+            viewBox="-130 -130 260 260"
             className="refmap-svg"
             role="img"
             aria-label={`references around ${handle}`}
@@ -83,10 +83,18 @@ export function ReferenceMap({ handle }: { handle: string }) {
                */
               const mx = (a.x + b.x) / 2;
               const my = (a.y + b.y) / 2;
-              const len = Math.hypot(mx, my) || 1;
-              const bow = R * 1.35;
-              const cx = mine ? mx : (mx / len) * bow || (a.y - b.y) * 0.4;
-              const cy = mine ? my : (my / len) * bow || (b.x - a.x) * 0.4;
+              const len = Math.hypot(mx, my);
+              /*
+               * Neighbours on the ring bow outward, past the ring. A pair sitting opposite each other
+               * has no outward — their midpoint is the centre — so they bow sideways instead, each
+               * direction of the pair to its own side, which keeps the two from lying on one arc.
+               */
+              const bow = R * 1.3;
+              const across = len < R * 0.25;
+              const px = (a.y - b.y) / (Math.hypot(a.x - b.x, a.y - b.y) || 1);
+              const py = (b.x - a.x) / (Math.hypot(a.x - b.x, a.y - b.y) || 1);
+              const cx = mine ? mx : across ? px * R * 0.55 : (mx / len) * bow;
+              const cy = mine ? my : across ? py * R * 0.55 : (my / len) * bow;
               return (
                 <path
                   key={`${e.from}>${e.to}`}

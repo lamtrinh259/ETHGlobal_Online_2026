@@ -47,6 +47,7 @@ export function plan(): Plan {
     { handle: "nadia", human: false },
   ];
   const references: Plan["references"] = [];
+  // A statement is the record's payload, and a Multipass payload is bytes32: 31 bytes is all it holds.
   const say = (from: string, to: string, says: string) => references.push({ from, to, says });
 
   // The team: most pairs, some both ways, none of them everybody.
@@ -54,7 +55,7 @@ export function plan(): Plan {
   say("sana", "mira", "shipped two launches together");
   say("kofi", "mira", "reviewed my code for a year");
   say("mira", "theo", "the steadiest engineer I know");
-  say("sana", "theo", "on call together, never dropped it");
+  say("sana", "theo", "on call together, never dropped");
   say("mira", "sana", "ran incident response with her");
   say("lena", "sana", "hired her, would again");
   say("theo", "kofi", "paired for six months");

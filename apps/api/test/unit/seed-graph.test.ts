@@ -15,6 +15,13 @@ describe("the seeded namespace", () => {
   );
   const humans = p.people.filter((x) => x.human).map((x) => x.handle);
 
+  it("says nothing longer than a record holds", () => {
+    // A statement is the payload, and a payload is bytes32. One word too many and the seed dies
+    // halfway through a namespace, which is exactly how it was found.
+    for (const r of p.references)
+      expect(new TextEncoder().encode(r.says).length, r.says).toBeLessThanOrEqual(31);
+  });
+
   it("refers only to people it creates, and nobody to themselves", () => {
     const known = new Set(p.people.map((x) => x.handle));
     for (const r of p.references) {

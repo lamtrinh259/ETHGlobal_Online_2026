@@ -6,7 +6,7 @@ import { CopyButton } from "@/app/CopyButton";
 import { PolicyForm } from "@/app/PolicyForm";
 import { PersonSearch } from "@/app/PersonSearch";
 import { useWebConfig } from "@/app/providers";
-import { apiFor, useProfile } from "@/lib/hooks";
+import { apiFor, useGraph, useProfile } from "@/lib/hooks";
 import { loadPolicies, type SavedPolicy } from "@/lib/policies";
 import { loadShortlist, shortlist, unshortlist, type Shortlisted } from "@/lib/shortlist";
 import {
@@ -171,6 +171,12 @@ function Standing({
   const config = useWebConfig();
   const api = useMemo(() => apiFor(config), [config]);
   const read = useProfile(api, entry.handle);
+  /*
+   * The shape beside the count, per row.
+   * A shortlist is where people are compared, and three references from a team and three from a ring
+   * are the same count in every row. What the map says on one page is said here in a phrase.
+   */
+  const shape = useGraph(api, entry.handle);
   const names = [config.instances[0], ...config.instances.slice(1)].map(
     (i) => `${entry.handle}.${i.parentName}`
   );
@@ -204,6 +210,14 @@ function Standing({
             <>short: {failed.map((c) => c.label).join(", ")}</>
           )}
         </small>
+        {shape.data && shape.data.edges.some((e) => e.to === entry.handle) && (
+          <small className="muted" data-testid={`shape-${entry.handle}`}>
+            {shape.data.metrics.referrersReferringEachOther} of{" "}
+            {shape.data.edges.filter((e) => e.to === entry.handle).length} referrers know each other
+            {shape.data.seeds > 0 && <> · trust {shape.data.rank.toFixed(3)}</>}
+            {shape.data.human && <> · proved human</>}
+          </small>
+        )}
       </span>
       <span className="acct-state">
         {profile && (

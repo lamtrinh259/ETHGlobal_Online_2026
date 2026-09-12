@@ -21,6 +21,9 @@ test("a bar, a list, and where each of them stands", async ({ page }) => {
   await expect(row).toBeVisible();
   // The attester answers, so this is a real reading rather than an empty one.
   await expect(row).toContainText("short:");
+  // And the shape behind the count, since a shortlist is where people are compared.
+  await expect(row.getByTestId("shape-alice")).toContainText("1 of 2 referrers know each other");
+  await expect(row.getByTestId("shape-alice")).toContainText("proved human");
   // Reading them opens their page carrying the same bar, so the row and the page cannot disagree.
   await row.getByRole("link", { name: "Read" }).click();
   await expect(page).toHaveURL(/\/p\/alice\?.*preset=dao/);
