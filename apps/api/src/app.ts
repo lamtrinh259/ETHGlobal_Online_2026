@@ -874,20 +874,28 @@ export function createApp({
         }),
     ]);
     const description = about.description ?? "";
+    /*
+     * The newest first, and a page of them.
+     *
+     * This is the one list the product invites the whole world to add to, and it was returned entire:
+     * a question everybody answers eventually answers back with every answer ever given, to a page
+     * that then renders all of them. Newest first because an answer is a thing somebody said at a
+     * time, and `total` beside it because a list that stops must say that it did.
+     */
+    const live = records.filter((r) => r.live).sort((a, b) => Number(b.validUntil) - Number(a.validUntil));
     return c.json({
       domain,
       parentName: instance.parentName,
       description: description || null,
       records: about,
-      answers: records
-        .filter((r) => r.live)
-        .map((r) => ({
-          handle: r.name,
-          ensName: `${r.name}.${instance.parentName}`,
-          answer: fromBytes32(r.payload),
-          wallet: r.wallet,
-          validUntil: new Date(Number(r.validUntil) * 1000).toISOString(),
-        })),
+      total: live.length,
+      answers: live.slice(0, ANSWER_PAGE).map((r) => ({
+        handle: r.name,
+        ensName: `${r.name}.${instance.parentName}`,
+        answer: fromBytes32(r.payload),
+        wallet: r.wallet,
+        validUntil: new Date(Number(r.validUntil) * 1000).toISOString(),
+      })),
       warning: WARNING,
     });
   });
@@ -919,6 +927,9 @@ export function createApp({
    */
   const viewCodeOf = (c: { req: { header: (name: string) => string | undefined } }): string | undefined =>
     c.req.header("x-view-code");
+
+  /** How many answers one read of a subject carries; the rest are counted, not sent. */
+  const ANSWER_PAGE = 50;
 
   app.get("/v1/find", async (c) => {
     const q = c.req.query("q")?.trim().toLowerCase().replace(/^@/, "") ?? "";

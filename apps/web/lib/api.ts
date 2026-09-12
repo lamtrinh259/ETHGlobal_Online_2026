@@ -276,6 +276,8 @@ export type Who = z.infer<typeof whoSchema>;
  */
 export const instanceReadSchema = z.object({
   domain: z.string(),
+  /** How many have answered, which is not how many came back: the read carries a page of them. */
+  total: z.number().optional(),
   parentName: z.string(),
   description: z.string().nullable().default(null),
   records: z

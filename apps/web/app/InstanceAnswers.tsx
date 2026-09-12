@@ -10,6 +10,8 @@ type Instance = {
   /** Who the page is about, read from the name itself so any ENS client shows the same thing */
   records?: { name?: string; description: string; url: string; avatar: string };
   answers: { handle: string; ensName: string; answer: string; validUntil: string }[];
+  /** How many have answered, which is not how many came back: the read carries a page of them. */
+  total?: number;
 };
 
 /**
@@ -54,6 +56,13 @@ export function InstanceAnswers({
         arriving from a link was shown a name, a description and a list of quotes with nothing asked.
       */}
       <h3 data-testid="the-question">{questionTitle(data.domain)}</h3>
+      {/* Anybody may answer, so this list has no bound. A page of it that does not say so reads as
+          every answer there is. */}
+      {(data.total ?? data.answers.length) > data.answers.length && (
+        <p className="muted" data-testid="more-answers">
+          Showing the newest {data.answers.length} of {data.total}.
+        </p>
+      )}
       {/* The page exists to be answered, and had no way to. A reader who has just decided what they
           think is the one person most likely to say it, and they were shown the door out. */}
       <p className="row" data-testid="answer-cta">

@@ -204,3 +204,19 @@ describe("who answered", () => {
     expect(row.querySelector('a[href="/v/alice.kju-is.ketsuban.eth"]')).not.toBeNull();
   });
 });
+
+describe("a question more people have answered than fit", () => {
+  /*
+   * Anybody may answer a subject, so the list has no bound on it; a page of one that does not say so
+   * reads as every answer there is.
+   */
+  it("says how many there are behind the ones shown", () => {
+    render(<InstanceAnswers data={{ ...data, total: 140 }} />);
+    expect(screen.getByTestId("more-answers")).toHaveTextContent("Showing the newest 1 of 140");
+  });
+
+  it("says nothing where they all fit", () => {
+    render(<InstanceAnswers data={{ ...data, total: 1 }} />);
+    expect(screen.queryByTestId("more-answers")).toBeNull();
+  });
+});

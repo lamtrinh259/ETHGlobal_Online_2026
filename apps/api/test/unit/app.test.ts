@@ -4387,3 +4387,45 @@ describe("how many the search found", () => {
     expect(body.matches).toHaveLength(10);
   });
 });
+
+/**
+ * The list the whole world is invited to add to.
+ *
+ * A subject is a question anybody may answer, so its answers are the one list here with no bound on
+ * it at all — and it came back entire, to a page that then rendered every answer ever given.
+ */
+describe("a subject with more answers than one read carries", () => {
+  const answers = (n: number) =>
+    Array.from({ length: n }, (_, i) => ({
+      name: `voter-${String(i).padStart(3, "0")}`,
+      id: toBytes32(String(i)),
+      wallet: user.account.address,
+      payload: toBytes32(`answer ${i}`),
+      // Ascending, so the newest is the last one written rather than the first read.
+      validUntil: BigInt(9_000_000_000 + i),
+      nonce: 1n,
+      live: true,
+      domain: "kju-is",
+    }));
+
+  it("carries a page of them and says how many there are", async () => {
+    const { chain } = fakeChain({ listed: { "kju-is": answers(140) } });
+    const body = await (await app(chain).request("/v1/instance/kju-is")).json();
+    expect(body.answers).toHaveLength(50);
+    expect(body.total).toBe(140);
+  });
+
+  it("carries the newest, since an answer is a thing somebody said at a time", async () => {
+    const { chain } = fakeChain({ listed: { "kju-is": answers(140) } });
+    const body = await (await app(chain).request("/v1/instance/kju-is")).json();
+    expect(body.answers[0].handle).toBe("voter-139");
+    expect(body.answers.at(-1).handle).toBe("voter-090");
+  });
+
+  it("says the total where everything fits, rather than only when it does not", async () => {
+    const { chain } = fakeChain({ listed: { "kju-is": answers(3) } });
+    const body = await (await app(chain).request("/v1/instance/kju-is")).json();
+    expect(body.answers).toHaveLength(3);
+    expect(body.total).toBe(3);
+  });
+});
