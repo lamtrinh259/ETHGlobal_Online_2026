@@ -43,3 +43,21 @@ test("the list survives a reload, because it is the reader's own", async ({ page
   await page.reload();
   await expect(page.getByTestId("standing-alice")).toHaveCount(0);
 });
+
+/**
+ * Somebody with no page yet.
+ *
+ * An employer knows a person by an account, and nobody holds a name for it. The answer is not a dead
+ * end but an invitation: signed by the employer, kept by the attester under a code, and listed on
+ * the employer's own page as a pending check until the person comes. Signing needs a wallet, which
+ * the browser test has none of, so what is asserted is the offer and the gate in front of it.
+ */
+test("an account nobody holds a name for is offered an invitation to pass the bar", async ({ page }) => {
+  await page.goto("/employers");
+  await page.getByTestId("by-account").fill("x.com");
+  await page.getByTestId("name-query").fill("nobodyhere");
+  await expect(page.getByTestId("invite-to-policy-button")).toBeVisible();
+  // The plain ask is not offered here: an employer has a bar to name.
+  await expect(page.getByTestId("invite-to-claim")).toHaveCount(0);
+  await expect(page.getByTestId("invite-signin")).toContainText("sign in with a name you hold");
+});

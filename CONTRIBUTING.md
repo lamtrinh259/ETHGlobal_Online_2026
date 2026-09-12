@@ -74,3 +74,17 @@ REPO=https://git.peeramid.xyz/api/v1/repos/peersky/ETHGlobal_Online_2026
 curl -s "$REPO/actions/artifacts" | jq -r '.[0].archive_download_url' | xargs curl -sLo r.zip
 unzip -p r.zip | grep -A3 "<failure"
 ```
+
+## Patterns
+
+- **A second kind of an existing thing goes into the existing resource.** The employer's invitation
+  is the candidate's invitation with `kind: "policy"`: same store, same code shape, same
+  `?invite=<code>` link shape, resolved by the same `GET /v1/invite/:code`. A parallel resource
+  (`/v1/policy-invite`) was built first and folded back; a reader of the API should meet one idea.
+- **An external service is a module with `xFrom(config)` and an injected `fetch`.** `world.ts` and
+  `council.ts` both: config → an optional client value, `undefined` when unset; every network call
+  through the `Fetch` the app was created with, so tests hand in a function and never a server.
+  Absence means the feature says so on the page ("unread", "no council here"), never a stand-in value.
+- **Cache by the hash of the input, keep only successes.** `Readings` keys the council's answer by
+  `keccak256(statement)` in a `PersistentMap`; a failed read is not kept, so the next request asks
+  again, and concurrent reads of the same words share one in-flight promise.

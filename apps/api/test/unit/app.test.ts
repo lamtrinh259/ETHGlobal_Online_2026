@@ -34,6 +34,8 @@ import {
   signDisclosure,
   signRevocation,
   type RegisterMessage,
+  policyInviteDomain,
+  signPolicyInvite,
 } from "@ketsuban/registrar";
 import {
   decodeRecord,
@@ -4137,6 +4139,7 @@ describe("the caveat on a claim about somebody", () => {
     "/v1/who?domain=x.com&handle=alice_x",
     "/v1/graph",
     "/v1/graph/alice",
+    "/v1/readings/alice",
   ];
 
   for (const path of aboutAPerson) {
@@ -4649,5 +4652,259 @@ describe("what a writer has taken back", () => {
     const { chain } = fakeChain({ listed: { "~alice": [wrote("alice", "withdrawn")] } });
     const body = await (await app(chain).request("/v1/standing/alice")).json();
     expect(body.received).toBe(0);
+  });
+});
+
+describe("how references read", () => {
+  /*
+   * The council reads sentences, not people: every statement written for somebody and every one they
+   * wrote gets a provisional polarity from `nsed:fast`, or is listed unread where no council exists.
+   * A withdrawn reference is not a reference, and the same words are read once.
+   */
+  const councilEnv = { ...baseEnv, NSED_URL: "http://nsed.test", NSED_TOKEN: "council-token" };
+  const wrote = (voucher: string, candidate: string, statement: string, live = true) => ({
+    name: voucher,
+    id: toBytes32(`${voucher}>${candidate}`),
+    wallet: voucher === "alice" ? user.account.address : registrar.address,
+    payload: toBytes32(statement),
+    validUntil: 9_000_000_000n,
+    nonce: 1n,
+    live,
+    domain: `~${candidate}`,
+  });
+  const chainWith = () =>
+    fakeChain({
+      instances: [instance, { ...instance, domain: "~alice", parentName: "alice.kju-is.eth" }],
+      names: { "kju-is/alice": { taken: true, wallet: user.account.address, live: true } },
+      listed: {
+        "~alice": [
+          wrote("bob", "alice", "would hire again"),
+          wrote("carol", "alice", "do not lend them money"),
+          wrote("dan", "alice", "withdrawn"),
+          wrote("eve", "alice", "would hire again", false),
+        ],
+      },
+      byWallet: [wrote("alice", "bob", "would hire again"), wrote("alice", "carol", "withdrawn")],
+    }).chain;
+  const readings: Record<string, string> = {
+    "would hire again": '{"polarity": 0.9, "rationale": "an offer to work with them again"}',
+    "do not lend them money": '{"polarity": -0.8, "rationale": "a warning about money"}',
+  };
+  const council = () =>
+    vi.fn<Fetch>(async (_url, init) => {
+      const body = JSON.parse(init.body as string);
+      const content = readings[body.messages[1].content] ?? "no idea";
+      return new Response(JSON.stringify({ choices: [{ message: { content } }] }), { status: 200 });
+    });
+
+  it("lists every statement unread, and says no council is here, when none is configured", async () => {
+    const fetchImpl = council();
+    const a = createApp({
+      config: loadConfig(baseEnv),
+      chain: chainWith(),
+      now: () => NOW,
+      fetch: fetchImpl,
+    });
+    const body = await (await a.request("/v1/readings/alice")).json();
+    expect(body.council).toBe(false);
+    expect(body.model).toBeNull();
+    expect(body.received.map((r: { voucher: string }) => r.voucher)).toEqual(["bob", "carol"]);
+    expect(body.received.every((r: { reading: unknown }) => r.reading === null)).toBe(true);
+    expect(body.summary.received).toEqual({ of: 2, read: 0, mean: null, supportive: 0, critical: 0 });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("reads each statement through the council, and sums up each side", async () => {
+    const fetchImpl = council();
+    const a = createApp({
+      config: loadConfig(councilEnv),
+      chain: chainWith(),
+      now: () => NOW,
+      fetch: fetchImpl,
+    });
+    const body = await (await a.request("/v1/readings/alice")).json();
+    expect(body.council).toBe(true);
+    expect(body.model).toBe("nsed:fast");
+    expect(body.received).toEqual([
+      {
+        voucher: "bob",
+        says: "would hire again",
+        reading: {
+          polarity: 0.9,
+          conviction: null,
+          rationale: "an offer to work with them again",
+          model: "nsed:fast",
+          provisional: true,
+        },
+      },
+      {
+        voucher: "carol",
+        says: "do not lend them money",
+        reading: {
+          polarity: -0.8,
+          conviction: null,
+          rationale: "a warning about money",
+          model: "nsed:fast",
+          provisional: true,
+        },
+      },
+    ]);
+    expect(body.summary.received).toEqual({ of: 2, read: 2, mean: 0.05, supportive: 1, critical: 1 });
+    // What they wrote: the withdrawn one is not a reference, so it is not read.
+    expect(body.given).toEqual([
+      { candidate: "bob", says: "would hire again", reading: expect.objectContaining({ polarity: 0.9 }) },
+    ]);
+    expect(body.summary.given).toEqual({ of: 1, read: 1, mean: 0.9, supportive: 1, critical: 0 });
+    // The same words are one reading: three statements, two distinct, two calls — each with the token.
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    for (const [, init] of fetchImpl.mock.calls)
+      expect((init.headers as Record<string, string>).authorization).toBe("Bearer council-token");
+    expect(body.warning).toBe(WARNING);
+  });
+
+  it("lists a statement the council could not read as unread, beside the ones it could", async () => {
+    const fetchImpl = vi.fn<Fetch>(async (_url, init) => {
+      const body = JSON.parse(init.body as string);
+      return body.messages[1].content === "would hire again"
+        ? new Response(JSON.stringify({ choices: [{ message: { content: readings["would hire again"] } }] }))
+        : new Response("overloaded", { status: 503 });
+    });
+    const a = createApp({
+      config: loadConfig(councilEnv),
+      chain: chainWith(),
+      now: () => NOW,
+      fetch: fetchImpl,
+    });
+    const body = await (await a.request("/v1/readings/alice")).json();
+    expect(body.received[0].reading.polarity).toBe(0.9);
+    expect(body.received[1].reading).toBeNull();
+    expect(body.summary.received).toEqual({ of: 2, read: 1, mean: 0.9, supportive: 1, critical: 0 });
+  });
+
+  it("refuses a handle that is not one", async () => {
+    const res = await createApp({ config: loadConfig(baseEnv), chain: chainWith(), now: () => NOW }).request(
+      "/v1/readings/not%20a%20handle"
+    );
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("an employer's invitation to be read against their policy", () => {
+  /*
+   * "peersky is inviting you to pass their policy; begin by connecting your github.com account." The
+   * line is peersky's own claim, so it must be signed by the wallet holding that name; the person is
+   * named by an account this deployment attests; and the employer's list says how far each has come.
+   */
+  const employer = user; // holds `alice` in kju-is
+  const invite = {
+    inviter: "alice",
+    platform: "github.com",
+    account: "lamtrinh259",
+    policy: "policy=kju-is&min=2",
+    exp: BigInt(NOW + 7 * 86_400),
+  };
+  const githubInstance: Instance = {
+    ...xComInstance,
+    domain: "github.com",
+    parentName: "github.com.kju-is.eth",
+  };
+  const chainWith = (state: Parameters<typeof fakeChain>[0] = {}) =>
+    fakeChain({
+      instances: [instance, githubInstance],
+      names: { "kju-is/alice": { taken: true, wallet: employer.account.address, live: true } },
+      ...state,
+    }).chain;
+  const signed = async (over: Partial<typeof invite> = {}, signer = employer.account) => {
+    const message = { ...invite, ...over };
+    const signature = await signPolicyInvite(
+      signer,
+      message,
+      policyInviteDomain(31337, baseEnv.MULTIPASS as Address)
+    );
+    return { ...message, exp: message.exp.toString(), signature };
+  };
+  const send = (a: ReturnType<typeof createApp>, body: unknown) =>
+    a.request("/v1/invite", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ kind: "policy", ...(body as object) }),
+    });
+
+  it("keeps a signed invitation under a code, and answers it back with the person not yet here", async () => {
+    const a = app(chainWith());
+    const res = await send(a, await signed());
+    expect(res.status).toBe(200);
+    const { code } = await res.json();
+    expect(code).toMatch(/^[0-9a-f]{32}$/);
+    const body = await (await a.request(`/v1/invite/${code}`)).json();
+    expect(body).toMatchObject({
+      code,
+      kind: "policy",
+      inviter: "alice",
+      inviterName: "alice.kju-is.eth",
+      platform: "github.com",
+      account: "lamtrinh259",
+      policy: "policy=kju-is&min=2",
+      expired: false,
+      status: "invited",
+      candidate: null,
+      warning: WARNING,
+    });
+  });
+
+  it("says the person linked the account, then that they claimed a page the bar applies to", async () => {
+    const linked = {
+      name: "lamtrinh259",
+      id: zeroHash,
+      wallet: registrar.address,
+      payload: zeroHash,
+      validUntil: 9_000_000_000n,
+      nonce: 1n,
+      live: true,
+      domain: "github.com",
+    };
+    const a = app(chainWith({ listed: { "github.com": [linked] } }));
+    const { code } = await (await send(a, await signed())).json();
+    expect((await (await a.request(`/v1/invite/${code}`)).json()).status).toBe("linked");
+
+    const claimed = app(
+      chainWith({
+        listed: { "github.com": [linked] },
+        byWallet: [{ ...linked, name: "lam", domain: "kju-is" }],
+      })
+    );
+    const { code: again } = await (await send(claimed, await signed())).json();
+    const body = await (await claimed.request(`/v1/invite/${again}`)).json();
+    expect(body.status).toBe("claimed");
+    expect(body.candidate).toBe("lam");
+    // And the employer's own list carries the same reading, which is the pending check on their page.
+    const mine = await (await claimed.request("/v1/invites/alice")).json();
+    expect(mine.asked).toHaveLength(1);
+    expect(mine.asked[0]).toMatchObject({
+      code: again,
+      account: "lamtrinh259",
+      status: "claimed",
+      candidate: "lam",
+    });
+  });
+
+  it("refuses an invitation not signed by the wallet holding the inviter's name", async () => {
+    const a = app(chainWith());
+    const forged = await signed({}, registrar);
+    const res = await send(a, forged);
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/signed by the wallet holding/);
+    // A name nobody holds cannot invite anybody either.
+    const nobody = await send(a, await signed({ inviter: "ghost" }));
+    expect(nobody.status).toBe(400);
+  });
+
+  it("refuses a person named by an account nowhere this deployment attests, or an invitation already expired", async () => {
+    const a = app(chainWith());
+    const elsewhere = await send(a, await signed({ platform: "example.org" }));
+    expect((await elsewhere.json()).error).toMatch(/does not attest example.org/);
+    const stale = await send(a, await signed({ exp: BigInt(NOW - 1) }));
+    expect((await stale.json()).error).toMatch(/expired/);
+    expect((await a.request("/v1/invite/00000000000000000000000000000000")).status).toBe(404);
   });
 });

@@ -61,14 +61,19 @@ function fakeApi(): Api {
     uploadAvatar: vi.fn(async () => ({ id: "a.png", url: "https://api.test/v1/avatar/a.png" })),
     find: vi.fn(async (q: string) => ({ q, matches: [] })),
     storeInvite: vi.fn(async () => ({ code: "abcd1234" })),
-    invites: vi.fn(async (handle: string) => ({ handle, invites: [] })),
+    invites: vi.fn(async (handle: string) => ({ handle, invites: [], asked: [] })),
+    readings: vi.fn(),
     instance: vi.fn(async (domain: string) => ({
       domain,
       parentName: `${domain}.ketsuban.eth`,
       description: null,
       answers: [],
     })),
-    invite: vi.fn(async (code: string) => ({ code, invite: {} })),
+    invite: vi.fn(async (code: string) => ({
+      code,
+      kind: "vouch" as const,
+      invite: { handle: "alice", voucher: "0x0", exp: "1", signature: "0x01" },
+    })),
     storeLetter: vi.fn(async (text: string) => ({
       hash: "a".repeat(64),
       ref: `sha256:${"a".repeat(64)}`,

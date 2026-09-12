@@ -2,12 +2,17 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { usePrivy, useSignTypedData, useWallets } from "@privy-io/react-auth";
+import type { Address } from "viem";
 import { CopyButton } from "@/app/CopyButton";
 import { PolicyForm } from "@/app/PolicyForm";
 import { PersonSearch } from "@/app/PersonSearch";
 import { useWebConfig } from "@/app/providers";
-import { apiFor, useGraph, useProfile } from "@/lib/hooks";
+import { apiFor, useGraph, useInvites, useProfile, useWalletDashboard } from "@/lib/hooks";
+import { policyInviteTypedData } from "@/lib/intent";
+import { nameRows } from "@/lib/journey";
 import { loadPolicies, type SavedPolicy } from "@/lib/policies";
+import { policyInviteLink, policyInviteStatusText, policyInviteText } from "@/lib/policy-invite";
 import { loadShortlist, shortlist, unshortlist, type Shortlisted } from "@/lib/shortlist";
 import {
   assessProfile,
@@ -48,6 +53,71 @@ export function Employers({ subjectDomains }: { subjectDomains: string[] }) {
   const askFor = (handle: string) =>
     `I am checking references for ${note.trim() || "a role"}. Here is the bar: ${describePolicy(policy)}. ` +
     `Your page, read against it: ${site}/p/${handle}?${query}`;
+
+  /*
+   * Who is asking.
+   *
+   * An invitation to somebody with no page yet says "X is inviting you", and X has to be a name the
+   * employer holds, signed by the wallet that holds it — otherwise the line is one this app made up.
+   * So inviting needs the employer signed in and named; the list of who they invited hangs off the
+   * same name, which is where a pending check lives.
+   */
+  const { ready, authenticated, login } = usePrivy();
+  const { wallets } = useWallets();
+  const { signTypedData } = useSignTypedData();
+  const embedded = wallets.find((w) => w.walletClientType === "privy") ?? wallets[0];
+  const wallet = embedded?.address as Address | undefined;
+  const dash = useWalletDashboard(api, wallet);
+  const [rootRow] = nameRows(dash.data, config.instances);
+  const me = rootRow?.live ? rootRow.ensName.split(".")[0] : undefined;
+  const invited = useInvites(api, me);
+  const [sent, setSent] = useState<{ account: string; platform: string; text: string }>();
+  const [inviteError, setInviteError] = useState<string>();
+  const [inviting, setInviting] = useState(false);
+  const policyLabel =
+    note.trim() || POLICY_PRESETS.find((p) => p.id === named)?.label || named || "reference";
+
+  const invite = async (platform: string, account: string) => {
+    setInviteError(undefined);
+    if (!authenticated) {
+      login();
+      return;
+    }
+    if (!me || !rootRow || !wallet) {
+      setInviteError("Hold a name here first: the invitation says who is asking, and that has to be you.");
+      return;
+    }
+    setInviting(true);
+    try {
+      const message = {
+        inviter: me,
+        platform,
+        account,
+        policy: query,
+        exp: BigInt(Math.floor(Date.now() / 1000) + 30 * 86_400),
+      };
+      const { signature } = await signTypedData(
+        policyInviteTypedData(message, config.chainId, config.multipass as Address) as never,
+        { address: wallet }
+      );
+      const { code } = await api.storeInvite({
+        kind: "policy",
+        ...message,
+        exp: message.exp.toString(),
+        signature,
+      });
+      setSent({
+        account,
+        platform,
+        text: policyInviteText(rootRow.ensName, policyLabel, platform, account, policyInviteLink(site, code)),
+      });
+      void invited.refetch();
+    } catch (e) {
+      setInviteError((e as Error).message);
+    } finally {
+      setInviting(false);
+    }
+  };
 
   return (
     <>
@@ -123,8 +193,79 @@ export function Employers({ subjectDomains }: { subjectDomains: string[] }) {
           action="Add to the list"
           label="Their name or handle"
           onPick={(h) => setList(shortlist(h, note))}
+          onInvite={(platform, account) => void invite(platform, account)}
         />
+        {inviting && <p className="muted">signing the invitation…</p>}
+        {inviteError && (
+          <p className="error" role="alert" data-testid="invite-error">
+            {inviteError}
+          </p>
+        )}
+        {sent && (
+          <p className="card" data-testid="invite-sent">
+            <span>
+              Send this to <code>@{sent.account}</code> on <code>{sent.platform}</code>:
+            </span>
+            <br />
+            <code data-testid="invite-text">{sent.text}</code>
+            <br />
+            <CopyButton text={sent.text} label="Copy the invitation" />
+          </p>
+        )}
+        {ready && !authenticated && (
+          <p className="muted" data-testid="invite-signin">
+            To invite somebody who has no page yet, sign in with a name you hold: the invitation says who is
+            asking.
+          </p>
+        )}
       </section>
+
+      {me && (
+        <section className="card" data-testid="employer-invited">
+          <h2>Whom you invited</h2>
+          {invited.isPending ? (
+            <p className="muted">reading…</p>
+          ) : !invited.data || invited.data.asked.length === 0 ? (
+            <p className="muted" data-testid="invited-none">
+              Nobody yet. Search for somebody by their account above; when nobody holds a name for it, you can
+              invite them to make one and be read against the bar.
+            </p>
+          ) : (
+            <ul className="acct" data-testid="invited-list">
+              {invited.data.asked.map((i) => (
+                <li key={i.code} data-testid={`invited-${i.account}`}>
+                  <span className="acct-id">
+                    <strong>
+                      @{i.account} <small className="muted">on {i.platform}</small>
+                    </strong>
+                    <small className="muted" data-testid={`invited-status-${i.account}`}>
+                      {policyInviteStatusText(i.status, i.expired)}
+                    </small>
+                  </span>
+                  <span className="acct-state">
+                    {i.candidate ? (
+                      <Link className="button" href={`/p/${i.candidate}?${i.policy}`}>
+                        Read {i.candidate}
+                      </Link>
+                    ) : (
+                      <CopyButton
+                        text={policyInviteText(
+                          i.inviterName,
+                          policyLabel,
+                          i.platform,
+                          i.account,
+                          policyInviteLink(site, i.code)
+                        )}
+                        label="Copy the invitation"
+                      />
+                    )}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
 
       <section className="card" data-testid="employer-report">
         <h2>3 · Where each of them stands</h2>

@@ -47,7 +47,8 @@ export default async function VouchPage({ params, searchParams }: Params) {
     token && /^[0-9a-f]{32}$/.test(token)
       ? await createApi(config.apiUrl, config.attestUrl)
           .invite(token)
-          .then((r) => r.invite as unknown as Record<string, string>)
+          // An employer's kind of invitation is not one to write from; it lands on `/me` instead.
+          .then((r) => (r.kind === "policy" ? undefined : r.invite))
           .catch(() => undefined)
       : undefined;
   try {
@@ -56,7 +57,7 @@ export default async function VouchPage({ params, searchParams }: Params) {
           handle: fromCode.handle,
           voucher: fromCode.voucher,
           exp: BigInt(fromCode.exp),
-          requires: (fromCode.requires as unknown as string[]) ?? [],
+          requires: fromCode.requires ?? [],
           signature: fromCode.signature,
         } as SignedInvite)
       : token

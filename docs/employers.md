@@ -35,3 +35,30 @@ It sends nothing. "Copy the ask" produces a message the employer sends themselve
 the link. An invitation in this codebase is a candidate asking somebody to refer them — signed by the
 wallet holding their name — and is a different object from an employer asking a candidate to present
 themselves.
+
+## Inviting somebody who has no page yet
+
+An employer usually knows a candidate by an account — `@lamtrinh259` on github.com — and nobody may
+hold a name for it here. The search says so, and on `/employers` the answer is an invitation rather
+than a dead end:
+
+> peersky.ketsuban.eth is inviting you to pass their Backend engineer risk assessment policy, please
+> follow this link and begin with connecting your github.com account (@lamtrinh259):
+> https://ketsuban.peeramid.xyz/me?invite=0123456789abcdef0123456789abcdef
+
+It is the same invitation resource the candidate side already uses — one store, one code shape, one
+`?invite=<code>` link shape — with a second kind. `POST /v1/invite` with `kind: "policy"` takes
+`{ inviter, platform, account, policy, exp, signature }`: the employer's handle, the platform and
+account they know the person by, the bar as the query string a reference page reads a policy from,
+and an EIP-712 signature (`Ketsuban Policy Invite`) from the wallet holding the inviter's name. The
+attester refuses anything else, so "X is inviting you" is X's own claim. Signing needs the employer
+signed in and holding a name; the page says so when they are not.
+
+The link lands on `/me?invite=<code>`. `GET /v1/invite/:code` answers with the invitation and how far
+the person has come — `invited` (not here yet), `linked` (the account is attested, no name yet) or
+`claimed` (with `candidate`) — so the page says who is asking, what they require and which account to
+begin with, then, once there is a page, reads it against the bar.
+
+`GET /v1/invites/<inviter>` carries the same list as `asked`, which is what "Whom you invited" on
+`/employers` shows: every invitation as a pending check until the person has a page, then a link to
+read them against the bar. An expired invitation that nobody used stays listed as "never came".

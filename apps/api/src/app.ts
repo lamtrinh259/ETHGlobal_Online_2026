@@ -43,8 +43,19 @@ import {
   type OnchainState,
 } from "@ketsuban/registrar";
 import { decodeRecord, fromBytes32, isOptedIn, maskName, toBytes32 } from "@peeramid-labs/multipass-client";
-import { explainName, HANDLE_RE, isDnsName, platformOf, storable, WITHDRAWN } from "@ketsuban/registrar";
+import {
+  explainName,
+  HANDLE_RE,
+  isDnsName,
+  platformOf,
+  policyInviteDomain,
+  recoverPolicyInviteSigner,
+  storable,
+  WITHDRAWN,
+  type SignedPolicyInvite,
+} from "@ketsuban/registrar";
 import { neighbourhood, personMetrics, referenceGraph, sybilRank, type ReferenceGraph } from "./graph.js";
+import { councilFrom, Readings, summarise, type Reading } from "./council.js";
 import type { ChainReader, Instance } from "./chain.js";
 import { explainRevert } from "./errors.js";
 import type { Config } from "./config.js";
@@ -699,15 +710,116 @@ export function createApp({
    */
   /** The invitation as it travels: `exp` is a decimal string, which is what a stored JSON holds. */
   type WireInvite = Omit<SignedInvite, "exp"> & { exp: string };
-  const inviteStore = new PersistentMap<WireInvite>(
+  /**
+   * The other kind of invitation, kept in the same place under the same codes.
+   *
+   * A candidate's invitation asks somebody to write for them. An employer's asks somebody with no page
+   * yet to make one and be read against a bar — "peersky is inviting you to pass their policy; begin by
+   * connecting your github.com account". It names the person by the account the employer knows them
+   * by, and is signed by the wallet holding the employer's name, so "X is inviting you" is X's own
+   * claim. One store, one code shape, one link shape: `?invite=<code>` on the page the person lands on.
+   */
+  type WirePolicyInvite = Omit<SignedPolicyInvite, "exp"> & { kind: "policy"; exp: string };
+  type Kept = WireInvite | WirePolicyInvite;
+  const isPolicy = (i: Kept): i is WirePolicyInvite => (i as WirePolicyInvite).kind === "policy";
+  const inviteStore = new PersistentMap<Kept>(
     "invites",
     config.DATA_DIR || undefined,
-    (raw) => raw as WireInvite,
+    (raw) => raw as Kept,
     (invite) => invite
   );
+  const wirePolicyInvite = z.object({
+    kind: z.literal("policy"),
+    inviter: z.string().regex(HANDLE_RE),
+    platform: z.string().min(3).max(253),
+    account: z.string().min(1).max(64),
+    policy: z.string().max(2000),
+    exp: z.string().regex(/^\d+$/),
+    signature: hex,
+  });
+
+  /** Whether the account the employer named has a page yet: the person, once they came. */
+  async function holderOf(
+    platform: string,
+    account: string
+  ): Promise<{ wallet: Address; candidate: string | null } | null> {
+    const match = (await chain.listRecords(platform)).find(
+      (r) => r.live && r.name.toLowerCase() === account.toLowerCase()
+    );
+    if (!match) return null;
+    const held = await chain.listRecordsByWallet(match.wallet);
+    return {
+      wallet: match.wallet,
+      candidate: held.find((r) => r.live && config.NAME_DOMAINS.includes(r.domain))?.name ?? null,
+    };
+  }
+
+  /** An employer's invitation as the routes answer it: who asks, the bar, and how far the person came. */
+  const policyInviteView = async (code: string, i: WirePolicyInvite) => {
+    const rootParent = (await chain.instances()).find((x) => x.domain === config.NAME_DOMAINS[0])?.parentName;
+    const holder = await holderOf(i.platform, i.account);
+    return {
+      code,
+      kind: "policy" as const,
+      inviter: i.inviter,
+      inviterName: rootParent ? `${i.inviter}.${rootParent}` : i.inviter,
+      platform: i.platform,
+      account: i.account,
+      policy: i.policy,
+      expiresAt: new Date(Number(i.exp) * 1000).toISOString(),
+      expired: Number(i.exp) <= now(),
+      // Where they are on the way: not yet here, account linked, or a page to read against the bar.
+      status: holder?.candidate ? "claimed" : holder ? "linked" : "invited",
+      candidate: holder?.candidate ?? null,
+    };
+  };
+
+  /** The employer's kind: signed by the wallet holding the inviter's name, naming an attested platform. */
+  async function keepPolicyInvite(c: Context, raw: unknown) {
+    const body = wirePolicyInvite.safeParse(raw);
+    if (!body.success) return c.json({ error: "bad request", issues: body.error.issues }, 400);
+    const invite: WirePolicyInvite = {
+      kind: "policy",
+      inviter: body.data.inviter.toLowerCase(),
+      platform: body.data.platform.toLowerCase(),
+      account: body.data.account.trim().replace(/^@/, "").toLowerCase(),
+      policy: body.data.policy,
+      exp: body.data.exp,
+      signature: body.data.signature as Hex,
+    };
+    if (Number(invite.exp) <= now())
+      return c.json({ error: "an invitation must not have expired already" }, 400);
+    // The person is named by an account somewhere this deployment attests; anywhere else it is a string.
+    const platforms = (await chain.instances()).map((i) => i.domain).filter((d) => d.includes("."));
+    if (!platforms.includes(invite.platform)) {
+      return c.json({ error: `this deployment does not attest ${invite.platform} accounts` }, 400);
+    }
+    const signer = await recoverPolicyInviteSigner(
+      {
+        inviter: invite.inviter,
+        platform: invite.platform,
+        account: invite.account,
+        policy: invite.policy,
+        exp: BigInt(invite.exp),
+      },
+      invite.signature,
+      policyInviteDomain(config.CHAIN_ID, config.MULTIPASS)
+    ).catch(() => undefined);
+    const status = await chain.nameStatus(config.NAME_DOMAINS[0] ?? "", invite.inviter);
+    if (!signer || !status.live || signer.toLowerCase() !== (status.wallet ?? "").toLowerCase()) {
+      return c.json({ error: "an invitation must be signed by the wallet holding the inviter's name" }, 400);
+    }
+    const code = createHash("sha256").update(invite.signature).digest("hex").slice(0, 32);
+    inviteStore.set(code, invite);
+    return c.json({ code });
+  }
 
   app.post("/v1/invite", async (c) => {
-    const body = wireInvite.safeParse(await c.req.json().catch(() => null));
+    const raw = await c.req.json().catch(() => null);
+    if (raw && typeof raw === "object" && (raw as { kind?: unknown }).kind === "policy") {
+      return keepPolicyInvite(c, raw);
+    }
+    const body = wireInvite.safeParse(raw);
     if (!body.success) return c.json({ error: "bad request", issues: body.error.issues }, 400);
     const invite = {
       handle: body.data.handle.toLowerCase(),
@@ -747,25 +859,36 @@ export function createApp({
    * sign another. An expired one is left out: its link no longer works, and showing it would be an
    * offer nobody can take.
    */
-  app.get("/v1/invites/:handle", (c) => {
+  app.get("/v1/invites/:handle", async (c) => {
     const handle = c.req.param("handle").toLowerCase();
-    const invites = inviteStore
-      .entries()
-      .filter(([, i]) => i.handle === handle && Number(i.exp) > now())
+    const mine = inviteStore.entries();
+    const invites = mine
+      .filter(
+        (e): e is [string, WireInvite] =>
+          !isPolicy(e[1]) && e[1].handle === handle && Number(e[1].exp) > now()
+      )
       .map(([code, i]) => ({
         code,
+        kind: "vouch" as const,
         requires: i.requires,
         expiresAt: new Date(Number(i.exp) * 1000).toISOString(),
       }))
       .sort((a, b) => a.expiresAt.localeCompare(b.expiresAt));
-    return c.json({ handle, invites });
+    // Everyone this name invited to be read against a bar, expired ones included: "never came" is an answer.
+    const asked = await Promise.all(
+      mine
+        .filter((e): e is [string, WirePolicyInvite] => isPolicy(e[1]) && e[1].inviter === handle)
+        .map(([code, i]) => policyInviteView(code, i))
+    );
+    return c.json({ handle, invites, asked: asked.sort((a, b) => a.expiresAt.localeCompare(b.expiresAt)) });
   });
 
-  app.get("/v1/invite/:code", (c) => {
+  app.get("/v1/invite/:code", async (c) => {
     const code = c.req.param("code").toLowerCase();
     const invite = /^[0-9a-f]{32}$/.test(code) ? inviteStore.get(code) : undefined;
     if (!invite) return c.json({ error: "no invitation with that code" }, 404);
-    return c.json({ code, invite });
+    if (isPolicy(invite)) return c.json({ ...(await policyInviteView(code, invite)), warning: WARNING });
+    return c.json({ code, kind: "vouch", invite });
   });
 
   /**
@@ -999,6 +1122,66 @@ export function createApp({
       rank: Number((rank.get(handle) ?? 0).toFixed(4)),
       human: human.has(handle),
       seeds: human.size,
+      warning: WARNING,
+    });
+  });
+
+  /**
+   * How their references read.
+   *
+   * A count of references and the shape behind them still say nothing about what the references say,
+   * and "would hire again" is one reference exactly as "do not lend them money" is. The reading comes
+   * from the Noolog fast council (spec §E.8) — a provisional classification of each statement's text,
+   * kept by its hash — and is shown as what it is: how three models read thirty-one bytes, superseded
+   * when peers have judged. Where no council is configured the statements are listed unread. Nothing
+   * here scores a person; it reads sentences, and says which.
+   */
+  const readings = new Readings(
+    councilFrom(config),
+    new PersistentMap<Reading>(
+      "readings",
+      config.DATA_DIR || undefined,
+      (raw) => raw as Reading,
+      (r) => r
+    ),
+    fetchImpl
+  );
+  /** How many statements one request will send to the council; a page nobody reads is money spent. */
+  const READ_PAGE = 40;
+
+  app.get("/v1/readings/:handle", async (c) => {
+    const handle = c.req.param("handle").toLowerCase();
+    if (!HANDLE_RE.test(handle)) return c.json({ error: "bad handle" }, 400);
+    const said = (r: { payload: Hex }) => readable(fromBytes32(r.payload));
+    // A withdrawn reference is a live record and not a reference; a masked payload is not words.
+    const spoken = (r: { live: boolean; payload: Hex }) =>
+      r.live && said(r) !== undefined && said(r) !== WITHDRAWN;
+    const rootDomain = config.NAME_DOMAINS[0] ?? "";
+    const [about, status] = await Promise.all([
+      chain.listRecords(`${config.VOUCH_PREFIX}${handle}`),
+      chain.nameStatus(rootDomain, handle),
+    ]);
+    const wrote =
+      status.live && status.wallet
+        ? (await chain.listRecordsByWallet(status.wallet)).filter((r) => isVouchDomain(r.domain))
+        : [];
+    const receivedSaid = about.filter(spoken).slice(0, READ_PAGE);
+    const givenSaid = wrote.filter(spoken).slice(0, READ_PAGE);
+    const [receivedRead, givenRead] = await Promise.all([
+      Promise.all(receivedSaid.map((r) => readings.read(said(r) as string))),
+      Promise.all(givenSaid.map((r) => readings.read(said(r) as string))),
+    ]);
+    return c.json({
+      handle,
+      council: readings.configured,
+      model: readings.model,
+      received: receivedSaid.map((r, i) => ({ voucher: r.name, says: said(r), reading: receivedRead[i] })),
+      given: givenSaid.map((r, i) => ({
+        candidate: r.domain.slice(config.VOUCH_PREFIX.length),
+        says: said(r),
+        reading: givenRead[i],
+      })),
+      summary: { received: summarise(receivedRead), given: summarise(givenRead) },
       warning: WARNING,
     });
   });

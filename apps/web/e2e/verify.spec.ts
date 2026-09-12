@@ -239,6 +239,31 @@ test("a person's page draws who stands behind them, and says what shape it is", 
 });
 
 /**
+ * What the references say.
+ *
+ * One line a reader can take in, every reading behind a fold, each marked provisional and by which
+ * council — and the words beside every reading, because the words are the record.
+ */
+test("a person's page sums up how their references read, and keeps each reading behind a fold", async ({
+  page,
+}) => {
+  await page.goto("/p/alice");
+  const card = page.getByTestId("readings");
+  await expect(card).toBeVisible();
+  await expect(card.getByTestId("readings-received")).toContainText("1 of 2 read as supportive");
+  await expect(card.getByTestId("readings-received")).toContainText("1 critical");
+  await expect(card).toContainText("provisional");
+  await expect(card.getByTestId("lean-carol")).toBeHidden();
+  await card.getByText("Show each reading").click();
+  await expect(card.getByTestId("lean-bob")).toContainText("+0.90 supportive");
+  await expect(card.getByTestId("lean-carol")).toContainText("-0.80 critical");
+  await expect(card.getByTestId("reading-carol")).toContainText("do not lend them money");
+  // What they wrote about others, read the same way.
+  await expect(card.getByTestId("readings-given")).toContainText("1 of 1 read as supportive");
+  await expect(card).toContainText("not a judgement of a person");
+});
+
+/**
  * The rating of references given.
  *
  * A reference taken back stays on chain, so it counted as one given. What somebody said about others

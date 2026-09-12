@@ -186,6 +186,15 @@ export function useGraph(api: Api, handle: string | undefined) {
   });
 }
 
+export function useReadings(api: Api, handle: string | undefined) {
+  return useQuery({
+    queryKey: ["readings", handle],
+    queryFn: () => api.readings(handle as string),
+    enabled: !!handle,
+    staleTime: 60_000,
+  });
+}
+
 export function useContracts(api: Api) {
   return useQuery({ queryKey: ["contracts"], queryFn: () => api.contracts(), staleTime: Infinity });
 }

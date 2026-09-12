@@ -348,3 +348,25 @@ what one bought reference would look like too, and is the caveat under the line.
 The "Given" tab on any page carries the rating of references given: how many of what this person
 wrote still stand, and how many they have taken back. A withdrawn reference stays on chain — that is
 the point of withdrawal here — and so it is counted as taken back rather than as given.
+
+### What the references say
+
+A count and a shape still leave the sentences unread. Each statement — written for somebody, or by
+them — is read once by the Noolog fast council (`POST /v1/chat/completions`, `model: nsed:fast`, spec
+§E.8) and the readings are summed into one line on the person's page: *1 of 2 read as supportive · 1
+critical · mean +0.05 — provisional, how nsed:fast read each statement*. Every reading waits behind
+"Show each reading", beside the words it was read from, marked which way it leans. A reading is kept
+by the hash of the words, so the same 31 bytes cost the council once.
+
+It is a reading of text, not a judgement of a person, and the page says so. Set `NSED_URL` to the
+orchestrator (and register the `nsed:fast` policy there first); unset, every statement is listed as
+written and marked unread rather than scored by anything else.
+
+### Inviting somebody who has no page yet
+
+On `/employers`, search by account — `github.com`, `lamtrinh259`. Nobody holds a name for it, so the
+page offers an invitation instead of the plain ask: signed by the employer's wallet, kept by the
+attester under a code, and worded for the person receiving it — who is inviting them, to pass which
+bar, which account to begin with, and the link (`/me?invite=<code>`). The invitation is listed under
+"Whom you invited" as a pending check until the person links the account and claims a page, then as a
+link to read them against the bar. See [employers.md](employers.md).

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { EnsProof } from "@/app/EnsProof";
 import { PolicyBar } from "@/app/PolicyBar";
 import { ReferenceMap } from "@/app/ReferenceMap";
+import { Readings } from "@/app/Readings";
 import { ProfileCard } from "@/app/ProfileCard";
 import { Revealed } from "@/app/Revealed";
 import { Unmasked } from "@/app/Unmasked";
@@ -145,6 +146,8 @@ export default async function ProfilePage({ params, searchParams }: Params) {
 
       {/* The shape behind the count: who stands behind them, and whether those people know each other. */}
       <ReferenceMap handle={handle} />
+      {/* What the references say, summed into a line, with every reading behind a fold. */}
+      <Readings handle={handle} />
 
       {/* Where a reader asks for a verdict, and the only place one comes from. */}
       <PolicyBar handle={handle} subjectDomains={subjectDomains} applied={asked ? policy : undefined} />

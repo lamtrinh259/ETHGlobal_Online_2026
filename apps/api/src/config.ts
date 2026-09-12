@@ -157,6 +157,16 @@ export const configSchema = z.object({
     ),
   /** Prefix of per-candidate vouch domains (`~alice`) */
   VOUCH_PREFIX: z.string().min(1).default("~"),
+  /**
+   * The Noolog orchestrator that reads reference statements (spec §E.8): an OpenAI-compatible
+   * `POST /v1/chat/completions` answered by a registered council policy. Unset leaves every statement
+   * unread rather than scored by anything else.
+   */
+  NSED_URL: z.string().url().optional(),
+  /** The policy tag the orchestrator resolves to a council; `nsed:fast` is three models, one round */
+  NSED_MODEL: z.string().min(1).default("nsed:fast"),
+  /** Bearer token the orchestrator expects, when it expects one */
+  NSED_TOKEN: z.string().optional(),
   /** Below this the relayer cannot pay for records; the preflight warns. Default 0.002 ETH. */
   RELAYER_MIN_WEI: z
     .string()

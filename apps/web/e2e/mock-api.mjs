@@ -26,7 +26,12 @@ const verification = (name) => ({
   humanity: { level: "selfie", until: "2027-01-01T00:00:00.000Z" },
   links: [
     { domain: "x.com", optedIn: false, ensName: `averyverylonghandleindeed.com.x.www.${ROOT}` },
-    { domain: "google.com", optedIn: true, commitment: "0x02", ensName: `alice.com.google.private-www.${ROOT}` },
+    {
+      domain: "google.com",
+      optedIn: true,
+      commitment: "0x02",
+      ensName: `alice.com.google.private-www.${ROOT}`,
+    },
   ],
   references: [
     {
@@ -233,8 +238,20 @@ export const routes = [
       // than against one that came back with nobody.
       if (q === "unreadable") return undefined;
       const people = [
-        { handle: "alice", wallet: "0xEE4811b9462956C9C3535E79c08776D769CA9F3a", claimed: true, given: 0, received: 2 },
-        { handle: "bob", wallet: "0xEE4811b9462956C9C3535E79c08776D769CA9F3a", claimed: true, given: 1, received: 0 },
+        {
+          handle: "alice",
+          wallet: "0xEE4811b9462956C9C3535E79c08776D769CA9F3a",
+          claimed: true,
+          given: 0,
+          received: 2,
+        },
+        {
+          handle: "bob",
+          wallet: "0xEE4811b9462956C9C3535E79c08776D769CA9F3a",
+          claimed: true,
+          given: 1,
+          received: 0,
+        },
       ];
       // `many` stands for a namespace bigger than one page of results, which is the case a reader
       // cannot otherwise tell from a list that simply stops.
@@ -260,7 +277,13 @@ export const routes = [
       const handle = (p.get("handle") ?? "").replace(/^@/, "").toLowerCase();
       const domain = p.get("domain") ?? "";
       return handle === "alice"
-        ? { found: true, domain, handle, candidate: "alice", standing: { claimed: true, taken: true, given: 0, received: 2 } }
+        ? {
+            found: true,
+            domain,
+            handle,
+            candidate: "alice",
+            standing: { claimed: true, taken: true, given: 0, received: 2 },
+          }
         : { found: false, domain, handle };
     },
   ],
@@ -290,7 +313,96 @@ export const routes = [
       };
     },
   ],
-  [/^\/v1\/explain\/([^/?]+)/, (m) => ({ name: decodeURIComponent(m[1]), says: "alice is a person's name here.", kind: "person" })],
+  // Invitations a name made: what a candidate can hand out, and whom an employer asked to pass a bar.
+  [
+    /^\/v1\/invites\/([^/?]+)/,
+    (m) => ({
+      handle: decodeURIComponent(m[1]),
+      invites: [],
+      asked: [
+        {
+          code: "0123456789abcdef0123456789abcdef",
+          kind: "policy",
+          inviter: decodeURIComponent(m[1]),
+          inviterName: `${decodeURIComponent(m[1])}.ketsuban.eth`,
+          platform: "github.com",
+          account: "lamtrinh259",
+          policy: "answers=kju-is&minLinks=1&minVouches=2",
+          expiresAt: "2099-01-01T00:00:00.000Z",
+          expired: false,
+          status: "invited",
+          candidate: null,
+        },
+      ],
+    }),
+  ],
+  // An employer's invitation behind a code: peersky asks the holder of @lamtrinh259 on github.com.
+  [
+    /^\/v1\/invite\/([^/?]+)/,
+    (m) => {
+      const code = decodeURIComponent(m[1]);
+      // Nothing kept under this one: the server answers 404, which is what a falsy body becomes here.
+      if (!/^[0-9a-f]{32}$/.test(code) || code === "ffffffffffffffffffffffffffffffff") return undefined;
+      return {
+        code,
+        kind: "policy",
+        inviter: "peersky",
+        inviterName: "peersky.ketsuban.eth",
+        platform: "github.com",
+        account: "lamtrinh259",
+        policy: "answers=kju-is&minLinks=1&minVouches=2",
+        expiresAt: "2099-01-01T00:00:00.000Z",
+        expired: false,
+        // A code ending in `c` stands for somebody who came: the account is linked to a page.
+        status: code.endsWith("c") ? "claimed" : "invited",
+        candidate: code.endsWith("c") ? "alice" : null,
+        warning: "w",
+      };
+    },
+  ],
+  // What the references say: each statement read once by the fast council, one of them unread.
+  [
+    /^\/v1\/readings\/([^/?]+)/,
+    (m) => {
+      const handle = decodeURIComponent(m[1]);
+      const reading = (polarity, rationale) => ({
+        polarity,
+        conviction: null,
+        rationale,
+        model: "nsed:fast",
+        provisional: true,
+      });
+      return {
+        handle,
+        council: true,
+        model: "nsed:fast",
+        received: [
+          {
+            voucher: "bob",
+            says: "would hire again",
+            reading: reading(0.9, "an offer to work together again"),
+          },
+          {
+            voucher: "carol",
+            says: "do not lend them money",
+            reading: reading(-0.8, "a warning about money"),
+          },
+        ],
+        given: [
+          { candidate: "bob", says: "steady under pressure", reading: reading(0.7, "praise for composure") },
+        ],
+        summary: {
+          received: { of: 2, read: 2, mean: 0.05, supportive: 1, critical: 1 },
+          given: { of: 1, read: 1, mean: 0.7, supportive: 1, critical: 0 },
+        },
+        warning: "w",
+      };
+    },
+  ],
+  [
+    /^\/v1\/explain\/([^/?]+)/,
+    (m) => ({ name: decodeURIComponent(m[1]), says: "alice is a person's name here.", kind: "person" }),
+  ],
   [
     /^\/v1\/name\/([^/]+)\/([^/?]+)/,
     (m) => ({
@@ -321,7 +433,13 @@ export const routes = [
         };
       return {
         handle,
-        names: [{ instance: "ketsuban", name: `${handle}.${ROOT}`, verification: verification(`${handle}.${ROOT}`) }],
+        names: [
+          {
+            instance: "ketsuban",
+            name: `${handle}.${ROOT}`,
+            verification: verification(`${handle}.${ROOT}`),
+          },
+        ],
         vouches: vouches(handle).vouches,
         standing: { claimed: true, taken: true, given: 1, withdrawn: 1, received: 1 },
         warning: verification("x").warning,

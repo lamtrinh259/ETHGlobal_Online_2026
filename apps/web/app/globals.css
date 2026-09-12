@@ -1458,3 +1458,44 @@ pre > code {
 .refmap-fold > summary {
   cursor: pointer;
 }
+
+/* What the references say: one line, every reading behind a fold, each marked which way it leans. */
+.readings-fold {
+  margin-top: var(--sp-sm);
+}
+.readings-fold > summary {
+  cursor: pointer;
+}
+.readings-fold h4 {
+  margin: var(--sp-md) 0 var(--sp-xs);
+  font-size: 0.95rem;
+}
+.readings-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: var(--sp-xs);
+}
+.reading {
+  display: inline-block;
+  padding: 0 0.45em;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+}
+.reading-supportive {
+  color: var(--consensus);
+}
+.reading-critical {
+  color: var(--contested);
+}
+.reading-neutral,
+.reading-unread {
+  color: var(--text-secondary);
+}
+.readings-caveat {
+  margin-top: var(--sp-md);
+  font-size: 0.9rem;
+}
