@@ -16,7 +16,12 @@ COPY packages/registrar/package.json packages/registrar/
 COPY apps/api/package.json apps/api/
 COPY apps/web/package.json apps/web/
 COPY packages/cre/attest/package.json packages/cre/attest/
-# Only what the contracts import; the rest of the workspace is a browser app and a relay.
+# The whole workspace, pinned.
+#
+# Filtering to the contracts still installs every project, because the lockfile is the workspace's and
+# every manifest has to be present for it to be frozen. Installing only the three Solidity packages
+# needs the lockfile dropped, which trades a build that resolves the same versions every time for one
+# that resolves whatever is published — a bad trade on the image that deploys the contracts.
 RUN pnpm install --frozen-lockfile --ignore-scripts --filter @ketsuban/contracts
 COPY packages/contracts/ packages/contracts/
 # Dereferenced: pnpm links a dependency into the store, and a symlink copied into another image
