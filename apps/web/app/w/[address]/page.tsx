@@ -177,7 +177,16 @@ export default async function WalletPage({ params }: Params) {
             {read.given.map((g) => (
               <li key={`${g.domain}:${g.nonce}`} className={g.live ? "live" : "expired"}>
                 <span className="vouch-who">
-                  for <Link href={`/p/${g.candidate}`}>{g.candidate}</Link>
+                  {g.kind === "answer" ? (
+                    <>
+                      about{" "}
+                      <Link href={g.ensName ? `/v/${g.ensName}` : `/#${g.candidate}`}>{g.candidate}</Link>
+                    </>
+                  ) : (
+                    <>
+                      for <Link href={`/p/${g.candidate}`}>{g.candidate}</Link>
+                    </>
+                  )}
                 </span>
                 <span className="vouch-what">“{g.payload}”</span>
                 <span className="vouch-meta muted">
@@ -188,7 +197,7 @@ export default async function WalletPage({ params }: Params) {
           </ul>
         ) : (
           <p>
-            <em>none</em> — this wallet has not vouched for anyone.
+            <em>none</em> — this wallet has not written about anyone, or answered about any subject.
           </p>
         )}
       </section>

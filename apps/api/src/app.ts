@@ -1713,6 +1713,8 @@ export function createApp({
       if (r && !records.some((k) => k.domain === r.domain && k.id === r.id)) records.push(r);
     }
     const isVouch = (d: string) => d.startsWith(config.VOUCH_PREFIX) && d.length > config.VOUCH_PREFIX.length;
+    // The subjects: every name domain but the root, where a record is an answer rather than a name.
+    const subjects = config.NAME_DOMAINS.slice(1);
     const hasLiveName = records.some((r) => r.live && isNameDomain(r.domain));
     const fmt = (r: (typeof records)[number]) => ({
       domain: r.domain,
@@ -1751,14 +1753,27 @@ export function createApp({
           const held = records.find((k) => k.live && isNameDomain(k.domain))?.name;
           return { ...fmt(r), optedIn, ...linkName(r, mountOf.get(r.domain), held) };
         }),
+      /*
+       * Everything this wallet wrote about somebody else: a reference about a person, or an answer
+       * about a subject. Both are the same act from the reader's side, and `/v1/verify` already lists
+       * them together — but here an answer was filed under `names` only, because a subject is a name
+       * domain, and a page titled "references this wallet wrote" left the kju-is answer out.
+       */
       given: records
-        .filter((r) => isVouch(r.domain))
+        .filter((r) => isVouch(r.domain) || subjects.includes(r.domain))
         .map((r) => {
-          const candidate = r.domain.slice(config.VOUCH_PREFIX.length);
+          const vouch = isVouch(r.domain);
+          const candidate = vouch ? r.domain.slice(config.VOUCH_PREFIX.length) : r.domain;
+          const parent = vouch
+            ? rootParent
+              ? `${candidate}.${rootParent}`
+              : null
+            : (parentOf.get(r.domain) ?? null);
           return {
             ...fmt(r),
+            kind: vouch ? ("reference" as const) : ("answer" as const),
             candidate,
-            ensName: rootParent ? `${r.name}.${candidate}.${rootParent}` : null,
+            ensName: parent ? `${r.name}.${parent}` : null,
           };
         }),
       balance: balance.toString(),
