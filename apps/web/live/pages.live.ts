@@ -16,6 +16,7 @@ import { describe, expect, it } from "vitest";
 const WEB = (process.env.CHECK_WEB ?? "https://ketsuban.peeramid.xyz").replace(/\/$/, "");
 const SUBJECT = process.env.CHECK_SUBJECT ?? "kju-is";
 const ROOT = process.env.CHECK_ROOT ?? "ketsuban.eth";
+const API = (process.env.CHECK_API ?? "https://ketsuban-api.peeramid.xyz").replace(/\/$/, "");
 
 const get = async (path: string) => {
   const res = await fetch(`${WEB}${path}`);
@@ -38,6 +39,18 @@ describe(`what ${WEB} serves`, () => {
     expect(html).toContain("instance-answers");
     expect(html).toContain("profile-head");
     expect(html).toContain("answer-cta");
+  });
+
+  it("says who the subject is, from the records on its name, on the page and on the API", async () => {
+    // The texts moved with the root resolver once and were lost for a day: the page rendered the
+    // question with no name, no description and no picture. The API and the page have to agree, and
+    // neither may be empty.
+    const res = await fetch(`${API}/v1/instance/${SUBJECT}`);
+    const { records } = (await res.json()) as { records: Record<string, string> };
+    for (const key of ["name", "description", "avatar"]) expect(records[key], key).not.toBe("");
+    const html = await get(`/p/${SUBJECT}`);
+    expect(html).toContain(records.name);
+    expect(html).toContain(records.description.slice(0, 40));
   });
 
   it("renders the same subject page by its label", async () => {

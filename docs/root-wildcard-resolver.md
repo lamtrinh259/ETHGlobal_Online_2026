@@ -137,7 +137,7 @@ Steps 1–4 are done; `check:live` was green (23/23) after every unmount.
 | `RootAttestationResolver` (`wildcardResolver`) | `0x6acc74E4931436c18E00302465f70A27599125FD`, serving the ETH label `ketsuban` |
 | `AttestationBridge` (new) | `0x9607Ec6f14A3cB7128B1e7EC0C8e8CFBa1643F61` |
 | `AttestationReporter` (new) | `0x7A84212487DEa31a7E2068D81E2ffCAe70104e0a` |
-| old root instance resolver (for `unpoint`) | `0x178ff1589Be8Af3B19426Aa1d2Bd07cd178E215e` |
+| old root instance resolver (for `unpoint`) | `0xa2602ce1A469d7FF1090aE4b876BA4ec566D3873` (set by `SetRootResolver` on 2026-09-10; the deployment file's `resolver` was the one before it) |
 
 Unmounted from the root registry, each with the registry `remount` needs:
 
@@ -152,6 +152,10 @@ Unmounted from the root registry, each with the registry `remount` needs:
 | `peersky` | `0x4Cf95D629D00F47E296F5271f8C245B01ec78270` |
 | `test-account-123456` | `0xA8ADD2CEa6c0Ba08284272a2F2423f71f3862440` |
 | `tims-friend-test` | `0xC5c9e3A06953D080570A6395CF6382184fa4Eb77` |
+
+Subject texts: `about("kju-is", name|description|url|avatar)` lived on `0xa260…` and did not follow the
+resolver; copied onto the wildcard resolver as `setAbout("ketsuban", "kju-is", key, value)` on 2026-09-12,
+and `check:live` now fails on an empty subject record.
 
 Still mounted, on purpose: the legacy per-platform instances `x`, `telegram`, `discord`, `github`,
 `google`, `linkedin`, `email` (`<handle>.x.ketsuban.eth` naming, superseded by `www`/`@`). The root
@@ -216,7 +220,7 @@ pnpm --filter @ketsuban/web check:live
 
 # rollbacks
 STEP=remount LABEL=www REGISTRY_TO_MOUNT=0x… forge script script/MigrateRoot.s.sol --rpc-url $RPC --broadcast
-STEP=unpoint RESOLVER=0x178ff1589Be8Af3B19426Aa1d2Bd07cd178E215e forge script script/MigrateRoot.s.sol --rpc-url $RPC --broadcast
+STEP=unpoint RESOLVER=0xa2602ce1A469d7FF1090aE4b876BA4ec566D3873 forge script script/MigrateRoot.s.sol --rpc-url $RPC --broadcast
 ```
 
 After step 1 the API runs in root mode (`ROOT_RESOLVER` set): it reads the tree from Multipass domains
