@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Published } from "@/app/AttestFlow";
 
 /**
@@ -19,6 +19,13 @@ const state = {
   resolver: "0x4E2d9783cEFF2ed72CD77C14206b29fe246b24F7" as string | undefined,
   /** Whether the deployment can check humanity at all; the fake writer never holds a proof. */
   checksHumanity: false,
+  /** The accounts the fake writer has attested; one from GitHub unless a test says otherwise. */
+  links: [{ domain: "github.com", live: true, optedIn: false, ensName: null }] as {
+    domain: string;
+    live: boolean;
+    optedIn: boolean;
+    ensName: string | null;
+  }[],
 };
 
 vi.mock("@privy-io/react-auth", () => ({
@@ -83,7 +90,7 @@ vi.mock("@/lib/hooks", () => ({
     // worked from before their reference means anything.
     data: {
       names: [{ domain: "ketsuban", name: "lam", live: true, ensName: "lam.ketsuban.eth" }],
-      links: [{ domain: "github.com", live: true, optedIn: false, ensName: null }],
+      links: state.links,
       given: [],
       org: null,
       humanity: null,
@@ -157,6 +164,47 @@ describe("the letter written with the reference", () => {
     await waitFor(() =>
       expect(screen.getByTestId("letter-status")).toHaveTextContent("no permissioned resolver")
     );
+  });
+});
+
+describe("what onboarding still needs", () => {
+  const invite = {
+    requires: ["github.com", "x.com"],
+    candidate: "alice",
+    code: "c",
+    expires: 0,
+    signature: "0x",
+  } as unknown as import("@ketsuban/registrar").SignedInvite;
+  afterEach(() => {
+    state.links = [{ domain: "github.com", live: true, optedIn: false, ensName: null }];
+    state.checksHumanity = false;
+  });
+
+  it("lists each account the invitation asks for, ticked or linked, and sends them to the first one missing", async () => {
+    state.links = [];
+    state.checksHumanity = true;
+    render(<VouchFlow candidate="alice" invite={invite} inviteCode="c" />);
+    await waitFor(() => expect(screen.getByTestId("onboarding-gate")).toBeInTheDocument());
+    const steps = screen.getByTestId("onboarding-steps");
+    expect(steps.textContent).toContain("Link and attest github.com");
+    expect(steps.textContent).toContain("Link and attest x.com");
+    expect(steps.textContent).toContain("Pass the Selfie Check");
+    expect(steps.querySelectorAll("li.todo")).toHaveLength(3);
+    expect(screen.getByTestId("onboarding-next")).toHaveAttribute(
+      "href",
+      "/me?then=%2Fvouch%2Falice%3Finvite%3Dc#link"
+    );
+    expect(screen.getByTestId("onboarding-next").textContent).toContain("Link and attest github.com");
+  });
+
+  it("asks for any account they worked from when nothing in particular was required", async () => {
+    state.links = [];
+    render(<VouchFlow candidate="alice" />);
+    await waitFor(() => expect(screen.getByTestId("onboarding-gate")).toBeInTheDocument());
+    const steps = screen.getByTestId("onboarding-steps");
+    expect(steps.querySelectorAll("li")).toHaveLength(1);
+    expect(steps.textContent).toContain("an account you worked from");
+    expect(screen.getByTestId("onboarding-next")).toHaveAttribute("href", "/me?then=%2Fvouch%2Falice#link");
   });
 });
 

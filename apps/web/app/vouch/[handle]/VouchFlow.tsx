@@ -118,6 +118,27 @@ export function VouchFlow({
   const impossibleAsk = (invite?.requires ?? [])
     .map((d) => whyUnsatisfiable(d, config.parentNames))
     .find(Boolean);
+  /*
+   * What stands between this writer and the statement, each with where on the profile it is done.
+   * The invitation's own requirements when it has any that can be met, else any account they worked
+   * from; and the Selfie Check where the deployment asks for one. Carries who they were referring,
+   * so finishing there comes back here.
+   */
+  const backHere = `/me?then=${encodeURIComponent(`/vouch/${candidate}${inviteCode ? `?invite=${inviteCode}` : ""}`)}`;
+  const askedFor = (invite?.requires ?? []).filter((d) => !whyUnsatisfiable(d, config.parentNames));
+  const onboarding: { label: string; href: string; done: boolean }[] = [
+    ...(askedFor.length
+      ? askedFor.map((d) => ({
+          label: `Link and attest ${d}`,
+          href: `${backHere}#link`,
+          done: attestedNow.includes(d.trim().toLowerCase()),
+        }))
+      : [{ label: "Link and attest an account you worked from", href: `${backHere}#link`, done: isLinked }]),
+    ...(contracts.data?.humanity
+      ? [{ label: "Pass the Selfie Check", href: `${backHere}#humanity`, done: !!dash.data?.humanity }]
+      : []),
+  ];
+  const onboardingNext = onboarding.find((s) => !s.done) ?? onboarding[0];
   const unmetAsked = missing.length ? (
     <>
       {candidate} asked for a reference from someone who has attested {missing.join(" and ")}.{" "}
@@ -222,21 +243,19 @@ export function VouchFlow({
         <section className="card" data-testid="onboarding-gate">
           <h2>Finish your onboarding first</h2>
           <p>
-            A reference carries weight because the person writing it has shown how they know the candidate.
-            That is a one-time step on your profile, not something you repeat for every person you vouch for.
+            A reference carries weight because the person writing it has shown how they know {candidate}.
+            That is done once, on your profile, and this page picks up where you left off:
           </p>
-          <p className="muted">
-            Connect the account you worked from and attest it once. Come back here afterwards and this page
-            picks up where you left off.
-          </p>
+          <ol className="journey" data-testid="onboarding-steps">
+            {onboarding.map((s) => (
+              <li key={s.label} className={s.done ? "done" : "todo"}>
+                {s.done ? s.label : <Link href={s.href}>{s.label} →</Link>}
+              </li>
+            ))}
+          </ol>
           <p>
-            {/* Carries who they were referring, so finishing there comes back here rather than
-                leaving them to remember the name and find it again. */}
-            <Link
-              href={`/me?then=${encodeURIComponent(`/vouch/${candidate}${inviteCode ? `?invite=${inviteCode}` : ""}`)}#link`}
-              className="primary"
-            >
-              Complete your onboarding →
+            <Link href={onboardingNext.href} className="primary" data-testid="onboarding-next">
+              {onboardingNext.label} →
             </Link>
           </p>
         </section>
