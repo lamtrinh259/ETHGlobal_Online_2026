@@ -338,7 +338,13 @@ What it writes:
 | `ring-a` → `kofi` | the one bridge, which is how a ring tries to look connected |
 | `nadia` | a newcomer with one honest reference from `mira` |
 
-Then walk it: `/p/mira` shows referrers who refer each other and trust from three proved humans;
-`/p/ring-b` shows five referrers who *all* refer each other and trust that barely arrived; `/p/nadia`
-shows one reference and an empty shape — which is what one bought reference would look like too, and
-is the caveat under the map.
+Then walk it. Each page leads with one line — *4 people stand behind them · 2 of those know each
+other · trust 0.041 from 3 proved humans* — and the drawing waits behind "Show the map" for whoever
+wants it, because a graph is hard to read and harder in four minutes. `/p/mira` reads as a team;
+`/p/ring-b` reads as five referrers who *all* know each other and trust that barely arrived
+(0.002 against 0.041); `/p/nadia` reads as one reference and nothing known about her yet — which is
+what one bought reference would look like too, and is the caveat under the line.
+
+The "Given" tab on any page carries the rating of references given: how many of what this person
+wrote still stand, and how many they have taken back. A withdrawn reference stays on chain — that is
+the point of withdrawal here — and so it is counted as taken back rather than as given.
