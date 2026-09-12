@@ -9,7 +9,12 @@ import { describe, expect, it, vi } from "vitest";
  */
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 vi.mock("@/app/providers", () => ({
-  useWebConfig: () => ({ apiUrl: "http://api.test", attestUrl: "http://api.test", instances: [], chainId: 1 }),
+  useWebConfig: () => ({
+    apiUrl: "http://api.test",
+    attestUrl: "http://api.test",
+    instances: [],
+    chainId: 1,
+  }),
 }));
 vi.mock("@/lib/hooks", async (orig) => ({
   ...(await orig<typeof import("@/lib/hooks")>()),

@@ -65,7 +65,9 @@ export function wrongAccount(entry: string, accounts: readonly ConnectedAccount[
   const platform = platformOf(domain);
   if (!platform) return null;
   const mine = accounts.filter((a) =>
-    platform === "email" ? (a.domain === "email" || a.domain === "google") && a.label.toLowerCase().endsWith(`@${domain}`) : a.domain === platform
+    platform === "email"
+      ? (a.domain === "email" || a.domain === "google") && a.label.toLowerCase().endsWith(`@${domain}`)
+      : a.domain === platform
   );
   const held = mine.some((a) => localLabel(a.label) === handle);
   if (held) return null;

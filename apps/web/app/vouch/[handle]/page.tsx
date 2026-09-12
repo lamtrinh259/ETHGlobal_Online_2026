@@ -95,7 +95,7 @@ export default async function VouchPage({ params, searchParams }: Params) {
         ask={askById(ask)}
         candidateCard={
           <>
-        <ProfileHead
+            <ProfileHead
               ensName={candidateName}
               records={{
                 description: candidate?.profile?.description ?? undefined,
@@ -113,7 +113,7 @@ export default async function VouchPage({ params, searchParams }: Params) {
                 · <Link href={`/p/${handle}`}>their page →</Link>
               </p>
             )}
-              </>
+          </>
         }
       />
     </>

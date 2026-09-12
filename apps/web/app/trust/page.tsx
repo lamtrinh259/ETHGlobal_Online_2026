@@ -186,7 +186,10 @@ export default async function TrustPage() {
                 // A level served by the root resolver has no registry and nothing of its own to list.
                 ...(contracts?.instances ?? []).flatMap((i) => [
                   [`${i.parentName} registry`, i.registry] as const,
-                  [`${i.parentName} resolver`, i.resolver === contracts?.rootResolver ? null : i.resolver] as const,
+                  [
+                    `${i.parentName} resolver`,
+                    i.resolver === contracts?.rootResolver ? null : i.resolver,
+                  ] as const,
                 ]),
               ] as const
             )

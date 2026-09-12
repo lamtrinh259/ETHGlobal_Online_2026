@@ -142,7 +142,6 @@ export function nameRows(dash: WalletDashboard | undefined, instances: Instances
 export type StepState = "done" | "now" | "todo" | "pending";
 export type JourneyStep = { id: string; label: string; detail: string; state: StepState };
 
-
 /**
  * Where a detour goes back to.
  *

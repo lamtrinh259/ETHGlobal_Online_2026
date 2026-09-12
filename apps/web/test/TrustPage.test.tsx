@@ -56,8 +56,20 @@ describe("the contracts it lists", () => {
       permissionedResolver: null,
       rootResolver: ROOT,
       instances: [
-        { domain: "ketsuban", registry: ZERO, resolver: ROOT, parentName: "ketsuban.eth", parentLabel: "ketsuban" },
-        { domain: "~alice", registry: ZERO, resolver: ROOT, parentName: "alice.ketsuban.eth", parentLabel: "alice" },
+        {
+          domain: "ketsuban",
+          registry: ZERO,
+          resolver: ROOT,
+          parentName: "ketsuban.eth",
+          parentLabel: "ketsuban",
+        },
+        {
+          domain: "~alice",
+          registry: ZERO,
+          resolver: ROOT,
+          parentName: "alice.ketsuban.eth",
+          parentLabel: "alice",
+        },
       ],
     };
     await renderPage();
@@ -81,7 +93,9 @@ describe("the contracts it lists", () => {
       bridge: "0x9607Ec6f14A3cB7128B1e7EC0C8e8CFBa1643F61",
       permissionedResolver: null,
       rootResolver: ROOT,
-      instances: [{ domain: "x", registry: own, resolver: own, parentName: "x.ketsuban.eth", parentLabel: "x" }],
+      instances: [
+        { domain: "x", registry: own, resolver: own, parentName: "x.ketsuban.eth", parentLabel: "x" },
+      ],
     };
     await renderPage();
     const text = screen.getByTestId("contract-links").textContent ?? "";

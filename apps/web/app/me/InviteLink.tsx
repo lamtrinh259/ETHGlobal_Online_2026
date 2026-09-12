@@ -158,8 +158,10 @@ export function InviteLink({
                     <code>{i.code}</code>
                   </strong>
                   <small className="muted">
-                    {i.requires.length ? `asks for ${i.requires.map(describeRequirement).join(", ")}` : "asks for nothing"} ·{" "}
-                    {i.expired ? "expired" : "until"} {fmtUtc(i.expiresAt)}
+                    {i.requires.length
+                      ? `asks for ${i.requires.map(describeRequirement).join(", ")}`
+                      : "asks for nothing"}{" "}
+                    · {i.expired ? "expired" : "until"} {fmtUtc(i.expiresAt)}
                   </small>
                   {/* What came of it: the reference written with this link, marked as one you asked for. */}
                   {(i.usedBy ?? []).length > 0 && (

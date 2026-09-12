@@ -178,7 +178,6 @@ describe("nameRows", () => {
   });
 });
 
-
 describe("coming back from a detour", () => {
   /*
    * Linking an account is a one-time step on the dashboard, asked of somebody halfway through writing

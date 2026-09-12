@@ -27,7 +27,12 @@ vi.mock("@/lib/api", async (orig) => ({
   ...(await orig<typeof import("@/lib/api")>()),
   createApi: () => ({
     instance: vi.fn(async () => ({
-      records: { name: "Kim Jong Un", description: "Supreme Leader.", avatar: "data:image/png;base64,AAAA", url: "" },
+      records: {
+        name: "Kim Jong Un",
+        description: "Supreme Leader.",
+        avatar: "data:image/png;base64,AAAA",
+        url: "",
+      },
       answers: [{ handle: "peersky" }, { handle: "alice" }],
     })),
   }),
