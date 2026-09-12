@@ -1705,3 +1705,25 @@ details.step > summary::before {
 details.step[open] > summary::before {
   content: "▾ ";
 }
+
+/* ── the reference page: you on one side, the reference on the other ── */
+.vouch-boxes {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--sp-md);
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .vouch-boxes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* a subject's own picture on its row */
+.pin-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex: none;
+}

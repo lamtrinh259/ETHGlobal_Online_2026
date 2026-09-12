@@ -142,48 +142,6 @@ export function nameRows(dash: WalletDashboard | undefined, instances: Instances
 export type StepState = "done" | "now" | "todo" | "pending";
 export type JourneyStep = { id: string; label: string; detail: string; state: StepState };
 
-/**
- * The voucher's three steps. Attesting the accounts they worked from is onboarding, done once on the
- * profile, not per candidate: vouching for someone is proving you are one real person and writing the
- * reference. `humanity` is proved once and carries across every candidate, so it is shown as done or
- * outstanding — and left pending only where the deployment cannot ask for it at all, since an
- * outstanding step nobody can clear is a dead end.
- */
-export function vouchSteps(
-  candidate: string,
-  at: { authenticated: boolean; published: boolean; human?: boolean }
-): JourneyStep[] {
-  const stage = !at.authenticated ? "signin" : at.published ? "done" : "write";
-  const mark = (mine: string, done: boolean): StepState => (done ? "done" : stage === mine ? "now" : "todo");
-  return [
-    {
-      id: "signin",
-      label: "Sign in",
-      detail: "Google, X or email. A wallet is created for you: no app, no seed phrase, no fee.",
-      state: mark("signin", at.authenticated),
-    },
-    {
-      id: "humanity",
-      label: "Prove you are one real person",
-      detail:
-        "A World ID proof, done once on your profile. It shows a verified human wrote this, without revealing who. We never see who you are.",
-      /*
-       * Outstanding, never current.
-       * It is proved once on the profile, not on this page, so this page never asks for it — and
-       * marking it current lit two steps at once, the one the reader was on and one they could not
-       * act on from here.
-       */
-      state: at.human === undefined ? "pending" : at.human ? "done" : "todo",
-    },
-    {
-      id: "write",
-      label: `Write and sign the reference for ${candidate}`,
-      detail:
-        "Pick the name you sign as, then a few words, and a letter if you have more to say. Permanent: you can update or withdraw it later, never delete it.",
-      state: mark("write", at.published),
-    },
-  ];
-}
 
 /**
  * Where a detour goes back to.

@@ -41,7 +41,10 @@ vi.mock("@/lib/config", () => ({
   siteIsSecure: () => true,
 }));
 // The flow itself is covered by its own tests; this one is about what the page says before it.
-vi.mock("@/app/vouch/[handle]/VouchFlow", () => ({ VouchFlow: () => null }));
+vi.mock("@/app/vouch/[handle]/VouchFlow", () => ({
+  // The card about the candidate is the page's, handed to the flow to place: the mock renders it.
+  VouchFlow: ({ candidateCard }: { candidateCard?: React.ReactNode }) => <>{candidateCard}</>,
+}));
 vi.mock("@/lib/api", async (orig) => ({
   ...(await orig<typeof import("@/lib/api")>()),
   createApi: () => ({

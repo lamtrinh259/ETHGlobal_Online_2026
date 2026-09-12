@@ -9,7 +9,6 @@ import {
   whatIsBack,
   parentNameFor,
   voucherProgress,
-  vouchSteps,
 } from "@/lib/journey";
 
 const config = {
@@ -179,89 +178,6 @@ describe("nameRows", () => {
   });
 });
 
-describe("vouchSteps", () => {
-  it("asks for three things: sign in, be one real person, write the reference", () => {
-    const first = vouchSteps("alice", { authenticated: false, published: false });
-    expect(first.map((s) => [s.id, s.state])).toEqual([
-      ["signin", "now"],
-      ["humanity", "pending"],
-      ["write", "todo"],
-    ]);
-    expect(first.some((s) => s.id === "work" || s.id === "name")).toBe(false);
-    expect(first[2].label).toBe("Write and sign the reference for alice");
-    expect(first[0].detail).toContain("no seed phrase");
-    expect(first[2].detail).toContain("never delete");
-
-    expect(vouchSteps("alice", { authenticated: true, published: false }).map((s) => s.state)).toEqual([
-      "done",
-      "pending",
-      "now",
-    ]);
-    expect(vouchSteps("alice", { authenticated: true, published: true }).map((s) => s.state)).toEqual([
-      "done",
-      "pending",
-      "done",
-    ]);
-  });
-});
-
-describe("the voucher's humanity step", () => {
-  it("says it is done once the voucher has proved it, rather than always pending", async () => {
-    // It was hard-coded `pending` while nothing could prove it. Now that something can, a voucher who
-    // has already proved it must not be shown an outstanding step they cannot clear.
-    const { vouchSteps } = await import("@/lib/journey");
-    const proved = vouchSteps("alice", { authenticated: true, published: false, human: true });
-    expect(proved.find((s) => s.id === "humanity")?.state).toBe("done");
-  });
-
-  it("is outstanding, but never the step this page is asking for", async () => {
-    /*
-     * It is proved once on the profile, not here, so this page never asks for it — and marking it
-     * current lit two steps at once: the one the reader is on and one they cannot act on from here.
-     */
-    const { vouchSteps } = await import("@/lib/journey");
-    const not = vouchSteps("alice", { authenticated: true, published: false, human: false });
-    expect(not.find((s) => s.id === "humanity")?.state).toBe("todo");
-  });
-
-  it("leaves exactly one step current, whatever the voucher has done so far", async () => {
-    const { vouchSteps } = await import("@/lib/journey");
-    for (const authenticated of [false, true])
-      for (const published of [false, true])
-        for (const human of [undefined, false, true]) {
-          const steps = vouchSteps("alice", { authenticated, published, human });
-          const now = steps.filter((s) => s.state === "now");
-          // Published is the end of it: nothing is current because nothing is left.
-          expect(now.length, JSON.stringify({ authenticated, published, human })).toBe(
-            published && authenticated ? 0 : 1
-          );
-        }
-  });
-
-  it("stays pending where the deployment cannot ask for it at all", async () => {
-    // With World unconfigured there is nothing to click, and an outstanding step would be a dead end.
-    const { vouchSteps } = await import("@/lib/journey");
-    const off = vouchSteps("alice", { authenticated: true, published: false });
-    expect(off.find((s) => s.id === "humanity")?.state).toBe("pending");
-  });
-});
-
-describe("what the humanity step promises", () => {
-  it("does not promise a guarantee the proof may not carry", async () => {
-    // World's own docs disagree on whether a v4 nullifier is stable per person or one-time-use
-    // (`idkit/integrate` says stable, `4-0-migration` says one-time). Uniqueness across accounts rests
-    // on the first being true. Until that is settled, the step must not claim it: a promise the
-    // system cannot keep is worse than a smaller one it can.
-    const { vouchSteps } = await import("@/lib/journey");
-    const step = vouchSteps("alice", { authenticated: true, published: false }).find(
-      (s) => s.id === "humanity"
-    )!;
-    expect(step.detail).not.toMatch(/stops one person|cannot run|ten accounts|ten voucher/i);
-    // What it can say is what the proof actually shows: a verified human, and no identity revealed.
-    expect(step.detail).toMatch(/World ID/i);
-    expect(step.detail).toMatch(/never see|without revealing/i);
-  });
-});
 
 describe("coming back from a detour", () => {
   /*

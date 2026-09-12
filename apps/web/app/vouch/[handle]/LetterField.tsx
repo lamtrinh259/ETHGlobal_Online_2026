@@ -36,7 +36,7 @@ export function LetterField({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         rows={5}
-        placeholder={`How you know ${candidate}, over what period, and what you would tell someone who asked.`}
+        placeholder={`How you know ${candidate}, and what you would tell someone who asked.`}
         aria-label="letter"
       />
       <small className="muted" data-testid="letter-count">

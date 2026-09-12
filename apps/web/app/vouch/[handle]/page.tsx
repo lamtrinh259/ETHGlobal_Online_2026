@@ -84,27 +84,6 @@ export default async function VouchPage({ params, searchParams }: Params) {
         <h1>
           Refer <span className="knot">{handle}</span>
         </h1>
-        <ProfileHead
-          ensName={candidateName}
-          records={{
-            description: candidate?.profile?.description ?? undefined,
-            url: candidate?.profile?.url ?? undefined,
-            avatar: candidate?.profile?.avatar ?? undefined,
-          }}
-        />
-        {status && (
-          <p className={status.live ? "muted" : "error"} data-testid="candidate-status">
-            {status.live
-              ? `claimed · ${live ?? "?"} live reference${live === 1 ? "" : "s"} so far`
-              : status.taken
-                ? "this name has expired — ask the candidate to renew before you vouch"
-                : "not claimed yet — an organisation can write now and the letter waits for them"}
-          </p>
-        )}
-        <p className="muted">
-          Your name goes on this permanently. It can be withdrawn, visibly — never deleted.{" "}
-          <Link href={`/p/${handle}`}>Their page →</Link>
-        </p>
       </section>
       {/* The code itself reaches the flow, not only what it stood for: a grant the candidate made for
           whoever holds this invitation is opened by the invitation. */}
@@ -114,6 +93,28 @@ export default async function VouchPage({ params, searchParams }: Params) {
         inviteCode={invite ? token : undefined}
         withdraw={withdraw === "1"}
         ask={askById(ask)}
+        candidateCard={
+          <>
+        <ProfileHead
+              ensName={candidateName}
+              records={{
+                description: candidate?.profile?.description ?? undefined,
+                url: candidate?.profile?.url ?? undefined,
+                avatar: candidate?.profile?.avatar ?? undefined,
+              }}
+            />
+            {status && (
+              <p className={status.live ? "muted" : "error"} data-testid="candidate-status">
+                {status.live
+                  ? `claimed · ${live ?? "?"} live reference${live === 1 ? "" : "s"} so far`
+                  : status.taken
+                    ? "this name has expired — ask the candidate to renew before you vouch"
+                    : "not claimed yet — an organisation can write now and the letter waits for them"}{" "}
+                · <Link href={`/p/${handle}`}>their page →</Link>
+              </p>
+            )}
+              </>
+        }
       />
     </>
   );

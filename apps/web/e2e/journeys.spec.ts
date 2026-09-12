@@ -30,29 +30,22 @@ test("the policy is set where the reading is, and goes into the URL", async ({ p
   await expect(page.getByTestId("completeness")).toHaveText("incomplete");
 });
 
-test("the vouch page explains every step in the voucher's own words", async ({ page }) => {
+test("the vouch page is two boxes: the writer's steps, and the reference itself", async ({ page }) => {
   await page.goto("/vouch/alice");
-  const steps = page.locator(".journey li");
-  await expect(steps).toHaveCount(3);
-  await expect(steps.nth(0)).toContainText("no seed phrase");
-  // This deployment can ask for a proof of humanity, so the step offers it. It read "coming soon"
-  // while the mock's `/v1/instances` did not parse and `humanity` never reached the page.
-  await expect(steps.nth(1)).toContainText("Prove you are one real person");
-  await expect(steps.nth(2)).toContainText("Write and sign the reference for alice");
+  const you = page.getByTestId("you-box");
+  await expect(you.getByTestId("step-signin")).toContainText("Sign in");
+  await expect(you.getByTestId("signin")).toBeVisible({ timeout: 20000 });
+  const reference = page.getByTestId("reference-box");
+  await expect(reference).toContainText("Reference for alice");
+  await expect(reference.getByTestId("reference-waits")).toContainText("Finish the steps");
+  // The candidate's card sits in the reference box, the same head as every other page about someone.
+  await expect(reference.getByTestId("head-avatar")).toBeVisible();
 });
 
-test("the profile and the vouch journey show their steps and the sign-in gate", async ({ page }) => {
+test("the profile keeps the old claim link and its sign-in gate", async ({ page }) => {
   // Claiming lives on the profile now; the old link still gets there.
   await page.goto("/claim");
   await expect(page).toHaveURL(/\/me$/);
-  await expect(page.getByTestId("signin")).toBeVisible({ timeout: 20000 });
-
-  await page.goto("/vouch/alice");
-  await expect(page.locator(".journey li")).toHaveCount(3);
-  // Nothing is pending: a step is only pending where the deployment cannot offer it, and this one
-  // can. The count was 1 because the humanity step could not be offered from a fixture that failed
-  // to parse, which is the same failure the page is built to survive and therefore not to announce.
-  await expect(page.locator(".journey li.pending")).toHaveCount(0);
   await expect(page.getByTestId("signin")).toBeVisible({ timeout: 20000 });
 });
 
@@ -97,12 +90,13 @@ test("a vouch page opens for anyone, invitation or not, and a bad token is not a
   // so neither its absence nor a malformed one turns the page into a refusal.
   await page.goto("/vouch/alice");
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Refer");
-  // Behind the sign-in gate there is no form either way; the steps still explain the journey.
-  await expect(page.locator(".journey li")).toHaveCount(3);
+  // Behind the sign-in gate there is no form either way; the two boxes still stand.
+  await expect(page.getByTestId("you-box").getByTestId("step-signin")).toBeVisible();
+  await expect(page.getByTestId("reference-box")).toContainText("Reference for alice");
   await expect(page.locator("body")).not.toContainText("You need alice's invitation");
 
   await page.goto("/vouch/alice?invite=not-a-real-token");
-  await expect(page.locator(".journey li")).toHaveCount(3);
+  await expect(page.getByTestId("you-box").getByTestId("step-signin")).toBeVisible();
   await expect(page.locator("body")).not.toContainText("You need alice's invitation");
 });
 

@@ -48,6 +48,7 @@ export default async function Home() {
           title: questionTitle(s.domain),
           name: s.records?.name,
           about: s.records?.description,
+          avatar: s.records?.avatar || undefined,
           answers: s.answers,
         }))}
       />

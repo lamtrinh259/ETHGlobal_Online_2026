@@ -23,6 +23,7 @@ export function FindPeople({
     title: string;
     name?: string;
     about?: string;
+    avatar?: string;
     /** How many people have answered under it, which is what the list is ranked on */
     answers?: number;
   }[];
@@ -43,8 +44,11 @@ export function FindPeople({
         big
         label="Who are you checking?"
         pinned={subjects.map((s) => ({
-          href: `/v/${s.parentName}`,
+          // The subject page, like every other row: its records, its answers, its references.
+          href: `/p/${s.domain}`,
           label: s.name ?? s.title,
+          avatar: s.avatar,
+          about: s.about,
           // Said in the same terms as every other row, because it sits in the same ranking.
           note:
             s.answers === undefined

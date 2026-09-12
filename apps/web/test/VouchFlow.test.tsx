@@ -218,8 +218,9 @@ describe("what onboarding still needs", () => {
     render(<VouchFlow candidate="alice" invite={invite} inviteCode="c" />);
     await waitFor(() => expect(screen.getByTestId("onboarding-gate")).toBeInTheDocument());
     const gate = screen.getByTestId("onboarding-gate");
-    expect(gate.textContent).toContain("github.com and x.com");
-    expect(gate.textContent).toContain("stays masked");
+    expect(gate.textContent).toContain("github.com");
+    expect(gate.textContent).toContain("x.com");
+    expect(gate.textContent).toMatch(/stays masked/i);
     expect(screen.getByTestId("onboarding-steps").querySelectorAll("li.todo")).toHaveLength(2);
     expect(screen.getByTestId("attest")).toHaveAttribute("data-domain", "github.com");
     expect(screen.getByTestId("fake-human")).toBeInTheDocument();
