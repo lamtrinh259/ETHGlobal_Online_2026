@@ -8,6 +8,9 @@ import {
   type Intent,
   type Invite,
   type SignedInvite,
+  POLICY_INVITE_TYPES,
+  policyInviteDomain,
+  type PolicyInvite,
 } from "@ketsuban/registrar";
 import { toBytes32 } from "@peeramid-labs/multipass-client";
 
@@ -81,6 +84,17 @@ export function inviteTypedData(invite: Invite, chainId: number, multipass: Addr
     domain: { name: d.name as string, version: d.version as string, chainId, verifyingContract: multipass },
     types: { Invite: INVITE_TYPES.Invite.map((f) => ({ ...f })) },
     primaryType: "Invite" as const,
+    message: { ...invite, exp: invite.exp.toString() },
+  };
+}
+
+/** Typed data for an employer's invitation to be read against their policy; numbers as strings, as above. */
+export function policyInviteTypedData(invite: PolicyInvite, chainId: number, multipass: Address) {
+  const d = policyInviteDomain(chainId, multipass);
+  return {
+    domain: { name: d.name as string, version: d.version as string, chainId, verifyingContract: multipass },
+    types: { PolicyInvite: POLICY_INVITE_TYPES.PolicyInvite.map((f) => ({ ...f })) },
+    primaryType: "PolicyInvite" as const,
     message: { ...invite, exp: invite.exp.toString() },
   };
 }

@@ -295,6 +295,7 @@ export function Dashboard() {
                 </>
               )}
             </p>
+            <span id="invite" />
             <InviteLink
               api={api}
               handle={handle}

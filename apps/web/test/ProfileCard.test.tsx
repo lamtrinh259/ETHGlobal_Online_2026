@@ -1,5 +1,15 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// The tabs read the council's readings through the app's providers; here there is no council and no
+// provider, which is exactly the page with nothing read.
+vi.mock("@/app/providers", () => ({
+  useWebConfig: () => ({ apiUrl: "http://api.test", attestUrl: "http://api.test", instances: [] }),
+}));
+vi.mock("@/lib/hooks", async (orig) => {
+  const real = await orig<typeof import("@/lib/hooks")>();
+  return { ...real, apiFor: () => ({}), useReadings: () => ({ data: undefined, isPending: false }) };
+});
 import { ProfileCard } from "@/app/ProfileCard";
 import type { Profile } from "@/lib/profile";
 
@@ -461,5 +471,25 @@ describe("an answer that lapsed", () => {
     );
     expect(screen.queryByTestId("lapsed-kju-is")).toBeNull();
     expect(screen.getByTestId("answers")).toHaveTextContent("not answered");
+  });
+});
+
+describe("the rating of references given", () => {
+  it("says what stands and what was taken back, on the tab that lists them", () => {
+    render(<ProfileCard p={profile} rootParent="ketsuban.eth" standing={{ given: 3, withdrawn: 1 }} />);
+    fireEvent.click(screen.getByTestId("tab-given"));
+    expect(screen.getByTestId("given-record")).toHaveTextContent("3 standing · 1 taken back");
+  });
+
+  it("says none were taken back where none were, rather than nothing", () => {
+    render(<ProfileCard p={profile} rootParent="ketsuban.eth" standing={{ given: 2, withdrawn: 0 }} />);
+    fireEvent.click(screen.getByTestId("tab-given"));
+    expect(screen.getByTestId("given-record")).toHaveTextContent("2 standing · none taken back");
+  });
+
+  it("says nothing at all where nothing was ever written", () => {
+    render(<ProfileCard p={profile} rootParent="ketsuban.eth" standing={{ given: 0, withdrawn: 0 }} />);
+    fireEvent.click(screen.getByTestId("tab-given"));
+    expect(screen.queryByTestId("given-record")).toBeNull();
   });
 });

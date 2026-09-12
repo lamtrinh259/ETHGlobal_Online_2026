@@ -210,6 +210,7 @@ export const profileSchema = z.object({
     claimed: z.boolean(),
     taken: z.boolean().default(false),
     given: z.number(),
+    withdrawn: z.number().default(0),
     received: z.number(),
   }),
   warning: z.string(),
@@ -222,10 +223,109 @@ export const standingSchema = z.object({
   claimed: z.boolean(),
   /** Held once, whether or not it is held now: a lapsed name is not a name nobody has ever had. */
   taken: z.boolean().default(false),
+  /** References they wrote and have since taken back: the rating of references given. */
+  withdrawn: z.number().default(0),
   given: z.number(),
   received: z.number(),
 });
 export type Standing = z.infer<typeof standingSchema>;
+
+/**
+ * One person's neighbourhood in the reference graph, with its shape and where trust reached.
+ * A count is not a shape: this is what tells three strangers from a ring that only refers itself.
+ */
+export const graphSchema = z.object({
+  handle: z.string(),
+  nodes: z.array(
+    z.object({
+      handle: z.string(),
+      received: z.number(),
+      given: z.number(),
+      human: z.boolean(),
+      rank: z.number(),
+    })
+  ),
+  edges: z.array(z.object({ from: z.string(), to: z.string() })),
+  metrics: z.object({
+    mutual: z.number(),
+    referrerDensity: z.number(),
+    referrersReferringEachOther: z.number(),
+    clusterSize: z.number(),
+  }),
+  rank: z.number(),
+  human: z.boolean(),
+  /** How many people in the whole graph have proved humanity: where trust starts from */
+  seeds: z.number(),
+  warning: z.string(),
+});
+export type Graph = z.infer<typeof graphSchema>;
+
+/** One statement's provisional reading by the fast council: text classified, not a person judged. */
+export const readingSchema = z.object({
+  polarity: z.number(),
+  conviction: z.number().nullable(),
+  rationale: z.string(),
+  model: z.string(),
+  provisional: z.literal(true),
+});
+const readingSummarySchema = z.object({
+  of: z.number(),
+  read: z.number(),
+  mean: z.number().nullable(),
+  supportive: z.number(),
+  critical: z.number(),
+});
+export const readingsSchema = z.object({
+  handle: z.string(),
+  /** Whether a council is configured at all; without one every statement is listed unread */
+  council: z.boolean(),
+  model: z.string().nullable(),
+  received: z.array(z.object({ voucher: z.string(), says: z.string(), reading: readingSchema.nullable() })),
+  given: z.array(z.object({ candidate: z.string(), says: z.string(), reading: readingSchema.nullable() })),
+  summary: z.object({ received: readingSummarySchema, given: readingSummarySchema }),
+  warning: z.string(),
+});
+export type Readings = z.infer<typeof readingsSchema>;
+
+/** A candidate's invitation as it is kept: the signed message, its number as a string. */
+export type WireInvite = {
+  handle: string;
+  voucher: string;
+  exp: string;
+  requires?: string[];
+  signature: string;
+};
+
+/** An employer's invitation to be read against their policy, and how far the person has come. */
+export const policyInviteSchema = z.object({
+  code: z.string(),
+  kind: z.literal("policy"),
+  inviter: z.string(),
+  inviterName: z.string(),
+  platform: z.string(),
+  account: z.string(),
+  policy: z.string(),
+  expiresAt: z.string(),
+  expired: z.boolean(),
+  /** `invited`: not here yet · `linked`: account attested, no name · `claimed`: a page the bar applies to */
+  status: z.enum(["invited", "linked", "claimed"]),
+  candidate: z.string().nullable(),
+});
+export type PolicyInviteRead = z.infer<typeof policyInviteSchema>;
+export const invitesSchema = z.object({
+  handle: z.string(),
+  invites: z.array(
+    z.object({
+      code: z.string(),
+      kind: z.literal("vouch"),
+      requires: z.array(z.string()),
+      expiresAt: z.string(),
+    })
+  ),
+  asked: z.array(policyInviteSchema).default([]),
+});
+export type Invites = z.infer<typeof invitesSchema>;
+export type Reading = z.infer<typeof readingSchema>;
 
 export const disclosedSchema = z.object({
   name: z.string(),
@@ -570,26 +670,34 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
       return (await readJson(res)) as { hash: string; ref: string; bytes: number };
     },
 
-    /** The signed invitation a short code stands for; checked the same as one that arrived in full. */
-    async invite(code: string): Promise<{ code: string; invite: Record<string, unknown> }> {
-      return (await readJson(await call(`${base}/v1/invite/${encodeURIComponent(code)}`))) as {
-        code: string;
-        invite: Record<string, unknown>;
-      };
+    /**
+     * The signed invitation a short code stands for; checked the same as one that arrived in full.
+     * Either kind: a candidate's (`invite` holds the signed message) or an employer's (the fields of
+     * `policyInviteSchema`, with how far the person has come).
+     */
+    async invite(
+      code: string,
+      opts: { signal?: AbortSignal } = {}
+    ): Promise<{ code: string; kind: "vouch"; invite: WireInvite } | PolicyInviteRead> {
+      const body = (await readJson(
+        await call(`${base}/v1/invite/${encodeURIComponent(code)}`, { signal: opts.signal })
+      )) as { kind?: string };
+      if (body.kind === "policy") return policyInviteSchema.parse(body);
+      return body as { code: string; kind: "vouch"; invite: WireInvite };
     },
 
-    /** Invitations this candidate can still hand out; a link outlives the page that made it. */
-    async invites(handle: string): Promise<{
-      handle: string;
-      invites: { code: string; requires: string[]; expiresAt: string }[];
-    }> {
-      return (await readJson(await call(`${base}/v1/invites/${encodeURIComponent(handle)}`))) as {
-        handle: string;
-        invites: { code: string; requires: string[]; expiresAt: string }[];
-      };
+    /**
+     * Invitations this name made: the ones a candidate can still hand out, and — as `asked` — everyone
+     * an employer invited to be read against a bar, with how far each has come. A link outlives the
+     * page that made it.
+     */
+    async invites(handle: string): Promise<Invites> {
+      return invitesSchema.parse(
+        await readJson(await call(`${base}/v1/invites/${encodeURIComponent(handle)}`))
+      );
     },
 
-    /** Keep a signed invitation and get the short code that stands for it. */
+    /** Keep a signed invitation of either kind and get the short code that stands for it. */
     async storeInvite(wire: object): Promise<{ code: string }> {
       const res = await call(`${base}/v1/invite`, {
         method: "POST",
@@ -712,6 +820,18 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
       return standingSchema.parse(
         await readJson(
           await call(`${base}/v1/standing/${encodeURIComponent(handle)}`, { signal: opts.signal })
+        )
+      );
+    },
+    async graph(handle: string, opts: { signal?: AbortSignal } = {}): Promise<Graph> {
+      return graphSchema.parse(
+        await readJson(await call(`${base}/v1/graph/${encodeURIComponent(handle)}`, { signal: opts.signal }))
+      );
+    },
+    async readings(handle: string, opts: { signal?: AbortSignal } = {}): Promise<Readings> {
+      return readingsSchema.parse(
+        await readJson(
+          await call(`${base}/v1/readings/${encodeURIComponent(handle)}`, { signal: opts.signal })
         )
       );
     },

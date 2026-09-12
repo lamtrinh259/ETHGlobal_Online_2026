@@ -1,5 +1,6 @@
 import Link from "next/link";
-import type { Verification } from "@/lib/api";
+import { LeanChip } from "@/app/LeanChip";
+import type { Reading, Verification } from "@/lib/api";
 import { questionTitle } from "@/lib/questions";
 
 /**
@@ -12,7 +13,14 @@ import { questionTitle } from "@/lib/questions";
  * Shared by a person's verification and their candidate page, because those are two routes to one
  * question and were answering it differently — one showed this and the other did not.
  */
-export function ReferencesGiven({ references }: { references: Verification["references"] }) {
+export function ReferencesGiven({
+  references,
+  readings,
+}: {
+  references: Verification["references"];
+  /** How each reference they wrote reads, by the person it is for; answers about subjects are not read */
+  readings?: Record<string, Reading | null>;
+}) {
   if (references.length === 0) return null;
   /*
    * An answer is not a reference.
@@ -48,7 +56,15 @@ export function ReferencesGiven({ references }: { references: Verification["refe
                 ref.subject
               )}
             </span>
-            <strong className="v-ref-statement">{ref.statement || <em>no words</em>}</strong>
+            <strong className="v-ref-statement">
+              {ref.statement || <em>no words</em>}
+              {ref.kind !== "answer" && (
+                <>
+                  {" "}
+                  <LeanChip reading={readings?.[ref.subject]} id={`given-${ref.subject}`} />
+                </>
+              )}
+            </strong>
             {ref.ensName && (
               <Link className="v-ref-name" href={`/v/${ref.ensName}`} title="read it back in any ENS client">
                 <code>{ref.ensName}</code>

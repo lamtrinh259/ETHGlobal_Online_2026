@@ -312,3 +312,67 @@ a stranger, granted key   setText(peersky.ketsuban.eth, "avatar")       refused 
 
 Checked with `eth_call` against Sepolia, from each wallet in turn. The same three cases are asserted in
 `test/AttestationBridge.t.sol`, where the write goes through and reads back, and both refusals revert.
+
+## A namespace worth looking at
+
+The reference map on a person's page shows whether the people behind them know each other. Four
+names and three references give it nothing to show, so there is a seeder that writes a namespace
+shaped like the real thing:
+
+```sh
+API_URL=https://ketsuban-api.peeramid.xyz REGISTRAR_KEY=0x… pnpm --filter @ketsuban/api seed:graph
+```
+
+Or let the deployment write it itself: `SEED_GRAPH=true` on the API (a pull request's preview, say) seeds
+the same namespace once the service is listening, idempotently. See docs/deploy.md.
+
+```bash
+```
+
+It writes, in order: a name for each person, a humanity record for the ones who "proved" it, and then
+every reference. Every record is registrar-signed and relayed through `/v1/submit`, so each one is a
+real Multipass record readable in any ENS client. What the seeder skips is the identity token, which
+is why it needs the registrar key and is an operator's tool rather than a route. It is safe to re-run:
+a name already held and a reference already standing are left alone.
+
+What it writes:
+
+| who | shape |
+|---|---|
+| `mira`, `theo`, `sana`, `kofi`, `lena` | a team: most pairs refer each other, some both ways; `mira`, `theo`, `sana` hold humanity proofs |
+| `ring-a` … `ring-e` | five accounts wired to each other in every direction and to nobody else |
+| `ring-a` → `kofi` | the one bridge, which is how a ring tries to look connected |
+| `nadia` | a newcomer with one honest reference from `mira` |
+
+Then walk it. Each page leads with one line — *4 people stand behind them · 2 of those know each
+other · trust 0.041 from 3 proved humans* — and the drawing waits behind "Show the map" for whoever
+wants it, because a graph is hard to read and harder in four minutes. `/p/mira` reads as a team;
+`/p/ring-b` reads as five referrers who *all* know each other and trust that barely arrived
+(0.002 against 0.041); `/p/nadia` reads as one reference and nothing known about her yet — which is
+what one bought reference would look like too, and is the caveat under the line.
+
+The "Given" tab on any page carries the rating of references given: how many of what this person
+wrote still stand, and how many they have taken back. A withdrawn reference stays on chain — that is
+the point of withdrawal here — and so it is counted as taken back rather than as given.
+
+### What the references say
+
+A count and a shape still leave the sentences unread. Each statement — written for somebody, or by
+them — is read once by the Noolog fast council (`POST /v1/chat/completions`, `model: nsed:fast`, spec
+§E.8) and the readings are summed into one line on the person's page: *1 of 2 read as supportive · 1
+critical · mean +0.05 — provisional, how nsed:fast read each statement*. Every reading waits behind
+"Show each reading", beside the words it was read from, marked which way it leans. A reading is kept
+by the hash of the words, so the same 31 bytes cost the council once.
+
+It is a reading of text, not a judgement of a person, and the page says so. Set `NSED_URL` to the
+orchestrator (and register the `nsed:fast` policy there first); unset, every statement is listed as
+written and marked unread rather than scored by anything else.
+
+### Inviting somebody who has no page yet
+
+On `/employers`, search by account — `github.com`, `lamtrinh259`. Nobody holds a name for it, so the
+page offers an invitation instead of the plain ask: signed by the employer's wallet, kept by the
+attester under a code, and worded for the person receiving it — who is inviting them, to pass which
+bar, which account to begin with, and the link (`/me?invite=<code>`). The invitation is listed under
+"Whom you invited" as a pending check until the person links the account and claims a page, then as a
+link to read them against the bar. See [employers.md](employers.md).

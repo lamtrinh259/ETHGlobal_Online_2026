@@ -55,6 +55,37 @@ and Sourcify.
 
 ENSv2 Sepolia addresses: [docs.ens.domains/learn/deployments](https://docs.ens.domains/learn/deployments/).
 
+## Preview deployments (one pull request, two hosts)
+
+Coolify serves a pull request's preview at `{{pr_id}}.{{domain}}` — `https://1.ketsuban.peeramid.xyz` for
+the web app, `https://1.ketsuban-api.peeramid.xyz` for the API — and tells each container so through its
+predefined `COOLIFY_FQDN` (and `COOLIFY_URL`, with the scheme). Nothing else changes: both previews run with
+the production variables.
+
+Each side derives the other from that one variable (`previewId` / `forPreview` in `@ketsuban/registrar`):
+
+- the web app reads `COOLIFY_FQDN` at runtime on the server and puts the id in front of `NEXT_PUBLIC_API_URL`,
+  `NEXT_PUBLIC_ATTEST_URL` and `NEXT_PUBLIC_SITE_URL` — so preview `1` talks to `1.ketsuban-api…` and writes
+  its own links as `1.ketsuban…`;
+- the API allows every origin in `CORS_ORIGINS` with the id in front as well (`https://1.ketsuban.peeramid.xyz`
+  beside `https://ketsuban.peeramid.xyz`), and `/healthz` reports `preview: "1"` (`null` in production).
+
+The id is the first label of the host, and only when it is a number; a production host derives nothing.
+
+### A preview with something in it
+
+A preview API starts against the same chain as production, so it shows whatever the namespace already
+holds. For a pull request whose point is the reference map, set `SEED_GRAPH=true` on the API's preview
+environment (Coolify → Environment Variables, marked available in previews): once listening, the API
+writes the demo namespace from `src/seed.ts` through its own relay — a team of five with three proved
+humans, a ring of five, one bridge, one newcomer — signed with `REGISTRAR_KEY`, idempotent across
+restarts. `SEED_SALT` (default `demo`) decides the seeded wallets. Two things to know before flipping it:
+the records are real, on Sepolia, and the namespace is shared, so production reads them too; and the
+"proved human" marks on the team are seeded records, not Selfie Checks. The same namespace can be written
+by hand with `pnpm --filter @ketsuban/api seed:graph`.
+Nothing needs setting per preview. If Coolify's preview template is changed away from `{{pr_id}}.{{domain}}`,
+this rule has to follow it.
+
 ## Around a deploy: does the attester answer what the app parses, and do the pages still say it?
 
 ```bash
@@ -121,6 +152,7 @@ Sepolia addresses and placeholders for the secrets:
 | `DELIVERY_TOKEN` | ≥16 chars, same value in the CRE delivery header |
 | `REGISTRAR_KEY`, `VIEWCODE_KEY` | only for the Node fallback; unset when the enclave signs |
 | `REGISTRY`, `PERMISSIONED_RESOLVER`, `REGISTRAR_ADDRESS`, `DEPLOY_BLOCK` | vouch-instance provisioning (relayer must own Multipass, factory, root registry); `VOUCH_PREFIX` defaults to `~` |
+| `NSED_URL`, `NSED_MODEL`, `NSED_TOKEN` | The Noolog orchestrator that reads reference statements (spec §E.8) through `POST /v1/chat/completions`. `NSED_MODEL` defaults to `nsed:fast`, a policy tag the orchestrator must have registered (three models on independent families, one round) — register it once on the orchestrator before setting this. On the shared host the orchestrator is on the same machine: point `NSED_URL` at its service on the Coolify network, not at a host port. Unset, every statement is listed unread; the API never scores one by anything else. Readings are kept under `DATA_DIR/readings.json` by the hash of the words. |
 | `WORLD_APP_ID`, `WORLD_RP_ID`, `WORLD_RP_SIGNING_KEY`, `WORLD_ACTION` | World ID, from [the Developer Portal](https://developer.world.org). All three ids and the key, or none: with any unset the humanity routes answer 501 and the CTA stays disabled. The `humanity` Multipass domain must already name this service as registrar, or the write reverts after someone has done the check |
 | `WORLD_CREDENTIAL` | Which credential a person is asked for: `selfie` (Selfie Check — no hardware, **in preview**, World must enable it for the app) or `proof_of_human` (World ID 4.0 falling back to the Orb, which anyone without an Orb nearby cannot finish). Default `selfie`. The API tells the browser which preset to open; the browser does not choose |
 | `WORLD_ENVIRONMENT` | Which World ID app a proof must come from — a property of the proof, not a preference; the portal refuses one made elsewhere with `environment_mismatch`. `production` is the World App everyone has. `sandbox` is the separate sandbox app (iOS TestFlight, Android private Play track, both approved through the Developer Portal) — scanning with the ordinary World App while this says `sandbox` produces a production proof and is refused. `staging` is the [simulator](https://simulator.worldcoin.org). `WORLD_VERIFY_URL` stays production for all three. Sandbox needs two approvals from a World contact — access to the sandbox app, and the Selfie Check feature flag on your app if `WORLD_CREDENTIAL=selfie` |

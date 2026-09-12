@@ -43,6 +43,7 @@ export function PersonSearch({
   pinned = [],
   big = false,
   also,
+  onInvite,
 }: {
   api: Api;
   onPick: (handle: string) => void;
@@ -75,6 +76,11 @@ export function PersonSearch({
    * on the result, a reader picks the person once and then says which of the two they came for.
    */
   also?: { label: string; onPick: (handle: string) => void };
+  /**
+   * What an employer does with an account nobody holds a name for: invite the person to make one and
+   * be read against the bar. Offered instead of the plain ask, because an employer has a bar to name.
+   */
+  onInvite?: (platform: string, account: string) => void;
 }) {
   /*
    * What this deployment answers for, rather than a list kept here.
@@ -465,17 +471,35 @@ export function PersonSearch({
             </p>
           ))}
 
-        {platform && account.trim().length >= 2 && !who.isFetching && !who.data?.found && (
-          <p className="row" data-testid="invite-to-claim">
-            <CopyButton
-              text={claimAsk(platform, account.trim().replace(/^@/, ""), site)}
-              label="Copy an ask they can act on"
-            />
-            <small className="muted">
-              They sign in, link <code>{platform}</code>, and the name is theirs.
-            </small>
-          </p>
-        )}
+        {platform &&
+          account.trim().length >= 2 &&
+          !who.isFetching &&
+          !who.data?.found &&
+          (onInvite ? (
+            <p className="row" data-testid="invite-to-policy">
+              <button
+                type="button"
+                className="primary"
+                onClick={() => onInvite(platform, account.trim().replace(/^@/, ""))}
+                data-testid="invite-to-policy-button"
+              >
+                Invite them to pass your policy
+              </button>
+              <small className="muted">
+                Signed by you, kept by the attester; they begin by linking <code>{platform}</code>.
+              </small>
+            </p>
+          ) : (
+            <p className="row" data-testid="invite-to-claim">
+              <CopyButton
+                text={claimAsk(platform, account.trim().replace(/^@/, ""), site)}
+                label="Copy an ask they can act on"
+              />
+              <small className="muted">
+                They sign in, link <code>{platform}</code>, and the name is theirs.
+              </small>
+            </p>
+          ))}
       </>
     </div>
   );

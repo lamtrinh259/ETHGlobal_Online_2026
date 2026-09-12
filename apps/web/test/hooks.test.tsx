@@ -61,14 +61,19 @@ function fakeApi(): Api {
     uploadAvatar: vi.fn(async () => ({ id: "a.png", url: "https://api.test/v1/avatar/a.png" })),
     find: vi.fn(async (q: string) => ({ q, matches: [] })),
     storeInvite: vi.fn(async () => ({ code: "abcd1234" })),
-    invites: vi.fn(async (handle: string) => ({ handle, invites: [] })),
+    invites: vi.fn(async (handle: string) => ({ handle, invites: [], asked: [] })),
+    readings: vi.fn(),
     instance: vi.fn(async (domain: string) => ({
       domain,
       parentName: `${domain}.ketsuban.eth`,
       description: null,
       answers: [],
     })),
-    invite: vi.fn(async (code: string) => ({ code, invite: {} })),
+    invite: vi.fn(async (code: string) => ({
+      code,
+      kind: "vouch" as const,
+      invite: { handle: "alice", voucher: "0x0", exp: "1", signature: "0x01" },
+    })),
     storeLetter: vi.fn(async (text: string) => ({
       hash: "a".repeat(64),
       ref: `sha256:${"a".repeat(64)}`,
@@ -110,12 +115,22 @@ function fakeApi(): Api {
       return { ok: true as const, txHash: `0x${"ab".repeat(32)}` as `0x${string}` };
     }),
     vouches: vi.fn(async (handle: string) => ({ handle, domain: `~${handle}`, vouches: [], warning: "w" })),
-    standing: vi.fn(async () => ({ claimed: true, taken: true, given: 0, received: 0 })),
+    standing: vi.fn(async () => ({ claimed: true, taken: true, given: 0, withdrawn: 0, received: 0 })),
+    graph: vi.fn(async (handle: string) => ({
+      handle,
+      nodes: [],
+      edges: [],
+      metrics: { mutual: 0, referrerDensity: 0, referrersReferringEachOther: 0, clusterSize: 1 },
+      rank: 0,
+      human: false,
+      seeds: 0,
+      warning: "w",
+    })),
     profile: vi.fn(async (handle: string) => ({
       handle,
       names: [],
       vouches: [],
-      standing: { claimed: true, taken: true, given: 0, received: 0 },
+      standing: { claimed: true, taken: true, given: 0, withdrawn: 0, received: 0 },
       warning: "w",
     })),
     nameStatus: vi.fn(async (domain: string, handle: string) => ({

@@ -5,6 +5,10 @@ import {
   ensSchema,
   explainSchema,
   findSchema,
+  graphSchema,
+  invitesSchema,
+  policyInviteSchema,
+  readingsSchema,
   instanceReadSchema,
   nameStatusSchema,
   profileSchema,
@@ -40,6 +44,10 @@ const cases: [string, { parse: (v: unknown) => unknown }][] = [
   ["/v1/find?q=ali", findSchema],
   ["/v1/name/ketsuban/alice", nameStatusSchema],
   ["/v1/who?domain=x.com&handle=alice", whoSchema],
+  ["/v1/graph/alice", graphSchema],
+  ["/v1/readings/alice", readingsSchema],
+  ["/v1/invites/peersky", invitesSchema],
+  ["/v1/invite/0123456789abcdef0123456789abcdef", policyInviteSchema],
 ];
 
 describe("what the mock attester answers", () => {

@@ -1,6 +1,7 @@
 import Link from "next/link";
+import { LeanChip } from "@/app/LeanChip";
 import { WITHDRAWN } from "@ketsuban/registrar";
-import type { Vouch } from "@/lib/api";
+import type { Reading, Vouch } from "@/lib/api";
 import { fmtUtc } from "./ui";
 
 /**
@@ -11,7 +12,16 @@ import { fmtUtc } from "./ui";
  * parts that are easy to leave out of one copy: that a reference was unsolicited, that it was
  * withdrawn, that a letter exists which nobody holds any more.
  */
-export function VouchList({ vouches, handle }: { vouches: Vouch[]; handle: string }) {
+export function VouchList({
+  vouches,
+  handle,
+  readings,
+}: {
+  vouches: Vouch[];
+  handle: string;
+  /** How each statement reads, by voucher, where the council has read it; absent means no council */
+  readings?: Record<string, Reading | null>;
+}) {
   return (
     <>
       <h3>References received</h3>
@@ -55,7 +65,9 @@ export function VouchList({ vouches, handle }: { vouches: Vouch[]; handle: strin
                     withdrawn by the voucher
                   </span>
                 ) : (
-                  <span className="vouch-what">“{v.statement}”</span>
+                  <span className="vouch-what">
+                    “{v.statement}” <LeanChip reading={readings?.[v.voucher]} id={`vouch-${v.voucher}`} />
+                  </span>
                 )}
                 {v.letter && (
                   <span className="vouch-letter" data-testid="vouch-letter">

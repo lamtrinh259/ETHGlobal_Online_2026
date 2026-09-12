@@ -158,6 +158,79 @@ export default async function TrustPage() {
         </p>
       </section>
 
+      <section className="card" data-testid="how-rank">
+        <h2>How the reference map is scored</h2>
+        <ol className="flow">
+          <li>
+            <strong>edges</strong>
+            <span>every live reference, from whoever wrote it to whoever it is for</span>
+            <small className="muted">a signed record anyone can resolve; nothing inferred</small>
+          </li>
+          <li>
+            <strong>seeds</strong>
+            <span>whoever holds a live Selfie Check proof</span>
+            <small className="muted">the only part of this nobody can hold twice</small>
+          </li>
+          <li>
+            <strong>walk</strong>
+            <span>trust spreads from the seeds along references, a few steps, edges taken either way</span>
+            <small className="muted">after SybilRank, NSDI 2012: honest regions fill, rings barely do</small>
+          </li>
+          <li>
+            <strong>rank</strong>
+            <span>trust per connection, so connections alone earn nothing</span>
+            <small className="muted">a signal, shown beside the count and the shape, never a verdict</small>
+          </li>
+        </ol>
+        <p className="muted">
+          A newcomer with one honest reference and a ring with one bought one look alike until more people
+          speak. What the map adds is whether the people behind somebody know each other — which is what a
+          count cannot say.
+        </p>
+      </section>
+
+      <section className="card" data-testid="how-read">
+        <h2>How statements are read</h2>
+        <ol className="flow">
+          <li>
+            <strong>the words</strong>
+            <span>thirty-one bytes somebody signed about somebody else, the record itself</span>
+            <small className="muted">
+              shown as written, always; the reading is a way in, not a replacement
+            </small>
+          </li>
+          <li>
+            <strong>the council</strong>
+            <span>
+              each statement goes once to Noolog&apos;s fast council: three models on independent families,
+              one round
+            </span>
+            <small className="muted">
+              the statement is data to be read, never instructions to follow — the rubric says so
+            </small>
+          </li>
+          <li>
+            <strong>polarity</strong>
+            <span>−1 critical … +1 supportive, with one sentence of why</span>
+            <small className="muted">
+              a classification of text, kept by the hash of the words: the same words read the same
+            </small>
+          </li>
+          <li>
+            <strong>provisional</strong>
+            <span>marked so, until peers in a cohort have judged</span>
+            <small className="muted">
+              three models agreeing on how a sentence reads is not a community judgement
+            </small>
+          </li>
+        </ol>
+        <p className="muted">
+          Where no council is configured, statements are shown unread rather than scored by anything else.
+          Nothing here rates a person; it reads sentences, says which, and sums them into one line so a reader
+          with a minute knows whether to open the fold.
+        </p>
+      </section>
+
       <section className="card">
         <h2>Outside the enclave, deliberately</h2>
         <ul className="self-reported">

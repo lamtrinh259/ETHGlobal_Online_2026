@@ -157,6 +157,28 @@ export const configSchema = z.object({
     ),
   /** Prefix of per-candidate vouch domains (`~alice`) */
   VOUCH_PREFIX: z.string().min(1).default("~"),
+  /**
+   * Write the demo namespace (`src/seed.ts`: a team, a ring, a bridge, a newcomer) through this
+   * service's own relay once it is listening. For a pull request's preview, which starts empty and
+   * has nothing for the reference map to show. Needs `REGISTRAR_KEY`; idempotent across restarts.
+   * The records are real, on whatever chain this deployment is on.
+   */
+  SEED_GRAPH: z
+    .string()
+    .default("false")
+    .transform((v) => v === "true"),
+  /** What the seeded wallets are derived from; the same salt seeds the same wallets again */
+  SEED_SALT: z.string().min(1).default("demo"),
+  /**
+   * The Noolog orchestrator that reads reference statements (spec §E.8): an OpenAI-compatible
+   * `POST /v1/chat/completions` answered by a registered council policy. Unset leaves every statement
+   * unread rather than scored by anything else.
+   */
+  NSED_URL: z.string().url().optional(),
+  /** The policy tag the orchestrator resolves to a council; `nsed:fast` is three models, one round */
+  NSED_MODEL: z.string().min(1).default("nsed:fast"),
+  /** Bearer token the orchestrator expects, when it expects one */
+  NSED_TOKEN: z.string().optional(),
   /** Below this the relayer cannot pay for records; the preflight warns. Default 0.002 ETH. */
   RELAYER_MIN_WEI: z
     .string()
@@ -169,6 +191,13 @@ export const configSchema = z.object({
     .regex(/^\d+$/)
     .default("0")
     .transform((s) => BigInt(s)),
+  /**
+   * The host this container is served at, as Coolify tells it. A preview lives at
+   * `{{pr_id}}.{{domain}}`, and the web app of the same pull request lives under the same id — so
+   * every configured browser origin is also allowed with that id in front of it.
+   */
+  COOLIFY_FQDN: z.string().optional(),
+  COOLIFY_URL: z.string().optional(),
   /** Comma-separated browser origins allowed to call the API; "*" allows any (default) */
   CORS_ORIGINS: z
     .string()
