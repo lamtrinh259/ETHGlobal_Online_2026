@@ -20,15 +20,20 @@ Object.defineProperty(globalThis, "localStorage", {
   },
 });
 const kept: { name: string; code: string }[] = [];
+const fromService = { given: {} as Record<string, string> };
 const api = {
   verify: vi.fn(async () => ({
     links: [{ domain: "github.com", disclosed: { handle: "lam", platformId: "1" } }],
   })),
+  viewCodes: vi.fn(async () => ({ codes: {}, given: fromService.given })),
   keepViewCode: vi.fn(async (_t: string, name: string, code: string) => {
     kept.push({ name, code });
   }),
 };
-vi.mock("@privy-io/react-auth", () => ({ useIdentityToken: () => ({ identityToken: "token" }) }));
+vi.mock("@privy-io/react-auth", () => ({
+  useIdentityToken: () => ({ identityToken: "token" }),
+  usePrivy: () => ({ authenticated: true }),
+}));
 vi.mock("@/app/providers", () => ({
   useWebConfig: () => ({ apiUrl: "http://api.test", attestUrl: "http://api.test" }),
 }));
@@ -74,6 +79,15 @@ describe("a view code arriving in the link", () => {
     localStorage.setItem("ketsuban:given-viewcodes", JSON.stringify({ "alice.ketsuban.eth": CODE }));
     show();
     await waitFor(() => expect(screen.getByTestId("unmasked-links")).toBeInTheDocument());
+  });
+
+  it("pulls a code the service kept for this session, and opens the page with it", async () => {
+    // A verifier signed in on another device: the code they were given once is with the service.
+    fromService.given = { "alice.ketsuban.eth": CODE };
+    show();
+    await waitFor(() => expect(screen.getByTestId("unmasked-links")).toBeInTheDocument());
+    expect(screen.getByTestId("unmasked-links").textContent).toContain("@lam");
+    fromService.given = {};
   });
 
   it("shows nothing when there is no code anywhere", () => {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useVerification } from "@/lib/hooks";
+import { useVerification, useViewCodeSync } from "@/lib/hooks";
 import { apiFor } from "@/lib/hooks";
 import { useWebConfig } from "./providers";
 import { useIdentityToken } from "@privy-io/react-auth";
@@ -24,6 +24,9 @@ export function Unmasked({ name, domains }: { name: string; domains: string[] })
   const config = useWebConfig();
   const api = useMemo(() => apiFor(config), [config]);
   const { identityToken } = useIdentityToken();
+  // What the service kept for this session comes down first: a verifier who was given the code on
+  // another device opens the page here without the link.
+  const synced = useViewCodeSync(api);
   const [code, setCode] = useState<string>();
   useEffect(() => {
     // A code in the link is kept: here, by the name it opens, and with the service against the
@@ -32,7 +35,7 @@ export function Unmasked({ name, domains }: { name: string; domains: string[] })
     const found = /(?:^|[#&])viewCode=(0x[0-9a-fA-F]{64})/.exec(window.location.hash)?.[1] as Hex | undefined;
     if (found) saveGivenCode(name, found);
     setCode(found ?? loadGivenCodes()[name.toLowerCase()]);
-  }, [name]);
+  }, [name, synced.data]);
   useEffect(() => {
     if (code && identityToken) void api.keepViewCode(identityToken, name, code as Hex).catch(() => undefined);
   }, [api, code, identityToken, name]);
