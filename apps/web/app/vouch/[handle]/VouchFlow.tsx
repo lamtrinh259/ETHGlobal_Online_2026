@@ -88,6 +88,8 @@ export function VouchFlow({
    * dashboard lists the link and the next step takes its place.
    */
   const [attesting, setAttesting] = useState<string>();
+  /** Whether the name was claimed on this page, so its step stays open with the confirmation inside. */
+  const [claimedHere, setClaimedHere] = useState(false);
   const dash = useWalletDashboard(api, authenticated ? wallet : undefined, awaitingLink);
   const contracts = useContracts(api);
   const onChain = voucherProgress(dash.data, root?.domain ?? "", candidate);
@@ -104,6 +106,9 @@ export function VouchFlow({
   // One real person writes a reference, or nobody does: where the deployment can check humanity, a
   // writer without a live proof is sent to pass it before a statement is asked of them.
   const needsHuman = !!contracts.data?.humanity && dash.data !== undefined && !dash.data.humanity;
+  // A reference is signed by the writer's own name, so the name is the first thing, not a field on the
+  // statement form.
+  const needsName = dash.data !== undefined && !onChain.named;
   // The accounts the invitation asks for that somebody could hold, and which are not attested yet;
   // a masked account counts, so this is answered without publishing which account it is.
   const attestedNow = (dash.data?.links ?? []).filter((l) => l.live).map((l) => l.domain.toLowerCase());
@@ -117,7 +122,7 @@ export function VouchFlow({
     ? "signin"
     : published
       ? "done"
-      : stillToLink.length > 0 || notYou.length > 0 || needsHuman
+      : needsName || stillToLink.length > 0 || notYou.length > 0 || needsHuman
         ? "onboarding"
         : "statement";
   const vouchDomain = `${VOUCH_PREFIX}${candidate}`;
@@ -231,14 +236,46 @@ export function VouchFlow({
 
       {/* One card for everything a writer proves first, and it stays: a step done folds up with its
           confirmation inside, the next opens under it, and the statement form arrives below. */}
-      {!loading && authenticated && !published && (askedFor.length > 0 || contracts.data?.humanity) && (
+      {!loading &&
+        authenticated &&
+        !published &&
+        root &&
+        (needsName || claimedHere || askedFor.length > 0 || contracts.data?.humanity) && (
         <section className="card" data-testid="onboarding-gate">
           <h2>Before you write for {candidate}</h2>
           <p>
-            A reference here is worth something because whoever writes it has shown, once, how they know the
-            person. {askedFor.length > 0 && contracts.data?.humanity ? "Two things" : "One thing"}, done right
-            here; this page continues by itself.
+            A reference here is signed by your own permanent name, and it is worth something because whoever
+            writes it has shown, once, how they know the person. Done right here; this page continues by
+            itself.
           </p>
+          <details className="step" open={needsName || claimedHere}>
+            <summary data-testid="step-name">{onChain.named ? "✓ " : ""}Your name</summary>
+            <p>
+              {onChain.named ? (
+                <>
+                  Yours is <code>{onChain.named}.{root.parentName}</code>; every reference you write is signed
+                  by it.
+                </>
+              ) : (
+                <>
+                  Pick the name every reference you write is signed by: <code>you.{root.parentName}</code>,
+                  yours for good, and the same one every later reference reuses.
+                </>
+              )}
+            </p>
+            {(needsName || claimedHere) && (
+              <AttestFlow
+                key="name"
+                fixedDomain={root.domain}
+                title=""
+                onPublished={() => {
+                  setClaimedHere(true);
+                  setAwaitingLink(true);
+                  void dash.refetch();
+                }}
+              />
+            )}
+          </details>
           {askedFor.length > 0 && (
             <details className="step" open={stillToLink.length > 0 || notYou.length > 0 || !!attesting}>
               <summary data-testid="step-accounts">

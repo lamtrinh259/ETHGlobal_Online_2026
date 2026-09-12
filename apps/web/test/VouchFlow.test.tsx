@@ -20,6 +20,13 @@ const state = {
   /** Whether the deployment can check humanity at all; the fake writer never holds a proof. */
   checksHumanity: false,
   /** The accounts the fake writer has attested; one from GitHub unless a test says otherwise. */
+  /** The fake writer's own name in the root domain; a test without one starts at the first step. */
+  names: [{ domain: "ketsuban", name: "lam", live: true, ensName: "lam.ketsuban.eth" }] as {
+    domain: string;
+    name: string;
+    live: boolean;
+    ensName: string | null;
+  }[],
   links: [{ domain: "github.com", live: true, optedIn: false, ensName: null }] as {
     domain: string;
     live: boolean;
@@ -114,7 +121,7 @@ vi.mock("@/lib/hooks", () => ({
     // `linked` is what opens the statement stage: a writer must have attested the account they
     // worked from before their reference means anything.
     data: {
-      names: [{ domain: "ketsuban", name: "lam", live: true, ensName: "lam.ketsuban.eth" }],
+      names: state.names,
       links: state.links,
       given: [],
       org: null,
@@ -275,6 +282,26 @@ describe("what onboarding still needs", () => {
     render(<VouchFlow candidate="alice" />);
     await waitFor(() => expect(screen.getByTestId("fake-publish")).toBeInTheDocument());
     expect(screen.queryByTestId("onboarding-gate")).toBeNull();
+  });
+});
+
+describe("your own name comes first", () => {
+  afterEach(() => {
+    state.names = [{ domain: "ketsuban", name: "lam", live: true, ensName: "lam.ketsuban.eth" }];
+  });
+
+  it("claims the writer's name as the first step, and never asks for a handle on the statement", async () => {
+    state.names = [];
+    render(<VouchFlow candidate="alice" />);
+    await waitFor(() => expect(screen.getByTestId("onboarding-gate")).toBeInTheDocument());
+    expect(screen.getByTestId("step-name").textContent).toContain("Your name");
+    expect(screen.getByTestId("attest")).toHaveAttribute("data-domain", "ketsuban");
+    // The name lands; the step folds with its confirmation still inside, and the statement is next.
+    state.names = [{ domain: "ketsuban", name: "lam", live: true, ensName: "lam.ketsuban.eth" }];
+    fireEvent.click(screen.getByTestId("fake-publish"));
+    await waitFor(() => expect(screen.getByTestId("step-name").textContent).toContain("✓"));
+    expect(screen.getAllByTestId("attest")[0]).toHaveAttribute("data-domain", "ketsuban");
+    expect(screen.getByText(/lam\.alice\.ketsuban\.eth/)).toBeInTheDocument();
   });
 });
 
