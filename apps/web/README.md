@@ -45,6 +45,8 @@ drawer is `inert`, Escape and a route change close it, and the page behind it le
 pnpm install                         # from the repo root (workspace: @ketsuban/registrar)
 cp .env.example .env.local           # public identifiers only
 pnpm dev                             # http://localhost:3000, expects the API on NEXT_PUBLIC_API_URL
+# In a Coolify preview ({{pr_id}}.{{domain}}) the server reads COOLIFY_FQDN and addresses the API, the
+# attester and its own links under the same id; see docs/deploy.md "Preview deployments".
 ```
 
 ## Test

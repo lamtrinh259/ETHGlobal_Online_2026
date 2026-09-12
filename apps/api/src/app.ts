@@ -45,10 +45,12 @@ import {
 import { decodeRecord, fromBytes32, isOptedIn, maskName, toBytes32 } from "@peeramid-labs/multipass-client";
 import {
   explainName,
+  forPreview,
   HANDLE_RE,
   isDnsName,
   platformOf,
   policyInviteDomain,
+  previewId,
   recoverPolicyInviteSigner,
   storable,
   WITHDRAWN,
@@ -269,10 +271,21 @@ export function createApp({
   fetch: fetchImpl = fetch,
 }: AppDeps) {
   const app = new Hono();
+  /*
+   * A preview API answers its preview's web app.
+   *
+   * The origins configured are production's; a preview is the same image served under a pull
+   * request's own host, and the web app it belongs to sits under the same id. So each origin is
+   * allowed with that id in front of it as well — in production there is no id, and the list is
+   * exactly what was configured.
+   */
+  const servedAt = config.COOLIFY_FQDN || config.COOLIFY_URL || undefined;
+  const preview = previewId(servedAt) ?? null;
+  const origins = [...new Set(config.CORS_ORIGINS.flatMap((o) => [o, forPreview(o, servedAt)]))];
   app.use(
     "*",
     cors({
-      origin: config.CORS_ORIGINS.includes("*") ? "*" : config.CORS_ORIGINS,
+      origin: origins.includes("*") ? "*" : origins,
       // `x-view-code` carries a secret that must not be in a URL, so the browser has to be
       // allowed to send it: without this the preflight refuses and every masked read fails.
       allowHeaders: ["content-type", "x-delivery-token", "x-view-code"],
@@ -518,6 +531,9 @@ export function createApp({
       // build does not read; "none" says it passed none at all.
       commit: commit.sha,
       commitFrom: commit.from,
+      // Which pull request's preview this is, or null in production: what the web app of the same
+      // preview is being answered for.
+      preview,
       index: chain.indexStatus(),
       config: configReport(),
     })

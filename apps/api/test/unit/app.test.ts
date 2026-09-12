@@ -4938,3 +4938,38 @@ describe("an employer's invitation to be read against their policy", () => {
     expect((await a.request("/v1/invite/00000000000000000000000000000000")).status).toBe(404);
   });
 });
+
+describe("a preview deployment", () => {
+  /*
+   * Coolify serves a pull request's preview at `{{pr_id}}.{{domain}}`, for the API and the web app
+   * alike. The origins configured are production's; the preview web app has to be answered too, and
+   * `/healthz` has to say which preview this is.
+   */
+  it("allows the configured origins with the preview id in front, and says which preview it is", async () => {
+    const { chain } = fakeChain();
+    const a = app(chain, {
+      ...baseEnv,
+      CORS_ORIGINS: "https://ketsuban.peeramid.xyz",
+      COOLIFY_FQDN: "1.ketsuban-api.peeramid.xyz",
+    });
+    const preview = await a.request("/healthz", { headers: { origin: "https://1.ketsuban.peeramid.xyz" } });
+    expect(preview.headers.get("access-control-allow-origin")).toBe("https://1.ketsuban.peeramid.xyz");
+    expect((await preview.json()).preview).toBe("1");
+    const production = await a.request("/healthz", { headers: { origin: "https://ketsuban.peeramid.xyz" } });
+    expect(production.headers.get("access-control-allow-origin")).toBe("https://ketsuban.peeramid.xyz");
+    const other = await a.request("/healthz", { headers: { origin: "https://2.ketsuban.peeramid.xyz" } });
+    expect(other.headers.get("access-control-allow-origin")).toBeNull();
+  });
+
+  it("is no preview in production, and the origins are exactly what was configured", async () => {
+    const { chain } = fakeChain();
+    const a = app(chain, {
+      ...baseEnv,
+      CORS_ORIGINS: "https://ketsuban.peeramid.xyz",
+      COOLIFY_FQDN: "ketsuban-api.peeramid.xyz",
+    });
+    const res = await a.request("/healthz", { headers: { origin: "https://1.ketsuban.peeramid.xyz" } });
+    expect(res.headers.get("access-control-allow-origin")).toBeNull();
+    expect((await res.json()).preview).toBeNull();
+  });
+});

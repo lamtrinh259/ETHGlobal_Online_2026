@@ -179,6 +179,13 @@ export const configSchema = z.object({
     .regex(/^\d+$/)
     .default("0")
     .transform((s) => BigInt(s)),
+  /**
+   * The host this container is served at, as Coolify tells it. A preview lives at
+   * `{{pr_id}}.{{domain}}`, and the web app of the same pull request lives under the same id — so
+   * every configured browser origin is also allowed with that id in front of it.
+   */
+  COOLIFY_FQDN: z.string().optional(),
+  COOLIFY_URL: z.string().optional(),
   /** Comma-separated browser origins allowed to call the API; "*" allows any (default) */
   CORS_ORIGINS: z
     .string()
