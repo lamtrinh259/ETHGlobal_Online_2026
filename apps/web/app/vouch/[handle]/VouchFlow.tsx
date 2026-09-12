@@ -568,15 +568,23 @@ export function VouchFlow({
         >
           ← Back
         </button>
-        <button
-          type="button"
-          className="primary"
-          onClick={() => setChosen(steps[Math.min(steps.length - 1, current + 1)]!.id)}
-          disabled={current === steps.length - 1}
-          data-testid="step-next"
-        >
-          Next →
-        </button>
+        {current === steps.length - 1 ? (
+          // The rail ends here: a grey Next reads as stuck, so the last step offers where to go.
+          published ? (
+            <Link href={`/p/${candidate}`} className="button primary" data-testid="done-cta">
+              See it on {candidate}&apos;s page →
+            </Link>
+          ) : null
+        ) : (
+          <button
+            type="button"
+            className="primary"
+            onClick={() => setChosen(steps[Math.min(steps.length - 1, current + 1)]!.id)}
+            data-testid="step-next"
+          >
+            Next →
+          </button>
+        )}
       </p>
     </section>
   );

@@ -104,8 +104,7 @@ export function OpenToCandidate({
       <h3>Let {candidate} see who wrote this</h3>
       {done ? (
         <p data-testid="opened">
-          {candidate} can now read <strong>{done.join(", ")}</strong>. Nobody else can: the permission names
-          them. You can take it back from your own page at any time, and taking it back is visible.
+          {candidate} can now read <strong>{done.join(", ")}</strong>; nobody else. Revocable from your page.
         </p>
       ) : (
         <>

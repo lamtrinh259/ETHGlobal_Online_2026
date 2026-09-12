@@ -229,6 +229,15 @@ describe("the letter written with the reference", () => {
   });
 });
 
+describe("the end of the rail", () => {
+  it("offers the candidate's page where Next would sit, once the reference is published", async () => {
+    await publishWith();
+    await waitFor(() => expect(screen.getByTestId("vouch-done")).toBeInTheDocument());
+    expect(screen.queryByTestId("step-next")).toBeNull();
+    expect(screen.getByTestId("done-cta")).toHaveAttribute("href", "/p/alice");
+  });
+});
+
 describe("the letter goes with the record", () => {
   beforeEach(() => {
     state.resolver = "0x4E2d9783cEFF2ed72CD77C14206b29fe246b24F7";
