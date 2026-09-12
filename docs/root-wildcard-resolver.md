@@ -128,6 +128,51 @@ resolver → docker e2e green → Sepolia steps 1–3 with `check:live` between 
 spike is the risky half and it is done.
 
 
+## State on Sepolia (2026-09-12)
+
+Steps 1–4 are done; `check:live` was green (23/23) after every unmount.
+
+| What | Address |
+| --- | --- |
+| `RootAttestationResolver` (`wildcardResolver`) | `0x6acc74E4931436c18E00302465f70A27599125FD`, serving the ETH label `ketsuban` |
+| `AttestationBridge` (new) | `0x9607Ec6f14A3cB7128B1e7EC0C8e8CFBa1643F61` |
+| `AttestationReporter` (new) | `0x7A84212487DEa31a7E2068D81E2ffCAe70104e0a` |
+| old root instance resolver (for `unpoint`) | `0x178ff1589Be8Af3B19426Aa1d2Bd07cd178E215e` |
+
+Unmounted from the root registry, each with the registry `remount` needs:
+
+| Label | Registry that was mounted |
+| --- | --- |
+| `www` | `0x1bBbc2e910d142954A4C2dc471E49598f01bEaC4` |
+| `private-www` | `0x4DA67Ba6aE395671E16293a21c8f059630d34663` |
+| `@` | `0x0A4608ABEaB5cF9A14382553Be42bC16bee91A89` |
+| `private@` | `0xA857DCe5a130bb6DF91210CA059d3240F3AD8043` |
+| `kju-is` | `0xac5534C6bAA24742BDccDe125C8477B8ca1aa876` |
+| `alice` | `0x88AAC0f69f279264FA2B6B127CB40Ec02524941A` |
+| `peersky` | `0x4Cf95D629D00F47E296F5271f8C245B01ec78270` |
+| `test-account-123456` | `0xA8ADD2CEa6c0Ba08284272a2F2423f71f3862440` |
+| `tims-friend-test` | `0xC5c9e3A06953D080570A6395CF6382184fa4Eb77` |
+
+Still mounted, on purpose: the legacy per-platform instances `x`, `telegram`, `discord`, `github`,
+`google`, `linkedin`, `email` (`<handle>.x.ketsuban.eth` naming, superseded by `www`/`@`). The root
+resolver has no rule for them, so unmounting would stop those names resolving.
+
+Open, each one action:
+
+1. **Resolver roles for the new bridge.** The stock resolver's admin is `0x6Cf8d74C7875de8C2FfB09228F4bf2A21b25e583`
+   (the key that ran `DeploySepolia`), not the operator, which holds no root roles there. Until it sends
+   the grant, the bridge registers names but cannot give a new name its four profile keys:
+   ```bash
+   cast send 0x4E2d9783cEFF2ed72CD77C14206b29fe246b24F7 'grantRootRoles(uint256,address)' \
+     5444517870735015415413993718908559818752 0x9607Ec6f14A3cB7128B1e7EC0C8e8CFBa1643F61 --rpc-url $RPC --private-key <0x6Cf8… key>
+   ```
+2. **Coolify env.** The API takes `BRIDGE` from its environment, which still names the old bridge; set
+   `BRIDGE=0x9607Ec6f14A3cB7128B1e7EC0C8e8CFBa1643F61` there. `ROOT_RESOLVER` needs nothing: it comes
+   from the bundled deployment file since the image started shipping it.
+3. **CRE workflow.** `packages/cre/attest/config.*.json` name the new reporter; `cre workflow deploy`
+   (staging, then production) moves the write path onto it. The old reporter keeps writing through the
+   old bridge until then, which still registers names.
+
 ## Runbook (Sepolia) — `packages/contracts/script/MigrateRoot.s.sol`
 
 Every step is one owner transaction; every step has its rollback; `check:live` between steps resolves
