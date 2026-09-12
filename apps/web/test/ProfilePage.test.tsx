@@ -20,7 +20,9 @@ const empty: ProfileRead = {
 };
 
 vi.mock("@privy-io/react-auth", () => ({
-  useIdentityToken: () => ({ identityToken: null }), useWallets: () => ({ wallets: [] }) }));
+  useIdentityToken: () => ({ identityToken: null }),
+  useWallets: () => ({ wallets: [] }),
+}));
 vi.mock("@/app/providers", () => ({
   useWebConfig: () => ({ apiUrl: "http://api.test", attestUrl: "http://api.test/v1/attest" }),
 }));
