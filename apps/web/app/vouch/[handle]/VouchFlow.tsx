@@ -425,6 +425,7 @@ export function VouchFlow({
           rootParent={root.parentName}
           voucherName={`${handle}.${root.parentName}`}
           links={dash.data?.links ?? []}
+          required={askedFor.map((d) => parseRequirement(d).domain)}
         />
       )}
 

@@ -92,6 +92,45 @@ describe("opening a masked account to the person you referred", () => {
   });
 });
 
+describe("what the invitation asked for", () => {
+  beforeEach(() => {
+    (api.disclose as ReturnType<typeof vi.fn>).mockClear();
+  });
+
+  it("opens the account the candidate asked for on its own, with no way to leave it closed", async () => {
+    render(
+      <OpenToCandidate
+        api={api}
+        candidate="alice"
+        rootParent="ketsuban.eth"
+        voucherName="lam.ketsuban.eth"
+        links={[link("github.com", true)]}
+        required={["github.com"]}
+      />
+    );
+    await waitFor(() => expect(api.disclose).toHaveBeenCalled());
+    const wire = (api.disclose as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(wire.domains).toEqual(["github.com"]);
+    expect(screen.queryByText(/leave it closed/)).toBeNull();
+  });
+
+  it("still lets the writer choose about an account nobody asked for", () => {
+    render(
+      <OpenToCandidate
+        api={api}
+        candidate="alice"
+        rootParent="ketsuban.eth"
+        voucherName="lam.ketsuban.eth"
+        links={[link("github.com", true)]}
+        required={["x.com"]}
+      />
+    );
+    expect(api.disclose).not.toHaveBeenCalled();
+    expect(screen.getByText(/leave it closed/)).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: /github\.com/ })).toBeInTheDocument();
+  });
+});
+
 describe("what can be opened at all", () => {
   /*
    * A humanity proof is a record in a domain with no dot, masked like a private account, and it was
