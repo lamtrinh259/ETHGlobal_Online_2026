@@ -140,8 +140,18 @@ reference is unclaimed rather than pretending its writer has no history.
    it a reference the candidate asked for; without one it is written all the same and marked
    unsolicited. `?ask=<id>` opens it on one of the references people are commonly asked for.
 3. `/p/<handle>` — the reference page, graded against the verifier's own policy, with the raw names to
-   resolve independently.
-4. `/w/<address>` — the same from an address rather than a handle.
+   resolve independently. Each reference received carries how it reads — supportive, neutral or
+   critical, the council's provisional reading of the words — and a switch sets the unsolicited ones
+   aside, counted. Below the list: the shape behind the count (who stands behind them, whether those
+   people know each other, the trust that reached them) and what the references say, summed into one
+   line, every reading behind a fold. The bar can cap how many read as critical (`maxCritical`).
+4. `/w/<address>` — the same from an address rather than a handle, including what the wallet wrote
+   about others: references about people and answers about subjects.
+5. `/employers` — a bar (found by typing its name), a shortlist, and where each of them stands, with
+   how their references read in the row. Somebody known only by an account nobody holds a name for —
+   or somebody already on the list — is invited: signed by the employer, kept by the attester under a
+   code, worded for the person, and listed under "Whom you invited" as a pending check until they
+   have a page. The link lands on `/me?invite=<code>`, which says who is asking and where to begin.
 
 The humanity badge on `/me` is World ID: the relay signs the proof request, World App produces the
 proof, and the record lands in the `humanity` domain keyed by the nullifier — so a second wallet cannot
