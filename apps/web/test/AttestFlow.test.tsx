@@ -19,8 +19,12 @@ vi.mock("@privy-io/react-auth", () => ({
   useWallets: () => ({ wallets }),
   useIdentityToken: () => ({ identityToken: "token" }),
   useSignTypedData: () => ({ signTypedData: vi.fn(async () => ({ signature: "0xsig" })) }),
-  useLinkAccount: (opts?: { onSuccess?: (r: { linkMethod: string }) => void }) => {
+  useLinkAccount: (opts?: {
+    onSuccess?: (r: { linkMethod: string }) => void;
+    onError?: (error: string, details: { linkMethod?: string }) => void;
+  }) => {
     linking.onSuccess = opts?.onSuccess;
+    linking.onError = opts?.onError;
     return {
       linkTwitter: vi.fn(),
       linkTelegram: vi.fn(),
@@ -32,6 +36,7 @@ vi.mock("@privy-io/react-auth", () => ({
 }));
 const linking = {
   onSuccess: undefined as undefined | ((r: { linkMethod: string }) => void),
+  onError: undefined as undefined | ((error: string, details: { linkMethod?: string }) => void),
   linkGithub: vi.fn(),
 };
 
@@ -305,5 +310,15 @@ describe("a record needs the account it attests", () => {
     render(<AttestFlow fixedDomain="t.me" allowLinking />);
     expect(screen.queryByTestId("blocked")).toBeNull();
     expect(screen.getByRole("button", { name: /Sign & publish/ })).not.toBeDisabled();
+  });
+});
+
+describe("a link that fails says so", () => {
+  it("names the platform and the reason under the buttons", async () => {
+    render(<AttestFlow fixedDomain="t.me" allowLinking />);
+    act(() => linking.onError?.("telegram_not_enabled", { linkMethod: "telegram" }));
+    const err = screen.getByTestId("link-error").textContent ?? "";
+    expect(err).toContain("Linking Telegram failed: telegram_not_enabled");
+    expect(err).toContain("Privy app");
   });
 });

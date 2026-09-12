@@ -97,10 +97,18 @@ export function AttestFlow({
   const { signTypedData } = useSignTypedData();
   // Linking an account is choosing it: the record's domain follows the platform that was just linked,
   // so nobody links GitHub and then publishes into a domain they never picked.
+  // A link that fails used to fail in the console only; the button looked dead. The reason is said
+  // under the buttons, since the usual one is a platform the Privy app has not been set up for.
+  const [linkError, setLinkError] = useState<string>();
   const { linkTwitter, linkTelegram, linkGithub, linkDiscord, linkGoogle } = useLinkAccount({
     onSuccess: ({ linkMethod }) => {
+      setLinkError(undefined);
       const chosen = platformDomain(LINK_METHOD_PLATFORM[linkMethod] ?? linkMethod);
       if (chosen) setDomain(chosen);
+    },
+    onError: (error, details) => {
+      const method = details?.linkMethod ? (PLATFORM_LABELS[LINK_METHOD_PLATFORM[details.linkMethod] ?? details.linkMethod] ?? details.linkMethod) : "the account";
+      setLinkError(`Linking ${method} failed: ${String(error)}. If nothing opened, that platform is not enabled on this deployment's Privy app.`);
     },
   });
   const api = useMemo(() => apiFor(config), [config]);
@@ -337,6 +345,11 @@ export function AttestFlow({
               );
             })}
           </div>
+          {linkError && (
+            <p className="warning" data-testid="link-error">
+              {linkError}
+            </p>
+          )}
         </fieldset>
       )}
 
