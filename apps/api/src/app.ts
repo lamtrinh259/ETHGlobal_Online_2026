@@ -295,7 +295,7 @@ export function createApp({
       origin: origins.includes("*") ? "*" : origins,
       // `x-view-code` carries a secret that must not be in a URL, so the browser has to be
       // allowed to send it: without this the preflight refuses and every masked read fails.
-      allowHeaders: ["content-type", "x-delivery-token", "x-view-code"],
+      allowHeaders: ["content-type", "x-delivery-token", "x-view-code", "x-admin-token"],
       allowMethods: ["GET", "POST", "OPTIONS"],
     })
   );

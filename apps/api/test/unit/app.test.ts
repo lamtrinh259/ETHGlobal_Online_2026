@@ -4189,6 +4189,20 @@ describe("the humanity check", () => {
     const adminEnv = { ...worldEnv, ADMIN_TOKEN: "admin-token-0123456789abcdef" };
     const headers = { "x-admin-token": "admin-token-0123456789abcdef" };
 
+    it("lets the browser send the admin token across origins", async () => {
+      // The page lives on another origin: without the header in the preflight, every admin call is
+      // refused by the browser before it is even made, and the token field looks broken.
+      const res = await humanApp(fakeChain().chain, portal(), adminEnv).request("/v1/admin/selfie-check", {
+        method: "OPTIONS",
+        headers: {
+          origin: "https://ketsuban.peeramid.xyz",
+          "access-control-request-method": "GET",
+          "access-control-request-headers": "x-admin-token",
+        },
+      });
+      expect(res.headers.get("access-control-allow-headers")?.toLowerCase()).toContain("x-admin-token");
+    });
+
     it("is disabled without a token, and refuses the wrong one", async () => {
       const { chain } = fakeChain();
       expect((await humanApp(chain, portal()).request("/v1/admin/humanity?wallet=" + wallet)).status).toBe(
