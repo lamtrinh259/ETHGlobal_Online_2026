@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { EnsProof } from "@/app/EnsProof";
 import { ReferenceMap } from "@/app/ReferenceMap";
+import { SubjectPage } from "@/app/SubjectPage";
 import { ProfileCard } from "@/app/ProfileCard";
 import { Revealed } from "@/app/Revealed";
 import { Unmasked } from "@/app/Unmasked";
@@ -29,6 +30,18 @@ type Params = {
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { handle } = await params;
   const config = loadWebConfig();
+  const subject = config.instances
+    .slice(1)
+    .find((i) => i.domain === decodeURIComponent(handle).toLowerCase());
+  if (subject) {
+    const about = await createApi(config.apiUrl, config.attestUrl)
+      .instance(subject.domain, { signal: flourish() })
+      .catch(() => null);
+    return socialCard(
+      about?.records?.name ?? subject.parentName,
+      about?.description ?? "A subject anyone can answer under."
+    );
+  }
   /*
    * What stands behind them, in the card itself.
    *
@@ -63,6 +76,16 @@ export default async function ProfilePage({ params, searchParams }: Params) {
       </section>
     );
   }
+
+  /*
+   * A subject, not a person.
+   *
+   * `kju-is` is one label under the root, the shape of a person's name, and read as one it was a
+   * record that does not exist. A reader typing it means the subject — the page with its description,
+   * its picture and every answer under it — which is the same page `/v/<subject>.<root>` renders.
+   */
+  const subject = subjects.find((i) => i.domain === handle);
+  if (subject) return <SubjectPage instance={subject} config={config} />;
 
   const names = profileNames(handle, config);
   let error: string | undefined;

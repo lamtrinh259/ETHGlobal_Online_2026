@@ -40,6 +40,14 @@ describe(`what ${WEB} serves`, () => {
     expect(html).toContain("answer-cta");
   });
 
+  it("renders the same subject page by its label", async () => {
+    // `/p/<subject>` was a "not here" stub; the subject is what a reader typing it means.
+    const html = await get(`/p/${SUBJECT}`);
+    expect(html).toContain("instance-answers");
+    expect(html).toContain("answer-cta");
+    expect(html).not.toContain("mount-name");
+  });
+
   it("serves the employer's page and the trust page, with what was added to each", async () => {
     // A deploy can be green and still serve a page whose newest section quietly vanished.
     expect(await get("/employers")).toContain('data-testid="employer-policy-pick"');

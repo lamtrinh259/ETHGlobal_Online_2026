@@ -346,3 +346,19 @@ test("a person's page says the sybil signal in one line under the name", async (
   await line.getByRole("link", { name: /details/ }).click();
   await expect(page).toHaveURL(/#who-stands-behind$/);
 });
+
+/**
+ * A subject by its label.
+ *
+ * `/p/kju-is` used to be a "not here" stub, because the label is the shape of a person's name. It is
+ * the subject's page — who it is about, the picture, the answers — the same one `/v/kju-is.<root>`
+ * renders, from the same records.
+ */
+test("a subject's label opens the subject's page, not an empty person", async ({ page }) => {
+  await page.goto("/p/kju-is");
+  await expect(page.getByTestId("instance-answers")).toContainText("Lazarus Group");
+  await expect(page.getByTestId("profile-head")).toContainText("Kim Jong Un");
+  await expect(page.getByTestId("answer-alice")).toContainText("a terrible dictator");
+  await expect(page.getByTestId("answer-cta").getByRole("link")).toHaveAttribute("href", "/me#refer");
+  await expect(page.getByTestId("mount-name")).toHaveCount(0);
+});
