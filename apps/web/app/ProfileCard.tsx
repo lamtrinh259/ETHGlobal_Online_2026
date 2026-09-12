@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Policy, Profile } from "@/lib/profile";
 import { questionTitle } from "@/lib/questions";
+import { PolicyCheck } from "./PolicyCheck";
 import { ProfileHead } from "./ProfileHead";
 import { ReferenceTabs } from "./ReferenceTabs";
 import { ScoreRing } from "./me/ScoreRing";
@@ -13,6 +14,7 @@ export function ProfileCard({
   p,
   rootParent,
   policy,
+  subjectDomains = [],
   heldOnce = false,
   standing,
 }: {
@@ -20,6 +22,8 @@ export function ProfileCard({
   rootParent: string;
   /** The bar the reader asked for; absent means nobody asked, so nothing is graded */
   policy?: Policy;
+  /** The questions this deployment asks, which is what a policy may require an answer to */
+  subjectDomains?: string[];
   /** Their record as a writer, for the tab that lists what they said */
   standing?: { given: number; withdrawn: number };
   /**
@@ -47,6 +51,9 @@ export function ProfileCard({
       >
         {/* The sybil signal, one line, where a reader looks first; the cards below carry the rest. */}
         <SybilLine handle={p.handle} />
+        {/* The one thing a verifier came here to do, where they arrive rather than half a page down,
+            and beside the word it produces. */}
+        <PolicyCheck handle={p.handle} subjectDomains={subjectDomains} applied={policy} />
         <p className="row">
           {/* A word passing judgement on somebody, for a bar they were never told about, is not a
               reading of their records. It belongs to the reader who set the bar, and only then. */}

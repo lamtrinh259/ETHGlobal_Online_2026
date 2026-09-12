@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import type { Reading, Verification } from "@/lib/api";
 import { apiFor, useReadings } from "@/lib/hooks";
 import { useWebConfig } from "@/app/providers";
+import { signed } from "@/app/LeanChip";
 import { Switch } from "@/app/Switch";
 import { ReferencesGiven } from "./ReferencesGiven";
 import { VouchList } from "./VouchList";
@@ -16,10 +17,52 @@ import { VouchList } from "./VouchList";
  * both made the page long enough that the second was rarely reached. Received is first because it is
  * what a reader came for; given is how that reader judges the people speaking.
  *
- * Each entry carries how it reads — the fast council's provisional polarity, three kinds — beside the
- * words, and the received list can be narrowed to what the person asked for. Both are the reader's
- * tools, not verdicts: the words stay, and unsolicited stays a fact about how a reference arrived.
+ * How the statements read is here too, rather than in a card of its own further down: the sum at the
+ * top of the list, the council's reading beside each statement and its reason under it. Said twice it
+ * was the same list read twice, and the second copy was the one a reader had to scroll to. It is a
+ * reading of text, not a judgement of a person, and the line at the bottom says so.
  */
+function Summary({
+  s,
+  side,
+}: {
+  s: { of: number; read: number; mean: number | null; supportive: number; critical: number };
+  side: "received" | "given";
+}) {
+  const unread = s.of - s.read;
+  return (
+    <p data-testid={`readings-${side}`}>
+      <strong>{s.supportive}</strong> of {s.read} read as supportive · <strong>{s.critical}</strong> critical
+      {s.mean !== null && (
+        <>
+          {" "}
+          · mean <strong>{signed(s.mean)}</strong>
+        </>
+      )}
+      {unread > 0 && <span className="muted"> · {unread} unread</span>}
+    </p>
+  );
+}
+
+/** Provisional, and by which council: a number beside somebody's name has to say where it came from. */
+function Provisional({ model }: { model: string | null }) {
+  return (
+    <p className="muted">
+      <small>provisional — how {model} read each statement, superseded when peers have judged</small>
+    </p>
+  );
+}
+
+/** Nothing read them, so nothing here pretends to have. */
+function NoCouncil({ side }: { side: "received" | "given" }) {
+  return (
+    <p className="muted" data-testid="readings-no-council">
+      Shown as written: no council reads statements on this deployment, so {side} references carry the words
+      and nothing else.
+    </p>
+  );
+}
+
 export function ReferenceTabs({
   handle,
   vouches,
@@ -53,6 +96,7 @@ export function ReferenceTabs({
       >,
     };
   }, [readings.data]);
+  const r = readings.data;
   const unsolicited = vouches.filter((v) => !v.solicited).length;
   const shown = onlyAsked ? vouches.filter((v) => v.solicited) : vouches;
 
@@ -81,6 +125,14 @@ export function ReferenceTabs({
 
       {tab === "received" ? (
         <div role="tabpanel" aria-label="references received">
+          {/* The sum of the readings the rows below carry: what a reader gets in the time they have. */}
+          {r && vouches.length > 0 && !r.council && <NoCouncil side="received" />}
+          {r && r.council && r.received.length > 0 && (
+            <>
+              <Summary s={r.summary.received} side="received" />
+              <Provisional model={r.model} />
+            </>
+          )}
           {/* Narrowing to what they asked for is the reader's choice, made in the open: the count says
               how many are set aside, and the ones set aside are still one switch away. */}
           {unsolicited > 0 && (
@@ -101,6 +153,13 @@ export function ReferenceTabs({
               Refer this person
             </Link>
           </p>
+          {r?.council && (
+            <p className="muted readings-caveat">
+              A reading is how a council of models read thirty-one bytes of text, not a judgement of a person.
+              The words are the record; the reading is a way in.{" "}
+              <Link href="/trust">How statements are read →</Link>
+            </p>
+          )}
         </div>
       ) : (
         <div role="tabpanel" aria-label="references given">
@@ -115,6 +174,13 @@ export function ReferenceTabs({
               {standing.given} standing
               {standing.withdrawn > 0 ? ` · ${standing.withdrawn} taken back` : " · none taken back"}
             </p>
+          )}
+          {r && given.length > 0 && !r.council && <NoCouncil side="given" />}
+          {r && r.council && r.given.length > 0 && (
+            <>
+              <Summary s={r.summary.given} side="given" />
+              <Provisional model={r.model} />
+            </>
           )}
           {given.length ? (
             <ReferencesGiven references={given} readings={gave} />

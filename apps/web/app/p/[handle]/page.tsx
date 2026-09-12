@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { EnsProof } from "@/app/EnsProof";
-import { PolicyBar } from "@/app/PolicyBar";
 import { ReferenceMap } from "@/app/ReferenceMap";
-import { Readings } from "@/app/Readings";
 import { ProfileCard } from "@/app/ProfileCard";
 import { Revealed } from "@/app/Revealed";
 import { Unmasked } from "@/app/Unmasked";
@@ -131,7 +129,7 @@ export default async function ProfilePage({ params, searchParams }: Params) {
   const asked = policyAsked(q);
   const ens = await api.ens(names[0], undefined, { signal: flourish() }).catch(() => null);
   const vouches = read?.vouches ?? [];
-  // Only where the bar asks how the references read; the card below reads them for everyone else.
+  // Only where the bar asks how the references read; the tabs read them for everyone else.
   const readings =
     policy.maxCritical !== undefined
       ? await api
@@ -148,17 +146,14 @@ export default async function ProfilePage({ params, searchParams }: Params) {
         p={profile}
         rootParent={root.parentName}
         policy={asked ? policy : undefined}
+        subjectDomains={subjectDomains}
         heldOnce={read?.standing.taken ?? false}
         standing={read ? { given: read.standing.given, withdrawn: read.standing.withdrawn } : undefined}
       />
 
-      {/* The shape behind the count: who stands behind them, and whether those people know each other. */}
+      {/* The shape behind the count: who stands behind them, and whether those people know each other.
+          How the references read is in the list itself, beside the words it was read from. */}
       <ReferenceMap handle={handle} />
-      {/* What the references say, summed into a line, with every reading behind a fold. */}
-      <Readings handle={handle} />
-
-      {/* Where a reader asks for a verdict, and the only place one comes from. */}
-      <PolicyBar handle={handle} subjectDomains={subjectDomains} applied={asked ? policy : undefined} />
 
       {/* One link can open several accounts: the grant was one signature over the whole selection.
           Followed here rather than at `/v/`, which now sends a person's name to this page. */}

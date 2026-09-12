@@ -32,75 +32,85 @@ export function VouchList({
       ) : (
         <>
           <ul className="vouches" data-testid="vouches">
-            {vouches.map((v) => (
-              <li
-                key={`${v.voucher}-${v.nonce}`}
-                className={v.live ? "live" : "expired"}
-                data-testid={`vouch-${v.voucher}`}
-              >
-                <span className="vouch-who">
-                  <Link href={`/p/${v.voucher}`}>
-                    <code>{v.voucherName ?? v.voucher}</code>
-                  </Link>
-                  {/* Anyone may refer anyone; a reader is owed the difference between a reference the
+            {vouches.map((v) => {
+              // Why it was read that way, beside the words it was read from: a badge nobody can check
+              // is a verdict, and the reason is the only part of a reading a reader can argue with.
+              const why = readings?.[v.voucher]?.rationale;
+              return (
+                <li
+                  key={`${v.voucher}-${v.nonce}`}
+                  className={v.live ? "live" : "expired"}
+                  data-testid={`vouch-${v.voucher}`}
+                >
+                  <span className="vouch-who">
+                    <Link href={`/p/${v.voucher}`}>
+                      <code>{v.voucherName ?? v.voucher}</code>
+                    </Link>
+                    {/* Anyone may refer anyone; a reader is owed the difference between a reference the
                     subject asked for and one that simply arrived. */}
-                  {!v.solicited && (
-                    <span
-                      className="badge badge-unsolicited"
-                      title="no invitation from the subject came with this one"
-                    >
-                      unsolicited
+                    {!v.solicited && (
+                      <span
+                        className="badge badge-unsolicited"
+                        title="no invitation from the subject came with this one"
+                      >
+                        unsolicited
+                      </span>
+                    )}
+                    {v.standing && (
+                      <small className="muted" data-testid="standing">
+                        {" "}
+                        · {v.standing.claimed ? "" : "unclaimed · "}gave {v.standing.given} · received{" "}
+                        {v.standing.received}
+                      </small>
+                    )}
+                  </span>
+                  {v.statement === WITHDRAWN ? (
+                    <span className="vouch-what vouch-withdrawn" data-testid="withdrawn">
+                      withdrawn by the voucher
+                    </span>
+                  ) : (
+                    <span className="vouch-what">
+                      “{v.statement}” <LeanChip reading={readings?.[v.voucher]} id={`vouch-${v.voucher}`} />
                     </span>
                   )}
-                  {v.standing && (
-                    <small className="muted" data-testid="standing">
-                      {" "}
-                      · {v.standing.claimed ? "" : "unclaimed · "}gave {v.standing.given} · received{" "}
-                      {v.standing.received}
+                  {why && (
+                    <small className="muted" data-testid={`why-${v.voucher}`}>
+                      {why}
                     </small>
                   )}
-                </span>
-                {v.statement === WITHDRAWN ? (
-                  <span className="vouch-what vouch-withdrawn" data-testid="withdrawn">
-                    withdrawn by the voucher
-                  </span>
-                ) : (
-                  <span className="vouch-what">
-                    “{v.statement}” <LeanChip reading={readings?.[v.voucher]} id={`vouch-${v.voucher}`} />
-                  </span>
-                )}
-                {v.letter && (
-                  <span className="vouch-letter" data-testid="vouch-letter">
-                    {v.letter}
-                  </span>
-                )}
-                {/* A letter too long for a record is kept off chain and named on chain by its hash. The
-                  hash is the reason to believe the text; without it there is nothing to check. */}
-                {v.letterHash && v.letter && (
-                  <small className="muted" data-testid={`letter-hash-${v.voucher}`}>
-                    letter checks against <code>sha256:{v.letterHash.slice(0, 12)}…</code> on the record
-                  </small>
-                )}
-                {v.letterHash && !v.letter && (
-                  <small className="warning" data-testid={`letter-gone-${v.voucher}`}>
-                    a letter was written and cannot be shown: the record names{" "}
-                    <code>sha256:{v.letterHash.slice(0, 12)}…</code>, but nobody holds a copy any more
-                  </small>
-                )}
-                <span className="vouch-meta muted">
-                  {v.live ? "live" : "expired"} · until {fmtUtc(v.validUntil)}
-                  {/* The reference is a name of its own: read it anywhere, not only here. */}
-                  {v.ensName && (
-                    <>
-                      {" · "}
-                      <Link href={`/v/${v.ensName}`}>
-                        <code>{v.ensName}</code>
-                      </Link>
-                    </>
+                  {v.letter && (
+                    <span className="vouch-letter" data-testid="vouch-letter">
+                      {v.letter}
+                    </span>
                   )}
-                </span>
-              </li>
-            ))}
+                  {/* A letter too long for a record is kept off chain and named on chain by its hash. The
+                  hash is the reason to believe the text; without it there is nothing to check. */}
+                  {v.letterHash && v.letter && (
+                    <small className="muted" data-testid={`letter-hash-${v.voucher}`}>
+                      letter checks against <code>sha256:{v.letterHash.slice(0, 12)}…</code> on the record
+                    </small>
+                  )}
+                  {v.letterHash && !v.letter && (
+                    <small className="warning" data-testid={`letter-gone-${v.voucher}`}>
+                      a letter was written and cannot be shown: the record names{" "}
+                      <code>sha256:{v.letterHash.slice(0, 12)}…</code>, but nobody holds a copy any more
+                    </small>
+                  )}
+                  <span className="vouch-meta muted">
+                    {v.live ? "live" : "expired"} · until {fmtUtc(v.validUntil)}
+                    {/* The reference is a name of its own: read it anywhere, not only here. */}
+                    {v.ensName && (
+                      <>
+                        {" · "}
+                        <Link href={`/v/${v.ensName}`}>
+                          <code>{v.ensName}</code>
+                        </Link>
+                      </>
+                    )}
+                  </span>
+                </li>
+              );
+            })}
           </ul>
           {/*
             Said in the page rather than in a tooltip, which a phone has no way to show.

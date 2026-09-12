@@ -15,6 +15,8 @@ vi.mock("@/lib/hooks", async (orig) => {
     useGraph: () => ({ data: undefined, isPending: true, isError: false }),
   };
 });
+// The card carries the policy question now, and answering it pushes the bar into the URL.
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 import { ProfileCard } from "@/app/ProfileCard";
 import type { Profile } from "@/lib/profile";
 

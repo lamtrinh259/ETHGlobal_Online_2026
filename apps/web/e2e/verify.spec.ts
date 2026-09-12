@@ -42,6 +42,7 @@ test("presets fill the policy and encode it into the candidate's URL", async ({ 
   // The policy is about somebody, so it is asked on their page and folded away until wanted.
   await page.goto("/p/alice");
   await expect(page.getByTestId("presets")).toBeHidden();
+  await page.getByTestId("policy-open").click();
   await page.getByTestId("policy-build").click();
   await page.getByTestId("preset-dao").click();
   await expect(page.getByTestId("policy-summary")).toHaveText(/≥2 live references · humanity attested/);
@@ -136,6 +137,8 @@ test("a person's page states their records, and grades them only when asked", as
   await expect(page.getByTestId("completeness")).toHaveCount(0);
   await expect(page.getByTestId("score")).toBeVisible();
 
+  // The bar is chosen in a dialog, opened from the top of the page rather than found at the bottom.
+  await page.getByTestId("policy-open").click();
   await page.getByTestId("policy-pick").fill("Hiring");
   await page.getByTestId("policy-apply").click();
   await expect(page).toHaveURL(/preset=hiring/);
@@ -150,6 +153,7 @@ test("a person's page states their records, and grades them only when asked", as
 
 test("a policy nobody has heard of applies nothing", async ({ page }) => {
   await page.goto("/p/alice");
+  await page.getByTestId("policy-open").click();
   await page.getByTestId("policy-pick").fill("whatever");
   await expect(page.getByTestId("policy-apply")).toBeDisabled();
 });
@@ -233,6 +237,7 @@ test("a person's page draws who stands behind them, and says what shape it is", 
   // One line first, which is what a reader gets in the time they have.
   await expect(map.getByTestId("shape-summary")).toContainText("2 people stand behind them");
   await expect(map.getByTestId("shape-summary")).toContainText("1 of those know each other");
+  await expect(map.getByTestId("shape-summary")).toContainText("SybilScore 35");
   await expect(map.getByTestId("shape-summary")).toContainText("trust 0.188");
   // The picture waits behind a fold.
   await expect(map.getByTestId("node-alice")).toBeHidden();
@@ -245,28 +250,30 @@ test("a person's page draws who stands behind them, and says what shape it is", 
 });
 
 /**
- * What the references say.
+ * What the references say, in the list it says it about.
  *
- * One line a reader can take in, every reading behind a fold, each marked provisional and by which
- * council — and the words beside every reading, because the words are the record.
+ * The sum, the words, the reading and the reason for it were a card of their own below the references:
+ * the same list rendered twice, and the copy a reader had to scroll to was the one carrying the
+ * readings. One list now — the sum at the top, each reading and its reason beside the words.
  */
-test("a person's page sums up how their references read, and keeps each reading behind a fold", async ({
-  page,
-}) => {
+test("the received tab sums how the references read, and says why under each one", async ({ page }) => {
   await page.goto("/p/alice");
-  const card = page.getByTestId("readings");
-  await expect(card).toBeVisible();
-  await expect(card.getByTestId("readings-received")).toContainText("1 of 2 read as supportive");
-  await expect(card.getByTestId("readings-received")).toContainText("1 critical");
-  await expect(card).toContainText("provisional");
-  await expect(card.getByTestId("lean-carol")).toBeHidden();
-  await card.getByText("Show each reading").click();
-  await expect(card.getByTestId("lean-bob")).toContainText("+0.90 supportive");
-  await expect(card.getByTestId("lean-carol")).toContainText("-0.80 critical");
-  await expect(card.getByTestId("reading-carol")).toContainText("do not lend them money");
-  // What they wrote about others, read the same way.
-  await expect(card.getByTestId("readings-given")).toContainText("1 of 1 read as supportive");
-  await expect(card).toContainText("not a judgement of a person");
+  // No second card saying it again.
+  await expect(page.getByTestId("readings")).toHaveCount(0);
+
+  const received = page.getByLabel("references received");
+  await expect(received.getByTestId("readings-received")).toContainText("1 of 2 read as supportive");
+  await expect(received.getByTestId("readings-received")).toContainText("1 critical");
+  await expect(received).toContainText("provisional");
+  // The reading, and the reason for it, under the words it was read from — nothing to unfold.
+  await expect(received.getByTestId("lean-vouch-bob")).toContainText("+0.90 supportive");
+  await expect(received.getByTestId("why-bob")).toBeVisible();
+  await expect(received.getByTestId("why-bob")).toContainText("an offer to work together again");
+  await expect(received).toContainText("not a judgement of a person");
+
+  // What they wrote about others is summed the same way, on the tab that lists it.
+  await page.getByTestId("tab-given").click();
+  await expect(page.getByTestId("readings-given")).toContainText("1 of 1 read as supportive");
 });
 
 /**
@@ -331,7 +338,7 @@ test("a policy can ask that no reference read as critical, and the page says how
 test("a person's page says the sybil signal in one line under the name", async ({ page }) => {
   await page.goto("/p/alice");
   const line = page.getByTestId("sybil-line");
-  await expect(line.getByTestId("sybil-trust")).toContainText("0.188");
+  await expect(line.getByTestId("sybil-score")).toContainText("35");
   await expect(line.getByTestId("sybil-behind")).toContainText("2");
   await expect(line.getByTestId("sybil-among")).toContainText("1");
   await expect(line.getByTestId("sybil-human")).toContainText("proved human");

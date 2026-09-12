@@ -65,6 +65,13 @@ export function ReferencesGiven({
                 </>
               )}
             </strong>
+            {/* Why the council read it that way, under the words it read: a badge with no reason
+                behind it is a verdict, and this is a reading of thirty-one bytes of text. */}
+            {ref.kind !== "answer" && readings?.[ref.subject]?.rationale && (
+              <small className="muted v-ref-why" data-testid={`why-given-${ref.subject}`}>
+                {readings[ref.subject]?.rationale}
+              </small>
+            )}
             {ref.ensName && (
               <Link className="v-ref-name" href={`/v/${ref.ensName}`} title="read it back in any ENS client">
                 <code>{ref.ensName}</code>

@@ -3,14 +3,14 @@
 Everything here runs against the live Sepolia deployment and needs nothing but `curl`. Names resolve
 through ENSv2, so the last section checks them without touching this project's code at all.
 
-| Piece | Address |
-|---|---|
-| Multipass | `0x418F82fd0014a4CA402F145978bfaF0555a9cA06` |
-| AttestationFactory | `0xc0281d75974155fE8513F623de726F040c4bcC51` |
-| AttestationBridge | `0xC7283bD9Aad1B08947C841536946Ce4dA9c99929` |
+| Piece                               | Address                                      |
+| ----------------------------------- | -------------------------------------------- |
+| Multipass                           | `0x418F82fd0014a4CA402F145978bfaF0555a9cA06` |
+| AttestationFactory                  | `0xc0281d75974155fE8513F623de726F040c4bcC51` |
+| AttestationBridge                   | `0xC7283bD9Aad1B08947C841536946Ce4dA9c99929` |
 | AttestationReporter (Chainlink CRE) | `0x4888d736a196c49CAf404FD626eB9CBbf175b140` |
-| KeystoneForwarder | `0xF8344CFd5c43616a4366C34E3EEE75af79a74482` |
-| ENSv2 UniversalResolver | `0x4A1817d13E9cF196f471725176355C1234b63C70` |
+| KeystoneForwarder                   | `0xF8344CFd5c43616a4366C34E3EEE75af79a74482` |
+| ENSv2 UniversalResolver             | `0x4A1817d13E9cF196f471725176355C1234b63C70` |
 
 `API` below is the deployed relay, `alice` a candidate who has already been through the flow.
 
@@ -26,7 +26,7 @@ curl -s $API/v1/preflight | jq '{ok, warnings}'
 
 Contracts have code, the deployed bridge has the functions this build calls, every name and platform
 domain is initialised and active, and the key the attester signs with is the registrar Multipass
-expects. Anything false here would otherwise fail *after* a user signs.
+expects. Anything false here would otherwise fail _after_ a user signs.
 
 ## 1. What a verifier reads
 
@@ -143,13 +143,16 @@ reference is unclaimed rather than pretending its writer has no history.
    the link to attest it — on the profile page, which brings them back here with the invitation still
    in hand, so the reference they then write counts as one the candidate asked for.
 3. `/p/<handle>` — the reference page, graded against the verifier's own policy, with the raw names to
-   resolve independently. Under the name, the sybil signal in one line: *trust 0.188 · 2 behind them,
-   1 know each other · proved human · reads 1 supportive / 1 critical · details ↓* — the cards below
-   are what it is drawn from. Each reference received carries how it reads — supportive, neutral or
-   critical, the council's provisional reading of the words — and a switch sets the unsolicited ones
-   aside, counted. Below the list: the shape behind the count (who stands behind them, whether those
-   people know each other, the trust that reached them) and what the references say, summed into one
-   line, every reading behind a fold. The bar can cap how many read as critical (`maxCritical`).
+   resolve independently. Under the name, the sybil signal in one line: _trust 0.188 · 2 behind them,
+   1 know each other · proved human · reads 1 supportive / 1 critical · details ↓_ — and under that,
+   _Check against a policy_, which opens a dialog with the policy field, the presets and the builder;
+   applying one puts the bar in the URL and the line under the name says what is in force. The
+   references tab carries how they read: one line summing them at the top (_1 of 2 read as supportive ·
+   1 critical · mean +0.05_, marked provisional and by which council), each statement badged supportive,
+   neutral or critical with the council's reason under it, and a switch that sets the unsolicited ones
+   aside, counted. Below the list, the shape behind the count: who stands behind them, whether those
+   people know each other, the trust that reached them. The bar can cap how many read as critical
+   (`maxCritical`).
 4. `/w/<address>` — the same from an address rather than a handle, including what the wallet wrote
    about others: references about people and answers about subjects.
 5. `/employers` — a bar (found by typing its name), a shortlist, and where each of them stands, with
@@ -342,6 +345,7 @@ Or let the deployment write it itself: `SEED_GRAPH=true` on the API (a pull requ
 the same namespace once the service is listening, idempotently. See docs/deploy.md.
 
 ```bash
+
 ```
 
 It writes, in order: a name for each person, a humanity record for the ones who "proved" it, and then
@@ -352,17 +356,17 @@ a name already held and a reference already standing are left alone.
 
 What it writes:
 
-| who | shape |
-|---|---|
+| who                                    | shape                                                                                            |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------ |
 | `mira`, `theo`, `sana`, `kofi`, `lena` | a team: most pairs refer each other, some both ways; `mira`, `theo`, `sana` hold humanity proofs |
-| `ring-a` … `ring-e` | five accounts wired to each other in every direction and to nobody else |
-| `ring-a` → `kofi` | the one bridge, which is how a ring tries to look connected |
-| `nadia` | a newcomer with one honest reference from `mira` |
+| `ring-a` … `ring-e`                    | five accounts wired to each other in every direction and to nobody else                          |
+| `ring-a` → `kofi`                      | the one bridge, which is how a ring tries to look connected                                      |
+| `nadia`                                | a newcomer with one honest reference from `mira`                                                 |
 
-Then walk it. Each page leads with one line — *4 people stand behind them · 2 of those know each
-other · trust 0.041 from 3 proved humans* — and the drawing waits behind "Show the map" for whoever
+Then walk it. Each page leads with one line — _4 people stand behind them · 2 of those know each
+other · trust 0.041 from 3 proved humans_ — and the drawing waits behind "Show the map" for whoever
 wants it, because a graph is hard to read and harder in four minutes. `/p/mira` reads as a team;
-`/p/ring-b` reads as five referrers who *all* know each other and trust that barely arrived
+`/p/ring-b` reads as five referrers who _all_ know each other and trust that barely arrived
 (0.002 against 0.041); `/p/nadia` reads as one reference and nothing known about her yet — which is
 what one bought reference would look like too, and is the caveat under the line.
 
@@ -374,8 +378,8 @@ the point of withdrawal here — and so it is counted as taken back rather than 
 
 A count and a shape still leave the sentences unread. Each statement — written for somebody, or by
 them — is read once by the Noolog fast council (`POST /v1/chat/completions`, `model: nsed:fast`, spec
-§E.8) and the readings are summed into one line on the person's page: *1 of 2 read as supportive · 1
-critical · mean +0.05 — provisional, how nsed:fast read each statement*. Every reading waits behind
+§E.8) and the readings are summed into one line on the person's page: _1 of 2 read as supportive · 1
+critical · mean +0.05 — provisional, how nsed:fast read each statement_. Every reading waits behind
 "Show each reading", beside the words it was read from, marked which way it leans. A reading is kept
 by the hash of the words, so the same 31 bytes cost the council once.
 
