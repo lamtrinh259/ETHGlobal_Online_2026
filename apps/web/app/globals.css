@@ -323,9 +323,31 @@ legend {
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
+/*
+ * A field is its name, the box, and a note under it, one above the other with room between.
+ * Left inline, the box sat flush against the words naming it and the note ran on after the box.
+ * Labels that carry a class lay themselves out; a checkbox keeps its words beside it.
+ */
 label {
   display: block;
   margin: var(--sp-sm) 0;
+}
+label:not([class]) {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-xs);
+}
+label:not([class]):has(> input[type="checkbox"]),
+label:not([class]):has(> input[type="radio"]) {
+  flex-direction: row;
+  align-items: center;
+}
+label:not([class]) > input:not([type="checkbox"]):not([type="radio"]),
+label:not([class]) > select,
+label:not([class]) > textarea {
+  width: 100%;
+  max-width: 28rem;
 }
 input,
 select {
