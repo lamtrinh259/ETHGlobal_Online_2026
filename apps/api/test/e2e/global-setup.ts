@@ -45,6 +45,18 @@ function reachStack() {
 
 export async function setup() {
   if (process.env.E2E_SKIP_COMPOSE === "1") return;
+  /*
+   * A network of this name left by a run that could not take it down.
+   *
+   * The name is fixed so the stack is findable, which also means a leftover is indistinguishable from
+   * one this run made. Removing it before composing costs nothing when there is none, and turns a
+   * failure one run later into no failure at all.
+   */
+  try {
+    execSync(`docker network rm ${NETWORK}`, { stdio: "ignore" });
+  } catch {
+    // Nothing of that name, or something is still using it: compose says which in a moment.
+  }
   execSync(`${COMPOSE} up -d --build --wait`, { stdio: "inherit", env: env() });
   reachStack();
 }
@@ -89,5 +101,21 @@ export async function restartApi(url: string): Promise<void> {
 
 export async function teardown() {
   if (process.env.E2E_SKIP_COMPOSE === "1" || process.env.E2E_KEEP === "1") return;
+  /*
+   * Leave the network before taking it down.
+   *
+   * Joining it is what lets a containerised job reach the stack, and a container still attached is an
+   * endpoint the daemon will not remove the network under. `down -v` then leaves it behind, and the
+   * next run finds a network of that name which its own compose project does not own — which surfaces
+   * one run later as "network ketsuban_e2e not found" while a container is starting, and reads as
+   * flakiness rather than as the leak it is.
+   */
+  if (existsSync("/.dockerenv")) {
+    try {
+      execSync(`docker network disconnect -f ${NETWORK} ${hostname()}`, { stdio: "ignore" });
+    } catch {
+      // Never joined, or already gone: both are the state this wanted.
+    }
+  }
   execSync(`${COMPOSE} down -v`, { stdio: "inherit", env: env() });
 }
