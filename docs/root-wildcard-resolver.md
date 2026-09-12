@@ -146,8 +146,13 @@ export ROOT_LABEL=ketsuban ROOT_DOMAIN=ketsuban ROOT_PARENT=ketsuban.eth
 STEP=deploy forge script script/MigrateRoot.s.sol --rpc-url $RPC --broadcast
 export ROOT_RESOLVER=0x…
 
-# 2. bridge — the bridge grants a new name its text records by asking the root resolver
-STEP=bridge BRIDGE=0xC7283bD9Aad1B08947C841536946Ce4dA9c99929 forge script script/MigrateRoot.s.sol --rpc-url $RPC --broadcast
+# 2. bridge — the deployed bridge is not upgradeable and predates `setRootResolver`, so this is a new
+#    bridge (same resolver roles as the old one, asking the root resolver where the factory has no
+#    answer) and a new reporter in front of it. Prints `bridge 0x…` and `reporter 0x…`: put both in
+#    deployments/11155111.json, the reporter in packages/cre/attest/config.*.json, redeploy the API
+#    and the CRE workflow. The old bridge keeps working for anyone still pointed at it; nothing the
+#    API or the web reads lives in it (orgs and sponsorship are unused on Sepolia)
+STEP=bridge FACTORY=0x… CRE_FORWARDER=0x… forge script script/MigrateRoot.s.sol --rpc-url $RPC --broadcast
 
 # 3. point — the root label resolves through it; every level with no registry of its own follows
 STEP=point forge script script/MigrateRoot.s.sol --rpc-url $RPC --broadcast

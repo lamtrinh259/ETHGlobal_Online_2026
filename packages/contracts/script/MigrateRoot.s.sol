@@ -4,10 +4,19 @@ pragma solidity ^0.8.28;
 import {Script, console} from "forge-std/Script.sol";
 import {IRegistry} from "@ensv2/registry/IRegistry.sol";
 import {Multipass} from "@peeramid-labs/multipass/src/Multipass.sol";
+import {IMultipass} from "@peeramid-labs/multipass/src/interfaces/IMultipass.sol";
 import {AttestationBridge} from "../src/AttestationBridge.sol";
 import {AttestationRegistry} from "../src/AttestationRegistry.sol";
 import {RootAttestationResolver} from "../src/RootAttestationResolver.sol";
-import {IPermissionedResolver} from "../src/interfaces/IPermissionedResolver.sol";
+import {AttestationFactory} from "../src/AttestationFactory.sol";
+import {AttestationReporter} from "../src/AttestationReporter.sol";
+import {IOwnedRegistry} from "@ensv2/registry/IOwnedRegistry.sol";
+import {IPermissionedResolver, PermissionedResolverRoles as R} from "../src/interfaces/IPermissionedResolver.sol";
+
+/// @dev The return value is left undeclared: the stock resolver returns a bool, the local mock nothing.
+interface IRoleAdmin {
+    function grantRootRoles(uint256 roleBitmap, address account) external;
+}
 
 interface IEthRegistryAdmin {
     function setResolver(uint256 tokenId, address resolver) external;
@@ -23,8 +32,11 @@ interface IEthRegistryAdmin {
  *
  *   STEP=deploy   deploys RootAttestationResolver and prints its address (put it in the deployment
  *                 file as `rootResolver`, or in the API's env as ROOT_RESOLVER)
- *   STEP=bridge   BRIDGE=0x… ROOT_RESOLVER=0x…: the bridge grants a new name its text records by asking
- *                 the root resolver where the factory has no answer
+ *   STEP=bridge   FACTORY=0x… ROOT_RESOLVER=0x… [CRE_FORWARDER=0x…]: a new bridge that asks the root
+ *                 resolver where the factory has no answer, with the resolver roles the old one had, and
+ *                 a new reporter in front of it when a forwarder is given. The deployed bridge is not
+ *                 upgradeable, so this replaces it: put both addresses in the deployment file and the
+ *                 reporter in the CRE config
  *   STEP=point    ETHRegistry.setResolver(<root label>, ROOT_RESOLVER): every level with no registry
  *                 of its own now resolves through the new resolver
  *   STEP=unmount  LABELS=<comma list: www, the at-sign level, private-www, its private twin, kju-is, alice, …>
@@ -43,7 +55,7 @@ contract MigrateRoot is Script {
         uint256 pk = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(pk);
         if (which == keccak256("deploy")) _deploy(vm.addr(pk));
-        else if (which == keccak256("bridge")) _bridge(vm.envAddress("BRIDGE"), vm.envAddress("ROOT_RESOLVER"));
+        else if (which == keccak256("bridge")) _bridge(vm.addr(pk), vm.envAddress("ROOT_RESOLVER"));
         else if (which == keccak256("point")) _point(vm.envAddress("ROOT_RESOLVER"));
         else if (which == keccak256("unpoint")) _point(vm.envAddress("RESOLVER"));
         else if (which == keccak256("unmount")) _unmount(vm.envString("LABELS"));
@@ -63,9 +75,23 @@ contract MigrateRoot is Script {
         console.log("rootResolver", address(root));
     }
 
-    function _bridge(address bridge, address resolver) internal {
-        AttestationBridge(bridge).setRootResolver(RootAttestationResolver(resolver));
-        console.log("bridge asks", resolver);
+    function _bridge(address owner, address resolver) internal {
+        IMultipass mp = IMultipass(vm.envAddress("MULTIPASS"));
+        address inner = vm.envAddress("PERMISSIONED_RESOLVER");
+        AttestationBridge bridge = new AttestationBridge(
+            mp,
+            IPermissionedResolver(inner),
+            IOwnedRegistry(vm.envAddress("ETH_REGISTRY")),
+            AttestationFactory(vm.envAddress("FACTORY")),
+            owner
+        );
+        IRoleAdmin(inner).grantRootRoles(R.ROLE_SET_TEXT_ADMIN | R.ROLE_SET_ALIAS, address(bridge));
+        bridge.setRootResolver(RootAttestationResolver(resolver));
+        console.log("bridge", address(bridge));
+        address forwarder = vm.envOr("CRE_FORWARDER", address(0));
+        if (forwarder != address(0)) {
+            console.log("reporter", address(new AttestationReporter(forwarder, mp, bridge)));
+        }
     }
 
     function _point(address resolver) internal {

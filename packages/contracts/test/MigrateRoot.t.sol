@@ -3,6 +3,8 @@ pragma solidity ^0.8.28;
 
 import {IRegistry} from "@ensv2/registry/IRegistry.sol";
 import {IAddrResolver} from "@ens/contracts/resolvers/profiles/IAddrResolver.sol";
+import {AttestationBridge} from "../src/AttestationBridge.sol";
+import {AttestationReporter} from "../src/AttestationReporter.sol";
 import {GroupingRegistry} from "../src/GroupingRegistry.sol";
 import {RootAttestationResolver} from "../src/RootAttestationResolver.sol";
 import {MigrateRoot} from "../script/MigrateRoot.s.sol";
@@ -40,14 +42,20 @@ contract MigrateRootTest is BaseTest {
         // deploy: a root resolver that reads the same Multipass
         RootAttestationResolver root = new RootAttestationResolver(mp, inner, INSTANCE, PARENT, vm.addr(operatorKey));
 
-        // bridge: the bridge asks the root resolver where a name lives
-        vm.prank(bridge.owner());
-        bridge.transferOwnership(vm.addr(operatorKey));
+        // bridge: a new bridge that asks the root resolver where a name lives, and a reporter in front
         vm.setEnv("STEP", "bridge");
-        vm.setEnv("BRIDGE", vm.toString(address(bridge)));
+        vm.setEnv("FACTORY", vm.toString(address(factory)));
+        vm.setEnv("CRE_FORWARDER", vm.toString(makeAddr("forwarder")));
         vm.setEnv("ROOT_RESOLVER", vm.toString(address(root)));
+        uint64 nonce = vm.getNonce(vm.addr(operatorKey));
         script.run();
-        assertEq(address(bridge.rootResolver()), address(root));
+        AttestationBridge fresh = AttestationBridge(payable(vm.computeCreateAddress(vm.addr(operatorKey), nonce)));
+        assertEq(address(fresh.rootResolver()), address(root));
+        assertEq(address(fresh.FACTORY()), address(factory));
+        AttestationReporter reporter =
+            AttestationReporter(payable(vm.computeCreateAddress(vm.addr(operatorKey), nonce + 1)));
+        assertEq(address(reporter.BRIDGE()), address(fresh));
+        assertEq(reporter.FORWARDER(), makeAddr("forwarder"));
 
         // point: the root label now resolves through it
         vm.setEnv("STEP", "point");
