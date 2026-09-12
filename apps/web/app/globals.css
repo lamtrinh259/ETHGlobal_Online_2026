@@ -516,41 +516,6 @@ dl.kv dd {
 }
 
 /*
- * The path a record takes, and which steps of it are inside the enclave.
- *
- * A diagram rather than a paragraph: the question is where the boundary falls, and a boundary is a
- * thing to see rather than to read. The boxed steps are marked on the step itself, so the meaning
- * survives a screen too narrow to hold a drawing.
- */
-.flow {
-  list-style: none;
-  padding-left: 0;
-  display: grid;
-  gap: var(--sp-xs);
-}
-.flow li {
-  display: grid;
-  grid-template-columns: minmax(6rem, 9rem) 1fr;
-  gap: 2px var(--sp-sm);
-  padding: var(--sp-sm);
-  border-left: 3px solid var(--border);
-  border-radius: var(--radius-sm);
-}
-.flow li small {
-  grid-column: 2;
-}
-/*
- * The steps that are meant to run inside one, boxed.
- *
- * The box used to append " · enclave" to the actor's name as well, which read "the enclave · enclave"
- * for every step it marked — the actors it marks are named for the thing it was there to say.
- */
-.flow .inside {
-  border-left-color: var(--consensus);
-  background: var(--panel);
-}
-
-/*
  * The search bar.
  *
  * One control: what is being looked for, and what to look for, in a single bordered row that takes
@@ -1484,13 +1449,6 @@ pre > code {
     min-height: 44px;
   }
   /* Name and reason, one under the other: in two columns the reason was 140px wide and broke every
-     third word, down a page that is nothing but these rows. */
-  .flow li {
-    grid-template-columns: 1fr;
-  }
-  .flow li small {
-    grid-column: auto;
-  }
   /* The picture no longer gives way to the name beside it, so it takes a phone's share of the width
      rather than a desktop's. */
   .me-head > .me-avatar-empty,
@@ -1642,5 +1600,77 @@ pre > code {
   .v-ref-name,
   .v-link-name {
     font-size: 12px;
+  }
+}
+
+/*
+ * A chain of steps, each an arrow from the last.
+ *
+ * Wide: chips in a row, arrows between. Narrow: a column, arrows pointing down. The step that runs
+ * inside an enclave is green.
+ */
+.trust h2 {
+  margin-bottom: var(--sp-md);
+}
+.trust > .muted {
+  margin: var(--sp-md) 0 0;
+}
+.chain {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: var(--sp-sm);
+}
+.chain-step {
+  position: relative;
+  flex: 1 1 9rem;
+  min-width: 8rem;
+  display: grid;
+  gap: 2px;
+  padding: var(--sp-sm) var(--sp-md);
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.chain-step strong {
+  font-size: 0.95rem;
+}
+.chain-step span {
+  font-size: 0.9rem;
+}
+.chain-step small {
+  font-size: 0.8rem;
+}
+.chain-step.inside {
+  border-color: var(--consensus);
+  box-shadow: inset 3px 0 0 var(--consensus);
+}
+.chain-step + .chain-step::before {
+  content: "→";
+  position: absolute;
+  left: calc(-1 * var(--sp-sm) - 4px);
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 18px;
+  text-align: center;
+  color: var(--text-secondary);
+  background: var(--panel);
+  border-radius: 999px;
+  font-size: 14px;
+  line-height: 18px;
+}
+@media (max-width: 640px) {
+  .chain {
+    flex-direction: column;
+    gap: var(--sp-md);
+  }
+  .chain-step + .chain-step::before {
+    content: "↓";
+    left: 50%;
+    top: calc(-1 * var(--sp-md) / 2);
+    transform: translate(-50%, -50%);
   }
 }

@@ -98,7 +98,7 @@ export function ProfileHeader({
       {name && handle && (
         <p className="row" data-testid="my-public-page">
           <Link className="button primary" href={`/p/${handle}`}>
-            See your page as anybody reads it →
+            View as public
           </Link>
         </p>
       )}

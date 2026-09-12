@@ -13,16 +13,32 @@ export const metadata: Metadata = {
 /** One step of an attestation: where it happens, and what it can see while it does. */
 const STEPS = [
   { at: "your browser", does: "signs an intent", sees: "everything you typed", inside: false },
-  { at: "the enclave", does: "reads your identity token", sees: "every account you linked", inside: true },
-  {
-    at: "the enclave",
-    does: "signs the record as registrar",
-    sees: "the one account you chose",
-    inside: true,
-  },
+  { at: "the enclave", does: "reads your identity token", sees: "every linked account", inside: true },
+  { at: "the enclave", does: "signs as registrar", sees: "the one account you chose", inside: true },
   { at: "the DON", does: "carries the report", sees: "the signed record", inside: false },
   { at: "the chain", does: "registers the name", sees: "the signed record", inside: false },
 ];
+
+/** A chain of steps, each one an arrow away from the next. */
+function Chain({
+  steps,
+  testid,
+}: {
+  steps: { at: string; does: string; sees?: string; inside?: boolean }[];
+  testid?: string;
+}) {
+  return (
+    <ol className="chain" data-testid={testid}>
+      {steps.map((s, i) => (
+        <li key={i} className={s.inside ? "chain-step inside" : "chain-step"}>
+          <strong>{s.at}</strong>
+          <span>{s.does}</span>
+          {s.sees && <small className="muted">{s.sees}</small>}
+        </li>
+      ))}
+    </ol>
+  );
+}
 
 /**
  * What this deployment can and cannot see.
@@ -49,44 +65,22 @@ export default async function TrustPage() {
     <>
       <section className="hero">
         <h1>Where each step runs</h1>
-        <p>
-          Your identity token lists every account you have linked. Who holds it while it is read is the one
-          thing a name cannot show you.
-        </p>
+        <p>Your identity token lists every account you linked. This is who holds it while it is read.</p>
       </section>
 
-      <section className="card">
+      <section className="card trust">
         <h2>
-          {config.confidential
-            ? "Read inside a Chainlink CRE enclave"
-            : "Signed on this deployment's own node"}
+          {config.confidential ? "Read inside a Chainlink CRE enclave" : "Signed on this deployment's node"}
         </h2>
-        <ol className="flow" data-testid="flow">
-          {STEPS.map((s, i) => (
-            <li key={i} className={s.inside ? "inside" : undefined}>
-              <strong>{s.at}</strong>
-              <span>{s.does}</span>
-              <small className="muted">sees: {s.sees}</small>
-            </li>
-          ))}
-        </ol>
+        <Chain steps={STEPS} testid="flow" />
         <p className="muted" data-testid="stance">
-          {config.confidential ? (
-            <>
-              The boxed steps run inside an AWS Nitro enclave, on hardware neither this service nor its
-              operator controls.
-            </>
-          ) : (
-            <>
-              The boxed steps are written for an enclave — <code>packages/cre/attest</code>, exercised in the
-              TEE simulator on every change — but this deployment has not been enrolled, so its operator could
-              read them. Not claimed here until it is.
-            </>
-          )}
+          {config.confidential
+            ? "Green steps run in an AWS Nitro enclave that neither this service nor its operator controls."
+            : "Green steps are written for an enclave and tested in its simulator. This deployment has not been enrolled, so its operator could read them. Not claimed here until it is."}
         </p>
       </section>
 
-      <section className="card">
+      <section className="card trust">
         <h2>The key the chain trusts</h2>
         <table data-testid="keys">
           <tbody>
@@ -100,9 +94,7 @@ export default async function TrustPage() {
               <tr key={role}>
                 <td>{role}</td>
                 <td>
-                  {/* Short while they agree: three identical addresses, each wrapping across two lines
-                      of a phone, said the one thing the verdict below them already says. Where they
-                      disagree, which of them differs is the whole point, so they are printed in full. */}
+                  {/* Short while they agree; where they disagree, which one differs is the point. */}
                   <code>{!key ? "—" : keyMatches ? short(key) : key}</code>
                 </td>
               </tr>
@@ -116,14 +108,14 @@ export default async function TrustPage() {
         )}
         <p className={keyMatches || !readable ? "muted" : "warning"} data-testid="key-verdict">
           {!readable
-            ? "Not answering just now — read them yourself with GET /v1/preflight."
+            ? "Not answering just now — GET /v1/preflight."
             : keyMatches
-              ? "One key in all three. That is what makes a record acceptable on chain, and a view code openable nowhere else."
-              : "These disagree, so records signed here would be refused at registration."}
+              ? "One key in all three: records are accepted on chain, and a view code opens nowhere else."
+              : "These disagree: records signed here would be refused at registration."}
         </p>
       </section>
 
-      <section className="card">
+      <section className="card trust">
         <h2>It has written a record</h2>
         <table data-testid="proven-run">
           <tbody>
@@ -152,109 +144,77 @@ export default async function TrustPage() {
           </tbody>
         </table>
         <p className="muted">
-          The second stored no handle at all: a one-time pad, and a commitment to a view code. Said exactly —
-          the nodes were simulated and the forwarder was Chainlink&apos;s MockKeystoneForwarder; the handler,
-          the signature, the reporter, the bridge and the record were real.
+          The private one stores no handle: a one-time pad and a view-code commitment. Nodes simulated,
+          forwarder Chainlink&apos;s MockKeystoneForwarder; handler, signature, bridge and record real.
         </p>
       </section>
 
-      <section className="card" data-testid="how-rank">
+      <section className="card trust" data-testid="how-rank">
         <h2>How the reference map is scored</h2>
-        <ol className="flow">
-          <li>
-            <strong>edges</strong>
-            <span>every live reference, from whoever wrote it to whoever it is for</span>
-            <small className="muted">a signed record anyone can resolve; nothing inferred</small>
-          </li>
-          <li>
-            <strong>seeds</strong>
-            <span>whoever holds a live Selfie Check proof</span>
-            <small className="muted">the only part of this nobody can hold twice</small>
-          </li>
-          <li>
-            <strong>walk</strong>
-            <span>trust spreads from the seeds along references, a few steps, edges taken either way</span>
-            <small className="muted">after SybilRank, NSDI 2012: honest regions fill, rings barely do</small>
-          </li>
-          <li>
-            <strong>rank</strong>
-            <span>trust per connection, so connections alone earn nothing</span>
-            <small className="muted">a signal, shown beside the count and the shape, never a verdict</small>
-          </li>
-          <li>
-            <strong>SybilScore</strong>
-            <span>
-              what accumulated, 0–100: proved humanity is a floor of 20, every live reference adds up to 15 —
-              a share of its writer's score
-            </span>
-            <small className="muted">
-              a newcomer starts at nothing; a ring nobody proved sums to nothing however tightly it is wired
-            </small>
-          </li>
-        </ol>
-        <p className="muted">
-          A newcomer with one honest reference and a ring with one bought one look alike until more people
-          speak. What the map adds is whether the people behind somebody know each other — which is what a
-          count cannot say.
-        </p>
+        <Chain
+          steps={[
+            {
+              at: "edges",
+              does: "every live reference, writer → subject",
+              sees: "signed records, nothing inferred",
+            },
+            {
+              at: "seeds",
+              does: "whoever holds a live Selfie Check",
+              sees: "the one thing nobody holds twice",
+            },
+            {
+              at: "walk",
+              does: "trust spreads from seeds along references",
+              sees: "SybilRank: teams fill, rings barely do",
+            },
+            { at: "rank", does: "trust per connection", sees: "connections alone earn nothing" },
+            {
+              at: "SybilScore",
+              does: "0–100: humanity 20, each reference up to 15 of its writer's score",
+              sees: "a newcomer starts at 0; a ring nobody proved sums to 0",
+            },
+          ]}
+        />
+        <p className="muted">A signal beside the count and the shape, never a verdict.</p>
       </section>
 
-      <section className="card" data-testid="how-read">
+      <section className="card trust" data-testid="how-read">
         <h2>How statements are read</h2>
-        <ol className="flow">
-          <li>
-            <strong>the words</strong>
-            <span>thirty-one bytes somebody signed about somebody else, the record itself</span>
-            <small className="muted">
-              shown as written, always; the reading is a way in, not a replacement
-            </small>
-          </li>
-          <li>
-            <strong>the council</strong>
-            <span>
-              each statement goes once to Noolog&apos;s fast council: three models on independent families,
-              one round
-            </span>
-            <small className="muted">
-              the statement is data to be read, never instructions to follow — the rubric says so
-            </small>
-          </li>
-          <li>
-            <strong>polarity</strong>
-            <span>−1 critical … +1 supportive, with one sentence of why</span>
-            <small className="muted">
-              a classification of text, kept by the hash of the words: the same words read the same
-            </small>
-          </li>
-          <li>
-            <strong>provisional</strong>
-            <span>marked so, until peers in a cohort have judged</span>
-            <small className="muted">
-              three models agreeing on how a sentence reads is not a community judgement
-            </small>
-          </li>
-        </ol>
-        <p className="muted">
-          Where no council is configured, statements are shown unread rather than scored by anything else.
-          Nothing here rates a person; it reads sentences, says which, and sums them into one line so a reader
-          with a minute knows whether to open the fold.
-        </p>
+        <Chain
+          steps={[
+            { at: "the words", does: "31 bytes somebody signed", sees: "always shown as written" },
+            {
+              at: "the council",
+              does: "Noolog fast council: three models, one round",
+              sees: "data to read, never instructions",
+            },
+            {
+              at: "polarity",
+              does: "−1 critical … +1 supportive, one sentence of why",
+              sees: "same words, same reading",
+            },
+            {
+              at: "provisional",
+              does: "until peers in a cohort have judged",
+              sees: "no council configured → unread",
+            },
+          ]}
+        />
+        <p className="muted">It reads sentences, not people.</p>
       </section>
 
-      <section className="card">
+      <section className="card trust">
         <h2>Outside the enclave, deliberately</h2>
         <ul className="self-reported">
           <li>
-            <strong>Your World ID proof</strong> — carries no secret of yours, and World decides whether it
-            holds.
+            <strong>World ID proof</strong> — no secret of yours; World decides.
           </li>
           <li>
-            <strong>Reference letters</strong> — kept here so a reader can be handed one; only the hash is
-            permanent.
+            <strong>Reference letters</strong> — kept here; only the hash is permanent.
           </li>
           <li>
-            <strong>Who may read a masked account</strong> — stored here, openable only where the registrar
-            key is.
+            <strong>Who may read a masked account</strong> — kept here; opens only where the registrar key is.
           </li>
         </ul>
         {preflight && preflight.warnings.length > 0 && (
