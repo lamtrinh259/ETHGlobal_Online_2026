@@ -169,7 +169,7 @@ first registration and lands as `alice.com.x.www.ketsuban.eth` for that wallet.
 |---|---|
 | Transaction | [`0x71b7edd5…e211e0`](https://sepolia.etherscan.io/tx/0x71b7edd59b72677a5bed8c12ca719b2de3b3f5dcd23c62b9e14be52bc8e211e0) |
 | Called | `0x15fC6ae9…`, the MockKeystoneForwarder |
-| Reporter | `0xbDEd80C5BCf2218E66a559Ecd81fAE9b0e522Ebb`, wired to that forwarder |
+| Reporter | `0xbB554581b394403Ab9Cb5c305B07281D12910e8D`, wired to that forwarder |
 | Result | `alice.com.x.www.ketsuban.eth` resolves to `0x4A75f57c…`, status `active` |
 | And masked | [`0x6af38a23…e71484`](https://sepolia.etherscan.io/tx/0x6af38a23c9dfc94533c1a5fc753a9a0e8608169696e01ccaca8155ed9ae71484) — an opted-in record for `0xC2D253D8…`, stored name a one-time pad, payload a view-code commitment, view code encrypted to the registrar key in the handler |
 

@@ -157,7 +157,7 @@ Still mounted, on purpose: the legacy per-platform instances `x`, `telegram`, `d
 `google`, `linkedin`, `email` (`<handle>.x.ketsuban.eth` naming, superseded by `www`/`@`). The root
 resolver has no rule for them, so unmounting would stop those names resolving.
 
-Open, each one action (1 is done):
+Open, each one action (1 and 3 are done):
 
 1. ~~Resolver roles for the new bridge~~ — done, tx `0xc1c7780054763ba712b5f72f3a3352d0ae0e84a4e9d7999580f49559a6fbd05d`.
    The stock resolver's admin is `0x6Cf8d74C7875de8C2FfB09228F4bf2A21b25e583`, index 0 of `ETH_SEPOLIA_MNEMONIC`
@@ -165,9 +165,15 @@ Open, each one action (1 is done):
 2. **Coolify env.** The API takes `BRIDGE` from its environment, which still names the old bridge; set
    `BRIDGE=0x9607Ec6f14A3cB7128B1e7EC0C8e8CFBa1643F61` there. `ROOT_RESOLVER` needs nothing: it comes
    from the bundled deployment file since the image started shipping it.
-3. **CRE workflow.** `packages/cre/attest/config.*.json` name the new reporter; `cre workflow deploy`
-   (staging, then production) moves the write path onto it. The old reporter keeps writing through the
-   old bridge until then, which still registers names.
+3. ~~CRE workflow~~ — nothing to redeploy: the account has no deploy access and no workflow was ever
+   deployed. The CRE write path is `cre workflow simulate --broadcast` through the MockKeystoneForwarder,
+   so the reporter behind it moved too: `0xbB554581b394403Ab9Cb5c305B07281D12910e8D` (mock forwarder, new
+   bridge), the default in `attest/package.json` and `config.local.json`. Proof, one run end to end:
+   tx `0xfd412669879480e3e8c601fc955acbacffe32dcbbba1c68f1423fb45fc1c11a8` — reporter → bridge →
+   Multipass `register` → root resolver `parentNameOf(x.com)` → four text roles on
+   `alice-6ba5ef.com.x.www.ketsuban.eth`, which the Universal Resolver answers through `0x6acc…`.
+   `make-fixture` rewrites `config.local.json` from the deployment file's reporter unless `CRE_REPORTER`
+   names the mock one.
 
 ## Runbook (Sepolia) — `packages/contracts/script/MigrateRoot.s.sol`
 
