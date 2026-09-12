@@ -7,8 +7,8 @@ through ENSv2, so the last section checks them without touching this project's c
 | ----------------------------------- | -------------------------------------------- |
 | Multipass                           | `0x418F82fd0014a4CA402F145978bfaF0555a9cA06` |
 | AttestationFactory                  | `0xc0281d75974155fE8513F623de726F040c4bcC51` |
-| AttestationBridge                   | `0x9607Ec6f14A3cB7128B1e7EC0C8e8CFBa1643F61` |
-| AttestationReporter (Chainlink CRE) | `0x7A84212487DEa31a7E2068D81E2ffCAe70104e0a` |
+| AttestationBridge                   | `0xE5e985B5f152EbD07aF9922d564AA8A7ccB77c62` |
+| AttestationReporter (Chainlink CRE) | `0xb84EF4ad54E28B5C489dB4543609e6743449048C` |
 | KeystoneForwarder                   | `0xF8344CFd5c43616a4366C34E3EEE75af79a74482` |
 | ENSv2 UniversalResolver             | `0x4A1817d13E9cF196f471725176355C1234b63C70` |
 

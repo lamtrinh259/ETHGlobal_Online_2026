@@ -120,12 +120,12 @@ immutable and set to Sepolia's **production** forwarder:
 |---|---|
 | Production `KeystoneForwarder` | `0xF8344CFd5c43616a4366C34E3EEE75af79a74482` |
 | `MockKeystoneForwarder` (what `--broadcast` calls through) | `0x15fC6ae953E024d975e77382eEeC56A9101f9F88` |
-| Reporter deployed today | `0x7A84212487DEa31a7E2068D81E2ffCAe70104e0a` (production forwarder) |
+| Reporter deployed today | `0xb84EF4ad54E28B5C489dB4543609e6743449048C` (production forwarder) |
 
 Check it rather than take it on trust — this needs no key and spends nothing:
 
 ```bash
-R=0x7A84212487DEa31a7E2068D81E2ffCAe70104e0a
+R=0xb84EF4ad54E28B5C489dB4543609e6743449048C
 cast call $R "onReport(bytes,bytes)" 0x 0x --from 0x15fC6ae953E024d975e77382eEeC56A9101f9F88 --rpc-url $RPC
 # -> execution reverted: UnauthorizedForwarder(0x15fC6ae9…)   the mock is refused by name
 cast call $R "onReport(bytes,bytes)" 0x 0x --from 0xF8344CFd5c43616a4366C34E3EEE75af79a74482 --rpc-url $RPC
@@ -137,7 +137,7 @@ The reporter holds no privileges and nothing points at it, so a second one costs
 ```bash
 cd packages/contracts
 MULTIPASS=0x418F82fd0014a4CA402F145978bfaF0555a9cA06 \
-BRIDGE=0x9607Ec6f14A3cB7128B1e7EC0C8e8CFBa1643F61 \
+BRIDGE=0xE5e985B5f152EbD07aF9922d564AA8A7ccB77c62 \
 CRE_FORWARDER=0x15fC6ae953E024d975e77382eEeC56A9101f9F88 \
 PRIVATE_KEY=… forge script script/DeployReporter.s.sol --rpc-url $SEPOLIA_RPC --broadcast
 ```
@@ -169,7 +169,7 @@ first registration and lands as `alice.com.x.www.ketsuban.eth` for that wallet.
 |---|---|
 | Transaction | [`0x71b7edd5…e211e0`](https://sepolia.etherscan.io/tx/0x71b7edd59b72677a5bed8c12ca719b2de3b3f5dcd23c62b9e14be52bc8e211e0) |
 | Called | `0x15fC6ae9…`, the MockKeystoneForwarder |
-| Reporter | `0xbB554581b394403Ab9Cb5c305B07281D12910e8D`, wired to that forwarder |
+| Reporter | `0x357994143B15Fc605dE1283C1b19BDEbCf514DF3`, wired to that forwarder |
 | Result | `alice.com.x.www.ketsuban.eth` resolves to `0x4A75f57c…`, status `active` |
 | And masked | [`0x6af38a23…e71484`](https://sepolia.etherscan.io/tx/0x6af38a23c9dfc94533c1a5fc753a9a0e8608169696e01ccaca8155ed9ae71484) — an opted-in record for `0xC2D253D8…`, stored name a one-time pad, payload a view-code commitment, view code encrypted to the registrar key in the handler |
 

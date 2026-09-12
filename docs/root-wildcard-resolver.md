@@ -135,8 +135,8 @@ Steps 1–4 are done; `check:live` was green (23/23) after every unmount.
 | What | Address |
 | --- | --- |
 | `RootAttestationResolver` (`wildcardResolver`) | `0x6acc74E4931436c18E00302465f70A27599125FD`, serving the ETH label `ketsuban` |
-| `AttestationBridge` (new) | `0x9607Ec6f14A3cB7128B1e7EC0C8e8CFBa1643F61` |
-| `AttestationReporter` (new) | `0x7A84212487DEa31a7E2068D81E2ffCAe70104e0a` |
+| `AttestationBridge` (new) | `0xE5e985B5f152EbD07aF9922d564AA8A7ccB77c62` |
+| `AttestationReporter` (new) | `0xb84EF4ad54E28B5C489dB4543609e6743449048C` |
 | old root instance resolver (for `unpoint`) | `0xa2602ce1A469d7FF1090aE4b876BA4ec566D3873` (set by `SetRootResolver` on 2026-09-10; the deployment file's `resolver` was the one before it) |
 
 Unmounted from the root registry, each with the registry `remount` needs:
@@ -153,6 +153,10 @@ Unmounted from the root registry, each with the registry `remount` needs:
 | `test-account-123456` | `0xA8ADD2CEa6c0Ba08284272a2F2423f71f3862440` |
 | `tims-friend-test` | `0xC5c9e3A06953D080570A6395CF6382184fa4Eb77` |
 
+Bridge v3 (2026-09-12, `verifyWithText`: the letter in the same transaction): bridge `0xE5e985B5f152EbD07aF9922d564AA8A7ccB77c62`,
+reporter `0xb84EF4ad54E28B5C489dB4543609e6743449048C`, mock-forwarder reporter `0x357994143B15Fc605dE1283C1b19BDEbCf514DF3`; roles granted from the resolver admin
+(mnemonic index 0, funded 0.002 ETH from the operator for it). Coolify `BRIDGE` must follow.
+
 Subject texts: `about("kju-is", name|description|url|avatar)` lived on `0xa260…` and did not follow the
 resolver; copied onto the wildcard resolver as `setAbout("ketsuban", "kju-is", key, value)` on 2026-09-12,
 and `check:live` now fails on an empty subject record.
@@ -167,11 +171,11 @@ Open, each one action (1 and 3 are done):
    The stock resolver's admin is `0x6Cf8d74C7875de8C2FfB09228F4bf2A21b25e583`, index 0 of `ETH_SEPOLIA_MNEMONIC`
    (the key that ran `DeploySepolia`), not the operator; the bridge now holds `ROLE_SET_TEXT_ADMIN | ROLE_SET_ALIAS`.
 2. **Coolify env.** The API takes `BRIDGE` from its environment, which still names the old bridge; set
-   `BRIDGE=0x9607Ec6f14A3cB7128B1e7EC0C8e8CFBa1643F61` there. `ROOT_RESOLVER` needs nothing: it comes
+   `BRIDGE=0xE5e985B5f152EbD07aF9922d564AA8A7ccB77c62` there. `ROOT_RESOLVER` needs nothing: it comes
    from the bundled deployment file since the image started shipping it.
 3. ~~CRE workflow~~ — nothing to redeploy: the account has no deploy access and no workflow was ever
    deployed. The CRE write path is `cre workflow simulate --broadcast` through the MockKeystoneForwarder,
-   so the reporter behind it moved too: `0xbB554581b394403Ab9Cb5c305B07281D12910e8D` (mock forwarder, new
+   so the reporter behind it moved too: `0x357994143B15Fc605dE1283C1b19BDEbCf514DF3` (mock forwarder, new
    bridge), the default in `attest/package.json` and `config.local.json`. Proof, one run end to end:
    tx `0xfd412669879480e3e8c601fc955acbacffe32dcbbba1c68f1423fb45fc1c11a8` — reporter → bridge →
    Multipass `register` → root resolver `parentNameOf(x.com)` → four text roles on
