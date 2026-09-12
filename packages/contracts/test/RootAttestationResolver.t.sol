@@ -4,7 +4,9 @@ pragma solidity ^0.8.28;
 import {IAddrResolver} from "@ens/contracts/resolvers/profiles/IAddrResolver.sol";
 import {ITextResolver} from "@ens/contracts/resolvers/profiles/ITextResolver.sol";
 import {INameResolver} from "@ens/contracts/resolvers/profiles/INameResolver.sol";
+import {IDataResolver} from "@ens/contracts/resolvers/profiles/IDataResolver.sol";
 import {LibMultipass} from "@peeramid-labs/multipass/src/libraries/LibMultipass.sol";
+import {MockPermissionedResolver} from "./mocks/MockPermissionedResolver.sol";
 import {RootAttestationResolver} from "../src/RootAttestationResolver.sol";
 import {BaseTest} from "./Base.t.sol";
 
@@ -126,6 +128,69 @@ contract RootAttestationResolverTest is BaseTest {
         assertTrue(at.masked);
         at = root.locate(dns("alice.anything.acme-alumni.eth"));
         assertFalse(at.known);
+    }
+
+    // ---------- everything else is the stock resolver's, exactly as today ----------
+
+    function _data(string memory name, string memory key) internal view returns (bytes memory) {
+        bytes memory out = root.resolve(dns(name), abi.encodeWithSelector(IDataResolver.data.selector, bytes32(0), key));
+        return abi.decode(out, (bytes));
+    }
+
+    function test_userTextRecords_forwardedByFullName_atEveryDepth() public {
+        // The bridge grants ROLE_SET_TEXT on the four profile keys of a name's node; the node is the
+        // full name's namehash, which does not care which resolver forwarded the read.
+        vm.prank(alice);
+        inner.setText(node("alice.acme-alumni.eth"), "avatar", "ipfs://pig");
+        assertEq(_text("alice.acme-alumni.eth", "avatar"), "ipfs://pig");
+        // The grant is the bridge's job at registration; here it is given by hand, on the name's node.
+        vm.prank(operator);
+        inner.authorizeTextRoles(dns("bob.alice.acme-alumni.eth"), "description", bob, true);
+        vm.prank(bob);
+        inner.setText(node("bob.alice.acme-alumni.eth"), "description", "we shipped two launches");
+        assertEq(_text("bob.alice.acme-alumni.eth", "description"), "we shipped two launches");
+        vm.prank(operator);
+        inner.authorizeTextRoles(dns("alice_x.com.x.www.acme-alumni.eth"), "url", alice, true);
+        vm.prank(alice);
+        inner.setText(node("alice_x.com.x.www.acme-alumni.eth"), "url", "https://x.com/alice_x");
+        assertEq(_text("alice_x.com.x.www.acme-alumni.eth", "url"), "https://x.com/alice_x");
+    }
+
+    function test_rolePermissions_areTheInnerResolvers_untouched() public {
+        // Roles live on the PermissionedResolver: a wallet without the grant cannot write, whatever
+        // resolver sits in front.
+        vm.prank(bob);
+        vm.expectRevert(abi.encodeWithSelector(MockPermissionedResolver.Unauthorized.selector, bob, 1 << 4));
+        inner.setText(node("alice.acme-alumni.eth"), "avatar", "ipfs://bob");
+    }
+
+    function test_oracleDataKeys_forwardedToInner() public {
+        vm.prank(operator);
+        inner.setData(node("alice.kju-is.acme-alumni.eth"), "ketsuban:polarity", abi.encode(int256(-8e17)));
+        assertEq(abi.decode(_data("alice.kju-is.acme-alumni.eth", "ketsuban:polarity"), (int256)), -8e17);
+    }
+
+    function test_innerRevertPropagates() public {
+        bytes memory data = abi.encodeWithSignature("contenthash(bytes32)", node("alice.acme-alumni.eth"));
+        vm.expectRevert(
+            abi.encodeWithSelector(MockPermissionedResolver.UnsupportedResolverProfile.selector, bytes4(data))
+        );
+        root.resolve(dns("alice.acme-alumni.eth"), data);
+    }
+
+    function test_aliasIsAppliedBeforeLocating() public {
+        vm.prank(operator);
+        inner.setAlias(dns("acme.alice.eth"), dns("alice.kju-is.acme-alumni.eth"));
+        assertEq(_addr("acme.alice.eth"), alice);
+        assertEq(_text("acme.alice.eth", "ketsuban:answer"), "dictator");
+    }
+
+    function test_subjectsOwnRecords_areTheMountsName_unchanged() public {
+        // A subject's description and picture hang on the mount's own name, a level the operator
+        // writes; read through the root the same way, since it is one more name under it.
+        vm.prank(operator);
+        inner.setText(node("kju-is.acme-alumni.eth"), "description", "Supreme Leader");
+        assertEq(_text("kju-is.acme-alumni.eth", "description"), "Supreme Leader");
     }
 
     function _hex(address a) internal pure returns (string memory) {
