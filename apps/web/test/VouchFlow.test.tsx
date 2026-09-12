@@ -56,9 +56,17 @@ vi.mock("@/app/providers", () => ({
 vi.mock("@/app/AttestFlow", () => ({
   // The sign-in gate renders an AttestFlow too, with no `onPublished`. Keying the button to that prop
   // is what keeps the test clicking the form rather than the gate.
-  AttestFlow: ({ extra, onPublished }: { extra?: React.ReactNode; onPublished?: (p: Published) => void }) =>
+  AttestFlow: ({
+    extra,
+    onPublished,
+    fixedDomain,
+  }: {
+    extra?: React.ReactNode;
+    onPublished?: (p: Published) => void;
+    fixedDomain?: string;
+  }) =>
     onPublished ? (
-      <div>
+      <div data-testid="attest" data-domain={fixedDomain ?? ""}>
         {extra}
         <button
           data-testid="fake-publish"
@@ -72,6 +80,14 @@ vi.mock("@/app/AttestFlow", () => ({
     ) : (
       <div data-testid="signin-gate" />
     ),
+}));
+
+vi.mock("@/app/me/HumanityCheck", () => ({
+  HumanityCheck: ({ onVerified }: { onVerified: () => void }) => (
+    <button data-testid="fake-human" onClick={onVerified}>
+      selfie
+    </button>
+  ),
 }));
 
 vi.mock("@/lib/hooks", () => ({
@@ -180,31 +196,37 @@ describe("what onboarding still needs", () => {
     state.checksHumanity = false;
   });
 
-  it("lists each account the invitation asks for, ticked or linked, and sends them to the first one missing", async () => {
+  it("says which accounts the invitation asks for, attests the first missing one in place, and the Selfie Check", async () => {
     state.links = [];
     state.checksHumanity = true;
     render(<VouchFlow candidate="alice" invite={invite} inviteCode="c" />);
     await waitFor(() => expect(screen.getByTestId("onboarding-gate")).toBeInTheDocument());
-    const steps = screen.getByTestId("onboarding-steps");
-    expect(steps.textContent).toContain("Link and attest github.com");
-    expect(steps.textContent).toContain("Link and attest x.com");
-    expect(steps.textContent).toContain("Pass the Selfie Check");
-    expect(steps.querySelectorAll("li.todo")).toHaveLength(3);
-    expect(screen.getByTestId("onboarding-next")).toHaveAttribute(
-      "href",
-      "/me?then=%2Fvouch%2Falice%3Finvite%3Dc#link"
-    );
-    expect(screen.getByTestId("onboarding-next").textContent).toContain("Link and attest github.com");
+    const gate = screen.getByTestId("onboarding-gate");
+    expect(gate.textContent).toContain("github.com and x.com");
+    expect(gate.textContent).toContain("stays masked");
+    expect(screen.getByTestId("onboarding-steps").querySelectorAll("li.todo")).toHaveLength(2);
+    expect(screen.getByTestId("attest")).toHaveAttribute("data-domain", "github.com");
+    expect(screen.getByTestId("fake-human")).toBeInTheDocument();
+    expect(gate.querySelector("a[href^='/me']")).toBeNull();
+  });
+
+  it("moves on to the next required account once one is attested", async () => {
+    state.links = [{ domain: "github.com", live: true, optedIn: false, ensName: null }];
+    render(<VouchFlow candidate="alice" invite={invite} inviteCode="c" />);
+    await waitFor(() => expect(screen.getByTestId("onboarding-gate")).toBeInTheDocument());
+    expect(screen.getByTestId("onboarding-steps").querySelectorAll("li.done")).toHaveLength(1);
+    expect(screen.getByTestId("attest")).toHaveAttribute("data-domain", "x.com");
   });
 
   it("asks for any account they worked from when nothing in particular was required", async () => {
     state.links = [];
     render(<VouchFlow candidate="alice" />);
     await waitFor(() => expect(screen.getByTestId("onboarding-gate")).toBeInTheDocument());
-    const steps = screen.getByTestId("onboarding-steps");
-    expect(steps.querySelectorAll("li")).toHaveLength(1);
-    expect(steps.textContent).toContain("an account you worked from");
-    expect(screen.getByTestId("onboarding-next")).toHaveAttribute("href", "/me?then=%2Fvouch%2Falice#link");
+    const gate = screen.getByTestId("onboarding-gate");
+    expect(gate.textContent).toContain("the account you worked together on");
+    expect(screen.queryByTestId("onboarding-steps")).toBeNull();
+    expect(screen.getByTestId("attest")).toHaveAttribute("data-domain", "");
+    expect(screen.queryByTestId("fake-human")).toBeNull();
   });
 });
 
@@ -214,10 +236,9 @@ describe("one real person writes it", () => {
     try {
       render(<VouchFlow candidate="alice" />);
       await waitFor(() => expect(screen.getByTestId("humanity-gate")).toBeInTheDocument());
-      expect(screen.getByRole("link", { name: /Pass the Selfie Check/ })).toHaveAttribute(
-        "href",
-        "/me?then=%2Fvouch%2Falice"
-      );
+      // The check is done here, not on a page they are sent to and back from.
+      expect(screen.getByTestId("humanity-gate").querySelector("[data-testid='fake-human']")).not.toBeNull();
+      expect(screen.getByTestId("humanity-gate").querySelector("a[href^='/me']")).toBeNull();
     } finally {
       state.checksHumanity = false;
     }

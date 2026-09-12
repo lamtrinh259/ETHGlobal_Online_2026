@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { missingRequirements, whyUnsatisfiable } from "@/lib/invite";
+import { whyUnsatisfiable } from "@/lib/invite";
 import { useMemo, useState } from "react";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import type { Address } from "viem";
@@ -17,6 +17,7 @@ import { WITHDRAWN } from "@ketsuban/registrar";
 import { VOUCH_PREFIX, voucherProgress, vouchSteps } from "@/lib/journey";
 import { OpenToCandidate } from "./OpenToCandidate";
 import { Revealed } from "@/app/Revealed";
+import { HumanityCheck } from "@/app/me/HumanityCheck";
 import { linkKeyFromInvite } from "@/lib/disclose";
 import { ZERO_ADDRESS } from "@ketsuban/registrar";
 import { LETTER_MAX } from "@/lib/chain";
@@ -63,7 +64,9 @@ export function VouchFlow({
       chainId: config.chainId,
     };
   };
-  const dash = useWalletDashboard(api, authenticated ? wallet : undefined);
+  // After an account is attested here, the dashboard is polled until the index lists it.
+  const [awaitingLink, setAwaitingLink] = useState(false);
+  const dash = useWalletDashboard(api, authenticated ? wallet : undefined, awaitingLink);
   const contracts = useContracts(api);
   const onChain = voucherProgress(dash.data, root?.domain ?? "", candidate);
 
@@ -80,11 +83,16 @@ export function VouchFlow({
   // One real person writes a reference, or nobody does: where the deployment can check humanity, a
   // writer without a live proof is sent to pass it before a statement is asked of them.
   const needsHuman = !!contracts.data?.humanity && dash.data !== undefined && !dash.data.humanity;
+  // The accounts the invitation asks for that somebody could hold, and which are not attested yet;
+  // a masked account counts, so this is answered without publishing which account it is.
+  const attestedNow = (dash.data?.links ?? []).filter((l) => l.live).map((l) => l.domain.toLowerCase());
+  const askedFor = (invite?.requires ?? []).filter((d) => !whyUnsatisfiable(d, config.parentNames));
+  const stillToLink = askedFor.filter((d) => !attestedNow.includes(d.trim().toLowerCase()));
   const stage: Stage = !authenticated
     ? "signin"
     : published
       ? "done"
-      : !isLinked
+      : !isLinked || stillToLink.length > 0
         ? "onboarding"
         : needsHuman
           ? "humanity"
@@ -104,53 +112,12 @@ export function VouchFlow({
     ),
   ];
 
-  /*
-   * What the invitation asks for and the writer has not linked yet.
-   *
-   * Only requirements somebody could actually meet: one that can never be held is not something to
-   * send a writer away to do. A masked account counts, so this is answered without publishing which
-   * account it is.
-   */
-  const attestedNow = (dash.data?.links ?? []).filter((l) => l.live).map((l) => l.domain.toLowerCase());
-  const missing = missingRequirements(invite?.requires ?? [], attestedNow, config.parentNames);
   // Said in the preview too: somebody deciding whether to start should not be told to go and link
   // something nobody can hold, and the detailed view only corrects that once they have signed in.
   const impossibleAsk = (invite?.requires ?? [])
     .map((d) => whyUnsatisfiable(d, config.parentNames))
     .find(Boolean);
-  /*
-   * What stands between this writer and the statement, each with where on the profile it is done.
-   * The invitation's own requirements when it has any that can be met, else any account they worked
-   * from; and the Selfie Check where the deployment asks for one. Carries who they were referring,
-   * so finishing there comes back here.
-   */
-  const backHere = `/me?then=${encodeURIComponent(`/vouch/${candidate}${inviteCode ? `?invite=${inviteCode}` : ""}`)}`;
-  const askedFor = (invite?.requires ?? []).filter((d) => !whyUnsatisfiable(d, config.parentNames));
-  const onboarding: { label: string; href: string; done: boolean }[] = [
-    ...(askedFor.length
-      ? askedFor.map((d) => ({
-          label: `Link and attest ${d}`,
-          href: `${backHere}#link`,
-          done: attestedNow.includes(d.trim().toLowerCase()),
-        }))
-      : [{ label: "Link and attest an account you worked from", href: `${backHere}#link`, done: isLinked }]),
-    ...(contracts.data?.humanity
-      ? [{ label: "Pass the Selfie Check", href: `${backHere}#humanity`, done: !!dash.data?.humanity }]
-      : []),
-  ];
-  const onboardingNext = onboarding.find((s) => !s.done) ?? onboarding[0];
-  const unmetAsked = missing.length ? (
-    <>
-      {candidate} asked for a reference from someone who has attested {missing.join(" and ")}.{" "}
-      {/* Said "come back" and left them to find their way; the link carries who they were referring. */}
-      <Link
-        href={`/me?then=${encodeURIComponent(`/vouch/${candidate}${inviteCode ? `?invite=${inviteCode}` : ""}`)}#link`}
-      >
-        Link {missing.length > 1 ? "them" : "it"} on your profile
-      </Link>{" "}
-      and come back — a masked account counts, so this need not say which account it is.
-    </>
-  ) : undefined;
+  const humanityDone = !!dash.data?.humanity;
 
   /**
    * Write the letter onto the name the record just created. Kept by its hash when it is too long to
@@ -241,42 +208,72 @@ export function VouchFlow({
 
       {!loading && stage === "onboarding" && (
         <section className="card" data-testid="onboarding-gate">
-          <h2>Finish your onboarding first</h2>
+          <h2>Before you write for {candidate}</h2>
           <p>
-            A reference carries weight because the person writing it has shown how they know {candidate}.
-            That is done once, on your profile, and this page picks up where you left off:
+            A reference here is worth something because whoever writes it has shown, once, how they know the
+            person. That takes {contracts.data?.humanity ? "two things" : "one thing"}, done right here; this
+            page continues by itself.
           </p>
-          <ol className="journey" data-testid="onboarding-steps">
-            {onboarding.map((s) => (
-              <li key={s.label} className={s.done ? "done" : "todo"}>
-                {s.done ? s.label : <Link href={s.href}>{s.label} →</Link>}
-              </li>
-            ))}
-          </ol>
-          <p>
-            <Link href={onboardingNext.href} className="primary" data-testid="onboarding-next">
-              {onboardingNext.label} →
-            </Link>
-          </p>
+          <h3>1. The account you know {candidate} from</h3>
+          {askedFor.length ? (
+            <p>
+              {candidate} asked for references from people who hold <strong>{askedFor.join(" and ")}</strong>.
+              {" "}Sign in to {stillToLink.length > 1 ? "each" : "it"} below. The account is attested to your
+              wallet on chain and stays masked: the reference shows it came from someone who holds such an
+              account, never which one.
+            </p>
+          ) : (
+            <p>
+              Sign in to the account you worked together on: GitHub, X, Google, Discord or Telegram. It is
+              attested to your wallet on chain and stays masked: the reference shows it came from a real
+              account, never which one.
+            </p>
+          )}
+          {askedFor.length > 0 && (
+            <ul className="journey" data-testid="onboarding-steps">
+              {askedFor.map((d) => (
+                <li key={d} className={stillToLink.includes(d) ? "todo" : "done"}>
+                  {d}
+                  {stillToLink.includes(d) ? " — not attested yet" : " — attested"}
+                </li>
+              ))}
+            </ul>
+          )}
+          <AttestFlow
+            key={stillToLink[0] ?? "any"}
+            fixedDomain={stillToLink[0]}
+            platformsOnly
+            allowLinking
+            title=""
+            onPublished={() => {
+              setAwaitingLink(true);
+              void dash.refetch();
+            }}
+          />
+          {contracts.data?.humanity && (
+            <>
+              <h3>2. One person, one voice</h3>
+              <p>
+                World&apos;s Selfie Check proves you are a single human without telling this site who you are.
+                Once per wallet.{humanityDone ? " Done." : ""}
+              </p>
+              {!humanityDone && wallet && (
+                <HumanityCheck api={api} wallet={wallet} onVerified={() => void dash.refetch()} />
+              )}
+            </>
+          )}
         </section>
       )}
 
       {!loading && stage === "humanity" && (
         <section className="card" data-testid="humanity-gate">
-          <h2>Prove you are one real person first</h2>
+          <h2>One person, one voice</h2>
           <p>
-            A reference here means a verified human wrote it. The Selfie Check is done once, on your profile,
-            and shows that without revealing who you are. It is the platform&apos;s rule, not {candidate}
-            &apos;s.
+            A reference here means one verified human wrote it. World&apos;s Selfie Check proves that without
+            telling this site who you are; once per wallet, and it is the platform&apos;s rule, not{" "}
+            {candidate}&apos;s. Pass it here and this page continues by itself.
           </p>
-          <p>
-            <Link
-              href={`/me?then=${encodeURIComponent(`/vouch/${candidate}${inviteCode ? `?invite=${inviteCode}` : ""}`)}`}
-              className="primary"
-            >
-              Pass the Selfie Check →
-            </Link>
-          </p>
+          <HumanityCheck api={api} wallet={wallet} onVerified={() => void dash.refetch()} />
         </section>
       )}
 
@@ -372,7 +369,6 @@ export function VouchFlow({
             fixedDomain={vouchDomain}
             fixedHandle={handle}
             invite={invite}
-            blocked={unmetAsked}
             title={onChain.existing ? "Update your reference" : "Write your reference"}
             answerLabel="Title"
             answerHint="Written into the name itself, on chain, and permanent. 31 bytes is all a name holds."
