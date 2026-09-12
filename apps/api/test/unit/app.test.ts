@@ -440,6 +440,8 @@ describe("GET /healthz", () => {
       instances: [instance, xInstance],
       bridge: baseEnv.BRIDGE,
       permissionedResolver: null,
+      // One resolver at the root, where the deployment runs that way; the page lists it by name.
+      rootResolver: null,
       // The registry the bridge checks for "bring your own .eth"; null when none is configured.
       ethRegistry: null,
       // The browser registers a name itself: the registrar mints only to its caller.
@@ -455,6 +457,11 @@ describe("GET /healthz", () => {
     expect((await (await withResolver.request("/v1/instances")).json()).permissionedResolver).toBe(
       baseEnv.FACTORY
     );
+    const rootMode = createApp({
+      config: loadConfig({ ...baseEnv, ROOT_RESOLVER: baseEnv.FACTORY }),
+      chain,
+    });
+    expect((await (await rootMode.request("/v1/instances")).json()).rootResolver).toBe(baseEnv.FACTORY);
   });
 });
 

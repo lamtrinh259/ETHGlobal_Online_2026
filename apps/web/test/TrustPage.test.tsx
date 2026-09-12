@@ -5,7 +5,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
  * The claim on this page is the one a reader cannot check for themselves from a name, so it must never
  * be made by a deployment that is not doing it. That is the whole test: the same page, both stances.
  */
+const ROOT = "0x6acc74E4931436c18E00302465f70A27599125FD";
+const ZERO = "0x0000000000000000000000000000000000000000";
 const state = {
+  contracts: null as null | Record<string, unknown>,
   confidential: false,
   enclave: { address: "0x8583AD4a0F59Ba45C7E201318C6F774F31f7bbC8", publicKey: "0x04" },
   preflight: {
@@ -20,7 +23,7 @@ vi.mock("@/lib/api", async (orig) => ({
   ...(await orig<typeof import("@/lib/api")>()),
   createApi: () => ({
     enclaveKey: vi.fn(async () => state.enclave),
-    contracts: vi.fn(async () => null),
+    contracts: vi.fn(async () => state.contracts),
     preflight: vi.fn(async () => state.preflight),
   }),
 }));
@@ -38,6 +41,43 @@ const { default: TrustPage } = await import("@/app/trust/page");
 const renderPage = async () => render(await TrustPage());
 
 afterEach(cleanup);
+
+describe("the contracts it lists", () => {
+  afterEach(() => {
+    state.contracts = null;
+  });
+
+  it("names the root resolver once and never a registry that is not there", async () => {
+    state.contracts = {
+      bridge: "0x9607Ec6f14A3cB7128B1e7EC0C8e8CFBa1643F61",
+      permissionedResolver: null,
+      rootResolver: ROOT,
+      instances: [
+        { domain: "ketsuban", registry: ZERO, resolver: ROOT, parentName: "ketsuban.eth", parentLabel: "ketsuban" },
+        { domain: "~alice", registry: ZERO, resolver: ROOT, parentName: "alice.ketsuban.eth", parentLabel: "alice" },
+      ],
+    };
+    await renderPage();
+    const links = screen.getByTestId("contract-links");
+    expect(links.textContent).not.toContain(ZERO);
+    expect(links.textContent).toContain("the root resolver");
+    expect(links.textContent?.split(ROOT).length - 1).toBe(1);
+  });
+
+  it("still lists a mounted registry and its own resolver where a level has them", async () => {
+    const own = "0x1bBbc2e910d142954A4C2dc471E49598f01bEaC4";
+    state.contracts = {
+      bridge: "0x9607Ec6f14A3cB7128B1e7EC0C8e8CFBa1643F61",
+      permissionedResolver: null,
+      rootResolver: ROOT,
+      instances: [{ domain: "x", registry: own, resolver: own, parentName: "x.ketsuban.eth", parentLabel: "x" }],
+    };
+    await renderPage();
+    const text = screen.getByTestId("contract-links").textContent ?? "";
+    expect(text).toContain("x.ketsuban.eth registry");
+    expect(text).toContain("x.ketsuban.eth resolver");
+  });
+});
 
 describe("what this deployment admits about itself", () => {
   it("does not claim an enclave while the attester signs on its own node", async () => {

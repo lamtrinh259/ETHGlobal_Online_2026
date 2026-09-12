@@ -54,6 +54,8 @@ function Chain({
  * three parts and the one step the chain cannot show them, and it is read from the deployment rather
  * than asserted: a claim about a sealed box is worth nothing from a page that would make it either way.
  */
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+
 export default async function TrustPage() {
   const config = loadWebConfig();
   const api = createApi(config.apiUrl, config.attestUrl);
@@ -179,14 +181,16 @@ export default async function TrustPage() {
                 ["the registrar key", trusted],
                 ["the attestation bridge", contracts?.bridge ?? null],
                 ["the permissioned resolver", contracts?.permissionedResolver ?? null],
+                ["the root resolver, answering every name from Multipass", contracts?.rootResolver ?? null],
                 ["the .eth registry", contracts?.ethRegistry ?? null],
+                // A level served by the root resolver has no registry and nothing of its own to list.
                 ...(contracts?.instances ?? []).flatMap((i) => [
                   [`${i.parentName} registry`, i.registry] as const,
-                  [`${i.parentName} resolver`, i.resolver] as const,
+                  [`${i.parentName} resolver`, i.resolver === contracts?.rootResolver ? null : i.resolver] as const,
                 ]),
               ] as const
             )
-              .filter(([, a]) => !!a)
+              .filter(([, a]) => !!a && a !== ZERO_ADDRESS)
               .map(([what, address]) => {
                 const href = explorerAddress(config.chainId, address as string);
                 return (

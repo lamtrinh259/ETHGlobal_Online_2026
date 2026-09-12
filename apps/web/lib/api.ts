@@ -156,6 +156,8 @@ export const contractsSchema = z.object({
   ),
   bridge: address,
   permissionedResolver: address.nullable(),
+  /** One resolver at the root answering every name from Multipass, where the deployment runs that way */
+  rootResolver: address.nullable().optional(),
   ethRegistry: address.nullable().optional(),
   ethRegistrar: address.nullable().optional(),
   paymentToken: address.nullable().optional(),

@@ -596,6 +596,7 @@ export function createApp({
       instances: await chain.instances(),
       bridge: config.BRIDGE,
       permissionedResolver: config.PERMISSIONED_RESOLVER ?? null,
+      rootResolver: config.ROOT_RESOLVER ?? null,
       ethRegistry: config.ETH_REGISTRY ?? null,
       // The registrar mints only to its caller and the names do not transfer, so registering is
       // something the person's own wallet does; the browser needs these two addresses to do it.
