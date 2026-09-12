@@ -106,8 +106,19 @@ jobs:
       # thirty-five failed is otherwise readable by nobody who was not already signed in.
       # Kept whatever happens, and kept as two things: which tests failed, and what the run said on
       # its way there. A run that writes no results file at all is the case the second one answers.
-      - run: |
+      - env:
+          # One stack per run. Overlapping runs on one host shared one project name, one network,
+          # one subnet and two host ports; a cancelled run's teardown removed the containers of the
+          # run that had replaced it, and the second run's network failed with "Pool overlaps".
+          COMPOSE_PROJECT: ketsuban-e2e-${{ github.run_id }}
+          E2E_NETWORK: ketsuban_e2e_${{ github.run_id }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
           set -o pipefail
+          # A subnet and two loopback ports of this run's own, from the run number: 10.211.8–207.0/24.
+          n=$(( RUN_NUMBER % 200 + 8 ))
+          export E2E_SUBNET="10.211.${n}.0/24" E2E_ANVIL_PORT=$(( 20000 + n * 2 )) E2E_API_PORT=$(( 20001 + n * 2 ))
+          echo "stack ${COMPOSE_PROJECT} on ${E2E_SUBNET}, ports ${E2E_ANVIL_PORT}/${E2E_API_PORT}"
           pnpm --filter @ketsuban/api test:e2e --reporter=default --reporter=junit \
             --outputFile=e2e-results.xml 2>&1 | tee apps/api/e2e-output.txt
       - if: always()

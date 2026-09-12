@@ -5,7 +5,10 @@ All services share one physical host with other stacks. Rules that keep them apa
 - every compose file sets `name:` (`ketsuban-*`) and a dedicated named network (`ketsuban_*`);
 - production composes publish **no host ports** — Coolify's proxy reaches `expose`d ports on the project network;
 - e2e stacks publish on `127.0.0.1` only, high ports (`18545`, `18787`), and pin their own subnet (`10.211.7.0/24`)
-  so they never overlap the default bridge (`10.200.0.0/24`) or other projects' `172.18–20/16` ranges;
+  so they never overlap the default bridge (`10.200.0.0/24`) or other projects' `172.18–20/16` ranges. CI gives
+  every run its own: `COMPOSE_PROJECT`, `E2E_NETWORK`, `E2E_SUBNET` (`10.211.8–207.0/24` from the run number) and
+  `E2E_ANVIL_PORT`/`E2E_API_PORT`, because two runs on one host sharing any of those took each other down
+  ("Pool overlaps with other one on this address space", containers removed by a cancelled run's teardown);
 - every setting is an environment variable; nothing host-specific is committed.
 
 ## 1. Contracts (Sepolia)

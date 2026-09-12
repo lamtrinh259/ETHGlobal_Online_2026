@@ -29,6 +29,10 @@ test("landing renders the shell and the search without horizontal overflow", asy
   // The subject a visitor can read without an account, argued from its own records rather than from
   // a string in the codebase, and kept above the search results because it is what people come for.
   await expect(page.getByTestId("pinned")).toContainText("Kim Jong Un");
+  // A subject is a row like any other: open it, or do the second thing — answer, where a person
+  // row offers to refer. It used to have one action where every person had two.
+  await expect(page.getByTestId("pinned").getByRole("link", { name: "Open" })).toBeVisible();
+  await expect(page.getByTestId("pinned-also")).toHaveAttribute("href", "/me#refer");
   await page.getByTestId("pinned").getByRole("link").first().click();
   await expect(page).toHaveURL(/\/v\/kju-is\.ketsuban\.eth$/);
 
