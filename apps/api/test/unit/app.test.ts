@@ -4973,3 +4973,70 @@ describe("a preview deployment", () => {
     expect((await res.json()).preview).toBeNull();
   });
 });
+
+describe("an employer's invitation to somebody who has a page", () => {
+  /*
+   * Named by their handle in the root name domain rather than by a platform account: the page
+   * exists, so the invitation is read against it at once, and the person is told to begin there.
+   */
+  it("is kept, and reads as claimed straight away", async () => {
+    const { chain } = fakeChain({
+      instances: [instance, xComInstance],
+      names: { "kju-is/alice": { taken: true, wallet: user.account.address, live: true } },
+      listed: {
+        "kju-is": [
+          {
+            name: "bob",
+            id: toBytes32("bob"),
+            wallet: registrar.address,
+            payload: zeroHash,
+            validUntil: 9_000_000_000n,
+            nonce: 1n,
+            live: true,
+            domain: "kju-is",
+          },
+        ],
+      },
+      byWallet: [
+        {
+          name: "bob",
+          id: toBytes32("bob"),
+          wallet: registrar.address,
+          payload: zeroHash,
+          validUntil: 9_000_000_000n,
+          nonce: 1n,
+          live: true,
+          domain: "kju-is",
+        },
+      ],
+    });
+    const message = {
+      inviter: "alice",
+      platform: "kju-is",
+      account: "bob",
+      policy: "preset=hiring",
+      exp: BigInt(NOW + 86_400),
+    };
+    const signature = await signPolicyInvite(
+      user.account,
+      message,
+      policyInviteDomain(31337, baseEnv.MULTIPASS as Address)
+    );
+    const a = app(chain);
+    const res = await a.request("/v1/invite", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ kind: "policy", ...message, exp: message.exp.toString(), signature }),
+    });
+    expect(res.status).toBe(200);
+    const { code } = await res.json();
+    const body = await (await a.request(`/v1/invite/${code}`)).json();
+    expect(body).toMatchObject({
+      kind: "policy",
+      platform: "kju-is",
+      account: "bob",
+      status: "claimed",
+      candidate: "bob",
+    });
+  });
+});

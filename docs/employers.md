@@ -62,3 +62,11 @@ begin with, then, once there is a page, reads it against the bar.
 `GET /v1/invites/<inviter>` carries the same list as `asked`, which is what "Whom you invited" on
 `/employers` shows: every invitation as a pending check until the person has a page, then a link to
 read them against the bar. An expired invitation that nobody used stays listed as "never came".
+
+## Somebody already on the list
+
+The same invitation, named by their handle: `platform` is the root name domain and `account` the handle,
+so `GET /v1/invite/:code` reads as `claimed` at once and the person is told to begin with their page.
+The prose "ask" that carried the bar in a paragraph is gone; every message an employer sends is the
+invitation above, and it is listed under "Whom you invited" like any other. The policy itself is found
+by typing its name — presets and the reader's own — as on a person's page.

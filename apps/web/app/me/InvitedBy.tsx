@@ -71,10 +71,22 @@ export async function InvitedBy({ code }: { code: string | undefined }) {
         </p>
       ) : (
         <p data-testid="invited-begin">
-          <strong>
-            Begin by connecting your <code>{kept.platform}</code> account <code>@{kept.account}</code>
-          </strong>{" "}
-          below: sign in, link it, and the page becomes yours to be read.
+          {kept.platform.includes(".") ? (
+            <>
+              <strong>
+                Begin by connecting your <code>{kept.platform}</code> account <code>@{kept.account}</code>
+              </strong>{" "}
+              below: sign in, link it, and the page becomes yours to be read.
+            </>
+          ) : (
+            // Named by their handle here: the page existed once and has lapsed, or was never claimed.
+            <>
+              <strong>
+                Begin by claiming your name <code>{kept.account}</code>
+              </strong>{" "}
+              below: sign in, hold it, and the page is read against the bar.
+            </>
+          )}
           {kept.status === "linked" && (
             <span className="muted" data-testid="invited-linked">
               {" "}

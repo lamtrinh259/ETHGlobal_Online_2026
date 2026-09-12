@@ -1,5 +1,15 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// The tabs read the council's readings through the app's providers; here there is no council and no
+// provider, which is exactly the page with nothing read.
+vi.mock("@/app/providers", () => ({
+  useWebConfig: () => ({ apiUrl: "http://api.test", attestUrl: "http://api.test", instances: [] }),
+}));
+vi.mock("@/lib/hooks", async (orig) => {
+  const real = await orig<typeof import("@/lib/hooks")>();
+  return { ...real, apiFor: () => ({}), useReadings: () => ({ data: undefined, isPending: false }) };
+});
 import { ProfileCard } from "@/app/ProfileCard";
 import type { Profile } from "@/lib/profile";
 

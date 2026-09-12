@@ -10,11 +10,16 @@ export function policyInviteText(
   policyLabel: string,
   platform: string,
   account: string,
-  link: string
+  link: string,
+  /** Set where the person already has a page: then there is nothing to connect, only the page to read */
+  pageName?: string
 ): string {
+  const begin = pageName
+    ? `begin with your page (${pageName})`
+    : `begin with connecting your ${platform} account (@${account})`;
   return (
     `${inviterName} is inviting you to pass their ${policyLabel} risk assessment policy, please follow this ` +
-    `link and begin with connecting your ${platform} account (@${account}): ${link}`
+    `link and ${begin}: ${link}`
   );
 }
 

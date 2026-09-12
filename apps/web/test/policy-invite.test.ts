@@ -19,6 +19,22 @@ describe("what an employer sends", () => {
     );
   });
 
+  it("tells somebody who has a page to begin with it, rather than to connect an account", () => {
+    expect(
+      policyInviteText(
+        "peersky.ketsuban.eth",
+        "hiring",
+        "ketsuban",
+        "alice",
+        "https://x/me?invite=c",
+        "alice.ketsuban.eth"
+      )
+    ).toBe(
+      "peersky.ketsuban.eth is inviting you to pass their hiring risk assessment policy, please follow this " +
+        "link and begin with your page (alice.ketsuban.eth): https://x/me?invite=c"
+    );
+  });
+
   it("says where the person is, pending until they have a page", () => {
     expect(policyInviteStatusText("invited", false)).toMatch(/^pending/);
     expect(policyInviteStatusText("linked", false)).toMatch(/^pending/);

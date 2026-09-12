@@ -43,6 +43,22 @@ export function Employers({ subjectDomains }: { subjectDomains: string[] }) {
   const [list, setList] = useState<Shortlisted[]>([]);
   const [building, setBuilding] = useState(false);
   const [note, setNote] = useState("");
+  const [pick, setPick] = useState("");
+  /** A policy by its name, preset or saved; a name nobody has leaves the bar as it is. */
+  const choose = (name: string) => {
+    const key = name.trim().toLowerCase();
+    const preset = POLICY_PRESETS.find((p) => p.label.toLowerCase() === key || p.id === key);
+    if (preset) {
+      setPolicy(presetPolicy(preset, subjectDomains));
+      setNamed(preset.id);
+      return;
+    }
+    const saved = mine.find((m) => m.name.toLowerCase() === key);
+    if (saved) {
+      setPolicy(saved.policy);
+      setNamed(saved.name);
+    }
+  };
   useEffect(() => {
     setMine(loadPolicies());
     setList(loadShortlist());
@@ -50,9 +66,6 @@ export function Employers({ subjectDomains }: { subjectDomains: string[] }) {
 
   const site = typeof window === "undefined" ? "" : window.location.origin;
   const query = policyToQuery(policy, named);
-  const askFor = (handle: string) =>
-    `I am checking references for ${note.trim() || "a role"}. Here is the bar: ${describePolicy(policy)}. ` +
-    `Your page, read against it: ${site}/p/${handle}?${query}`;
 
   /*
    * Who is asking.
@@ -106,10 +119,20 @@ export function Employers({ subjectDomains }: { subjectDomains: string[] }) {
         exp: message.exp.toString(),
         signature,
       });
+      // Named by their handle here, the person has a page already: nothing to connect, the page to read.
+      const root = config.instances[0];
+      const pageName = platform === root.domain ? `${account}.${root.parentName}` : undefined;
       setSent({
         account,
         platform,
-        text: policyInviteText(rootRow.ensName, policyLabel, platform, account, policyInviteLink(site, code)),
+        text: policyInviteText(
+          rootRow.ensName,
+          policyLabel,
+          platform,
+          account,
+          policyInviteLink(site, code),
+          pageName
+        ),
       });
       void invited.refetch();
     } catch (e) {
@@ -123,6 +146,31 @@ export function Employers({ subjectDomains }: { subjectDomains: string[] }) {
     <>
       <section className="card" data-testid="employer-policy">
         <h2>1 · What you require</h2>
+        {/* Found by typing, not by scanning buttons: the presets and the reader's own saved policies. */}
+        <div className="searchbar-row">
+          <input
+            list="employer-policy-names"
+            value={pick}
+            onChange={(e) => setPick(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                choose(pick);
+              }
+            }}
+            placeholder="find a policy: hiring, landlord, your own…"
+            aria-label="find a policy"
+            data-testid="employer-policy-pick"
+          />
+          <datalist id="employer-policy-names">
+            {[...POLICY_PRESETS.map((p) => p.label), ...mine.map((m) => m.name)].map((o) => (
+              <option key={o} value={o} />
+            ))}
+          </datalist>
+          <button type="button" onClick={() => choose(pick)} data-testid="employer-policy-apply">
+            Use
+          </button>
+        </div>
         <p className="row">
           {POLICY_PRESETS.map((p) => (
             <button
@@ -254,7 +302,10 @@ export function Employers({ subjectDomains }: { subjectDomains: string[] }) {
                           policyLabel,
                           i.platform,
                           i.account,
-                          policyInviteLink(site, i.code)
+                          policyInviteLink(site, i.code),
+                          i.platform === config.instances[0].domain
+                            ? `${i.account}.${config.instances[0].parentName}`
+                            : undefined
                         )}
                         label="Copy the invitation"
                       />
@@ -281,7 +332,7 @@ export function Employers({ subjectDomains }: { subjectDomains: string[] }) {
                 entry={s}
                 policy={policy}
                 query={query}
-                ask={askFor(s.handle)}
+                onInvite={() => void invite(config.instances[0].domain, s.handle)}
                 subjectDomains={subjectDomains}
                 onDrop={() => setList(unshortlist(s.handle))}
               />
@@ -298,14 +349,15 @@ function Standing({
   entry,
   policy,
   query,
-  ask,
+  onInvite,
   subjectDomains,
   onDrop,
 }: {
   entry: Shortlisted;
   policy: Policy;
   query: string;
-  ask: string;
+  /** Invite them to pass the bar: signed by the employer, kept under a code, worded for the person */
+  onInvite: () => void;
   subjectDomains: string[];
   onDrop: () => void;
 }) {
@@ -372,7 +424,9 @@ function Standing({
         <Link className="button" href={`/p/${entry.handle}?${query}`}>
           Read
         </Link>
-        <CopyButton text={ask} label="Copy the ask" />
+        <button type="button" onClick={onInvite} data-testid={`invite-${entry.handle}`}>
+          Invite to pass the bar
+        </button>
         <button className="linkish" onClick={onDrop} aria-label={`remove ${entry.handle}`}>
           ×
         </button>

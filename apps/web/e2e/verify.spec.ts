@@ -280,4 +280,30 @@ test("the given tab says what stands and what was taken back", async ({ page }) 
   await page.goto("/p/alice");
   await page.getByTestId("tab-given").click();
   await expect(page.getByTestId("given-record")).toContainText("1 standing · 1 taken back");
+  // Asking them for one goes through your own page, where an invitation is made.
+  await expect(page.getByTestId("request-reference")).toHaveAttribute("href", "/me#invite");
+});
+
+/**
+ * Each reference carries how it reads, and the received list narrows to what was asked for.
+ *
+ * Three kinds beside the words — supportive, neutral, critical — from the same council reading the
+ * card below sums up; and the unsolicited ones set aside by a switch, counted while they are.
+ */
+test("each reference on the page reads one of three ways, and the unasked-for can be set aside", async ({
+  page,
+}) => {
+  await page.goto("/p/alice");
+  // bob wrote "would hire again" in the readings, and his row carries that reading.
+  await expect(page.getByTestId("vouch-bob").getByTestId("lean-vouch-bob")).toContainText("supportive");
+  const toggle = page.getByTestId("only-asked");
+  await expect(toggle).toContainText("1 arrived without an invitation");
+  // The real input is a pixel behind the drawn track; the label is what a person taps.
+  await toggle.locator("label.switch").click();
+  await expect(toggle.getByRole("switch")).toBeChecked();
+  await expect(page.getByTestId("vouch-bob")).toHaveCount(0);
+  await expect(toggle).toContainText("set aside");
+  await toggle.locator("label.switch").click();
+  await expect(toggle.getByRole("switch")).not.toBeChecked();
+  await expect(page.getByTestId("vouch-bob")).toBeVisible();
 });

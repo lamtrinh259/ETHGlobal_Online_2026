@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import { useWebConfig } from "@/app/providers";
-import type { Reading } from "@/lib/api";
 import { apiFor, useReadings } from "@/lib/hooks";
+import { LeanChip, signed } from "@/app/LeanChip";
 
 /**
  * What the references say, in one line.
@@ -18,36 +18,6 @@ import { apiFor, useReadings } from "@/lib/hooks";
  * superseded when peers have judged. Where no council is configured the statements are shown as
  * written, and nothing here pretends to have read them.
  */
-export function lean(polarity: number): "supportive" | "critical" | "neutral" {
-  if (polarity > 0.2) return "supportive";
-  if (polarity < -0.2) return "critical";
-  return "neutral";
-}
-
-const signed = (n: number) => `${n > 0 ? "+" : ""}${n.toFixed(2)}`;
-
-function Chip({ reading, id }: { reading: Reading | null; id: string }) {
-  if (!reading) {
-    return (
-      <span className="reading reading-unread" data-testid={`lean-${id}`}>
-        unread
-      </span>
-    );
-  }
-  const l = lean(reading.polarity);
-  // Written out, so the stylesheet's own check can see each class is used.
-  const cls = {
-    supportive: "reading reading-supportive",
-    critical: "reading reading-critical",
-    neutral: "reading reading-neutral",
-  }[l];
-  return (
-    <span className={cls} data-testid={`lean-${id}`} title={reading.rationale}>
-      {signed(reading.polarity)} {l}
-    </span>
-  );
-}
-
 function Line({
   s,
   side,
@@ -133,7 +103,8 @@ export function Readings({ handle }: { handle: string }) {
                     <Link href={`/p/${x.voucher}`}>
                       <code>{x.voucher}</code>
                     </Link>{" "}
-                    <span className="vouch-what">“{x.says}”</span> <Chip reading={x.reading} id={x.voucher} />
+                    <span className="vouch-what">“{x.says}”</span>{" "}
+                    <LeanChip reading={x.reading} id={x.voucher} />
                     {x.reading?.rationale && <small className="muted"> — {x.reading.rationale}</small>}
                   </li>
                 ))}
@@ -152,7 +123,7 @@ export function Readings({ handle }: { handle: string }) {
                       <code>{x.candidate}</code>
                     </Link>{" "}
                     <span className="vouch-what">“{x.says}”</span>{" "}
-                    <Chip reading={x.reading} id={`given-${x.candidate}`} />
+                    <LeanChip reading={x.reading} id={`given-${x.candidate}`} />
                     {x.reading?.rationale && <small className="muted"> — {x.reading.rationale}</small>}
                   </li>
                 ))}

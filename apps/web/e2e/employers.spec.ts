@@ -61,3 +61,23 @@ test("an account nobody holds a name for is offered an invitation to pass the ba
   await expect(page.getByTestId("invite-to-claim")).toHaveCount(0);
   await expect(page.getByTestId("invite-signin")).toContainText("sign in with a name you hold");
 });
+
+/**
+ * Somebody already on the list is invited the same way: signed by the employer, worded for the
+ * person, a code the attester keeps. The plain "ask" that carried the bar in prose is gone.
+ */
+test("a candidate on the list is invited to pass the bar, not sent a paragraph", async ({ page }) => {
+  await page.goto("/employers");
+  await page.getByTestId("name-query").fill("alice");
+  await page.getByTestId("pick-alice").click();
+  const row = page.getByTestId("standing-alice");
+  await expect(row.getByTestId("invite-alice")).toBeVisible();
+  await expect(row.getByRole("button", { name: "Copy the ask" })).toHaveCount(0);
+});
+
+test("a policy is found by typing its name", async ({ page }) => {
+  await page.goto("/employers");
+  await page.getByTestId("employer-policy-pick").fill("landlord");
+  await page.getByTestId("employer-policy-apply").click();
+  await expect(page.getByTestId("employer-preset-landlord")).toHaveClass(/primary/);
+});

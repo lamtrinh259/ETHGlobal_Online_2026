@@ -805,9 +805,10 @@ export function createApp({
     };
     if (Number(invite.exp) <= now())
       return c.json({ error: "an invitation must not have expired already" }, 400);
-    // The person is named by an account somewhere this deployment attests; anywhere else it is a string.
+    // The person is named by an account somewhere this deployment attests — or, where they already
+    // hold a page, by their handle in the root name domain; anywhere else it is a string.
     const platforms = (await chain.instances()).map((i) => i.domain).filter((d) => d.includes("."));
-    if (!platforms.includes(invite.platform)) {
+    if (!platforms.includes(invite.platform) && invite.platform !== config.NAME_DOMAINS[0]) {
       return c.json({ error: `this deployment does not attest ${invite.platform} accounts` }, 400);
     }
     const signer = await recoverPolicyInviteSigner(
