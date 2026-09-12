@@ -98,10 +98,14 @@ export function dnsEncode(name: string): Hex {
  */
 export function ownershipWarnings(relayer: Address, owner: Address): string[] {
   if (owner.toLowerCase() !== relayer.toLowerCase()) return [];
+  // Said with the trade-off: this deployment provisions a candidate's vouch domain from the relayer,
+  // and `initializeDomain` is an owner call, so the relayer owns Multipass on purpose. The fix is a
+  // separate owner signer for that one call, then transfer ownership; until then this is the risk.
   return [
     `the Multipass owner is the relayer key (${owner}): the key that signs transactions can also ` +
-      `delete any record, so one compromise removes references this deployment calls permanent — ` +
-      `transfer ownership to a key that signs nothing else`,
+      `delete any record, so one compromise removes references this deployment calls permanent. ` +
+      `It owns Multipass because provisioning a vouch domain is an owner call; the fix is a separate ` +
+      `owner signer for that call, then transfer ownership to a key that signs nothing else`,
   ];
 }
 
