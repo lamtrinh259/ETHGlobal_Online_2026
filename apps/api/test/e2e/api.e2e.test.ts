@@ -967,7 +967,8 @@ describe("api e2e", () => {
   it("serves the whole candidate in one read, matching the per-name endpoint", async () => {
     const profile = await (await fetch(`${API}/v1/profile/alice`)).json();
     expect(profile.handle).toBe("alice");
-    expect(profile.standing).toMatchObject({ claimed: true, received: 1 });
+    // Bob's reference is withdrawn by now, and a withdrawn reference is not one received.
+    expect(profile.standing).toMatchObject({ claimed: true, received: 0 });
     const named = profile.names.find((n: { instance: string }) => n.instance === deployment.instanceDomain);
     expect(named.verification.status).toBe("active");
     const single = await (await fetch(`${API}/v1/verify/${named.name}`)).json();

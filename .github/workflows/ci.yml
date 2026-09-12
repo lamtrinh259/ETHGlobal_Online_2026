@@ -106,7 +106,12 @@ jobs:
       # thirty-five failed is otherwise readable by nobody who was not already signed in.
       # Kept whatever happens, and kept as two things: which tests failed, and what the run said on
       # its way there. A run that writes no results file at all is the case the second one answers.
-      - run: |
+      - env:
+          # One stack per run. Overlapping runs on one host shared one project name, and a cancelled
+          # run's teardown removed the containers of the run that had replaced it.
+          COMPOSE_PROJECT: ketsuban-e2e-${{ github.run_id }}
+          E2E_NETWORK: ketsuban_e2e_${{ github.run_id }}
+        run: |
           set -o pipefail
           pnpm --filter @ketsuban/api test:e2e --reporter=default --reporter=junit \
             --outputFile=e2e-results.xml 2>&1 | tee apps/api/e2e-output.txt

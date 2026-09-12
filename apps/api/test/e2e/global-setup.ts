@@ -21,7 +21,7 @@ function env() {
 }
 
 /** The network the stack builds, named in the compose file so it can be joined by name. */
-const NETWORK = "ketsuban_e2e";
+const NETWORK = process.env.E2E_NETWORK ?? "ketsuban_e2e";
 
 /**
  * Reach the stack from wherever this process is running.
