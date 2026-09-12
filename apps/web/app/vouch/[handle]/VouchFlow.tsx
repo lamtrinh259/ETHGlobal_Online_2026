@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { describeRequirement, whyUnsatisfiable, wrongAccount } from "@/lib/invite";
 import { connectedAccounts, type LinkedAccounts } from "@/lib/identity";
-import { parseRequirement } from "@ketsuban/registrar";
+import { parseRequirement, platformOf } from "@ketsuban/registrar";
 import { useMemo, useState } from "react";
-import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { useLinkAccount, usePrivy, useWallets } from "@privy-io/react-auth";
 import type { Address } from "viem";
 import { AttestFlow, type Published } from "@/app/AttestFlow";
 import { InviteTerms } from "./InviteTerms";
@@ -53,6 +53,20 @@ export function VouchFlow({
   const root = config.instances[0];
   const api = useMemo(() => apiFor(config), [config]);
   const { ready, authenticated, user } = usePrivy();
+  // The row that says an account is missing carries the button that links it: nobody should have to
+  // find the same platform again in the form below.
+  const [linkError, setLinkError] = useState<string>();
+  const linker = useLinkAccount({
+    onSuccess: () => setLinkError(undefined),
+    onError: (error) => setLinkError(`Linking failed: ${String(error)}.`),
+  });
+  const linkFor: Record<string, { label: string; link: () => void }> = {
+    x: { label: "X", link: () => linker.linkTwitter() },
+    github: { label: "GitHub", link: () => linker.linkGithub() },
+    discord: { label: "Discord", link: () => linker.linkDiscord() },
+    google: { label: "Google", link: () => linker.linkGoogle() },
+    email: { label: "an email address", link: () => linker.linkEmail() },
+  };
   const { wallets } = useWallets();
   const embedded = wallets.find((w) => w.walletClientType === "privy") ?? wallets[0];
   const wallet = embedded?.address as Address | undefined;
@@ -227,13 +241,40 @@ export function VouchFlow({
             someone who holds such an account, never which one.
           </p>
           <ul className="journey" data-testid="onboarding-steps">
-            {askedFor.map((d) => (
-              <li key={d} className={stillToLink.includes(d) ? "todo" : "done"}>
-                {describeRequirement(d)}
-                {stillToLink.includes(d) ? " — not attested yet" : " — attested"}
-              </li>
-            ))}
+            {askedFor.map((d) => {
+              const { domain } = parseRequirement(d);
+              const platform = platformOf(domain) ?? "";
+              const linked = connectedAccounts(user as LinkedAccounts | null | undefined).some((a) =>
+                platform === "email"
+                  ? (a.domain === "email" || a.domain === "google") && a.label.toLowerCase().endsWith(`@${domain}`)
+                  : a.domain === platform
+              );
+              const todo = stillToLink.includes(d);
+              return (
+                <li key={d} className={todo ? "todo" : "done"}>
+                  {describeRequirement(d)}
+                  {!todo
+                    ? " — attested"
+                    : linked
+                      ? " — linked; sign and publish below"
+                      : " — not attested yet"}
+                  {todo && !linked && linkFor[platform] && (
+                    <>
+                      {" "}
+                      <button className="primary" onClick={linkFor[platform].link} data-testid={`link-${d}`}>
+                        Link {linkFor[platform].label}
+                      </button>
+                    </>
+                  )}
+                </li>
+              );
+            })}
           </ul>
+          {linkError && (
+            <p className="warning" data-testid="gate-link-error">
+              {linkError}
+            </p>
+          )}
           {notYou.length > 0 && (
             <p className="warning" data-testid="not-you">
               {notYou.join(" ")} You can still write a reference, marked as one {candidate} did not ask for;

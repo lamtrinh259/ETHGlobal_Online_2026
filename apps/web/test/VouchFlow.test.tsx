@@ -28,8 +28,17 @@ const state = {
   }[],
 };
 
+const linksAsked: string[] = [];
+
 vi.mock("@privy-io/react-auth", () => ({
   usePrivy: () => ({ ready: true, authenticated: true, user: { id: "did:privy:x", github: { username: "bob" } } }),
+  useLinkAccount: () => ({
+    linkTwitter: () => linksAsked.push("x"),
+    linkGithub: () => linksAsked.push("github"),
+    linkDiscord: () => linksAsked.push("discord"),
+    linkGoogle: () => linksAsked.push("google"),
+    linkEmail: () => linksAsked.push("email"),
+  }),
   useSignTypedData: () => ({ signTypedData: vi.fn(async () => ({ signature: "0x01" })) }),
   useWallets: () => ({
     wallets: [
@@ -219,6 +228,21 @@ describe("what onboarding still needs", () => {
     expect(screen.getByTestId("not-you").textContent).toContain("@bob");
     expect(screen.queryByTestId("attest")).toBeNull();
     expect(screen.getByTestId("onboarding-steps").textContent).toContain("github.com as @lam");
+  });
+
+  it("puts the link button on the row that says the account is missing", async () => {
+    state.links = [];
+    linksAsked.length = 0;
+    const mail = { ...invite, requires: ["peersky.xyz", "x.com", "github.com"] } as typeof invite;
+    render(<VouchFlow candidate="alice" invite={mail} inviteCode="c" />);
+    await waitFor(() => expect(screen.getByTestId("onboarding-gate")).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId("link-peersky.xyz"));
+    fireEvent.click(screen.getByTestId("link-x.com"));
+    expect(linksAsked).toEqual(["email", "x"]);
+    expect(screen.getByTestId("link-peersky.xyz").textContent).toBe("Link an email address");
+    // GitHub is linked already (the fixture is bob there): nothing to link, only to sign below.
+    expect(screen.queryByTestId("link-github.com")).toBeNull();
+    expect(screen.getByTestId("onboarding-steps").textContent).toContain("github.com — linked; sign and publish below");
   });
 
   it("moves on to the next required account once one is attested", async () => {
