@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { TxDone } from "@/app/TxDone";
 import { useWebConfig } from "@/app/providers";
 import type { AdminHumanity, AdminReset, AdminSelfieCheck } from "@/lib/api";
 import { apiFor } from "@/lib/hooks";
@@ -24,6 +25,8 @@ export function Admin() {
   const [result, setResult] = useState<AdminReset>();
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState<"look" | "reset" | "switch">();
+  /** The deletion whose confirmation has been read, so closing it does not bring it back */
+  const [doneRead, setDoneRead] = useState<string>();
   const [policy, setPolicy] = useState<AdminSelfieCheck>();
   const [policyError, setPolicyError] = useState<string>();
   useEffect(() => {
@@ -99,6 +102,10 @@ export function Admin() {
       setBusy(undefined);
     }
   };
+  // A reset forgets nullifiers whether or not there was a record to delete; only a deletion is a
+  // transaction, so only that one has anything to confirm.
+  const deleted = result?.deleted && "txHash" in result.deleted ? result.deleted.txHash : undefined;
+
   return (
     <>
     <section className="card" data-testid="admin-policy">
@@ -215,6 +222,9 @@ export function Admin() {
               ? `Deleted the record on chain: ${result.deleted.txHash}.`
               : `The record on chain could not be deleted: ${result.deleted && "error" in result.deleted ? result.deleted.error : "unknown"}.`}
         </p>
+      )}
+      {deleted && doneRead !== deleted && (
+        <TxDone title="Record deleted" hash={deleted} onClose={() => setDoneRead(deleted)} />
       )}
     </section>
     </>

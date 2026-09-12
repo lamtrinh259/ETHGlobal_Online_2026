@@ -5,6 +5,7 @@ import { useAddFunds } from "@privy-io/react-auth";
 import { formatEther, type Address } from "viem";
 import type { Api, WalletDashboard } from "@/lib/api";
 import { CopyButton } from "@/app/CopyButton";
+import { TxDone } from "@/app/TxDone";
 import { useWebConfig } from "@/app/providers";
 import { useGasTopup } from "@/lib/hooks";
 
@@ -34,6 +35,8 @@ export function FundWallet({ api, wallet, balance, topup }: Props) {
   const gas = useGasTopup(wallet);
   const { addFunds } = useAddFunds();
   const [opening, setOpening] = useState(false);
+  /** The top-up whose confirmation has been read, so closing it does not bring it back */
+  const [doneRead, setDoneRead] = useState<string>();
   const held = BigInt(balance);
   const enough = held >= ENOUGH_WEI;
 
@@ -96,6 +99,10 @@ export function FundWallet({ api, wallet, balance, topup }: Props) {
         Or send some to <code data-testid="fund-address">{wallet}</code>{" "}
         <CopyButton text={wallet} label="Copy the address" />
       </p>
+
+      {gas.isSuccess && doneRead !== gas.data.hash && (
+        <TxDone title="Gas sent" hash={gas.data.hash} onClose={() => setDoneRead(gas.data.hash)} />
+      )}
     </div>
   );
 }

@@ -7,6 +7,12 @@ const RESOLVER = "0x4E2d9783cEFF2ed72CD77C14206b29fe246b24F7";
 const written: { letter?: string }[] = [];
 const stored: string[] = [];
 
+vi.mock("@/app/providers", () => ({
+  useWebConfig: () => ({ chainId: 11155111, apiUrl: "http://api.test", attestUrl: "http://api.test" }),
+}));
+/** Whether the wallet's write has already landed, which is what the confirmation is read from */
+const state = { written: false };
+
 vi.mock("@/lib/hooks", async (orig) => ({
   ...(await orig<typeof import("@/lib/hooks")>()),
   useContracts: () => ({ data: { permissionedResolver: RESOLVER } }),
@@ -17,9 +23,9 @@ vi.mock("@/lib/hooks", async (orig) => ({
       return "0xtx";
     },
     isPending: false,
-    isSuccess: false,
+    isSuccess: state.written,
     error: null,
-    data: undefined,
+    data: state.written ? "0xtx" : undefined,
   }),
 }));
 
@@ -53,6 +59,7 @@ describe("the letter behind a reference", () => {
   beforeEach(() => {
     written.length = 0;
     stored.length = 0;
+    state.written = false;
   });
 
   it("writes a short letter straight onto the record, where it is permanent", async () => {
@@ -78,6 +85,19 @@ describe("the letter behind a reference", () => {
     await waitFor(() => expect(stored).toEqual([long.trim()]));
     await waitFor(() => expect(written).toHaveLength(1));
     expect(written[0].letter).toBe(`sha256:${"a".repeat(64)}`);
+  });
+
+  it("ends in a confirmation naming the transaction, over the line that says it was saved", async () => {
+    state.written = true;
+    form();
+    expect(screen.getByRole("dialog", { name: "Letter written" })).toBeVisible();
+    expect(screen.getByTestId("tx-done-link")).toHaveAttribute(
+      "href",
+      "https://sepolia.etherscan.io/tx/0xtx"
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(screen.queryByTestId("tx-done")).toBeNull();
+    expect(screen.getByTestId("letter-form")).toHaveTextContent("0xtx");
   });
 
   it("says which of the two will happen before the wallet is asked", async () => {

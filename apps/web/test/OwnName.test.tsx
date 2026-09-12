@@ -1,9 +1,13 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = {
   owner: null as string | null,
   canRegisterNames: true,
+  /** The transaction the alias write landed in, once it has */
+  linked: undefined as string | undefined,
+  /** The transaction the registration landed in, once it has */
+  registered: undefined as string | undefined,
 };
 const claim = vi.fn();
 
@@ -21,13 +25,20 @@ vi.mock("@/lib/hooks", () => ({
   }),
   useEthLabel: () => ({ data: { label: "alice", registry: "0x02", owner: state.owner }, refetch: vi.fn() }),
   useGasTopup: () => ({ mutate: vi.fn(), isPending: false, isSuccess: false, error: null }),
-  useClaimEthName: () => ({ mutate: claim, isPending: false, error: null, waitingUntil: undefined }),
+  useClaimEthName: () => ({
+    mutate: claim,
+    isPending: false,
+    error: null,
+    waitingUntil: undefined,
+    isSuccess: !!state.registered,
+    data: state.registered,
+  }),
   useLinkOwnName: () => ({
     mutate: vi.fn(),
     isPending: false,
     error: null,
-    isSuccess: false,
-    data: undefined,
+    isSuccess: !!state.linked,
+    data: state.linked,
   }),
 }));
 
@@ -42,6 +53,36 @@ const props = {
   handle: "alice",
   getSigner: vi.fn(),
 };
+
+beforeEach(() => {
+  state.linked = undefined;
+  state.registered = undefined;
+});
+
+describe("what the two transactions here end in", () => {
+  it("confirms the alias with its transaction, over the line that says it was linked", () => {
+    state.owner = WALLET;
+    state.linked = "0xlink";
+    render(<OwnName {...props} />);
+    expect(screen.getByRole("dialog", { name: "Name linked" })).toBeVisible();
+    expect(screen.getByTestId("tx-done-link")).toHaveAttribute(
+      "href",
+      "https://sepolia.etherscan.io/tx/0xlink"
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(screen.queryByTestId("tx-done")).toBeNull();
+    expect(screen.getByTestId("own-name")).toHaveTextContent("0xlink");
+  });
+
+  it("confirms the registration too, which is the person's own transaction", () => {
+    state.owner = null;
+    state.canRegisterNames = true;
+    state.registered = "0xreg";
+    render(<OwnName {...props} />);
+    expect(screen.getByRole("dialog", { name: "Name registered" })).toBeVisible();
+    expect(screen.getByTestId("tx-done")).toHaveTextContent("0xreg");
+  });
+});
 
 describe("bringing your own .eth", () => {
   it("offers the free name as something to claim, paid for by the person", () => {

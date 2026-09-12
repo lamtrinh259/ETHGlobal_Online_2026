@@ -36,8 +36,7 @@ vi.mock("@privy-io/react-auth", () => ({
 }));
 const linking = {
   onSuccess: undefined as
-    | undefined
-    | ((r: { linkMethod: string; linkedAccount?: { address?: string } }) => void),
+    undefined | ((r: { linkMethod: string; linkedAccount?: { address?: string } }) => void),
   onError: undefined as undefined | ((error: string, details: { linkMethod?: string }) => void),
   linkGithub: vi.fn(),
 };
@@ -83,7 +82,10 @@ vi.mock("@/lib/hooks", () => ({
     reset: vi.fn(),
     mutateAsync: vi.fn(async (input: unknown) => {
       state.delivered = input;
-      return { txHash: "0xdead", letterWritten: typeof input === "object" && !!input && "description" in input };
+      return {
+        txHash: "0xdead",
+        letterWritten: typeof input === "object" && !!input && "description" in input,
+      };
     }),
   }),
 }));
@@ -178,6 +180,47 @@ describe("AttestFlow after signing", () => {
     render(<AttestFlow fixedDomain="google" />);
     expect(screen.getByTestId("published")).toHaveTextContent("Published.");
     expect(screen.queryByTestId("publish")).toBeNull();
+  });
+
+  /**
+   * The transaction is the one claim nobody can check inside this app, so it ends in a dialog naming
+   * it — over the page, never instead of it: the view code underneath is what a masked writer loses if
+   * the confirmation is swapped away.
+   */
+  it("ends in a modal with the hash and a link to the explorer, and says what was done", () => {
+    state.attestData = { record, signature: "0xsig", viewCode: null };
+    state.txHash = `0x${"ab".repeat(32)}`;
+    render(<AttestFlow fixedDomain="google" doneTitle="Account attested" />);
+    expect(screen.getByRole("dialog", { name: "Account attested" })).toBeVisible();
+    expect(screen.getByTestId("tx-done-check")).toBeVisible();
+    expect(screen.getByTestId("tx-done")).toHaveTextContent(state.txHash);
+    expect(screen.getByTestId("tx-done-link")).toHaveAttribute(
+      "href",
+      `https://sepolia.etherscan.io/tx/${state.txHash}`
+    );
+  });
+
+  it("calls the write published when the caller says nothing else", () => {
+    state.attestData = { record, signature: "0xsig", viewCode: null };
+    state.txHash = `0x${"cd".repeat(32)}`;
+    render(<AttestFlow fixedDomain="google" />);
+    expect(screen.getByRole("dialog", { name: "Published" })).toBeVisible();
+  });
+
+  it("closes back to the confirmation on the page, which is still there", () => {
+    state.attestData = { record, signature: "0xsig", viewCode: null };
+    state.txHash = `0x${"ab".repeat(32)}`;
+    render(<AttestFlow fixedDomain="google" doneTitle="Account attested" />);
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(screen.queryByTestId("tx-done")).toBeNull();
+    expect(screen.getByTestId("published")).toHaveTextContent("Published.");
+  });
+
+  it("says nothing landed when the relay refused it", () => {
+    state.attestData = { record, signature: "0xsig", viewCode: null };
+    state.deliverError = new Error("invalidSignature: not the registrar");
+    render(<AttestFlow fixedDomain="google" doneTitle="Account attested" />);
+    expect(screen.queryByTestId("tx-done")).toBeNull();
   });
 });
 

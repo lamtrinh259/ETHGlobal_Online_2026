@@ -186,6 +186,7 @@ export function Accounts({ links, handle, awaiting, onPublished }: Props) {
             key={attesting}
             fixedDomain={attesting}
             title=""
+            doneTitle="Account attested"
             onPublished={(p) => onPublished(p.domain)}
           />
         </Modal>

@@ -8,6 +8,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { useLinkAccount, usePrivy, useWallets } from "@privy-io/react-auth";
 import type { Address } from "viem";
 import { AttestFlow, type Published } from "@/app/AttestFlow";
+import { TxDone } from "@/app/TxDone";
 import { InviteTerms } from "./InviteTerms";
 import { LetterForm } from "./LetterForm";
 import { useWebConfig } from "@/app/providers";
@@ -106,6 +107,8 @@ export function VouchFlow({
   const [letter, setLetter] = useState("");
   const [letterState, setLetterState] = useState<"idle" | "writing" | "done" | "failed">("idle");
   const [letterError, setLetterError] = useState<string>();
+  /** The transaction the wallet's own letter write landed in, until its confirmation is read */
+  const [letterTx, setLetterTx] = useState<string>();
   const letterWrite = useLetterWrite(candidate);
   const handle = onChain.named;
   // One real person writes a reference, or nobody does: where the deployment can check humanity, a
@@ -177,7 +180,9 @@ export function VouchFlow({
         }
       }
       const onChain = letterBytes(text) > LETTER_MAX ? (await api.storeLetter(text)).ref : text;
-      await letterWrite.mutateAsync({ signer: await getSigner(), resolver, name, letter: onChain });
+      setLetterTx(
+        await letterWrite.mutateAsync({ signer: await getSigner(), resolver, name, letter: onChain })
+      );
       setLetterState("done");
     } catch (e) {
       setLetterState("failed");
@@ -276,6 +281,7 @@ export function VouchFlow({
                 key="name"
                 fixedDomain={root.domain}
                 title=""
+                doneTitle="Name claimed"
                 onPublished={() => {
                   // Stay here: the confirmation is read before the next step, never swapped away.
                   setChosen("name");
@@ -340,6 +346,7 @@ export function VouchFlow({
                   fixedDomain={parseRequirement(attesting ?? stillToLink[0]!).domain}
                   allowLinking
                   title=""
+                  doneTitle="Account attested"
                   onPublished={() => {
                     setChosen("accounts");
                     setAttesting(attesting ?? stillToLink[0]);
@@ -442,6 +449,7 @@ export function VouchFlow({
               answerLabel="Statement"
               answerPlaceholder={WITHDRAWN}
               answerValue={WITHDRAWN}
+              doneTitle="Reference withdrawn"
               onPublished={setPublished}
             />
           </>
@@ -489,6 +497,7 @@ export function VouchFlow({
               answerLabel="Title"
               answerHint="On chain, permanent. 31 bytes."
               answerPlaceholder="CTO at Acme 2019-22"
+              doneTitle="Reference published"
               extra={<LetterField value={letter} onChange={setLetter} candidate={candidate} />}
               // The letter rides with the record: one transaction, paid by the relay. A long one is
               // kept by its hash and the hash goes on chain.
@@ -588,6 +597,7 @@ export function VouchFlow({
           </button>
         )}
       </p>
+      {letterTx && <TxDone title="Letter written" hash={letterTx} onClose={() => setLetterTx(undefined)} />}
     </section>
   );
 }

@@ -27,7 +27,9 @@ vi.mock("@/lib/hooks", () => ({
   apiFor: () => ({}),
   useContracts: () => ({ data: { instances } }),
 }));
-vi.mock("@/app/AttestFlow", () => ({ AttestFlow: () => <div /> }));
+vi.mock("@/app/AttestFlow", () => ({
+  AttestFlow: ({ doneTitle }: { doneTitle?: string }) => <div data-testid="attest" data-done={doneTitle} />,
+}));
 
 const { Accounts } = await import("@/app/me/Accounts");
 
@@ -64,6 +66,13 @@ describe("Accounts", () => {
     expect(screen.queryByTestId("attest-google")).toBeNull();
     // An account nothing is pending for still offers the action.
     expect(screen.getByTestId("attest-x")).toBeVisible();
+  });
+
+  it("tells the form what this write is, so the confirmation names it", () => {
+    // "Published" is true of every write here; what a person did was attest an account.
+    render(<Accounts links={[]} onPublished={vi.fn()} />);
+    fireEvent.click(screen.getByTestId("attest-x"));
+    expect(screen.getByTestId("attest")).toHaveAttribute("data-done", "Account attested");
   });
 
   it("shows a private account's state as a badge and its platform as a mark", () => {

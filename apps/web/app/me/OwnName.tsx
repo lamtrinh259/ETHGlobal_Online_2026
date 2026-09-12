@@ -5,6 +5,7 @@ import type { Address } from "viem";
 import type { Api, WalletDashboard } from "@/lib/api";
 import type { Signer } from "@/lib/chain";
 import { useClaimEthName, useContracts, useEthLabel, useLinkOwnName } from "@/lib/hooks";
+import { TxDone } from "@/app/TxDone";
 import { FundWallet } from "./FundWallet";
 
 type Props = {
@@ -28,6 +29,9 @@ export function OwnName({ api, wallet, domain, parentLabel, handle, getSigner, b
   const contracts = useContracts(api);
   const link = useLinkOwnName(wallet);
   const [label, setLabel] = useState(handle);
+  /** The transactions whose confirmations have been read, so closing one does not bring it back */
+  const [doneRead, setDoneRead] = useState<string[]>([]);
+  const read = (hash: string) => setDoneRead((seen) => [...seen, hash]);
   const valid = LABEL_RE.test(label);
   // The bridge reverts with NotNameOwner for a label this wallet does not hold, and a name registered on
   // a different ENS deployment is not on this registry at all. Say which before charging for the answer.
@@ -141,6 +145,12 @@ export function OwnName({ api, wallet, domain, parentLabel, handle, getSigner, b
       >
         {link.isPending ? "linking…" : "Link"}
       </button>
+      {claim.data && !doneRead.includes(claim.data) && (
+        <TxDone title="Name registered" hash={claim.data} onClose={() => read(claim.data)} />
+      )}
+      {link.data && !doneRead.includes(link.data) && (
+        <TxDone title="Name linked" hash={link.data} onClose={() => read(link.data)} />
+      )}
     </section>
   );
 }

@@ -19,6 +19,7 @@ import { isNameDomainFor, parentNameFor } from "@/lib/journey";
 import { buildIntent, intentTypedData, toWire } from "@/lib/intent";
 import { loadOrCreateViewKey, openViewCode, saveViewCode } from "@/lib/keys";
 import { Switch } from "./Switch";
+import { TxDone } from "./TxDone";
 import { useWebConfig } from "./providers";
 import { fmtUtc, short } from "./ui";
 
@@ -61,6 +62,8 @@ type Props = {
   allowLinking?: boolean;
   /** The letter to write with the record, resolved when the record is delivered; nothing means no letter */
   description?: () => Promise<string | undefined>;
+  /** What the confirmation dialog calls this write ("Name claimed", "Reference published") */
+  doneTitle?: string;
   onPublished?: (p: Published) => void;
 };
 
@@ -97,6 +100,7 @@ export function AttestFlow({
   domainOptions,
   allowLinking,
   description,
+  doneTitle,
   onPublished,
 }: Props) {
   const config = useWebConfig();
@@ -121,8 +125,13 @@ export function AttestFlow({
       if (chosen) setDomain(chosen);
     },
     onError: (error, details) => {
-      const method = details?.linkMethod ? (PLATFORM_LABELS[LINK_METHOD_PLATFORM[details.linkMethod] ?? details.linkMethod] ?? details.linkMethod) : "the account";
-      setLinkError(`Linking ${method} failed: ${String(error)}. If nothing opened, that platform is not enabled on this deployment's Privy app.`);
+      const method = details?.linkMethod
+        ? (PLATFORM_LABELS[LINK_METHOD_PLATFORM[details.linkMethod] ?? details.linkMethod] ??
+          details.linkMethod)
+        : "the account";
+      setLinkError(
+        `Linking ${method} failed: ${String(error)}. If nothing opened, that platform is not enabled on this deployment's Privy app.`
+      );
     },
   });
   const api = useMemo(() => apiFor(config), [config]);
@@ -167,6 +176,8 @@ export function AttestFlow({
   const [signing, setSigning] = useState(false);
   const [signError, setSignError] = useState<string>();
   const [viewCode, setViewCode] = useState<Hex>();
+  /** The transaction whose confirmation has been read, so closing it does not bring it back */
+  const [doneRead, setDoneRead] = useState<Hex>();
 
   const embedded = wallets.find((w) => w.walletClientType === "privy") ?? wallets[0];
   const wallet = embedded?.address as Address | undefined;
@@ -188,8 +199,8 @@ export function AttestFlow({
     platformNeeded && !holdsPlatform ? (
       <>
         Link {PLATFORM_LABELS[platformNeeded] ?? platformNeeded}
-        {allowLinking ? " above" : " on your profile"} first: this record attests an account there, and
-        none is linked to you yet.
+        {allowLinking ? " above" : " on your profile"} first: this record attests an account there, and none
+        is linked to you yet.
       </>
     ) : undefined;
   const refused = blocked ?? missingLink;
@@ -576,6 +587,9 @@ export function AttestFlow({
             </dl>
           </details>
         </div>
+      )}
+      {txHash && doneRead !== txHash && (
+        <TxDone title={doneTitle ?? "Published"} hash={txHash} onClose={() => setDoneRead(txHash)} />
       )}
     </div>
   );

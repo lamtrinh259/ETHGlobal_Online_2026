@@ -7,7 +7,12 @@ import type { Api } from "@/lib/api";
  * reset did — forgotten nullifiers, the record deleted or not, and why not.
  */
 vi.mock("@/app/providers", () => ({
-  useWebConfig: () => ({ apiUrl: "http://api.test", attestUrl: "http://api.test", instances: [] }),
+  useWebConfig: () => ({
+    chainId: 11155111,
+    apiUrl: "http://api.test",
+    attestUrl: "http://api.test",
+    instances: [],
+  }),
 }));
 let current: Api;
 vi.mock("@/lib/hooks", async (orig) => {
@@ -51,6 +56,14 @@ describe("the admin reset", () => {
     await waitFor(() => expect(screen.getByTestId("admin-reset")).toBeEnabled());
     fireEvent.click(screen.getByTestId("admin-reset"));
     await waitFor(() => expect(screen.getByTestId("admin-result")).toHaveTextContent("Forgot 1 nullifier"));
+    // Deleting a record is a transaction like any other here, and it ends the same way.
+    expect(screen.getByRole("dialog", { name: "Record deleted" })).toBeVisible();
+    expect(screen.getByTestId("tx-done-link")).toHaveAttribute(
+      "href",
+      "https://sepolia.etherscan.io/tx/0xabc"
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(screen.queryByTestId("tx-done")).toBeNull();
     expect(screen.getByTestId("admin-result")).toHaveTextContent("Deleted the record on chain: 0xabc");
     expect(screen.getByTestId("admin-onchain")).toHaveTextContent("none");
     expect(adminHumanityReset).toHaveBeenCalledWith("admin-token-0123456789abcdef", { handle: "alice" });
@@ -73,6 +86,8 @@ describe("the admin reset", () => {
     await waitFor(() =>
       expect(screen.getByTestId("admin-result")).toHaveTextContent("could not be deleted: not the owner")
     );
+    // Nothing landed on chain, so there is no transaction to confirm.
+    expect(screen.queryByTestId("tx-done")).toBeNull();
   });
 
   it("shows the API's refusal as it is", async () => {
@@ -101,8 +116,12 @@ describe("the switch for everyone", () => {
     });
     vi.spyOn(window, "confirm").mockReturnValue(true);
     fireEvent.click(screen.getByTestId("admin-policy-read"));
-    await waitFor(() => expect(screen.getByTestId("admin-policy-state")).toHaveTextContent("Right now: required"));
-    expect(screen.getByTestId("admin-policy-flip")).toHaveTextContent("Turn the Selfie Check off for everyone");
+    await waitFor(() =>
+      expect(screen.getByTestId("admin-policy-state")).toHaveTextContent("Right now: required")
+    );
+    expect(screen.getByTestId("admin-policy-flip")).toHaveTextContent(
+      "Turn the Selfie Check off for everyone"
+    );
     fireEvent.click(screen.getByTestId("admin-policy-flip"));
     await waitFor(() => expect(screen.getByTestId("admin-policy-state")).toHaveTextContent("Right now: off"));
     expect(screen.getByTestId("admin-policy-state")).toHaveTextContent("configured: required");

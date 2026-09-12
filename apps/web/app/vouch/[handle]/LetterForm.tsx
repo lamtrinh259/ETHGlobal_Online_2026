@@ -5,6 +5,7 @@ import type { Address } from "viem";
 import type { Api } from "@/lib/api";
 import { LETTER_MAX, type Signer } from "@/lib/chain";
 import { LetterField, letterBytes } from "./LetterField";
+import { TxDone } from "@/app/TxDone";
 import { useContracts, useLetterWrite } from "@/lib/hooks";
 
 type Props = {
@@ -34,6 +35,8 @@ export function LetterForm({ api, candidate, name, getSigner, initial }: Props) 
   const resolver = contracts.data?.permissionedResolver as Address | null | undefined;
   const [keeping, setKeeping] = useState(false);
   const [failed, setFailed] = useState<string>();
+  /** The write whose confirmation has been read, so closing it does not bring it back */
+  const [doneRead, setDoneRead] = useState<string>();
   // A text record costs gas by the byte, so a long letter goes to the attester and only its hash goes
   // on chain. Short letters stay on the record, where nothing but the chain has to survive.
   const byHash = letterBytes(letter) > LETTER_MAX;
@@ -86,6 +89,9 @@ export function LetterForm({ api, candidate, name, getSigner, initial }: Props) 
               ? "Replace the letter"
               : "Sign and add the letter"}
       </button>
+      {write.isSuccess && doneRead !== write.data && (
+        <TxDone title="Letter written" hash={write.data} onClose={() => setDoneRead(write.data)} />
+      )}
     </section>
   );
 }

@@ -70,6 +70,21 @@ describe("funding the wallet", () => {
     expect(funded.chain).toBe("eip155:11155111");
   });
 
+  it("ends the top-up in a confirmation naming the transaction, and keeps the line under the button", async () => {
+    fund();
+    fireEvent.click(screen.getByTestId("get-gas"));
+    await waitFor(() => expect(screen.getByTestId("tx-done")).toBeVisible());
+    expect(screen.getByRole("dialog", { name: "Gas sent" })).toBeVisible();
+    expect(screen.getByTestId("tx-done-link")).toHaveAttribute(
+      "href",
+      "https://sepolia.etherscan.io/tx/0xabc"
+    );
+    // Closing it returns to the page, which still says what happened.
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(screen.queryByTestId("tx-done")).toBeNull();
+    expect(screen.getByTestId("fund-wallet")).toHaveTextContent("0xabc");
+  });
+
   it("shows the address to send to, for whoever would rather do it themselves", () => {
     fund();
     expect(screen.getByTestId("fund-address")).toHaveTextContent(WALLET);

@@ -6,6 +6,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * Standing in for it leaves exactly the part this repo owns — what is asked for, and what is done with
  * the answer — and asserts on the props the real widget reads, so a rename here still fails the test.
  */
+vi.mock("@/app/providers", () => ({
+  useWebConfig: () => ({ chainId: 11155111, apiUrl: "http://api.test", attestUrl: "http://api.test" }),
+}));
+
 const seen: Record<string, unknown>[] = [];
 vi.mock("@worldcoin/idkit", () => ({
   proofOfHuman: (opts: { signal?: string }) => ({ preset: "proof_of_human", ...opts }),
@@ -49,7 +53,11 @@ const challenge = {
 
 const api = () => ({
   humanityChallenge: vi.fn(async () => challenge),
-  proveHumanity: vi.fn(async () => ({ level: "orb", until: "2026-10-08T09:14:22.000Z" })),
+  proveHumanity: vi.fn(async () => ({
+    level: "orb",
+    until: "2026-10-08T09:14:22.000Z",
+    txHash: `0x${"ab".repeat(32)}`,
+  })),
 });
 
 beforeEach(() => {
@@ -98,6 +106,24 @@ describe("the humanity check", () => {
     expect(a.proveHumanity).toHaveBeenCalledWith(WALLET, { protocol_version: "3.0" });
     // And the page is told, because the badge is read from the chain and has to be asked again.
     expect(onVerified).toHaveBeenCalled();
+  });
+
+  it("ends in a confirmation naming the transaction the record was written in", async () => {
+    // The record is written on chain by the server, and the person has no other way to check that it
+    // was: the hash is the whole of the proof they can follow.
+    const a = api();
+    render(<HumanityCheck api={a as never} wallet={WALLET} onVerified={vi.fn()} />);
+    fireEvent.click(screen.getByTestId("humanity-cta"));
+    await waitFor(() => expect(screen.queryByTestId("idkit-stub")).not.toBeNull());
+    fireEvent.click(screen.getByTestId("idkit-stub"));
+    await waitFor(() => expect(screen.getByTestId("tx-done")).toBeVisible());
+    expect(screen.getByRole("dialog", { name: "Selfie Check passed" })).toBeVisible();
+    expect(screen.getByTestId("tx-done-link")).toHaveAttribute(
+      "href",
+      `https://sepolia.etherscan.io/tx/0x${"ab".repeat(32)}`
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(screen.queryByTestId("tx-done")).toBeNull();
   });
 
   it("says why nothing happened when the check is unavailable", async () => {

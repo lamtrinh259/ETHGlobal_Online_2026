@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { IDKitRequestWidget, proofOfHuman, selfieCheckLegacy } from "@worldcoin/idkit";
 import { humanityError } from "@/lib/humanity";
+import { TxDone } from "@/app/TxDone";
 import type { Api, HumanityChallenge } from "@/lib/api";
 
 /**
@@ -25,6 +26,8 @@ export function HumanityCheck({
   const [challenge, setChallenge] = useState<HumanityChallenge>();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string>();
+  /** The transaction the record was written in, which is the person's only way to check it landed */
+  const [written, setWritten] = useState<string>();
 
   async function start() {
     if (!wallet) return;
@@ -76,7 +79,7 @@ export function HumanityCheck({
             // and only it can write the record the badge is read from. Rethrown so IDKit stops here:
             // a tick over a record that was never written is the one outcome worth avoiding.
             try {
-              await api.proveHumanity(wallet as string, result);
+              setWritten((await api.proveHumanity(wallet as string, result)).txHash);
             } catch (e) {
               setError((e as Error).message);
               throw e;
@@ -89,6 +92,7 @@ export function HumanityCheck({
           onError={(code) => setError(humanityError(String(code), challenge.credential))}
         />
       )}
+      {written && <TxDone title="Selfie Check passed" hash={written} onClose={() => setWritten(undefined)} />}
     </>
   );
 }

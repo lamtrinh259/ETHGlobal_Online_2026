@@ -33,6 +33,17 @@ and turns into "Sign & update" when the wallet already holds a record (the newer
 sequence it. `lib/profile.ts` folds per-name verifications into the page and grades the policy; `lib/journey.ts` derives
 journey progress from the wallet dashboard (both pure, tested).
 
+Every transaction the portal completes ends in `TxDone`: a `Modal` with a check mark, the one-line
+title of what was done, the transaction hash and `View on explorer →` (`explorerTx`, so a chain nobody
+hosts an explorer for shows the hash alone). It sits over the page and never instead of it — the view
+code a masked writer is shown, or the letter form under a published reference, is still there when it
+is closed. It confirms: a record published (`AttestFlow`, titled by its caller — "Name claimed",
+"Account attested", "Reference published", "Reference withdrawn", "Answer published"), a letter written
+(`LetterForm`, and the voucher's own write on `/vouch/<handle>`), ENS profile records saved (one
+transaction per record; the last is linked and the rest counted), a `.eth` name registered and linked
+(`OwnName`), a gas top-up (`FundWallet`), a Selfie Check passed (`HumanityCheck`, the hash the attester
+wrote the record in), and a humanity record deleted (`/admin`).
+
 The shell is a left sidebar on a wide screen and the same markup as a full-screen drawer under 900px
 (the pattern, the breakpoint and the focus/inert handling come from the noolog web app): the closed
 drawer is `inert`, Escape and a route change close it, and the page behind it leaves the tab order.

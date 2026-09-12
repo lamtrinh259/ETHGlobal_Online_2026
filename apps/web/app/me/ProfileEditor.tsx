@@ -5,6 +5,7 @@ import { normalUrl } from "@/lib/profile";
 import type { Address } from "viem";
 import type { Api } from "@/lib/api";
 import { PROFILE_KEYS, type ProfileKey, type Signer } from "@/lib/chain";
+import { TxDone } from "@/app/TxDone";
 import { useContracts, useProfileWrite, useVerification } from "@/lib/hooks";
 
 type Props = { api: Api; name: string; getSigner: () => Promise<Signer> };
@@ -59,6 +60,10 @@ export function ProfileEditor({ api, name, getSigner }: Props) {
 
   const [uploading, setUploading] = useState(false);
   const [avatarError, setAvatarError] = useState<string>();
+  /** The save whose confirmation has been read, so closing it does not bring it back */
+  const [doneRead, setDoneRead] = useState<string>();
+  // One transaction per changed record; the last is the one to follow, and the rest are counted.
+  const lastWritten = write.data?.[write.data.length - 1];
 
   /** A text record holds a URL, so the picture is kept first and the record points at where it landed. */
   async function pickAvatar(file: File | undefined) {
@@ -192,6 +197,13 @@ export function ProfileEditor({ api, name, getSigner }: Props) {
             ? `Save ${dirty} record${dirty > 1 ? "s" : ""}`
             : "Nothing to save"}
       </button>
+      {lastWritten && doneRead !== lastWritten && (
+        <TxDone title="Profile published" hash={lastWritten} onClose={() => setDoneRead(lastWritten)}>
+          {write.data && write.data.length > 1 && (
+            <p className="muted">{write.data.length} transactions, one per record.</p>
+          )}
+        </TxDone>
+      )}
     </div>
   );
 }

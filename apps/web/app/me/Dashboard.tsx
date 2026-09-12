@@ -83,7 +83,13 @@ export function Dashboard() {
   const siteUrl = typeof window === "undefined" ? "" : window.location.origin;
   // Claiming a name and answering a question are decisions, so each opens a dialog rather than
   // unfolding another form into the page.
-  const [publishing, setPublishing] = useState<{ domain: string; title: string; answer?: string }>();
+  const [publishing, setPublishing] = useState<{
+    domain: string;
+    title: string;
+    answer?: string;
+    /** What the confirmation calls this write, which is not the same as what the form asks for */
+    done: string;
+  }>();
 
   if (!ready) return <p className="muted">loading…</p>;
   if (!authenticated) {
@@ -145,7 +151,10 @@ export function Dashboard() {
         }
         score={scored.score}
         parts={scored.parts}
-        onClaim={() => setPublishing({ domain: root!.domain, title: "Claim your name" })}
+        onClaim={() => {
+          // The claim dialog needs a domain to publish into; without a root instance there is none.
+          if (root) setPublishing({ domain: root.domain, title: "Claim your name", done: "Name claimed" });
+        }}
         editor={
           rootRow?.live ? (
             <>
@@ -219,6 +228,7 @@ export function Dashboard() {
                   domain,
                   title: questionTitle(domain),
                   answer: questionFor(domain),
+                  done: "Answer published",
                 })
               }
             />
@@ -333,6 +343,7 @@ export function Dashboard() {
             fixedHandle={handle}
             title=""
             answerLabel={publishing.answer}
+            doneTitle={publishing.done}
             onPublished={(p) => {
               setAwaiting(p.domain);
               void dash.refetch();

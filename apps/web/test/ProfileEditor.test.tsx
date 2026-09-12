@@ -1,9 +1,25 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Api } from "@/lib/api";
 
 const RESOLVER = "0x4E2d9783cEFF2ed72CD77C14206b29fe246b24F7";
+
+vi.mock("@/app/providers", () => ({
+  useWebConfig: () => ({ chainId: 11155111, apiUrl: "http://api.test", attestUrl: "http://api.test" }),
+}));
+/** The transactions the wallet has already sent, which is what the confirmation is read from */
+const state = { hashes: undefined as string[] | undefined };
+vi.mock("@/lib/hooks", async (orig) => ({
+  ...(await orig<typeof import("@/lib/hooks")>()),
+  useProfileWrite: () => ({
+    mutate: vi.fn(),
+    isPending: false,
+    isSuccess: !!state.hashes,
+    error: null,
+    data: state.hashes,
+  }),
+}));
 
 const uploaded: File[] = [];
 const api = {
@@ -32,6 +48,10 @@ const editor = () =>
   render(<ProfileEditor api={api} name="alice.ketsuban.eth" getSigner={async () => ({}) as never} />, {
     wrapper: wrapper(),
   });
+
+beforeEach(() => {
+  state.hashes = undefined;
+});
 
 describe("the public profile editor", () => {
   it("offers an avatar, a description and a website, and says these are public", async () => {
@@ -68,6 +88,32 @@ describe("the public profile editor", () => {
     editor();
     await waitFor(() => expect(screen.getByTestId("profile-description")).toHaveValue("a builder"));
     expect(screen.getByTestId("profile-save")).toBeDisabled();
+  });
+});
+
+describe("what a saved profile says", () => {
+  it("ends in a confirmation naming the transaction, and counts them when there are several", async () => {
+    // One transaction per changed record, so the count belongs on the confirmation rather than nowhere.
+    state.hashes = ["0xaaa", "0xbbb"];
+    editor();
+    await waitFor(() => expect(screen.getByTestId("tx-done")).toBeVisible());
+    expect(screen.getByRole("dialog", { name: "Profile published" })).toBeVisible();
+    // The last transaction is the one linked; the others are named by the count.
+    expect(screen.getByTestId("tx-done-link")).toHaveAttribute(
+      "href",
+      "https://sepolia.etherscan.io/tx/0xbbb"
+    );
+    expect(screen.getByTestId("tx-done")).toHaveTextContent("2 transactions");
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(screen.queryByTestId("tx-done")).toBeNull();
+    expect(screen.getByTestId("profile-editor")).toHaveTextContent("saved");
+  });
+
+  it("says nothing about a count when one record was written", async () => {
+    state.hashes = ["0xaaa"];
+    editor();
+    await waitFor(() => expect(screen.getByTestId("tx-done")).toBeVisible());
+    expect(screen.getByTestId("tx-done")).not.toHaveTextContent("transactions");
   });
 });
 

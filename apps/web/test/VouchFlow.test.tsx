@@ -44,7 +44,11 @@ const state = {
 const linksAsked: string[] = [];
 
 vi.mock("@privy-io/react-auth", () => ({
-  usePrivy: () => ({ ready: true, authenticated: true, user: { id: "did:privy:x", github: { username: "bob" } } }),
+  usePrivy: () => ({
+    ready: true,
+    authenticated: true,
+    user: { id: "did:privy:x", github: { username: "bob" } },
+  }),
   useLinkAccount: () => ({
     linkTwitter: () => linksAsked.push("x"),
     linkGithub: () => linksAsked.push("github"),
@@ -196,6 +200,20 @@ describe("the letter written with the reference", () => {
     expect(screen.getByTestId("letter-status")).toHaveTextContent("Letter written");
   });
 
+  it("ends the wallet's own letter write in a confirmation naming its transaction", async () => {
+    await publishWith("Ran the platform team while I was there.");
+    await waitFor(() => expect(screen.getByTestId("tx-done")).toBeVisible());
+    expect(screen.getByRole("dialog", { name: "Letter written" })).toBeVisible();
+    expect(screen.getByTestId("tx-done-link")).toHaveAttribute(
+      "href",
+      "https://sepolia.etherscan.io/tx/0xtx"
+    );
+    // The page underneath is untouched: the reference, its letter and the links out are all still there.
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(screen.queryByTestId("tx-done")).toBeNull();
+    expect(screen.getByTestId("vouch-done")).toBeInTheDocument();
+  });
+
   it("keeps a long letter by its hash first, so the record never names one nobody holds", async () => {
     const long = "x".repeat(700);
     await publishWith(long);
@@ -318,19 +336,29 @@ describe("what onboarding still needs", () => {
     expect(screen.getByTestId("link-peersky.xyz").textContent).toBe("Link an email address");
     // GitHub is linked already (the fixture is bob there): nothing to link, only to sign below.
     expect(screen.queryByTestId("link-github.com")).toBeNull();
-    expect(screen.getByTestId("onboarding-steps").textContent).toContain("github.com — linked; sign and publish below");
+    expect(screen.getByTestId("onboarding-steps").textContent).toContain(
+      "github.com — linked; sign and publish below"
+    );
   });
 
   it("keeps the confirmation on screen after the record lands, and opens the next step under it", async () => {
     state.links = [];
     state.checksHumanity = true;
-    render(<VouchFlow candidate="alice" invite={{ ...invite, requires: ["x.com"] } as typeof invite} inviteCode="c" />);
+    render(
+      <VouchFlow
+        candidate="alice"
+        invite={{ ...invite, requires: ["x.com"] } as typeof invite}
+        inviteCode="c"
+      />
+    );
     await waitFor(() => expect(screen.getByTestId("onboarding-gate")).toBeInTheDocument());
     expect(screen.getByTestId("attest")).toHaveAttribute("data-domain", "x.com");
     // The record lands and the dashboard lists the link.
     state.links = [{ domain: "x.com", live: true, optedIn: false, ensName: null }];
     fireEvent.click(screen.getByTestId("fake-publish"));
-    await waitFor(() => expect(screen.getByTestId("onboarding-steps").textContent).toContain("x.com — attested"));
+    await waitFor(() =>
+      expect(screen.getByTestId("onboarding-steps").textContent).toContain("x.com — attested")
+    );
     // Same card, same form still there with what it showed; the Selfie Check step is below it, not instead.
     expect(screen.getByTestId("attest")).toHaveAttribute("data-domain", "x.com");
     expect(screen.getByTestId("step-accounts").textContent).toContain("✓");
