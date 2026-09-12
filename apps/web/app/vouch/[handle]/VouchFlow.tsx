@@ -228,8 +228,10 @@ export function VouchFlow({
               aria-current={i === current ? "step" : undefined}
               data-testid={`step-${s.id}`}
             >
-              {s.done ? "✓ " : `${i + 1}. `}
-              {s.label}
+              <span className="step-mark" aria-hidden>
+                {s.done ? "✓" : i + 1}
+              </span>
+              <span className="step-label">{s.label}</span>
             </button>
           </li>
         ))}

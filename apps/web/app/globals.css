@@ -1708,15 +1708,45 @@ pre > code {
   padding: 0;
   margin: 0 0 var(--sp-md);
 }
+.stepper-nav li {
+  display: flex;
+  min-width: 0;
+}
+/* One shape for every state: the marker keeps a fixed column and the height never depends on what is in it,
+   so choosing a step changes its colour and nothing else moves. */
 .stepper-nav button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 36px;
+  padding: 0 12px 0 8px;
   font: inherit;
   font-size: 13px;
+  line-height: 1.2;
+  text-align: left;
   color: var(--text-secondary);
   background: transparent;
   border: 1px solid var(--border);
   border-radius: 999px;
-  padding: 6px 12px;
   cursor: pointer;
+}
+.stepper-nav .step-mark {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+.stepper-nav .step-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .stepper-nav li.current button {
   color: var(--flame);
@@ -1724,6 +1754,20 @@ pre > code {
 }
 .stepper-nav li.done button {
   color: var(--consensus);
+}
+.stepper-nav li.done .step-mark {
+  background: var(--consensus);
+  color: var(--bg);
+  border-color: var(--consensus);
+}
+@media (max-width: 640px) {
+  .stepper-nav {
+    flex-direction: column;
+    gap: 4px;
+  }
+  .stepper-nav button {
+    border-radius: var(--radius-sm);
+  }
 }
 .step-panel {
   min-width: 0;

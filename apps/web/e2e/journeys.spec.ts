@@ -44,6 +44,25 @@ test("the vouch page is one card of steps: the writer's, then the reference", as
   await expect(page.getByTestId("signin")).toBeVisible();
 });
 
+test("the rail's items share one height and one left edge on a phone; picking one moves nothing", async ({
+  page,
+  isMobile,
+}) => {
+  await page.goto("/vouch/alice");
+  const items = page.locator(".stepper-nav li");
+  await expect(items.first()).toBeVisible();
+  const before = await items.evaluateAll((els) => els.map((e) => e.getBoundingClientRect()));
+  await page.getByTestId("step-reference").click();
+  const after = await items.evaluateAll((els) => els.map((e) => e.getBoundingClientRect()));
+  for (let i = 0; i < before.length; i++) {
+    // Selection is a colour, not a size: nothing shifts when the current step changes.
+    expect(Math.abs(after[i].height - before[i].height)).toBeLessThanOrEqual(1);
+    expect(Math.abs(after[i].y - before[i].y)).toBeLessThanOrEqual(1);
+    expect(Math.abs(after[i].height - after[0].height)).toBeLessThanOrEqual(1);
+    if (isMobile) expect(Math.abs(after[i].x - after[0].x)).toBeLessThanOrEqual(1);
+  }
+});
+
 test("the profile keeps the old claim link and its sign-in gate", async ({ page }) => {
   // Claiming lives on the profile now; the old link still gets there.
   await page.goto("/claim");
