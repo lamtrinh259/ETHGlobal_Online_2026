@@ -18,7 +18,7 @@ const instance = (domain: string, parentName: string) => ({ domain, parentName, 
 let instances = [
   instance("ketsuban", "ketsuban.eth"),
   instance("x.com", "com.x.www.ketsuban.eth"),
-  instance("google.com", "com.google.www.ketsuban.eth"),
+  instance("peeramid.xyz", "xyz.peeramid.www.ketsuban.eth"),
 ];
 vi.mock("@/app/providers", () => ({
   useWebConfig: () => ({ apiUrl: "http://api.test", attestUrl: "http://api.test" }),
@@ -50,19 +50,19 @@ describe("Accounts", () => {
   it("shows an attested account by its name, and a private one without", () => {
     render(
       <Accounts
-        links={[link("x.com"), link("google.com", { optedIn: true, ensName: null })]}
+        links={[link("x.com"), link("peeramid.xyz", { optedIn: true, ensName: null })]}
         onPublished={vi.fn()}
       />
     );
     // A platform reads as the DNS name it is, so the account is `alice_x` on `x.com`.
     expect(screen.getByTestId("account-x")).toHaveTextContent("alice_x.com.x.www.ketsuban.eth");
     // Private, and with no name of its own yet: the badge carries the state either way.
-    expect(screen.getByTestId("badge-google.com")).toHaveTextContent("private");
+    expect(screen.getByTestId("badge-peeramid.xyz")).toHaveTextContent("private");
   });
 
   it("stops offering to attest an account that was just published, and says why", () => {
     // The record is on chain but the index has not listed it yet: the row must not read "not attested".
-    render(<Accounts links={[]} awaiting="google.com" onPublished={vi.fn()} />);
+    render(<Accounts links={[]} awaiting="peeramid.xyz" onPublished={vi.fn()} />);
     expect(screen.getByTestId("awaiting-google")).toHaveTextContent("waiting for the index");
     expect(screen.queryByTestId("attest-google")).toBeNull();
     // An account nothing is pending for still offers the action.
@@ -81,14 +81,16 @@ describe("Accounts", () => {
     // identity is an icon, and neither is a run of text that collides with the other.
     render(
       <Accounts
-        links={[link("google.com", { optedIn: true, ensName: "alice.com.google.private-www.ketsuban.eth" })]}
+        links={[
+          link("peeramid.xyz", { optedIn: true, ensName: "alice.xyz.peeramid.private-www.ketsuban.eth" }),
+        ]}
         handle="alice"
         onPublished={() => {}}
       />
     );
     const row = screen.getByTestId("account-google");
-    expect(row.querySelector('[data-testid="icon-google.com"]')).not.toBeNull();
-    expect(screen.getByTestId("badge-google.com")).toHaveTextContent("private");
+    expect(row.querySelector('[data-testid="icon-peeramid.xyz"]')).not.toBeNull();
+    expect(screen.getByTestId("badge-peeramid.xyz")).toHaveTextContent("private");
   });
 
   it("calls a public account public, in the same place the private badge sits", () => {
@@ -101,12 +103,14 @@ describe("Accounts", () => {
     // a dead end rather than something the person decides who may open.
     render(
       <Accounts
-        links={[link("google.com", { optedIn: true, ensName: "alice.com.google.private-www.ketsuban.eth" })]}
+        links={[
+          link("peeramid.xyz", { optedIn: true, ensName: "alice.xyz.peeramid.private-www.ketsuban.eth" }),
+        ]}
         handle="alice"
         onPublished={() => {}}
       />
     );
-    const who = screen.getByTestId("who-reads-google.com");
+    const who = screen.getByTestId("who-reads-peeramid.xyz");
     expect(who).toHaveAttribute("href", "#sharing");
     expect(who).toHaveTextContent(/who can read it/i);
   });
@@ -120,12 +124,14 @@ describe("Accounts", () => {
     // The name says the holder of alice.ketsuban.eth is on Google. Which account it is stays masked.
     render(
       <Accounts
-        links={[link("google.com", { optedIn: true, ensName: "alice.com.google.private-www.ketsuban.eth" })]}
+        links={[
+          link("peeramid.xyz", { optedIn: true, ensName: "alice.xyz.peeramid.private-www.ketsuban.eth" }),
+        ]}
         onPublished={vi.fn()}
       />
     );
     const row = screen.getByTestId("account-google");
-    expect(row).toHaveTextContent("alice.com.google.private-www.ketsuban.eth");
+    expect(row).toHaveTextContent("alice.xyz.peeramid.private-www.ketsuban.eth");
     expect(row).toHaveTextContent("private");
     expect(row).not.toHaveTextContent("public");
   });
@@ -146,11 +152,11 @@ describe("Accounts", () => {
   });
 
   it("offers a name to an account attested before the namespace existed", () => {
-    // The flat record stands and stays private; attesting again under `google.com` is what names it.
+    // The flat record stands and stays private; attesting again under `peeramid.xyz` is what names it.
     instances = [
       instance("ketsuban", "ketsuban.eth"),
       instance("google", "google.ketsuban.eth"),
-      instance("google.com", "com.google.www.ketsuban.eth"),
+      instance("peeramid.xyz", "xyz.peeramid.www.ketsuban.eth"),
     ];
     render(
       <Accounts
@@ -166,7 +172,9 @@ describe("Accounts", () => {
   it("says a private account gets its name once the person claims one", () => {
     // The private branch names an account after its holder, so without a handle there is nothing to
     // name it after. Saying that beats a bare "private" the person cannot act on.
-    render(<Accounts links={[link("google.com", { optedIn: true, ensName: null })]} onPublished={vi.fn()} />);
+    render(
+      <Accounts links={[link("peeramid.xyz", { optedIn: true, ensName: null })]} onPublished={vi.fn()} />
+    );
     expect(screen.getByTestId("account-google")).toHaveTextContent("claim your name below");
   });
 

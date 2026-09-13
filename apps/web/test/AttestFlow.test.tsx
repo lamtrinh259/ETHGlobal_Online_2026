@@ -365,6 +365,19 @@ describe("linking an account is choosing it", () => {
     expect(screen.getByLabelText("domain")).toHaveValue("x.com");
   });
 
+  it("lands a linked Google account in its address's host, not at google.com", async () => {
+    privy.user = {
+      id: "did:privy:x",
+      google: { email: "colorsofweb3entrepreneurship@gmail.com" },
+    } as typeof privy.user;
+    render(<AttestFlow platformsOnly allowLinking />);
+    expect(screen.getByLabelText("domain")).toHaveValue("gmail.com");
+    const google = screen.getByRole("button", { name: "Google · linked" });
+    expect(google).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(google);
+    expect(screen.getByLabelText("domain")).toHaveValue("gmail.com");
+  });
+
   it("starts on an account already linked, and picking it again does not re-link", async () => {
     privy.user = { id: "did:privy:x", github: { username: "lam" } } as typeof privy.user;
     linking.linkGithub.mockClear();

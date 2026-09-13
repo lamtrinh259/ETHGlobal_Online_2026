@@ -73,6 +73,17 @@ describe("which domain an account is attested into", () => {
     expect(domainFor(mail, ["x.com"])).toBe("peeramid.xyz");
   });
 
+  it("sends a Google account to the host of its address, as the attester does", () => {
+    // A Google sign-in is an email account its issuer vouches for. Mounting it at `google.com` asked
+    // the attester for an account nobody holds there: "colors@gmail.com is not an account at google.com".
+    expect(domainFor({ domain: "google", label: "colors@gmail.com" }, ["x.com"])).toBe("gmail.com");
+    expect(domainFor({ domain: "google", label: "tim@peeramid.xyz" }, ["x.com", "peeramid.xyz"])).toBe(
+      "peeramid.xyz"
+    );
+    // Without an address to read, the issuer's own name is what is left.
+    expect(domainFor({ domain: "google", label: "" }, ["x.com"])).toBe("google.com");
+  });
+
   it("has nothing to offer for a platform this build does not know", () => {
     expect(domainFor({ domain: "myspace", label: "tom" }, ["x.com"])).toBeUndefined();
     expect(domainFor({ domain: "email", label: "not-an-address" }, ["x.com"])).toBeUndefined();

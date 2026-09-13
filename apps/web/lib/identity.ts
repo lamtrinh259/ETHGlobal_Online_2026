@@ -87,7 +87,14 @@ export function domainFor(account: ConnectedAccount, domains: readonly string[])
  * them unattested while the rest of the page shows the account.
  */
 export function domainsFor(account: ConnectedAccount, domains: readonly string[]): string[] {
-  const dns = account.domain === "email" ? emailHost(account.label) : PLATFORM_DNS_NAMES[account.domain];
+  // A Google account is an email account its issuer vouches for: it lands at the address's host, as
+  // the attester places it, and at the issuer's own name only when there is no address to read.
+  const dns =
+    account.domain === "email"
+      ? emailHost(account.label)
+      : account.domain === "google"
+        ? (emailHost(account.label) ?? PLATFORM_DNS_NAMES.google)
+        : PLATFORM_DNS_NAMES[account.domain];
   const ordered = [
     ...(dns && domains.includes(dns) ? [dns] : []),
     ...(domains.includes(account.domain) ? [account.domain] : []),

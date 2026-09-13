@@ -153,9 +153,13 @@ export function AttestFlow({
       ? deployed
       : [...new Set(Object.values(PLATFORM_DNS_NAMES))];
   const connected = connectedAccounts(user as LinkedAccounts | null | undefined);
-  /** Where an account on this platform is attested here; the first linked platform is the default. */
+  /**
+   * Where an account on this platform is attested here; the first linked platform is the default. The
+   * linked account itself is asked, because a Google account's domain is in its address.
+   */
   const platformDomain = (platform: string) =>
-    domainFor({ domain: platform, label: "" }, offered) ?? PLATFORM_DNS_NAMES[platform];
+    domainFor(connected.find((a) => a.domain === platform) ?? { domain: platform, label: "" }, offered) ??
+    PLATFORM_DNS_NAMES[platform];
   const [domain, setDomain] = useState(
     fixedDomain ??
       (platformsOnly
