@@ -1702,9 +1702,6 @@ pre > code {
   overflow-wrap: anywhere;
 }
 
-
-
-
 /* ── the reference page: one card, a rail of steps, one panel at a time ── */
 .stepper-nav {
   display: flex;
@@ -1781,4 +1778,77 @@ pre > code {
 .stepper-actions {
   justify-content: space-between;
   margin-top: var(--sp-md);
+}
+
+/* ── an employer's invitation: the bar as a checklist, and a card that turns green when it is met ── */
+.invited-progress {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-sm);
+  margin: var(--sp-sm) 0;
+}
+.invited-bar {
+  flex: 1 1 auto;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--panel-2);
+  overflow: hidden;
+}
+.invited-bar-fill {
+  display: block;
+  height: 100%;
+  background: var(--consensus);
+  transition: width 400ms ease;
+}
+.invited-list li {
+  font-size: 15px;
+}
+.invited-mark {
+  font-size: 18px;
+  line-height: 1;
+}
+.invited-list li.todo {
+  opacity: 1;
+  border-left-color: var(--knot);
+}
+.card.invited-pass {
+  border-color: var(--consensus);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--consensus) 40%, transparent);
+  animation: invited-glow 1.2s ease-out 1;
+}
+@keyframes invited-glow {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--consensus) 70%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 12px transparent;
+  }
+}
+.invited-cheer {
+  text-align: center;
+  padding: var(--sp-md) 0;
+}
+.invited-cheer-mark {
+  font-size: 64px;
+  line-height: 1;
+  animation: invited-pop 600ms cubic-bezier(0.34, 1.56, 0.64, 1) 1;
+}
+@keyframes invited-pop {
+  0% {
+    transform: scale(0.3);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+.invited-cheer .row {
+  justify-content: center;
+}
+@media (prefers-reduced-motion: reduce) {
+  .card.invited-pass,
+  .invited-cheer-mark {
+    animation: none;
+  }
 }

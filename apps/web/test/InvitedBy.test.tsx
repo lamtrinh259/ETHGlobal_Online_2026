@@ -19,9 +19,28 @@ vi.mock("@/app/providers", () => ({
 }));
 
 let current: Api;
+const session = { authenticated: false, held: undefined as string | undefined };
+vi.mock("@privy-io/react-auth", () => ({
+  usePrivy: () => ({ ready: true, authenticated: session.authenticated }),
+  useWallets: () => ({
+    wallets: [{ walletClientType: "privy", address: "0xEE4811b9462956C9C3535E79c08776D769CA9F3a" }],
+  }),
+}));
 vi.mock("@/lib/hooks", async (orig) => {
   const real = await orig<typeof import("@/lib/hooks")>();
-  return { ...real, apiFor: () => current };
+  return {
+    ...real,
+    apiFor: () => current,
+    useWalletDashboard: () => ({
+      data: session.held
+        ? {
+            names: [
+              { domain: "ketsuban", name: session.held, live: true, ensName: `${session.held}.ketsuban.eth` },
+            ],
+          }
+        : undefined,
+    }),
+  };
 });
 
 const invitation: PolicyInviteRead = {
@@ -106,5 +125,85 @@ describe("an invitation on your own page", () => {
       throw new Error("404");
     });
     await waitFor(() => expect(screen.getByTestId("invited-unknown")).toBeInTheDocument());
+  });
+});
+
+describe("what the bar needs from you, line by line", () => {
+  const withProfile = (answer: string | null, vouches: number, links = 1) =>
+    ({
+      invite: vi.fn(async () => invitation),
+      profile: vi.fn(async () => ({
+        names: [
+          {
+            name: "peersky.ketsuban.eth",
+            verification: {
+              status: "active",
+              name: "peersky.ketsuban.eth",
+              wallet: "0xEE4811b9462956C9C3535E79c08776D769CA9F3a",
+              links: Array.from({ length: links }, (_, i) => ({ domain: `p${i}.com`, optedIn: false })),
+              humanity: null,
+            },
+          },
+          {
+            name: "peersky.kju-is.ketsuban.eth",
+            verification: answer ? { status: "active", answer, taken: true } : null,
+          },
+        ],
+        vouches: Array.from({ length: vouches }, (_, i) => ({
+          voucher: `v${i}`,
+          live: true,
+          solicited: true,
+        })),
+      })),
+    }) as unknown as Api;
+
+  it("ticks what is met, marks what is missing with where to fix it", async () => {
+    session.authenticated = true;
+    session.held = "peersky";
+    current = withProfile(null, 1);
+    const { InvitedBy } = await import("@/app/me/InvitedBy");
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <InvitedBy code={invitation.code} />
+      </QueryClientProvider>
+    );
+    await waitFor(() => expect(screen.getByTestId("invited-checks")).toBeInTheDocument());
+    expect(screen.getByTestId("invited-check-identity").textContent).toContain("✓");
+    expect(screen.getByTestId("invited-check-links").textContent).toContain("✓");
+    const answer = screen.getByTestId("invited-check-answer:kju-is");
+    expect(answer.textContent).toContain("✗");
+    expect(answer.querySelector("a")?.getAttribute("href")).toBe("#refer");
+    const vouches = screen.getByTestId("invited-check-vouches");
+    expect(vouches.textContent).toContain("✗");
+    expect(vouches.querySelector("a")?.getAttribute("href")).toBe("#invite");
+    expect(screen.getByTestId("invited-progress").textContent).toContain("2 of 4 met");
+    expect(screen.queryByTestId("invited-pass")).toBeNull();
+    expect(screen.queryByTestId("invited-pass-modal")).toBeNull();
+    expect(screen.queryByTestId("invited-begin")).toBeNull();
+    session.authenticated = false;
+    session.held = undefined;
+  });
+
+  it("says so when every line is met, with the page to send and a note if the invitation named another handle", async () => {
+    session.authenticated = true;
+    session.held = "peersky";
+    current = withProfile("dictator", 2);
+    const { InvitedBy } = await import("@/app/me/InvitedBy");
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <InvitedBy code={invitation.code} />
+      </QueryClientProvider>
+    );
+    await waitFor(() => expect(screen.getByTestId("invited-pass")).toBeInTheDocument());
+    expect(screen.getByTestId("invited-progress").textContent).toContain("4 of 4 met");
+    // The moment it is met, it says so in a modal on top; closing it leaves the green card and the link.
+    await waitFor(() => expect(screen.getByTestId("invited-pass-modal")).toBeInTheDocument());
+    expect(screen.getByTestId("invited-pass-modal").textContent).toContain("You pass peersky.ketsuban.eth");
+    expect(screen.getByTestId("invited").className).toContain("invited-pass");
+    expect(screen.getByTestId("invited-pass").textContent).toContain("You pass peersky.ketsuban.eth");
+    expect(screen.getByTestId("invited-pass").textContent).toContain("/p/peersky?answers=kju-is");
+    expect(screen.getByTestId("invited-named-other").textContent).toContain("lamtrinh259");
+    session.authenticated = false;
+    session.held = undefined;
   });
 });

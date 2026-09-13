@@ -328,3 +328,12 @@ export function useViewCodeSync(api: Api) {
     staleTime: 60_000,
   });
 }
+
+/** A person's page in one read: every name with its verification, and the references received. */
+export function useProfileRead(api: Api, handle: string | undefined) {
+  return useQuery({
+    queryKey: ["profile", handle ?? ""],
+    queryFn: () => api.profile(handle as string),
+    enabled: !!handle,
+  });
+}
