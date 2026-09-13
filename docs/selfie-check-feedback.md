@@ -47,12 +47,11 @@ proofs, ask for legacy proofs (stable per-action nullifier), and claim only "a v
 this at a point in time". *Ask:* one sentence per protocol version: is a uniqueness proof's nullifier
 stable for a person, and if not, what is.
 
-**8. Re-running the check on one person takes two deletions (2026-09-13).** Forget the binding or the
-second attempt answers 409; delete the chain record or the badge says already human.
-`POST /v1/admin/humanity/reset` does both. A third cost was Multipass, not World: a deleted record
-keeps its nonce, so the index remembers it (`lastNonce`) and the browser retries with the number the
-revert names. *Ask:* a documented way to release a nullifier for testing, or a sandbox reset action.
-Everybody building uniqueness re-tests on themselves.
+**8. There is no way to reset a person for testing (2026-09-13).** Everybody building uniqueness
+re-tests on themselves. We can forget our nullifier → wallet binding and delete our chain record, and
+we do (`POST /v1/admin/humanity/reset`, `/v1/admin/privy/delete`), but World still remembers the
+proof, and a user we had to delete outright (Privy will not unlink a sole login) leaves a proof nobody
+on our side can release. *Ask:* a documented way to release a nullifier in sandbox, or a reset action.
 
 **9. We had to build a kill switch (2026-09-13).** The Selfie Check stands in front of the one thing
 the product does: writing a vouch. When it broke (§2, §3, §4), nobody could vouch for anybody, and
@@ -68,17 +67,11 @@ with no verified human among them scores zero. The method is SybilRank's; the co
 `apps/api/src/graph.ts`. A World-side "Sybil score", if it ships, would set how much each seed is
 worth.
 
-**11. A deleted user leaves a proof World still remembers (2026-09-13).** Privy refuses to unlink a
-user's only login, so a demo reset deletes the Privy user, and with it the embedded wallet. Our side
-forgets the nullifier and deletes the chain records (`POST /v1/admin/privy/delete`). The person's
-World proof for this action is not ours to forget: a new wallet presenting the same nullifier is what
-§7 is about, and a stale binding would refuse it. Same ask as §8.
-
 ## 2. User feedback
 
 What the people we onboarded said, as distinct from what we hit building it.
 
-**12. The App Store listing says the opposite of the product (2026-09-13).** World App's download screen
+**11. The App Store listing says the opposite of the product (2026-09-13).** World App's download screen
 lists data collected: identifiers, usage data, diagnostics, location. A person is sent there to prove
 they are human *without revealing who*, and the first thing they read is a privacy label that says
 more is collected than most apps admit to. Whatever the reasons, it is the wrong first impression for a
@@ -86,7 +79,7 @@ privacy product, and it is what the people we onboarded remarked on. *Ask:* "Dat
 the label to aim for; where a category cannot be dropped, say on the listing why the proof does not
 carry it.
 
-**13. One action, two answers (2026-09-13).** The person taps through World App, sees it succeed, and
+**12. One action, two answers (2026-09-13).** The person taps through World App, sees it succeed, and
 comes back to a widget that says it failed (§4). From their side both are "the Selfie Check", and the
 only recovery they can think of is to do it again, which does not help. *Ask:* when the app and the
 widget disagree, one of them should say which one to believe and what to do next.
