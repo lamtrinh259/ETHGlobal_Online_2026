@@ -37,7 +37,7 @@ import {
   policyInviteDomain,
   signPolicyInvite,
 } from "@ketsuban/registrar";
-import { deriveViewCode } from "@ketsuban/registrar";
+import { deriveViewCode, WITHDRAWN } from "@ketsuban/registrar";
 import {
   decodeRecord,
   fromBytes32,
@@ -1826,6 +1826,70 @@ describe("POST /v1/attest — vouch invitations", () => {
     expect(bob, "the uninvited reference was not written at all").toBeTruthy();
     expect(bob.solicited).toBe(false);
     expect(bob.invite).toBeNull();
+  });
+
+  it("says nothing about solicitation for a withdrawal or an organisation's vouch", async () => {
+    // A withdrawal presents no invitation and needs none; an organisation never needs one. Answering
+    // `solicited: false` there sent the writer to ask for an invitation to take back their own words.
+    const written = {
+      name: "bob",
+      id: toBytes32("b"),
+      wallet: user.account.address,
+      payload: toBytes32("worked together 2019-22"),
+      validUntil: 1_800_000_000n,
+      nonce: 1n,
+      live: true,
+    };
+    const { chain } = fakeChain({
+      ...aliceHolds,
+      listed: { "~alice": [written] },
+      records: {
+        [`${user.account.address.toLowerCase()}:~alice`]: {
+          exists: true,
+          nonce: 1n,
+          id: keccak256(stringToBytes(user.did)),
+          wallet: user.account.address,
+        },
+      },
+    });
+    const a = app(chain);
+    const withdraw = toWire(
+      await signedAttestRequest(
+        user.account,
+        { ...vouchIntent(NOW), handle: "bob", nonce: 2n, payload: toBytes32(WITHDRAWN) },
+        privy.mint({ sub: user.did, linked: user.linked, now: NOW }),
+        31337,
+        baseEnv.MULTIPASS as Hex
+      )
+    );
+    const res = await post(a, "/v1/attest", withdraw);
+    const body = await res.json();
+    expect(res.status, JSON.stringify(body)).toBe(200);
+    expect(body).not.toHaveProperty("solicited");
+
+    const org = fakeChain({
+      ...aliceHolds,
+      records: {
+        [`${user.account.address.toLowerCase()}:org`]: {
+          exists: true,
+          nonce: 1n,
+          id: toBytes32("acme"),
+          wallet: user.account.address,
+        },
+      },
+    }).chain;
+    const asOrg = toWire(
+      await signedAttestRequest(
+        user.account,
+        { ...vouchIntent(NOW), handle: "acme" },
+        privy.mint({ sub: user.did, linked: user.linked, now: NOW }),
+        31337,
+        baseEnv.MULTIPASS as Hex
+      )
+    );
+    const orgRes = await post(app(org), "/v1/attest", asOrg);
+    expect(orgRes.status).toBe(200);
+    expect(await orgRes.json()).not.toHaveProperty("solicited");
   });
 
   it("counts an account the writer keeps masked, so the requirement is met without naming it", async () => {
@@ -4375,6 +4439,59 @@ describe("the humanity check", () => {
       }
     });
 
+    it("answers 503 with what was done when a chain delete reverts, rather than losing the Privy result", async () => {
+      const { chain } = fakeChain({
+        byWallet: [
+          {
+            wallet,
+            live: true,
+            name: "",
+            domain: "github.com",
+            nonce: "1",
+            id: `0x${"11".repeat(32)}`,
+            payload: "",
+            validUntil: "2099-01-01T00:00:00.000Z",
+          } as never,
+        ],
+      });
+      chain.deleteRecord = vi.fn(async () => {
+        throw new Error("execution reverted");
+      });
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (url: string) =>
+          url.endsWith("/v1/users/wallet/address")
+            ? new Response(
+                JSON.stringify({
+                  id: "did:privy:alice",
+                  linked_accounts: [
+                    { type: "wallet", address: wallet },
+                    { type: "github_oauth", subject: "42", username: "alice" },
+                  ],
+                }),
+                { status: 200 }
+              )
+            : new Response("{}", { status: 200 })
+        )
+      );
+      try {
+        const a = humanApp(chain, portal(), { ...adminEnv, PRIVY_APP_SECRET: "secret-secret" });
+        const res = await a.request("/v1/admin/privy/unlink", {
+          method: "POST",
+          headers: { ...headers, "content-type": "application/json" },
+          body: JSON.stringify({ wallet }),
+        });
+        expect(res.status).toBe(503);
+        expect(await res.json()).toMatchObject({
+          unlinked: [{ type: "github_oauth", handle: "42" }],
+          deleted: [],
+          error: expect.stringContaining("github.com"),
+        });
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
     it("retries an OAuth unlink by username when Privy refuses the subject, and says what Privy said", async () => {
       // Privy's `handle` is documented as "the identifier for the account" and took the subject for
       // some providers and the username for others; a 400 on the first is not the end of it. And a
@@ -4468,6 +4585,8 @@ describe("the humanity check", () => {
           rec("~bob"),
           rec("humanity"),
           rec("gmail.com"),
+          rec("org"),
+          rec("kju-is:no"),
         ],
       });
       vi.stubGlobal(
@@ -4498,8 +4617,8 @@ describe("the humanity check", () => {
             { domain: "gmail.com", txHash: `0x${"de".repeat(32)}` },
           ],
         });
-        // Live platform records only: a name, a letter and the humanity record have their own resets,
-        // and a dead record is already out of the way.
+        // Live platform records only: a name, an answer, a letter, an organisation and the humanity
+        // record have their own resets, and a dead record is already out of the way.
         expect(chain.deleteRecord).toHaveBeenCalledTimes(2);
         expect(chain.deleteRecord).toHaveBeenCalledWith("github.com", wallet);
         expect(chain.deleteRecord).toHaveBeenCalledWith("gmail.com", wallet);

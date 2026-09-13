@@ -95,10 +95,17 @@ export function domainsFor(account: ConnectedAccount, domains: readonly string[]
       : account.domain === "google"
         ? (emailHost(account.label) ?? PLATFORM_DNS_NAMES.google)
         : PLATFORM_DNS_NAMES[account.domain];
+  // A record attested at `google.com` before Google accounts moved to their address's host is still
+  // this account's, so that mount stays a place to look, after the host.
+  const legacy =
+    account.domain === "google" && domains.includes(PLATFORM_DNS_NAMES.google)
+      ? [PLATFORM_DNS_NAMES.google]
+      : [];
   const ordered = [
     ...(dns && domains.includes(dns) ? [dns] : []),
     ...(domains.includes(account.domain) ? [account.domain] : []),
     ...(dns ? [dns] : []),
+    ...legacy,
   ];
   return [...new Set(ordered)];
 }

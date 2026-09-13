@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { domainFor, connectedAccounts, linkedDomains, whoAmI } from "@/lib/identity";
+import { domainFor, domainsFor, connectedAccounts, linkedDomains, whoAmI } from "@/lib/identity";
 
 const WALLET = "0xD70B1f4b1cD2Cb2Dd6e4f0F5b0f7c1F2a3b494a0";
 
@@ -82,6 +82,11 @@ describe("which domain an account is attested into", () => {
     );
     // Without an address to read, the issuer's own name is what is left.
     expect(domainFor({ domain: "google", label: "" }, ["x.com"])).toBe("google.com");
+    // A record attested at google.com before the move is still found, after the host.
+    expect(domainsFor({ domain: "google", label: "colors@gmail.com" }, ["google.com"])).toEqual([
+      "gmail.com",
+      "google.com",
+    ]);
   });
 
   it("has nothing to offer for a platform this build does not know", () => {

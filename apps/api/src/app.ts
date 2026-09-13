@@ -18,6 +18,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import {
   candidateOf,
   whyUnsolicited,
+  answerOf,
   parseRequirement,
   attest,
   checkAudience,
@@ -709,11 +710,18 @@ export function createApp({
     (value) => value
   );
 
-  async function rememberSolicited(req: AttestRequest): Promise<string | null> {
+  /**
+   * Whether the candidate asked for this reference, remembered per candidate and writer. Answers
+   * `null` where the question does not arise: not a reference, a withdrawal, or an organisation's
+   * vouch, which needs no invitation.
+   */
+  async function rememberSolicited(req: AttestRequest): Promise<{ reason: string | null } | null> {
     const candidate = candidateOf(req.intent.domain, [config.VOUCH_PREFIX]);
     if (!candidate) return null;
-    if (!req.invite) return "no invitation was presented";
+    if (fromBytes32(req.intent.payload) === WITHDRAWN) return null;
     const onchain = await readFor(req);
+    if (onchain.issuerOrg) return null;
+    if (!req.invite) return { reason: "no invitation was presented" };
     const key = `${candidate}:${req.intent.handle}`;
     const why = await whyUnsolicited(req, onchain, await env());
     if (why) {
@@ -730,7 +738,7 @@ export function createApp({
        * wrote, and it says nothing about how the reference was asked for in the first place.
        */
       solicitedStore.delete(key);
-      return why;
+      return { reason: why };
     }
     solicitedStore.set(key, {
       handle: req.invite.handle,
@@ -738,7 +746,7 @@ export function createApp({
       exp: req.invite.exp.toString(),
       signature: req.invite.signature,
     });
-    return null;
+    return { reason: null };
   }
 
   /**
@@ -1495,7 +1503,7 @@ export function createApp({
     }
     // Whether the candidate asked for this reference: a fact about it, kept so the card can say so.
     // The invitation is kept with it, so a reader can check the signature rather than take our word.
-    const unsolicitedReason = await rememberSolicited(req);
+    const asked = await rememberSolicited(req);
     // Only now, with the account proven: the signature is worthless until the domain exists on chain.
     if (plan.mount) {
       try {
@@ -1508,8 +1516,8 @@ export function createApp({
     // but the writer is here now and can fix a typo in the invitation before anyone reads it.
     return c.json({
       ...serialize(result),
-      ...(isVouchDomain(domain)
-        ? { solicited: unsolicitedReason === null, ...(unsolicitedReason ? { unsolicitedReason } : {}) }
+      ...(asked
+        ? { solicited: asked.reason === null, ...(asked.reason ? { unsolicitedReason: asked.reason } : {}) }
         : {}),
     });
   });
@@ -2207,12 +2215,33 @@ export function createApp({
       }
       if (last) failed.push({ type: a.type, ...last, attempts });
     }
+    // Platform accounts only: a name, an answer, a reference, an organisation and the humanity
+    // record each have a reset of their own.
     const isPlatform = (d: string) =>
-      !config.NAME_DOMAINS.includes(d) && d !== config.HUMANITY_DOMAIN && !d.startsWith(config.VOUCH_PREFIX);
+      !config.NAME_DOMAINS.includes(d) &&
+      d !== config.HUMANITY_DOMAIN &&
+      d !== config.ORG_DOMAIN &&
+      !d.startsWith(config.VOUCH_PREFIX) &&
+      answerOf(d) === undefined;
     const deleted: { domain: string; txHash: Hex }[] = [];
     for (const r of await chain.listRecordsByWallet(who.wallet)) {
       if (!r.live || !isPlatform(r.domain)) continue;
-      deleted.push({ domain: r.domain, txHash: await chain.deleteRecord(r.domain, who.wallet) });
+      try {
+        deleted.push({ domain: r.domain, txHash: await chain.deleteRecord(r.domain, who.wallet) });
+      } catch (e) {
+        // What Privy already did is reported with the failure, so the admin can retry the rest.
+        return c.json(
+          {
+            ...who,
+            did: user.id,
+            unlinked,
+            failed,
+            deleted,
+            error: `could not delete ${r.domain}: ${explainRevert(e)}`,
+          },
+          503
+        );
+      }
     }
     return c.json({ ...who, did: user.id, unlinked, failed, deleted });
   });
