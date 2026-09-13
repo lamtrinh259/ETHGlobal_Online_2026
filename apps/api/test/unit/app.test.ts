@@ -4256,6 +4256,64 @@ describe("the humanity check", () => {
       ).toBe(400);
     });
 
+    it("unlinks every account but the wallets from the person's Privy user, through Privy's server API", async () => {
+      const { chain } = fakeChain();
+      const calls: { url: string; body: unknown }[] = [];
+      const fetchMock = vi.fn(
+        async (url: string, init?: { body?: string; headers?: Record<string, string> }) => {
+          calls.push({ url, body: init?.body ? JSON.parse(init.body) : undefined });
+          if (url.endsWith("/v1/users/wallet/address")) {
+            return new Response(
+              JSON.stringify({
+                id: "did:privy:alice",
+                linked_accounts: [
+                  { type: "wallet", address: wallet },
+                  { type: "github_oauth", subject: "42", username: "alice" },
+                  { type: "email", address: "alice@example.com" },
+                ],
+              }),
+              { status: 200 }
+            );
+          }
+          return new Response("{}", { status: url.endsWith("/users/unlink") ? 200 : 404 });
+        }
+      );
+      vi.stubGlobal("fetch", fetchMock);
+      try {
+        const a = humanApp(chain, portal(), { ...adminEnv, PRIVY_APP_SECRET: "secret-secret" });
+        const res = await a.request("/v1/admin/privy/unlink", {
+          method: "POST",
+          headers: { ...headers, "content-type": "application/json" },
+          body: JSON.stringify({ wallet }),
+        });
+        expect(res.status).toBe(200);
+        expect(await res.json()).toMatchObject({
+          did: "did:privy:alice",
+          unlinked: [
+            { type: "github_oauth", handle: "42" },
+            { type: "email", handle: "alice@example.com" },
+          ],
+          failed: [],
+        });
+        // The lookup, then one unlink per account; the wallet is never touched.
+        expect(calls.map((c) => c.url.split("/").slice(-1)[0])).toEqual(["address", "unlink", "unlink"]);
+        expect(calls[1].body).toEqual({ user_id: "did:privy:alice", type: "github_oauth", handle: "42" });
+        // Without the app secret the route says so instead of trying.
+        const bare = humanApp(chain, portal(), adminEnv);
+        expect(
+          (
+            await bare.request("/v1/admin/privy/unlink", {
+              method: "POST",
+              headers: { ...headers, "content-type": "application/json" },
+              body: JSON.stringify({ wallet }),
+            })
+          ).status
+        ).toBe(501);
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
     it("forgets the nullifier and deletes the record, so the person can pass the check again", async () => {
       const { chain } = fakeChain({
         records: {

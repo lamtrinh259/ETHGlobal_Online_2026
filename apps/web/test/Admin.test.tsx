@@ -139,3 +139,23 @@ describe("the switch for everyone", () => {
     await waitFor(() => expect(screen.getByTestId("admin-policy-error")).toHaveTextContent("admin disabled"));
   });
 });
+
+describe("resetting a person's Privy accounts", () => {
+  it("unlinks after a confirmation and says what went and what Privy refused", async () => {
+    await show({
+      adminPrivyUnlink: vi.fn(async () => ({
+        wallet: WALLET,
+        handle: "alice",
+        did: "did:privy:alice",
+        unlinked: [{ type: "github_oauth", handle: "42" }],
+        failed: [{ type: "email", status: 400 }],
+      })),
+    });
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    fireEvent.click(screen.getByTestId("admin-unlink"));
+    await waitFor(() =>
+      expect(screen.getByTestId("admin-unlinked")).toHaveTextContent("Unlinked github_oauth")
+    );
+    expect(screen.getByTestId("admin-unlinked")).toHaveTextContent("Privy refused: email (400)");
+  });
+});

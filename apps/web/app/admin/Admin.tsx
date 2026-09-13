@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { TxDone } from "@/app/TxDone";
 import { useWebConfig } from "@/app/providers";
-import type { AdminHumanity, AdminReset, AdminSelfieCheck } from "@/lib/api";
+import type { AdminHumanity, AdminReset, AdminSelfieCheck, AdminUnlink } from "@/lib/api";
 import { apiFor } from "@/lib/hooks";
 
 const TOKEN_KEY = "ketsuban:admin-token";
@@ -24,7 +24,8 @@ export function Admin() {
   const [state, setState] = useState<AdminHumanity>();
   const [result, setResult] = useState<AdminReset>();
   const [error, setError] = useState<string>();
-  const [busy, setBusy] = useState<"look" | "reset" | "switch">();
+  const [busy, setBusy] = useState<"look" | "reset" | "switch" | "unlink">();
+  const [unlinked, setUnlinked] = useState<AdminUnlink>();
   /** The deletion whose confirmation has been read, so closing it does not bring it back */
   const [doneRead, setDoneRead] = useState<string>();
   const [policy, setPolicy] = useState<AdminSelfieCheck>();
@@ -76,6 +77,23 @@ export function Admin() {
     }
   };
 
+  const unlink = async () => {
+    if (
+      !window.confirm(
+        `Unlink every Privy account (email, Google, X, GitHub…) from ${who.trim()}? The wallets stay.`
+      )
+    )
+      return;
+    setError(undefined);
+    setBusy("unlink");
+    try {
+      setUnlinked(await api.adminPrivyUnlink(token, query()));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(undefined);
+    }
+  };
   const readPolicy = async () => {
     setPolicyError(undefined);
     setBusy("switch");
@@ -199,7 +217,23 @@ export function Admin() {
           >
             {busy === "reset" ? "resetting…" : "Reset the Selfie Check"}
           </button>
+          <button
+            type="button"
+            onClick={unlink}
+            disabled={!token || !who.trim() || !!busy}
+            data-testid="admin-unlink"
+          >
+            {busy === "unlink" ? "unlinking…" : "Unlink Privy accounts"}
+          </button>
         </p>
+        {unlinked && (
+          <p className="muted" data-testid="admin-unlinked">
+            Unlinked {unlinked.unlinked.length ? unlinked.unlinked.map((u) => u.type).join(", ") : "nothing"}{" "}
+            from <code>{unlinked.did}</code>.
+            {unlinked.failed.length > 0 &&
+              ` Privy refused: ${unlinked.failed.map((f) => `${f.type} (${f.status})`).join(", ")}.`}
+          </p>
+        )}
         {error && (
           <p className="error" role="alert" data-testid="admin-error">
             {error}

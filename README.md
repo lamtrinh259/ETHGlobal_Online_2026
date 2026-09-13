@@ -1,115 +1,110 @@
 # ShibbolETH
 
-[CI](https://git.peeramid.xyz/peersky/ETHGlobal_Online_2026/actions) runs on Forgejo at `git.peeramid.xyz`, which is the `origin` remote.
+A vouch that cannot be deleted. Somebody who has proved they are one real person vouches for you, and
+the vouch becomes an ENS name: `bob.alice.shibboleth.eth` is Bob's vouch for Alice. A reader resolves
+it with any wallet, agent or `cast` call, then checks what they find against their own policy — a
+minimum number of vouches, proved humanity, linked accounts. Nothing here grades a person; the bar
+belongs to whoever is reading.
 
-Non-deletable, human-verified references. A reference is a Multipass record whose registrar signature is produced
-by the Chainlink CRE `attest` workflow from a Privy identity token and a wallet-signed intent — inside the enclave
-where one is deployed, on this deployment's own node until then, and the app says which. ENSv2 makes every record a
-name (`<handle>.<instance>.eth`) that any wallet or agent can resolve without integrating with us.
+- Portal: <https://shibboleth.peeramid.xyz>
+- API: <https://shibboleth-api.peeramid.xyz>
+- Chain: Ethereum Sepolia. Root ENS name `shibboleth.eth`, Multipass root domain `shibboleth`.
 
-Any subject can be an instance — a question, a university cohort, an organisation. The subject is a deployment
-argument, never a source artifact.
+Multipass holds the records. ENSv2 gives each one a name, and a single wildcard resolver answers the
+whole tree from those records, so there is nothing to integrate with and nothing to keep in step. The
+text keys still read `ketsuban:*` — they predate the rename and are live on chain.
 
-Start with [docs/demo.md](docs/demo.md): the live Sepolia deployment, checkable with `curl` and with
-`cast` against the ENSv2 UniversalResolver. [docs/namespace.md](docs/namespace.md) explains what every
-name means and why a platform is mounted at its own DNS name, and
-[docs/troubleshooting.md](docs/troubleshooting.md) is what to read when something is wrong.
+One power contradicts the promise: the Multipass owner can call `deleteName`. Where that key is also
+the relayer, `GET /v1/preflight` says so rather than leaving it unsaid — see
+[docs/architecture.md](docs/architecture.md#trust-boundaries).
 
-Four claims worth checking, each without asking this service:
+## How it fits together
 
-| Claim | How to check it |
-|---|---|
-| A platform is the DNS name it is | `demo.com.x.www.ketsuban.eth` resolves; `nobody.com.x.www.ketsuban.eth` and `foo.demo.com.x.www.ketsuban.eth` do not |
-| A private account is named after the person, never itself | `<name>.com.discord.private-www.ketsuban.eth` answers only while both records are live, and says nothing about which account |
-| Profile fields are role-gated on chain | `setText(avatar)` from the holder is allowed; the same key from anyone else, and any other key from the holder, is refused by the resolver |
-| The signature can be made where nobody can read the identity token | `pnpm --filter @ketsuban/cre-attest simulate:dns` runs the signing handler in the TEE simulator and prints the signed record. The workflow is written for a Chainlink CRE enclave and is not yet deployed to one; this deployment signs on its own node, and the app says which of the two it is doing |
+```mermaid
+flowchart LR
+  B["browser<br/>Privy sign-in, wallet signs an intent"]
+  A["attester<br/>checks the identity token,<br/>signs the record as registrar"]
+  R["relay · apps/api<br/>submits, indexes, answers reads"]
+  G["AttestationBridge<br/>register + text records"]
+  M[("Multipass<br/>the records")]
+  W["RootAttestationResolver<br/>one resolver for the whole tree"]
+  C["any ENS client<br/>UniversalResolver"]
+  B --> A --> R --> G --> M
+  W -- reads --> M
+  R -- reads --> M
+  C -- resolve --> W
+```
 
-Every shape above is built from the mounts recorded on chain rather than from a list kept here, so it
-cannot drift from what is deployed: `curl -s $API/v1/instances` is where it comes from.
+The attester is either this deployment's own node or a Chainlink CRE enclave, where the identity token
+never leaves the TEE. The portal says which of the two it is doing.
 
-## Checks
+## Read a name without us
 
-The packages generate what the apps import — the registrar's types, and the errors ABI the contracts dump
-— so `pnpm --filter "./packages/**" run build` comes first in a fresh checkout. It is not an install hook
-on purpose: the container build installs before it copies any source, and a hook there fails with nothing
-to compile.
+```bash
+cast call 0x4A1817d13E9cF196f471725176355C1234b63C70 "resolve(bytes,bytes)(bytes,address)" \
+  $(python3 -c "print('0x'+b'\x05alice\x0ashibboleth\x03eth\x00'.hex())") \
+  $(cast calldata "text(bytes32,string)" $(cast namehash alice.shibboleth.eth) "ketsuban:answer") \
+  --rpc-url sepolia
+```
 
-`pnpm verify` is the gate: it runs what `.github/workflows/ci.yml` runs, in the same order — lint,
-typecheck, every package's own tests with the coverage thresholds the language allows, and the browser
-journeys. `pnpm verify:e2e` adds the slow one: anvil, the contracts deployed from this source, and the
-API image, driven from outside. That needs no secrets — the identity issuer is faked from a seed.
+`cast` has no DNS-name encoder, which is why the wire-format name is spelled out. The same call reads
+a vouch (`bob.alice.shibboleth.eth`) and an attested account (`alice.com.x.www.shibboleth.eth`).
 
-Run `pnpm verify`, not `pnpm test`. The unit suites are a subset: they cannot see a form that moved
-behind a disclosure the journeys still type into, or a fixture that kept hashing a signal the way the
-server had stopped hashing it. Both of those passed `pnpm test` and failed on push.
+## Run it locally
+
+```bash
+pnpm install
+pnpm --filter "./packages/**" run build      # the apps import what the packages generate; needs foundry
+cp .env.example .env                         # registrar + Privy values for the local attester
+cp apps/web/.env.example apps/web/.env.local # public identifiers only
+pnpm --filter @ketsuban/api dev              # http://127.0.0.1:8787
+pnpm --filter @ketsuban/web dev              # http://localhost:3000
+```
+
+The package build comes first in a fresh checkout and is not an install hook: the container build
+installs before it copies any source, so a hook there would have nothing to compile.
+
+`pnpm verify` is the gate — it runs what CI runs, in the same order: lint, typecheck, every package's
+tests, and the browser journeys. `pnpm verify:e2e` adds anvil, the contracts deployed from this source
+and the API image, driven from outside. Run `pnpm verify`, not `pnpm test`: the unit suites share
+fixtures with the code they check, and twice passed a change that broke on push.
+
+## Docs
+
+[docs/README.md](docs/README.md) is the index. The three to start with:
+
+- [docs/architecture.md](docs/architecture.md) — the components, the write path, and who can do what.
+- [docs/namespace.md](docs/namespace.md) — what every name under `shibboleth.eth` means.
+- [docs/demo.md](docs/demo.md) — the live deployment, checkable with `curl` and `cast`.
 
 ## Packages
 
 | Package | What |
 |---|---|
-| `packages/registrar` | `@ketsuban/registrar` — pure attester: `(idToken, intent, signature, secrets) → { record, signature, viewCode? }`. Runs unchanged inside the CRE enclave and in the Node fallback. |
-| `packages/contracts` | Foundry. `AttestationFactory` deploys one `AttestationRegistry` (ENSv2 `IRegistry` over a Multipass domain) + `AttestationResolver` (ENSIP-10 shim) per instance; `AttestationBridge` proxies registration, grants profile keys, links owned `.eth` names, and lets orgs sponsor. |
-| `packages/cre` | Chainlink CRE workflow: HTTP trigger → public checks + chain read on the DON → `handlerInTee` signs as registrar. |
-| `apps/api` | Relay: receives enclave output, submits through the bridge, serves the machine-readable verification endpoint. |
+| `packages/registrar` | `@ketsuban/registrar` — the pure attester: `(idToken, intent, signature, secrets) → { record, signature, viewCode? }`. The same code runs in the CRE enclave and in the Node fallback. |
+| `packages/contracts` | Foundry. `RootAttestationResolver` answers the tree from Multipass; `AttestationBridge` registers records and grants profile keys. |
+| `packages/cre` | The Chainlink CRE workflow: HTTP trigger → public checks on the DON → signing inside the enclave. |
+| `apps/api` | Relay: submits signed records, indexes them, serves every read the portal and an agent make. |
+| `apps/web` | The portal: sign in, attest accounts, claim a name, vouch, read somebody against a policy. |
 
-## Flow
+## Sepolia
 
-```mermaid
-sequenceDiagram
-  participant B as Browser (Privy)
-  participant C as CRE (DON + enclave)
-  participant A as api
-  participant M as Multipass
-  participant E as ENSv2
-  B->>B: login, link account, sign EIP-712 Intent
-  B->>C: { idToken, intent, signature }
-  C->>M: resolveRecord(wallet, domain)
-  C->>C: verify token + intent, derive record, sign as registrar (enclave)
-  C->>A: { record, signature, viewCode? }
-  A->>M: AttestationBridge.verify / verifyFor
-  E-->>B: <handle>.<instance>.eth resolves (addr, ketsuban:answer, ketsuban:link:*, ketsuban:humanity)
-```
-
-## Develop
-
-```bash
-pnpm install
-pnpm -r test                       # registrar (vitest) + contracts (forge)
-cd packages/contracts && forge coverage --report summary --no-match-coverage "^(test|vendor|node_modules)/"
-```
-
-Sepolia dependencies: Multipass `0x418F82fd0014a4CA402F145978bfaF0555a9cA06`, ENSv2 addresses from
-[docs.ens.domains/learn/deployments](https://docs.ens.domains/learn/deployments/).
-
-Environment variables are listed in `.env.example`; never commit `.env`.
-
-## Sepolia deployment
-
-| | |
+| | Address |
 |---|---|
-| Root name | `ketsuban.eth` → `AttestationRegistry` `0x254D9c7601BD8fa6b6FA7f5A42c860d184E053A7`, resolver `0x178ff1589Be8Af3B19426Aa1d2Bd07cd178E215e` |
-| Child instance | `kju-is.ketsuban.eth` → registry `0xA976CB21597c555F92e7A5de2dAAF06A3c0D63F7`, resolver `0x24d0F1dc28D9d05342C2c2ceA459C3f0Dffb18D8` |
-| Factory / Bridge | `0xc0281d75974155fE8513F623de726F040c4bcC51` / `0xE5e985B5f152EbD07aF9922d564AA8A7ccB77c62` |
-| Stock PermissionedResolver | `0x4E2d9783cEFF2ed72CD77C14206b29fe246b24F7` (Verifiable Factory proxy) |
+| Multipass | `0x418F82fd0014a4CA402F145978bfaF0555a9cA06` |
+| `RootAttestationResolver` (serves `shibboleth.eth`) | `0x542012eCb66De81CBd5De2E2952254c0e84a9447` |
+| `AttestationBridge` | `0xE5e985B5f152EbD07aF9922d564AA8A7ccB77c62` |
+| Stock ENSv2 `PermissionedResolver` | `0x4E2d9783cEFF2ed72CD77C14206b29fe246b24F7` |
+| ENSv2 `ETHRegistry` | `0xBDC85dD5b15D7ecb354cd7cb6f2c50b4f2c4F0E2` |
+| ENSv2 `UniversalResolver` | `0x4A1817d13E9cF196f471725176355C1234b63C70` |
 
-```bash
-# any ENSv2 client, no integration with us
-cast call 0x4a1817d13e9cf196f471725176355c1234b63c70 "resolve(bytes,bytes)(bytes,address)" \
-  $(python3 -c "print('0x'+b'\x06alice\x08ketsuban\x03eth\x00'.hex())") \
-  $(cast calldata "text(bytes32,string)" $(cast namehash alice.ketsuban.eth) "ketsuban:answer") --rpc-url sepolia
-```
+Every other address is in `packages/contracts/deployments/11155111.json`, which the API image ships
+and `GET /v1/preflight` checks against the chain. Names claimed before the rename stay on
+`ketsuban.eth` and still resolve; new ones are under `shibboleth.eth`.
 
-Artifact: `packages/contracts/deployments/11155111.json`. Runbook: `docs/deploy.md`.
+Runbook: [docs/deploy.md](docs/deploy.md). Environment variables: `.env.example`. Never commit `.env`.
 
-## Resolver keys
-
-| Key | Source |
-|---|---|
-| `addr`, reverse `name` | live Multipass record in the instance domain |
-| `text ketsuban:answer`, `text ketsuban:expiry` | record `payload`, `validUntil` |
-| `text ketsuban:humanity[:until]` | wallet-keyed hop into the `humanity` domain |
-| `data ketsuban:link:<domain>` | wallet-keyed hop → `abi.encodePacked(name, id, payload)`; `payload != 0` ⇒ opted-in, decode with the view code |
-| everything else | stock ENSv2 `PermissionedResolver` (user text records, oracle `data` keys, aliases) |
+CI is Forgejo at `git.peeramid.xyz`, which is the `origin` remote.
 
 ## License
 

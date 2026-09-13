@@ -441,6 +441,7 @@ export function createApp({
         deliveryToken: !!config.DELIVERY_TOKEN,
         orgToken: !!config.ORG_TOKEN,
         adminToken: !!config.ADMIN_TOKEN,
+        privyAppSecret: !!config.PRIVY_APP_SECRET,
         privyVerificationKey: !!config.PRIVY_VERIFICATION_KEY_JWK,
         worldSigningKey: !!config.WORLD_RP_SIGNING_KEY,
       },
@@ -2079,6 +2080,67 @@ export function createApp({
     const who = await adminWallet({ wallet: c.req.query("wallet"), handle: c.req.query("handle") });
     if (!who) return c.json({ error: "no such account here" }, 404);
     return c.json({ ...who, ...(await humanityOf(who.wallet)) });
+  });
+
+  /**
+   * Demo only: unlink every account a person has attached to their Privy user, keeping the wallets.
+   * A demo runs the same person through onboarding again; Privy allows one account per type, so the
+   * second run cannot link what the first did. Done through Privy's server API with the app secret.
+   */
+  app.post("/v1/admin/privy/unlink", async (c) => {
+    const refused = adminGate(c);
+    if (refused) return refused;
+    if (!config.PRIVY_APP_SECRET) return c.json({ error: "privy app secret not configured" }, 501);
+    const body = z
+      .object({ wallet: z.string().optional(), handle: z.string().optional() })
+      .safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: "wallet or handle required" }, 400);
+    const who = await adminWallet(body.data);
+    if (!who) return c.json({ error: "no such account here" }, 404);
+    const headers = {
+      "privy-app-id": config.PRIVY_APP_ID,
+      authorization: `Basic ${Buffer.from(`${config.PRIVY_APP_ID}:${config.PRIVY_APP_SECRET}`).toString("base64")}`,
+      "content-type": "application/json",
+    };
+    const found = await fetch(`${config.PRIVY_API_URL}/v1/users/wallet/address`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ address: who.wallet }),
+    });
+    if (found.status === 404) return c.json({ error: "no Privy user holds that wallet" }, 404);
+    if (!found.ok) return c.json({ error: `privy answered ${found.status}` }, 502);
+    const user = (await found.json()) as {
+      id: string;
+      linked_accounts: {
+        type: string;
+        address?: string;
+        subject?: string;
+        email?: string;
+        phone_number?: string;
+        username?: string;
+      }[];
+    };
+    const unlinked: { type: string; handle: string }[] = [];
+    const failed: { type: string; status: number }[] = [];
+    for (const a of user.linked_accounts) {
+      // The wallets stay: every record on chain is keyed by one of them.
+      if (a.type === "wallet" || a.type === "smart_wallet" || a.type === "passkey") continue;
+      const handle =
+        a.type === "email"
+          ? a.address
+          : a.type === "phone"
+            ? a.phone_number
+            : (a.subject ?? a.username ?? a.address);
+      if (!handle) continue;
+      const res = await fetch(`${config.PRIVY_AUTH_URL}/api/v1/apps/${config.PRIVY_APP_ID}/users/unlink`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ user_id: user.id, type: a.type, handle }),
+      });
+      if (res.ok) unlinked.push({ type: a.type, handle });
+      else failed.push({ type: a.type, status: res.status });
+    }
+    return c.json({ ...who, did: user.id, unlinked, failed });
   });
 
   app.post("/v1/admin/humanity/reset", async (c) => {

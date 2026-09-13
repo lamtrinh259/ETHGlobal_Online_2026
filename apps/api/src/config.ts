@@ -141,6 +141,13 @@ export const configSchema = z.object({
    */
   ADMIN_TOKEN: z.string().min(16).optional(),
   /**
+   * Privy's app secret, for the demo-only admin reset of a person's linked accounts. Absent, that
+   * route answers 501; nothing else here calls Privy's server API.
+   */
+  PRIVY_APP_SECRET: z.string().min(8).optional(),
+  PRIVY_API_URL: z.string().url().default("https://api.privy.io"),
+  PRIVY_AUTH_URL: z.string().url().default("https://auth.privy.io"),
+  /**
    * Multipass domain holding humanity attestations. The instance resolver hops into it keyed by the
    * wallet, which is what makes `ketsuban:humanity` answer on a person's own name.
    */

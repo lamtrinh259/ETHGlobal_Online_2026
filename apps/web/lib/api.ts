@@ -309,6 +309,15 @@ export const adminResetSchema = z.object({
   deleted: z.union([z.object({ txHash: z.string() }), z.object({ error: z.string() })]).nullable(),
 });
 export type AdminReset = z.infer<typeof adminResetSchema>;
+/** Demo only: what unlinking a person's Privy accounts did. */
+export const adminUnlinkSchema = z.object({
+  wallet: z.string(),
+  handle: z.string().nullable(),
+  did: z.string(),
+  unlinked: z.array(z.object({ type: z.string(), handle: z.string() })),
+  failed: z.array(z.object({ type: z.string(), status: z.number() })),
+});
+export type AdminUnlink = z.infer<typeof adminUnlinkSchema>;
 /** Demo only: whether a reference needs the Selfie Check right now, for everyone. */
 export const adminSelfieCheckSchema = z.object({
   required: z.boolean(),
@@ -774,6 +783,15 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ idToken, name, viewCode }),
       });
+    },
+    /** Demo only: unlink every account but the wallets from the person's Privy user. */
+    async adminPrivyUnlink(token: string, q: { wallet?: string; handle?: string }): Promise<AdminUnlink> {
+      const res = await call(`${base}/v1/admin/privy/unlink`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-admin-token": token },
+        body: JSON.stringify(q),
+      });
+      return adminUnlinkSchema.parse(await readJson(res));
     },
     /** Demo only: whether the Selfie Check is in force for everyone. */
     async adminSelfieCheck(token: string): Promise<AdminSelfieCheck> {
