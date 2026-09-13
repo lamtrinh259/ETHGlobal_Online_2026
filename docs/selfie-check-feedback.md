@@ -79,7 +79,7 @@ comes back to a widget that says it failed (§4). From their side both are "the 
 only recovery they can think of is to do it again, which does not help. *Ask:* when the app and the
 widget disagree, one of them should say which one to believe and what to do next.
 
-**12. Why are there two apps?.** Testing against sandbox means installing a second World
+**12. Why are there two apps?** Testing against sandbox means installing a second World
 App from TestFlight next to the one from the store, same name, same icon. The person asked to do it
 does not know which one the widget wants, and the first question every one of them asked was why
 there are two. *Ask:* one app with an environment switch, or a sandbox build that says so in its name.
