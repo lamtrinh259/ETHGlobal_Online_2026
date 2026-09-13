@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeRequirement, missingRequirements, whyUnsatisfiable, wrongAccount } from "@/lib/invite";
+import { accountMismatch, describeRequirement, missingRequirements, whyUnsatisfiable } from "@/lib/invite";
 
 const parents = ["ketsuban.eth", "kju-is.ketsuban.eth"];
 
@@ -16,13 +16,19 @@ describe("an invitation somebody could actually satisfy", () => {
     // The domain is what has to be attested; the handle is checked against the sign-in.
     expect(missingRequirements(["github.com/lam"], ["github.com"], parents)).toEqual([]);
     expect(missingRequirements(["github.com/lam"], [], parents)).toEqual(["github.com/lam"]);
-    expect(wrongAccount("github.com/lam", [{ domain: "github", label: "lam" }])).toBeNull();
-    expect(wrongAccount("github.com/lam", [{ domain: "github", label: "bob" }])).toMatch(
-      /for @lam on github.com; the account linked here is @bob/
-    );
-    expect(wrongAccount("github.com/lam", [])).toMatch(/no account there is linked here/);
-    expect(wrongAccount("mit.edu/tim", [{ domain: "google", label: "tim@mit.edu" }])).toBeNull();
-    expect(wrongAccount("mit.edu", [])).toBeNull();
+  });
+
+  it("names both sides of a mismatch, so the page can show them side by side", () => {
+    expect(accountMismatch("github.com/lam", [{ domain: "github", label: "bob" }])).toEqual({
+      domain: "github.com",
+      wanted: "lam",
+      held: ["bob"],
+    });
+    expect(accountMismatch("github.com/lam", [])).toEqual({ domain: "github.com", wanted: "lam", held: [] });
+    expect(accountMismatch("github.com/lam", [{ domain: "github", label: "@Lam" }])).toBeNull();
+    expect(accountMismatch("github.com", [{ domain: "github", label: "bob" }])).toBeNull();
+    expect(accountMismatch("mit.edu/tim", [{ domain: "google", label: "tim@mit.edu" }])).toBeNull();
+    expect(accountMismatch("mit.edu", [])).toBeNull();
   });
 
   it("refuses Telegram, which this deployment cannot link", () => {

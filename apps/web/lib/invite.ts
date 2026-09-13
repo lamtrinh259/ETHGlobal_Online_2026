@@ -54,25 +54,24 @@ export function missingRequirements(
   return requires.filter((d) => !whyUnsatisfiable(d, parentNames) && !held.has(parseRequirement(d).domain));
 }
 
-/**
- * A requirement naming one account (`github.com/lam`) that this writer is not signed in as. Nothing
- * to link fixes it: the invitation was for somebody else, and the page says so instead of sending
- * them to attest an account that will never count.
- */
-export function wrongAccount(entry: string, accounts: readonly ConnectedAccount[]): string | null {
+/** Both sides of a mismatch: the account the invitation names, and the ones this sign-in holds there. */
+export function accountMismatch(
+  entry: string,
+  accounts: readonly ConnectedAccount[]
+): { domain: string; wanted: string; held: string[] } | null {
   const { domain, handle } = parseRequirement(entry);
   if (!handle) return null;
   const platform = platformOf(domain);
   if (!platform) return null;
-  const mine = accounts.filter((a) =>
-    platform === "email"
-      ? (a.domain === "email" || a.domain === "google") && a.label.toLowerCase().endsWith(`@${domain}`)
-      : a.domain === platform
-  );
-  const held = mine.some((a) => localLabel(a.label) === handle);
-  if (held) return null;
-  const signedInAs = mine.map((a) => `@${localLabel(a.label)}`).join(", ");
-  return `This invitation is for @${handle} on ${domain}${signedInAs ? `; the account linked here is ${signedInAs}` : ", and no account there is linked here"}.`;
+  const held = accounts
+    .filter((a) =>
+      platform === "email"
+        ? (a.domain === "email" || a.domain === "google") && a.label.toLowerCase().endsWith(`@${domain}`)
+        : a.domain === platform
+    )
+    .map((a) => localLabel(a.label));
+  if (held.includes(handle)) return null;
+  return { domain, wanted: handle, held };
 }
 
 /** The handle a linked account goes by, as a requirement would name it */

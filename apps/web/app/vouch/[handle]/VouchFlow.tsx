@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { describeRequirement, whyUnsatisfiable, wrongAccount } from "@/lib/invite";
+import { accountMismatch, describeRequirement, whyUnsatisfiable } from "@/lib/invite";
 import { connectedAccounts, type LinkedAccounts } from "@/lib/identity";
 import { parseRequirement, platformOf } from "@ketsuban/registrar";
 import { useMemo, useState, type ReactNode } from "react";
@@ -132,8 +132,8 @@ export function VouchFlow({
   const stillToLink = askedFor.filter((d) => !attestedNow.includes(parseRequirement(d).domain));
   // A requirement naming one account that this sign-in is not: nothing to link can change it.
   const notYou = askedFor
-    .map((d) => wrongAccount(d, connectedAccounts(user as LinkedAccounts | null | undefined)))
-    .filter((why): why is string => !!why);
+    .map((d) => accountMismatch(d, connectedAccounts(user as LinkedAccounts | null | undefined)))
+    .filter((m): m is NonNullable<typeof m> => !!m);
   const stage: Stage = !authenticated
     ? "signin"
     : published
@@ -313,16 +313,19 @@ export function VouchFlow({
                         a.label.toLowerCase().endsWith(`@${domain}`)
                       : a.domain === platform
                   );
-                  const todo = stillToLink.includes(d);
+                  const mismatch = notYou.find((m) => m.domain === domain);
+                  const todo = stillToLink.includes(d) || !!mismatch;
                   return (
                     <li key={d} className={todo ? "todo" : "done"}>
                       {describeRequirement(d)}
-                      {!todo
-                        ? " — attested"
-                        : linked
-                          ? " — linked; sign and publish below"
-                          : " — not attested yet"}
-                      {todo && !linked && linkFor[platform] && (
+                      {mismatch
+                        ? ` — ❌ ${mismatch.held.length ? `linked as ${mismatch.held.map((h) => `@${h}`).join(", ")}` : "no account linked"}, not @${mismatch.wanted}`
+                        : !todo
+                          ? " — attested"
+                          : linked
+                            ? " — linked; sign and publish below"
+                            : " — not attested yet"}
+                      {todo && !linked && !mismatch && linkFor[platform] && (
                         <>
                           {" "}
                           <button
@@ -344,9 +347,23 @@ export function VouchFlow({
                 </p>
               )}
               {notYou.length > 0 && (
-                <p className="warning" data-testid="not-you">
-                  {notYou.join(" ")} You can still write one; it will be marked as not asked for.
-                </p>
+                <div className="error" role="alert" data-testid="not-you">
+                  <p>
+                    <strong>Account mismatch.</strong> {candidate} asked for{" "}
+                    {notYou.map((m) => `@${m.wanted} on ${m.domain}`).join(" and ")}; you are signed in with{" "}
+                    {notYou
+                      .map((m) =>
+                        m.held.length ? m.held.map((h) => `@${h}`).join(", ") : `no ${m.domain} account`
+                      )
+                      .join(" and ")}
+                    .
+                  </p>
+                  <p>
+                    Log out and sign in with {notYou.map((m) => `@${m.wanted}`).join(" and ")}, or ask{" "}
+                    {candidate} for an invitation naming your account. A reference written as you are now is
+                    published, but reads as not asked for.
+                  </p>
+                </div>
               )}
               {(attesting ?? stillToLink[0]) && (
                 <AttestFlow

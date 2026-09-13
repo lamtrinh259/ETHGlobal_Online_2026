@@ -321,10 +321,19 @@ describe("what onboarding still needs", () => {
     const forLam = { ...invite, requires: ["github.com/lam"] } as typeof invite;
     render(<VouchFlow candidate="alice" invite={forLam} inviteCode="c" />);
     await waitFor(() => expect(screen.getByTestId("onboarding-gate")).toBeInTheDocument());
-    expect(screen.getByTestId("not-you").textContent).toContain("for @lam on github.com");
-    expect(screen.getByTestId("not-you").textContent).toContain("@bob");
+    // An error, not a note: the invitation names one account and this sign-in holds another.
+    const notYou = screen.getByTestId("not-you");
+    expect(notYou).toHaveAttribute("role", "alert");
+    expect(notYou.textContent).toMatch(/account mismatch/i);
+    expect(notYou.textContent).toContain("github.com");
+    expect(notYou.textContent).toContain("@lam");
+    expect(notYou.textContent).toContain("@bob");
+    expect(notYou.textContent).toMatch(/log out and sign in with @lam/i);
     expect(screen.queryByTestId("attest")).toBeNull();
+    // The row says the same, beside the requirement it fails.
     expect(screen.getByTestId("onboarding-steps").textContent).toContain("github.com as @lam");
+    expect(screen.getByTestId("onboarding-steps").textContent).toMatch(/linked as @bob/);
+    expect(screen.getByTestId("onboarding-steps").querySelectorAll("li.todo")).toHaveLength(1);
   });
 
   it("puts the link button on the row that says the account is missing", async () => {
