@@ -4,7 +4,9 @@ Notes for World from wiring the Selfie Check into ShibbolETH as "one human, one 
 `POST /v1/humanity/challenge` and `POST /v1/humanity` in `apps/api`, IDKit in `apps/web`. Everything
 here was hit on the real integration.
 
-## What worked
+## 1. Developer feedback
+
+### What worked
 
 - The nullifier is the right primitive: per human, per app, per action, so uniqueness is a constraint
   rather than a policy. We keep nullifier → wallet off chain and refuse a second wallet.
@@ -12,7 +14,7 @@ here was hit on the real integration.
   telling the candidate, or us, who.
 - IDKit's browser flow, the cloud verify endpoint, and sandbox once both halves (§3) were found.
 
-## What cost time
+### What cost time
 
 **1. The signal is hashed as bytes, and nothing says so.** A signal that looks like hex (`0xEE48…`, a
 wallet) is hashed as 20 bytes by IDKit and as 42 characters by a server that follows the docs; every
@@ -69,7 +71,9 @@ forgets the nullifier and deletes the chain records (`POST /v1/admin/privy/delet
 World proof for this action is not ours to forget: a new wallet presenting the same nullifier is what
 §7 is about, and a stale binding would refuse it. Same ask as §8.
 
-## What a user sees
+## 2. User feedback
+
+What the people we onboarded said, as distinct from what we hit building it.
 
 **12. The App Store listing says the opposite of the product (2026-09-13).** World App's download screen
 lists data collected: identifiers, usage data, diagnostics, location. A person is sent there to prove
@@ -78,6 +82,11 @@ more is collected than most apps admit to. Whatever the reasons, it is the wrong
 privacy product, and it is what the people we onboarded remarked on. *Ask:* "Data Not Collected" is
 the label to aim for; where a category cannot be dropped, say on the listing why the proof does not
 carry it.
+
+**13. One action, two answers (2026-09-13).** The person taps through World App, sees it succeed, and
+comes back to a widget that says it failed (§4). From their side both are "the Selfie Check", and the
+only recovery they can think of is to do it again, which does not help. *Ask:* when the app and the
+widget disagree, one of them should say which one to believe and what to do next.
 
 ## Where it lives
 
