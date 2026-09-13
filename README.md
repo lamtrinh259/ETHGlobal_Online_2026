@@ -1,42 +1,96 @@
 # ShibbolETH
 
-A vouch that cannot be deleted. Somebody who has proved they are one real person vouches for you, and
-the vouch becomes an ENS name: `bob.alice.shibboleth.eth` is Bob's vouch for Alice. A reader resolves
-it with any wallet, agent or `cast` call, then checks what they find against their own policy — a
-minimum number of vouches, proved humanity, linked accounts. Nothing here grades a person; the bar
-belongs to whoever is reading.
+A reference letter that cannot be deleted, and that a reader can check without asking us. Somebody who
+has proved they are one real person writes a letter for you; it becomes an ENS name under
+`shibboleth.eth`, and whoever is considering you reads it against their own policy.
 
 - Portal: <https://shibboleth.peeramid.xyz>
 - API: <https://shibboleth-api.peeramid.xyz>
-- Chain: Ethereum Sepolia. Root ENS name `shibboleth.eth`, Multipass root domain `shibboleth`.
+- Chain: Ethereum Sepolia. Root name `shibboleth.eth`.
 
-Multipass holds the records. ENSv2 gives each one a name, and a single wildcard resolver answers the
-whole tree from those records, so there is nothing to integrate with and nothing to keep in step. The
-text keys still read `ketsuban:*` — they predate the rename and are live on chain.
+## Key features
 
-One power contradicts the promise: the Multipass owner can call `deleteName`. Where that key is also
-the relayer, `GET /v1/preflight` says so rather than leaving it unsaid — see
-[docs/architecture.md](docs/architecture.md#trust-boundaries).
+**Non-permissioned.** Anyone can write a reference letter for anyone, invited or not, and the subject
+need not have claimed a name yet. An uninvited letter is published all the same and reported as
+`solicited: false`, which a reader may filter on — a note on the letter rather than a barrier to it.
+`REQUIRE_INVITE=true` restores the closed behaviour for a deployment that wants it. The letter itself
+lives at `POST /v1/letter`; a name holds 31 bytes, so only its `sha256:` hash goes on chain, as the
+`description` record the writer signs.
 
-## How it fits together
+**Policy driven.** An organisation automates three things. *Questions:* a subject is a domain, so
+"What do you think of Kim Jong Un?" is `kju-is`, and each answer is a name
+(`alice.kju-is.shibboleth.eth`) that a reader resolves directly. *Letter quality:* each statement is
+read once by a council and badged critical, neutral or supportive (`GET /v1/readings/:handle`),
+unread wherever no council is configured rather than scored by something else. *Sources:* a policy
+sets a floor on live vouches, attested accounts and proved humanity, caps how many letters may read as
+critical, and can count only the letters the candidate asked for; an invitation can go further and
+require the writer to hold an account on named platforms. `/employers` asks one policy of a whole
+shortlist, and the bar travels in the link, so a row and the page it links to cannot disagree.
+
+**Sybil protected.** The Selfie Check is the floor, not the answer. `GET /v1/graph/:handle` returns
+the neighbourhood — who stands behind somebody, and whether those people stand behind each other —
+with a SybilScore from 0 to 100: proved humanity is a floor, every live letter adds a capped share of
+its writer's score, and a ring nobody proved sums to nothing. One human holds one account: the World
+ID nullifier is bound to a wallet off chain and a second wallet presenting it is refused.
+
+**Privacy and tamper-proof.** The attester is a Chainlink CRE Confidential Workflow: the identity
+token, the registrar key and the view-code key exist only inside the enclave, and what leaves is a
+signed record anyone can check. Where the enclave is not deployed the same code signs on this
+deployment's own node, and the portal says which of the two it is doing rather than claiming the
+stronger one.
+
+**View codes.** A private account is stored as a masked name — a one-time pad over the handle — plus a
+commitment. It proves the person holds an account on that platform and says nothing about which. A
+view code opens it, and the holder decides who gets one: a wallet, a named person, a whole branch
+(`*.com.acme.www.shibboleth.eth`), or whoever holds a link whose secret never leaves the fragment.
+
+**Invitations.** A candidate's invitation is signed by the wallet holding their name, so "X asked me
+to write this" is X's own claim, and it can open their private accounts to the writer it names — the
+invitation code is the secret. An employer's is the same object with `kind: "policy"`, carrying the bar
+and landing on `/me?invite=<code>`.
+
+**Permanent names.** Records outlive the service: they are on chain, expiry is enforced at resolution,
+and a withdrawn letter stays readable as withdrawn. The one power that contradicts this is the
+Multipass owner's `deleteName`, and `GET /v1/preflight` says so when that key is also the relayer.
+
+## What it adds to ENSv2
+
+ShibbolETH is an ENSv2 deployment, not an app behind an API. Three things it extends:
+
+**One wildcard resolver, no per-name registration.** `shibboleth.eth` is the only name registered.
+Everything beneath it is answered by a single `RootAttestationResolver` (ENSIP-10), which derives a
+name's meaning from its path and reads the record: `<handle>.shibboleth.eth` is a person,
+`<writer>.<candidate>.shibboleth.eth` a letter, `<handle>.kju-is.shibboleth.eth` an answer. A path no
+record backs answers nothing, so adding a platform or a candidate costs no deployment and no
+registration.
+
+**Off-chain account lookup.** A person is findable by an account they hold, because a platform is
+mounted at the DNS name it is: `iampeersky.com.x.www.shibboleth.eth` is that X account, resolved from
+the record rather than from a name anyone registered. Reverse works too — an address answers with
+every name it holds.
+
+**A privacy layer ENS does not have.** The same account kept private resolves under `private-www` as
+the *person's* label, which says they hold an account there and nothing more; the handle comes back
+only to a reader the holder granted a view code to.
+
+Multipass is the registry underneath: it holds the records, and the registrar's signature on each one
+is what makes it a record.
 
 ```mermaid
 flowchart LR
-  B["browser<br/>Privy sign-in, wallet signs an intent"]
-  A["attester<br/>checks the identity token,<br/>signs the record as registrar"]
-  R["relay · apps/api<br/>submits, indexes, answers reads"]
-  G["AttestationBridge<br/>register + text records"]
-  M[("Multipass<br/>the records")]
-  W["RootAttestationResolver<br/>one resolver for the whole tree"]
-  C["any ENS client<br/>UniversalResolver"]
-  B --> A --> R --> G --> M
-  W -- reads --> M
-  R -- reads --> M
-  C -- resolve --> W
+  C["any ENS client<br/>wallet, agent, cast"]
+  U["ENSv2 UniversalResolver"]
+  E["ENSv2 .eth registry"]
+  W["RootAttestationResolver<br/>answers the whole tree"]
+  I["stock PermissionedResolver<br/>the name's own profile records"]
+  M[("Multipass<br/>the registry of records")]
+  B["browser → attester → relay → AttestationBridge"]
+  C --> U --> E
+  E -- resolver for shibboleth --> W
+  W -- reads the record --> M
+  W -- every other key --> I
+  B -- registers --> M
 ```
-
-The attester is either this deployment's own node or a Chainlink CRE enclave, where the identity token
-never leaves the TEE. The portal says which of the two it is doing.
 
 ## Read a name without us
 
@@ -47,8 +101,8 @@ cast call 0x4A1817d13E9cF196f471725176355C1234b63C70 "resolve(bytes,bytes)(bytes
   --rpc-url sepolia
 ```
 
-`cast` has no DNS-name encoder, which is why the wire-format name is spelled out. The same call reads
-a vouch (`bob.alice.shibboleth.eth`) and an attested account (`alice.com.x.www.shibboleth.eth`).
+`cast` has no DNS-name encoder, which is why the wire-format name is spelled out. The text keys read
+`ketsuban:*`: they predate the rename and are live on chain.
 
 ## Run it locally
 
@@ -82,17 +136,17 @@ fixtures with the code they check, and twice passed a change that broke on push.
 | Package | What |
 |---|---|
 | `packages/registrar` | `@ketsuban/registrar` — the pure attester: `(idToken, intent, signature, secrets) → { record, signature, viewCode? }`. The same code runs in the CRE enclave and in the Node fallback. |
-| `packages/contracts` | Foundry. `RootAttestationResolver` answers the tree from Multipass; `AttestationBridge` registers records and grants profile keys. |
+| `packages/contracts` | Foundry. `RootAttestationResolver` answers the tree; `AttestationBridge` registers records and grants profile keys. |
 | `packages/cre` | The Chainlink CRE workflow: HTTP trigger → public checks on the DON → signing inside the enclave. |
 | `apps/api` | Relay: submits signed records, indexes them, serves every read the portal and an agent make. |
-| `apps/web` | The portal: sign in, attest accounts, claim a name, vouch, read somebody against a policy. |
+| `apps/web` | The portal: sign in, attest accounts, claim a name, write a letter, read somebody against a policy. |
 
 ## Sepolia
 
 | | Address |
 |---|---|
-| Multipass | `0x418F82fd0014a4CA402F145978bfaF0555a9cA06` |
 | `RootAttestationResolver` (serves `shibboleth.eth`) | `0x542012eCb66De81CBd5De2E2952254c0e84a9447` |
+| Multipass | `0x418F82fd0014a4CA402F145978bfaF0555a9cA06` |
 | `AttestationBridge` | `0xE5e985B5f152EbD07aF9922d564AA8A7ccB77c62` |
 | Stock ENSv2 `PermissionedResolver` | `0x4E2d9783cEFF2ed72CD77C14206b29fe246b24F7` |
 | ENSv2 `ETHRegistry` | `0xBDC85dD5b15D7ecb354cd7cb6f2c50b4f2c4F0E2` |
