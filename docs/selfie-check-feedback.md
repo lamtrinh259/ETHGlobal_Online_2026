@@ -58,12 +58,12 @@ Everybody building uniqueness re-tests on themselves.
 `{required}` drops the requirement for everyone without a redeploy, because §2–§4 are invisible from
 inside the product. Nothing for World to fix; recorded as what an integrator ends up building.
 
-**10. What the proof became: a SybilScore (2026-09-13).** The proved humans seed a trust walk over
-the vouch graph, after SybilRank: a real person is a floor of 20, a writer's one share (15%) is split
-across everyone they vouch for, weighted by how a council read each vouch, cut off after log n hops. A
-farm of a hundred accounts behind one proved human holds together what one would; a ring nobody proved
-sums to zero. This is what a "Sybil score" on World's side would slot into: a per-person prior for the
-seed weight. `apps/api/src/graph.ts`, `docs/architecture.md`.
+**10. What the proof became: a SybilScore (2026-09-13).** Every person who passed the Selfie Check
+is a trusted seed. Trust flows from the seeds along vouches, and a writer's trust is split among the
+people they vouch for, so vouching for a hundred accounts gives each a hundredth. A group of accounts
+with no verified human among them scores zero. The method is SybilRank's; the code is
+`apps/api/src/graph.ts`. A World-side "Sybil score", if it ships, would set how much each seed is
+worth.
 
 **11. A deleted user leaves a proof World still remembers (2026-09-13).** Privy refuses to unlink a
 user's only login, so a demo reset deletes the Privy user, and with it the embedded wallet. Our side
