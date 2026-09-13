@@ -35,11 +35,11 @@ tell which to believe. *Ask:* a distinct code for "valid proof, verification ref
 accepted credentials; which one a flow asks for is only visible in the SDK. *Ask:* show the credential
 asked for in the widget.
 
-**6. The "Sybil score" from the presentation is not in the API.** The verify response has no score,
-and the docs say there is none. We built our own from the vouch graph. What we would actually want
-from World: give it a group of our users (say, everyone who vouched for one candidate) and get back
-how many real humans are in it. Today the only way is a separate app id per group, which is a hack.
-*Ask:* a score per group of users.
+**6. A sybil signal for a subset of the social graph.** The presentation promised a Sybil score; the
+verify API has none. We score our own vouch graph, seeded by who passed the check. What would help is
+World answering for a subset of it: hand over the nullifiers of everyone who vouched for one candidate
+and learn how many distinct humans that is. Today the only way is a separate app id per subset, which
+is a hack. *Ask:* a per-group "how many humans" query.
 
 **7. Nullifier stability is documented twice, differently (2026-09-12).** `idkit/integrate`: the same
 person and action always produce the same nullifier. `4-0-migration`: nullifiers are one-time, and
