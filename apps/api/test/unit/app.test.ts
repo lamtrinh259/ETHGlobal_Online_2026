@@ -4421,7 +4421,18 @@ describe("the humanity check", () => {
         expect(res.status).toBe(200);
         expect(await res.json()).toMatchObject({
           unlinked: [{ type: "github_oauth", handle: "alice" }],
-          failed: [{ type: "twitter_oauth", status: 400, error: "Cannot unlink the last login method" }],
+          // Every attempt is reported, so a refusal on the subject is not hidden behind the retry.
+          failed: [
+            {
+              type: "twitter_oauth",
+              status: 400,
+              error: "Cannot unlink the last login method",
+              attempts: [
+                { handle: "7", status: 400, error: "Cannot unlink the last login method" },
+                { handle: "alice_x", status: 400, error: "Cannot unlink the last login method" },
+              ],
+            },
+          ],
         });
         expect(calls.map((c) => [c.body.type, c.body.handle])).toEqual([
           ["github_oauth", "42"],

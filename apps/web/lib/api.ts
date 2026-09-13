@@ -318,7 +318,16 @@ export const adminUnlinkSchema = z.object({
   handle: z.string().nullable(),
   did: z.string(),
   unlinked: z.array(z.object({ type: z.string(), handle: z.string() })),
-  failed: z.array(z.object({ type: z.string(), status: z.number(), error: z.string().optional() })),
+  failed: z.array(
+    z.object({
+      type: z.string(),
+      status: z.number(),
+      error: z.string().optional(),
+      attempts: z
+        .array(z.object({ handle: z.string(), status: z.number(), error: z.string().optional() }))
+        .default([]),
+    })
+  ),
   deleted: z.array(z.object({ domain: z.string(), txHash: z.string() })).default([]),
 });
 export type AdminUnlink = z.infer<typeof adminUnlinkSchema>;

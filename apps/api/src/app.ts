@@ -2144,7 +2144,8 @@ export function createApp({
       }[];
     };
     const unlinked: { type: string; handle: string }[] = [];
-    const failed: { type: string; status: number; error?: string }[] = [];
+    type Attempt = { handle: string; status: number; error?: string };
+    const failed: { type: string; status: number; error?: string; attempts: Attempt[] }[] = [];
     for (const a of user.linked_accounts) {
       // The wallets stay: every record on chain is keyed by one of them.
       if (a.type === "wallet" || a.type === "smart_wallet" || a.type === "passkey") continue;
@@ -2162,6 +2163,7 @@ export function createApp({
       ];
       if (handles.length === 0) continue;
       let last: { status: number; error?: string } | undefined;
+      const attempts: Attempt[] = [];
       for (const handle of handles) {
         const res = await fetch(`${config.PRIVY_AUTH_URL}/api/v1/apps/${config.PRIVY_APP_ID}/users/unlink`, {
           method: "POST",
@@ -2182,9 +2184,10 @@ export function createApp({
           error = text || undefined;
         }
         last = { status: res.status, ...(error ? { error } : {}) };
+        attempts.push({ handle, ...last });
         if (res.status !== 400) break;
       }
-      if (last) failed.push({ type: a.type, ...last });
+      if (last) failed.push({ type: a.type, ...last, attempts });
     }
     const isPlatform = (d: string) =>
       !config.NAME_DOMAINS.includes(d) && d !== config.HUMANITY_DOMAIN && !d.startsWith(config.VOUCH_PREFIX);
