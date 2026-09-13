@@ -194,6 +194,23 @@ describe("AttestFlow after signing", () => {
    * it — over the page, never instead of it: the view code underneath is what a masked writer loses if
    * the confirmation is swapped away.
    */
+  it("says in the modal when a reference was published but not as asked for, and why", () => {
+    state.attestData = {
+      record,
+      signature: "0xsig",
+      viewCode: null,
+      solicited: false,
+      unsolicitedReason: "the invitation asks for github.com as @lam; you are signed in as @bob",
+    };
+    state.txHash = `0x${"ab".repeat(32)}`;
+    render(<AttestFlow fixedDomain="~alice" doneTitle="Reference published" />);
+    expect(screen.getByTestId("tx-done-unsolicited")).toHaveTextContent(
+      /not counted as one alice asked for/i
+    );
+    expect(screen.getByTestId("tx-done-unsolicited")).toHaveTextContent("@lam");
+    expect(screen.getByTestId("tx-done-unsolicited")).toHaveTextContent("@bob");
+  });
+
   it("ends in a modal with the hash and a link to the explorer, and says what was done", () => {
     state.attestData = { record, signature: "0xsig", viewCode: null };
     state.txHash = `0x${"ab".repeat(32)}`;

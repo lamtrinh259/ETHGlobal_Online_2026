@@ -575,6 +575,12 @@ export function VouchFlow({
         {stage === "done" && published && (
           <div data-testid="vouch-done">
             <h3>Published</h3>
+            {published.solicited === false && (
+              <p className="warning" data-testid="vouch-done-unsolicited">
+                Not counted as one {candidate} asked for: {published.unsolicitedReason}. Ask {candidate} for
+                an invitation naming your account and publish again.
+              </p>
+            )}
             <p>
               <code>{published.name}</code>
               {handle && (

@@ -17,7 +17,8 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 import {
   candidateOf,
-  solicitedBy,
+  whyUnsolicited,
+  parseRequirement,
   attest,
   checkAudience,
   LINK_KEY_RE,
@@ -360,10 +361,19 @@ export function createApp({
     // An invitation may ask the writer to have attested a workplace or a university address, which is
     // only checkable against what they actually hold.
     const held = await chain.listRecordsByWallet(req.intent.wallet);
+    const writerDomains = new Set(held.filter((r) => r.live).map((r) => r.domain));
+    // The index trails the chain by a poll, and "asked for" is decided once, here. An account attested
+    // a moment ago is read straight from the chain rather than marking the reference unsolicited for good.
+    for (const entry of req.invite?.requires ?? []) {
+      const { domain } = parseRequirement(entry);
+      if (writerDomains.has(domain)) continue;
+      const direct = await chain.recordFor(req.intent.wallet, domain);
+      if (direct?.live) writerDomains.add(domain);
+    }
     return {
       ...onchain,
       candidateWallet: status.live ? (status.wallet ?? undefined) : undefined,
-      writerDomains: held.filter((r) => r.live).map((r) => r.domain),
+      writerDomains: [...writerDomains],
       issuerOrg: org.exists,
     };
   }
@@ -699,12 +709,14 @@ export function createApp({
     (value) => value
   );
 
-  async function rememberSolicited(req: AttestRequest): Promise<void> {
+  async function rememberSolicited(req: AttestRequest): Promise<string | null> {
     const candidate = candidateOf(req.intent.domain, [config.VOUCH_PREFIX]);
-    if (!candidate || !req.invite) return;
+    if (!candidate) return null;
+    if (!req.invite) return "no invitation was presented";
     const onchain = await readFor(req);
     const key = `${candidate}:${req.intent.handle}`;
-    if (!(await solicitedBy(req, onchain, await env()))) {
+    const why = await whyUnsolicited(req, onchain, await env());
+    if (why) {
       /*
        * A claim that failed takes the mark with it.
        *
@@ -718,7 +730,7 @@ export function createApp({
        * wrote, and it says nothing about how the reference was asked for in the first place.
        */
       solicitedStore.delete(key);
-      return;
+      return why;
     }
     solicitedStore.set(key, {
       handle: req.invite.handle,
@@ -726,6 +738,7 @@ export function createApp({
       exp: req.invite.exp.toString(),
       signature: req.invite.signature,
     });
+    return null;
   }
 
   /**
@@ -1464,7 +1477,7 @@ export function createApp({
     }
     // Whether the candidate asked for this reference: a fact about it, kept so the card can say so.
     // The invitation is kept with it, so a reader can check the signature rather than take our word.
-    await rememberSolicited(req);
+    const unsolicitedReason = await rememberSolicited(req);
     // Only now, with the account proven: the signature is worthless until the domain exists on chain.
     if (plan.mount) {
       try {
@@ -1473,7 +1486,14 @@ export function createApp({
         return c.json({ error: `could not mount "${domain}": ${explainRevert(e)}` }, 503);
       }
     }
-    return c.json(serialize(result));
+    // A reference says at once whether it counts as asked for, and why not: the card says so later,
+    // but the writer is here now and can fix a typo in the invitation before anyone reads it.
+    return c.json({
+      ...serialize(result),
+      ...(isVouchDomain(domain)
+        ? { solicited: unsolicitedReason === null, ...(unsolicitedReason ? { unsolicitedReason } : {}) }
+        : {}),
+    });
   });
 
   /**

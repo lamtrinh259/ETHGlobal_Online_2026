@@ -30,7 +30,7 @@ import {
   PUBLIC_GROUPINGS,
 } from "./namespace.js";
 import { intentDomain, recoverIntentSigner } from "./intent.js";
-import { candidateOf, inviteDomain, meetsInvite, recoverInviteSigner, ZERO_ADDRESS } from "./invite.js";
+import { candidateOf, inviteDomain, whyUnmet, recoverInviteSigner, ZERO_ADDRESS } from "./invite.js";
 import { verifyEs256Jwt } from "./jwt.js";
 import type {
   AttestEnv,
@@ -158,21 +158,32 @@ export async function solicitedBy(
   onchain: OnchainState,
   env: AttestEnv
 ): Promise<boolean> {
+  return (await whyUnsolicited(req, onchain, env)) === null;
+}
+
+/** Why the reference does not count as asked for, in the writer's terms; null when it does. */
+export async function whyUnsolicited(
+  req: AttestRequest,
+  onchain: OnchainState,
+  env: AttestEnv
+): Promise<string | null> {
   const prefixes = env.nameDomainPrefixes ?? DEFAULT_NAME_DOMAIN_PREFIXES;
   const candidate = candidateOf(req.intent.domain, prefixes);
-  if (candidate === undefined) return false;
+  if (candidate === undefined) return "not a reference";
   const invite = req.invite;
-  if (!invite) return false;
-  if (invite.handle !== candidate) return false;
-  if (invite.exp <= BigInt(env.now)) return false;
+  if (!invite) return "no invitation was presented";
+  if (invite.handle !== candidate) return `the invitation is for ${invite.handle}, not ${candidate}`;
+  if (invite.exp <= BigInt(env.now)) return "the invitation has expired";
   if (
     invite.voucher.toLowerCase() !== ZERO_ADDRESS &&
     invite.voucher.toLowerCase() !== req.intent.wallet.toLowerCase()
   ) {
-    return false;
+    return "the invitation was issued to another wallet";
   }
   const candidateWallet = onchain.candidateWallet;
-  if (!candidateWallet || candidateWallet.toLowerCase() === ZERO_ADDRESS) return false;
+  if (!candidateWallet || candidateWallet.toLowerCase() === ZERO_ADDRESS) {
+    return `${candidate} holds no name yet`;
+  }
   // What the candidate asked the writer to show. Unmet is not solicited: the invitation was for
   // someone who could show it, and this writer is not that person.
   // A requirement naming one account is checked against the accounts the writer signed in with: the
@@ -189,13 +200,16 @@ export async function solicitedBy(
   } catch {
     linked = [];
   }
-  if (!meetsInvite(invite, onchain.writerDomains ?? [], linked)) return false;
+  const unmet = whyUnmet(invite, onchain.writerDomains ?? [], linked);
+  if (unmet) return unmet;
   const signer = await recoverInviteSigner(
     { handle: invite.handle, voucher: invite.voucher, exp: invite.exp, requires: invite.requires },
     invite.signature,
     inviteDomain(env.chainId, env.multipass)
   );
-  return signer.toLowerCase() === candidateWallet.toLowerCase();
+  return signer.toLowerCase() === candidateWallet.toLowerCase()
+    ? null
+    : `the invitation was not signed by the wallet holding ${candidate}`;
 }
 
 /**

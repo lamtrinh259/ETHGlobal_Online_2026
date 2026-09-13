@@ -10,7 +10,7 @@ export {
   RESERVED_HANDLES,
 } from "./attest.js";
 export { INTENT_TYPES, intentDomain, recoverIntentSigner, signIntent } from "./intent.js";
-export { HANDLE_RE, signRecord, solicitedBy, storable, verifyInvite } from "./attest.js";
+export { HANDLE_RE, signRecord, solicitedBy, storable, verifyInvite, whyUnsolicited } from "./attest.js";
 export { ANSWER_SEPARATOR, answerDomain, answerOf, answerSlug } from "./answers.js";
 export {
   checkAudience,
@@ -42,6 +42,7 @@ export {
   INVITE_TYPES,
   inviteDomain,
   meetsInvite,
+  whyUnmet,
   parseRequirement,
   holdsHandle,
   recoverInviteSigner,

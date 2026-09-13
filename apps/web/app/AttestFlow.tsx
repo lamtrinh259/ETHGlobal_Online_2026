@@ -15,7 +15,7 @@ import type { SignedInvite } from "@ketsuban/registrar";
 import { fromBytes32 } from "@peeramid-labs/multipass-client";
 import { Hint } from "./Hint";
 import { apiFor, useAttest, useContracts, useDeliver, useNameStatus, useNonce } from "@/lib/hooks";
-import { isNameDomainFor, parentNameFor } from "@/lib/journey";
+import { isNameDomainFor, parentNameFor, VOUCH_PREFIX } from "@/lib/journey";
 import { buildIntent, intentTypedData, toWire } from "@/lib/intent";
 import { loadOrCreateViewKey, openViewCode, saveViewCode } from "@/lib/keys";
 import { Switch } from "./Switch";
@@ -30,6 +30,9 @@ export type Published = {
   name?: string;
   /** Whether the letter went on chain in the same transaction as the record */
   letterWritten?: boolean;
+  /** For a reference: false when it was published but does not count as asked for, with the reason */
+  solicited?: boolean;
+  unsolicitedReason?: string;
 };
 
 type Props = {
@@ -329,6 +332,9 @@ export function AttestFlow({
           txHash,
           name: isNameDomain && parentName ? `${handle}.${parentName}` : undefined,
           letterWritten: !!letterWritten,
+          ...(attested.solicited === undefined
+            ? {}
+            : { solicited: attested.solicited, unsolicitedReason: attested.unsolicitedReason }),
         });
       };
       await attempt(state.next, false);
@@ -608,7 +614,14 @@ export function AttestFlow({
         </div>
       )}
       {txHash && doneRead !== txHash && (
-        <TxDone title={doneTitle ?? "Published"} hash={txHash} onClose={() => setDoneRead(txHash)} />
+        <TxDone title={doneTitle ?? "Published"} hash={txHash} onClose={() => setDoneRead(txHash)}>
+          {attest.data?.solicited === false && (
+            <p className="warning" data-testid="tx-done-unsolicited">
+              Published, but not counted as one {domain.slice(VOUCH_PREFIX.length)} asked for:{" "}
+              {attest.data.unsolicitedReason ?? "no invitation was presented"}.
+            </p>
+          )}
+        </TxDone>
       )}
     </div>
   );

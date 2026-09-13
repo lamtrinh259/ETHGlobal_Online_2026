@@ -1813,7 +1813,13 @@ describe("POST /v1/attest — vouch invitations", () => {
         // and no invitation
       )
     );
-    expect((await post(a, "/v1/attest", wire)).status).toBe(200);
+    const attested = await post(a, "/v1/attest", wire);
+    expect(attested.status).toBe(200);
+    // Said back at once, so the writer learns why before the card does.
+    expect(await attested.json()).toMatchObject({
+      solicited: false,
+      unsolicitedReason: "no invitation was presented",
+    });
 
     const listed = await (await a.request("/v1/vouches/alice")).json();
     const bob = listed.vouches.find((v: { voucher: string }) => v.voucher === "bob");
@@ -1875,6 +1881,58 @@ describe("POST /v1/attest — vouch invitations", () => {
     const listed = await (await a.request("/v1/vouches/alice")).json();
     const bob = listed.vouches.find((v: { voucher: string }) => v.voucher === "bob");
     expect(bob.solicited, "a masked account did not count towards the invitation").toBe(true);
+  });
+
+  it("reads an account the index has not caught up with straight from the chain", async () => {
+    /*
+     * The index trails the chain by a poll. A writer who attests GitHub and writes the reference in the
+     * same minute did what was asked, and "asked for" is decided once, at this write: an index that had
+     * not seen the record yet made the reference unsolicited for good.
+     */
+    const written = {
+      name: "bob",
+      id: toBytes32("b"),
+      wallet: user.account.address,
+      payload: toBytes32("worked together 2019-22"),
+      validUntil: 1_800_000_000n,
+      nonce: 1n,
+      live: true,
+    };
+    const fresh = {
+      name: `0x${"ab".repeat(32)}` as Hex,
+      id: `0x${"cd".repeat(32)}` as Hex,
+      wallet: user.account.address,
+      payload: `0x${"ef".repeat(32)}` as Hex,
+      validUntil: 1_800_000_000n,
+      nonce: 1n,
+      live: true,
+      domain: "github.com",
+    };
+    const { chain } = fakeChain({
+      ...aliceHolds,
+      listed: { "~alice": [written] },
+      byWallet: [fresh as never],
+    });
+    // The chain answers `recordFor`; the index still lists nothing for this wallet.
+    chain.listRecordsByWallet = vi.fn(async () => []);
+    const a = app(chain);
+    const invite = await signedInvite(user.account, "alice", NOW, 31337, baseEnv.MULTIPASS as Hex, {
+      requires: ["github.com"],
+    });
+    const wire = toWire(
+      await signedAttestRequest(
+        user.account,
+        { ...vouchIntent(NOW), handle: "bob" },
+        privy.mint({ sub: user.did, linked: user.linked, now: NOW }),
+        31337,
+        baseEnv.MULTIPASS as Hex,
+        invite
+      )
+    );
+    const res = await post(a, "/v1/attest", wire);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ solicited: true });
+    expect(chain.recordFor).toHaveBeenCalledWith(user.account.address, "github.com");
   });
 
   it("takes the mark back when a later reference presents an invitation it does not meet", async () => {

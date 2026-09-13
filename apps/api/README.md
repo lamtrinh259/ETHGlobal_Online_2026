@@ -69,7 +69,11 @@ CORS: `CORS_ORIGINS` (comma list, default `*`) — set it to the web app origin 
 A statement in a vouch domain (`~alice`) is refused unless the request carries an invitation signed by
 the wallet that holds `alice` in the root name domain (`REQUIRE_INVITE`, off by default: anyone may
 refer anyone, and a reference the candidate never asked for is reported as `solicited: false` rather
-than refused). Two wallets
+than refused). For a reference, the `/v1/attest` response itself carries `solicited` and, when false,
+`unsolicitedReason` in the writer's terms ("the invitation asks for github.com as @lam; you are signed
+in as @bob"), so a typo in the invitation is seen at the write, not on the card. An account the
+invitation requires is read straight from the chain when the index has not listed it yet: "asked for"
+is decided once, at this write. Two wallets
 need no invitation: one that already holds a record there, so it can update or withdraw its own
 statement, and a holder of a record in `ORG_DOMAIN` (default `org`) — an onboarded organisation issuing
 a letter to someone who has not claimed their handle yet. The attest

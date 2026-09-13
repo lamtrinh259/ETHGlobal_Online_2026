@@ -7,7 +7,14 @@ import {
   registerNameTypes,
   toBytes32,
 } from "@peeramid-labs/multipass-client";
-import { attest, attestConfidential, idToBytes32, solicitedBy, verifyPublicLeg } from "../src/attest.js";
+import {
+  attest,
+  attestConfidential,
+  idToBytes32,
+  solicitedBy,
+  verifyPublicLeg,
+  whyUnsolicited,
+} from "../src/attest.js";
 import { eciesDecrypt } from "../src/ecies.js";
 import {
   DID,
@@ -242,6 +249,29 @@ describe("attest — vouch instance (~candidate) domain", () => {
     expect(await asked(["x.com/alice"], [])).toBe(false);
     expect(await asked(["example.com/alice"], ["example.com"])).toBe(true);
     expect(await asked(["example.com/carol"], ["example.com"])).toBe(false);
+
+    // And when it does not count, the reason names both accounts, so the writer sees the typo.
+    const why = async (requires: string[], writerDomains: string[]) =>
+      whyUnsolicited(
+        await signedRequest(intent, undefined, undefined, await makeInvite({ requires })),
+        { ...noVouchRecord, writerDomains },
+        env
+      );
+    expect(await why(["x.com/alice"], ["x.com"])).toBeNull();
+    expect(await why(["x.com/bob"], ["x.com"])).toBe(
+      "the invitation asks for x.com as @bob; you are signed in as @alice"
+    );
+    expect(await why(["x.com/alice"], [])).toBe("the invitation asks for an attested x.com account");
+    expect(await whyUnsolicited(await signedRequest(intent), noVouchRecord, env)).toBe(
+      "no invitation was presented"
+    );
+    expect(
+      await whyUnsolicited(
+        await signedRequest(intent, undefined, undefined, await makeInvite({ exp: BigInt(NOW - 1) })),
+        noVouchRecord,
+        env
+      )
+    ).toBe("the invitation has expired");
   });
 
   it("still turns away the uninvited where a deployment asked for that", async () => {

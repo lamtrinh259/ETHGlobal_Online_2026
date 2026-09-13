@@ -19,6 +19,9 @@ export const attestResultSchema = z.object({
   }),
   signature: hex,
   viewCode: z.object({ ephemeralPubkey: hex, nonce: hex, ciphertext: hex }).nullable(),
+  /** For a reference: whether the candidate asked for it, and why not when they did not */
+  solicited: z.boolean().optional(),
+  unsolicitedReason: z.string().optional(),
 });
 export type AttestResult = z.infer<typeof attestResultSchema>;
 

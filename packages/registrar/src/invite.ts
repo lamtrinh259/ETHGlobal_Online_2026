@@ -59,6 +59,44 @@ export function meetsInvite(
   });
 }
 
+/**
+ * Why the writer does not meet the invitation, said with both sides: what it asks for, and what this
+ * sign-in holds there. A typo in a handle is otherwise invisible to the person who cannot fix it.
+ */
+export function whyUnmet(
+  invite: Pick<Invite, "requires">,
+  attested: readonly string[],
+  linked: readonly LinkedAccount[] = []
+): string | null {
+  const held = new Set(attested.map((d) => d.toLowerCase()));
+  for (const entry of invite.requires) {
+    const { domain, handle } = parseRequirement(entry);
+    if (!held.has(domain)) return `the invitation asks for an attested ${domain} account`;
+    if (handle && !holdsHandle(linked, domain, handle)) {
+      const mine = signedInAs(linked, domain);
+      return `the invitation asks for ${domain} as @${handle}; ${mine ? `you are signed in as @${mine}` : `no ${domain} account is linked to this sign-in`}`;
+    }
+  }
+  return null;
+}
+
+/** The handle this sign-in holds on the platform `domain` names, or null when it holds none. */
+function signedInAs(linked: readonly LinkedAccount[], domain: string): string | null {
+  const platform = platformOf(domain);
+  if (!platform) return null;
+  const kinds = platform === "email" ? ["email", "google"] : [platform];
+  for (const kind of kinds) {
+    try {
+      const account = pickPlatformAccount([...linked], kind);
+      if (platform === "email" && dnsNameFor(kind, account) !== domain) continue;
+      return labelFor(kind, account) ?? null;
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
 /** `github.com` asks for an account there; `github.com/lam` asks for that one account. */
 export type Requirement = { domain: string; handle?: string };
 
