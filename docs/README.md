@@ -15,11 +15,12 @@ Sepolia. [The root README](../README.md) is the three-minute version; this is ev
 
 | What it draws | Where |
 |---|---|
+| The five layers, which layer each external system is, and the write and read paths crossing them | [architecture.md](architecture.md#the-stack) and the [root README](../README.md) |
 | The name tree under `shibboleth.eth`, and how one resolver answers all of it | [namespace.md](namespace.md) |
 | The write path: a wallet signature → the attester → the relay → the bridge → Multipass | [architecture.md](architecture.md#the-write-path) |
 | The Selfie Check: a World proof → a nullifier bound off chain → a record on chain | [architecture.md](architecture.md#the-selfie-check-one-human-one-account) |
 | Where a view code comes from, and who a grant opens it for | [disclosure.md](disclosure.md) |
-| What the components are and how they talk | [architecture.md](architecture.md#components) and the [root README](../README.md) |
+| What the components are and how they talk, one turn of detail below the stack | [architecture.md](architecture.md#components) |
 
 ## Reference
 

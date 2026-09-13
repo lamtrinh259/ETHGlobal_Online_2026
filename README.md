@@ -53,6 +53,59 @@ and landing on `/me?invite=<code>`.
 and a withdrawn letter stays readable as withdrawn. The one power that contradicts this is the
 Multipass owner's `deleteName`, and `GET /v1/preflight` says so when that key is also the relayer.
 
+## Stack
+
+Five layers, top to bottom, and the two paths that cross all of them — one write, one read, drawn as
+the thick arrows. Only the attestation layer holds a secret — the identity token, the registrar key
+and the view-code key exist inside the enclave and nowhere else. Everything in layers 4 and 5 is public
+on chain, and layers 1 and 2 are ordinary web services.
+
+```mermaid
+flowchart TB
+  subgraph L1["1 · People and organisations"]
+    WEB["web portal · Next.js<br/>shibboleth.peeramid.xyz<br/>a person's page, employer policies, invitations"]
+    CLI["any ENS client<br/>wallet, agent, cast"]
+  end
+  subgraph L2["2 · Identity · off chain"]
+    PRIVY["Privy<br/>sign-in, embedded wallet, linked accounts:<br/>X, Google, GitHub, Discord, LinkedIn, email"]
+    WORLD["World ID<br/>Selfie Check: one human, one account"]
+  end
+  subgraph L3["3 · Attestation"]
+    ENCLAVE["Chainlink CRE Confidential Workflow · confidential<br/>verifies the identity token, derives view codes,<br/>signs the record as registrar"]
+    NODE["simulated mode · the API node plays that part<br/>same code, no enclave"]
+    RELAY["relay · the API · public<br/>verifies the World proof, pays gas, submits, indexes"]
+  end
+  subgraph L4["4 · Naming · ENSv2 on Sepolia · public"]
+    UR["Universal Resolver<br/>what every ENS client calls"]
+    ETHREG["ETHRegistry → shibboleth.eth"]
+    RAR["RootAttestationResolver<br/>one wildcard resolver, the whole tree"]
+    PERM["PermissionedResolver · stock<br/>the name's own text records"]
+  end
+  subgraph L5["5 · Records · public, on chain"]
+    BRIDGE["AttestationBridge<br/>register + text keys in one transaction"]
+    MP[("Multipass<br/>records per domain: names, letters,<br/>subject answers, platform accounts, humanity")]
+  end
+  PRIVY -.->|wallet + identity token| WEB
+  WORLD -.->|proof of one human| WEB
+  WEB ==>|write · intent signed by the wallet| ENCLAVE
+  NODE -.->|where no enclave is deployed| RELAY
+  ENCLAVE ==>|signed record| RELAY
+  RELAY ==> BRIDGE
+  BRIDGE ==>|register + text keys| MP
+  CLI ==>|read| UR
+  UR ==> ETHREG
+  ETHREG ==>|resolver for shibboleth| RAR
+  RAR ==>|reads the records| MP
+  RAR -->|every other key| PERM
+```
+
+Read it as two sentences. **Write:** the portal has the person sign an intent with their Privy wallet,
+the enclave verifies their identity token and signs the record as registrar, the relay pays the gas,
+and `AttestationBridge` registers it in Multipass with its text keys in the same transaction.
+**Read:** any ENS client asks the Universal Resolver, which reaches `RootAttestationResolver` through
+`shibboleth.eth`, which answers from the Multipass records and forwards every other key to the stock
+`PermissionedResolver`.
+
 ## What it adds to ENSv2
 
 ShibbolETH is an ENSv2 deployment, not an app behind an API. Three things it extends:
@@ -75,22 +128,6 @@ only to a reader the holder granted a view code to.
 
 Multipass is the registry underneath: it holds the records, and the registrar's signature on each one
 is what makes it a record.
-
-```mermaid
-flowchart LR
-  C["any ENS client<br/>wallet, agent, cast"]
-  U["ENSv2 UniversalResolver"]
-  E["ENSv2 .eth registry"]
-  W["RootAttestationResolver<br/>answers the whole tree"]
-  I["stock PermissionedResolver<br/>the name's own profile records"]
-  M[("Multipass<br/>the registry of records")]
-  B["browser → attester → relay → AttestationBridge"]
-  C --> U --> E
-  E -- resolver for shibboleth --> W
-  W -- reads the record --> M
-  W -- every other key --> I
-  B -- registers --> M
-```
 
 ## Read a name without us
 

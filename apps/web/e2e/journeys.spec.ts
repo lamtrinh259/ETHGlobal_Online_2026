@@ -110,7 +110,7 @@ test("a vouch page opens for anyone, invitation or not, and a bad token is not a
   // Referring is non-permissioned: an invitation is evidence the candidate asked, never permission,
   // so neither its absence nor a malformed one turns the page into a refusal.
   await page.goto("/vouch/alice");
-  await expect(page.getByRole("heading", { level: 1 })).toContainText("Refer");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Vouch for");
   // Behind the sign-in gate there is no form either way; the steps still stand.
   await expect(page.getByTestId("step-signin")).toBeVisible();
   await expect(page.getByTestId("step-reference")).toContainText("Reference for alice");
@@ -153,10 +153,10 @@ test("a reference link carrying a popular ask renders, rather than failing on th
   });
 
   await page.goto("/vouch/alice?ask=kju-is");
-  await expect(page.getByRole("heading", { level: 1 })).toContainText("Refer");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Vouch for");
   // An ask nobody offers is not an error either: the writer gets the plain form.
   await page.goto("/vouch/alice?ask=not-an-ask");
-  await expect(page.getByRole("heading", { level: 1 })).toContainText("Refer");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Vouch for");
   expect(errors).toEqual([]);
 });
 

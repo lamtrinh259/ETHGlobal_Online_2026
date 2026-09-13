@@ -3,6 +3,60 @@
 ShibbolETH writes vouches as Multipass records and names them with ENSv2. This is what runs where, how
 a record gets written, and who can do what. [namespace.md](namespace.md) is what the names mean.
 
+## The stack
+
+The same picture the [README](../README.md) carries, and the one to read first: which layer each
+external system is, and the two paths that cross every layer.
+
+```mermaid
+flowchart TB
+  subgraph L1["1 · People and organisations"]
+    WEB["web portal · Next.js<br/>shibboleth.peeramid.xyz<br/>a person's page, employer policies, invitations"]
+    CLI["any ENS client<br/>wallet, agent, cast"]
+  end
+  subgraph L2["2 · Identity · off chain"]
+    PRIVY["Privy<br/>sign-in, embedded wallet, linked accounts:<br/>X, Google, GitHub, Discord, LinkedIn, email"]
+    WORLD["World ID<br/>Selfie Check: one human, one account"]
+  end
+  subgraph L3["3 · Attestation"]
+    ENCLAVE["Chainlink CRE Confidential Workflow · confidential<br/>verifies the identity token, derives view codes,<br/>signs the record as registrar"]
+    NODE["simulated mode · the API node plays that part<br/>same code, no enclave"]
+    RELAY["relay · the API · public<br/>verifies the World proof, pays gas, submits, indexes"]
+  end
+  subgraph L4["4 · Naming · ENSv2 on Sepolia · public"]
+    UR["Universal Resolver<br/>what every ENS client calls"]
+    ETHREG["ETHRegistry → shibboleth.eth"]
+    RAR["RootAttestationResolver<br/>one wildcard resolver, the whole tree"]
+    PERM["PermissionedResolver · stock<br/>the name's own text records"]
+  end
+  subgraph L5["5 · Records · public, on chain"]
+    BRIDGE["AttestationBridge<br/>register + text keys in one transaction"]
+    MP[("Multipass<br/>records per domain: names, letters,<br/>subject answers, platform accounts, humanity")]
+  end
+  PRIVY -.->|wallet + identity token| WEB
+  WORLD -.->|proof of one human| WEB
+  WEB ==>|write · intent signed by the wallet| ENCLAVE
+  NODE -.->|where no enclave is deployed| RELAY
+  ENCLAVE ==>|signed record| RELAY
+  RELAY ==> BRIDGE
+  BRIDGE ==>|register + text keys| MP
+  CLI ==>|read| UR
+  UR ==> ETHREG
+  ETHREG ==>|resolver for shibboleth| RAR
+  RAR ==>|reads the records| MP
+  RAR -->|every other key| PERM
+```
+
+Read it as two sentences. **Write:** the portal has the person sign an intent with their Privy wallet,
+the enclave verifies their identity token and signs the record as registrar, the relay pays the gas,
+and `AttestationBridge` registers it in Multipass with its text keys in the same transaction.
+**Read:** any ENS client asks the Universal Resolver, which reaches `RootAttestationResolver` through
+`shibboleth.eth`, which answers from the Multipass records and forwards every other key to the stock
+`PermissionedResolver`.
+
+The component view below is the same system at one more turn of detail: where the DON ends and the
+enclave begins, and which roles the bridge holds on the stock resolver.
+
 ## Components
 
 ```mermaid
