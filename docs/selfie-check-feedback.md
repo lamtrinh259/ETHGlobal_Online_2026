@@ -44,20 +44,20 @@ nullifiers of everyone who vouched for one candidate), how many distinct humans 
 only way is a separate app id per cluster, which is a hack. *Ask:* a per-cluster "how many humans"
 query.
 
-**7. Nullifier stability is documented twice, differently (2026-09-12).** `idkit/integrate`: the same
+**7. Nullifier stability is documented twice, differently.** `idkit/integrate`: the same
 person and action always produce the same nullifier. `4-0-migration`: nullifiers are one-time, and
 `session_id` is the stable link. A uniqueness rule cannot be designed on both. We refuse session
 proofs, ask for legacy proofs (stable per-action nullifier), and claim only "a verified human proved
 this at a point in time". *Ask:* one sentence per protocol version: is a uniqueness proof's nullifier
 stable for a person, and if not, what is.
 
-**8. There is no way to reset a person for testing (2026-09-13).** Everybody building uniqueness
+**8. There is no way to reset a person for testing.** Everybody building uniqueness
 re-tests on themselves. We can forget our nullifier → wallet binding and delete our chain record, and
 we do (`POST /v1/admin/humanity/reset`, `/v1/admin/privy/delete`), but World still remembers the
 proof, and a user we had to delete outright (Privy will not unlink a sole login) leaves a proof nobody
 on our side can release. *Ask:* a documented way to release a nullifier in sandbox, or a reset action.
 
-**9. We had to build a kill switch (2026-09-13).** The Selfie Check stands in front of the one thing
+**9. We had to build a kill switch.** The Selfie Check stands in front of the one thing
 the product does: writing a vouch. When it broke (§2, §3, §4), nobody could vouch for anybody, and
 from inside our app there was no way to tell whether World or we were at fault. So we added an admin
 switch that turns the check off for everyone until the cause is found. *Ask:* a status page or a
@@ -68,18 +68,18 @@ broke it".
 
 What the people we onboarded said, as distinct from what we hit building it.
 
-**10. The App Store says World App collects your data (2026-09-13).** The download page lists
+**10. The App Store says World App collects your data.** The download page lists
 identifiers, usage data, diagnostics and location. We send people there to prove they are human
 without saying who they are, and the first thing they see is a list of what gets collected. Several
 stopped right there. *Ask:* aim for "Data Not Collected" on the listing, and if something must stay,
 say why the proof does not carry it.
 
-**11. One action, two answers (2026-09-13).** The person taps through World App, sees it succeed, and
+**11. One action, two answers.** The person taps through World App, sees it succeed, and
 comes back to a widget that says it failed (§4). From their side both are "the Selfie Check", and the
 only recovery they can think of is to do it again, which does not help. *Ask:* when the app and the
 widget disagree, one of them should say which one to believe and what to do next.
 
-**12. Why are there two apps? (2026-09-13).** Testing against sandbox means installing a second World
+**12. Why are there two apps?.** Testing against sandbox means installing a second World
 App from TestFlight next to the one from the store, same name, same icon. The person asked to do it
 does not know which one the widget wants, and the first question every one of them asked was why
 there are two. *Ask:* one app with an environment switch, or a sandbox build that says so in its name.
