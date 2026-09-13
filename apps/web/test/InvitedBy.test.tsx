@@ -168,13 +168,13 @@ describe("what the bar needs from you, line by line", () => {
       </QueryClientProvider>
     );
     await waitFor(() => expect(screen.getByTestId("invited-checks")).toBeInTheDocument());
-    expect(screen.getByTestId("invited-check-identity").textContent).toContain("✓");
-    expect(screen.getByTestId("invited-check-links").textContent).toContain("✓");
+    expect(screen.getByTestId("invited-check-identity").className).toBe("done");
+    expect(screen.getByTestId("invited-check-links").className).toBe("done");
     const answer = screen.getByTestId("invited-check-answer:kju-is");
-    expect(answer.textContent).toContain("✗");
+    expect(answer.className).toBe("todo");
     expect(answer.querySelector("a")?.getAttribute("href")).toBe("#refer");
     const vouches = screen.getByTestId("invited-check-vouches");
-    expect(vouches.textContent).toContain("✗");
+    expect(vouches.className).toBe("todo");
     expect(vouches.querySelector("a")?.getAttribute("href")).toBe("#invite");
     expect(screen.getByTestId("invited-progress").textContent).toContain("2 of 4 met");
     expect(screen.queryByTestId("invited-pass")).toBeNull();

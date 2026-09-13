@@ -1800,16 +1800,51 @@ pre > code {
   background: var(--consensus);
   transition: width 400ms ease;
 }
-.invited-list li {
-  font-size: 15px;
+.invited-list {
+  list-style: none;
+  padding: 0;
+  margin: var(--sp-sm) 0;
+  display: grid;
+  gap: 6px;
 }
-.invited-mark {
-  font-size: 18px;
-  line-height: 1;
+.invited-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-sm);
+  padding: 10px 12px;
+  border-left: 3px solid var(--consensus);
+  background: var(--panel-2);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
 }
 .invited-list li.todo {
-  opacity: 1;
   border-left-color: var(--knot);
+}
+.invited-mark {
+  flex: none;
+  font-size: 20px;
+  line-height: 1;
+}
+.invited-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.invited-body small {
+  overflow-wrap: anywhere;
+}
+.invited-fix {
+  flex: none;
+  white-space: nowrap;
+}
+@media (max-width: 560px) {
+  .invited-list li {
+    flex-wrap: wrap;
+  }
+  .invited-fix {
+    margin-left: calc(20px + var(--sp-sm));
+  }
 }
 .card.invited-pass {
   border-color: var(--consensus);

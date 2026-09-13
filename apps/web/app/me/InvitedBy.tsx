@@ -166,24 +166,22 @@ export function InvitedBy({ code }: { code: string | undefined }) {
         </p>
       )}
       {checks && (
-        <ul className="journey invited-list" data-testid="invited-checks">
+        <ul className="invited-list" data-testid="invited-checks">
           {checks.map((c) => {
             const fix = c.ok ? undefined : fixAt(c.id);
             return (
               <li key={c.id} className={c.ok ? "done" : "todo"} data-testid={`invited-check-${c.id}`}>
-                <span className="invited-mark" aria-hidden>
+                <span className="invited-mark" aria-label={c.ok ? "met" : "missing"}>
                   {c.ok ? "✅" : "❌"}
-                </span>{" "}
-                {c.ok ? "✓ " : "✗ "}
-                {c.label}
-                <small className="muted"> · {c.detail}</small>
+                </span>
+                <span className="invited-body">
+                  <strong>{c.label}</strong>
+                  <small className="muted">{c.detail}</small>
+                </span>
                 {fix && (
-                  <>
-                    {" "}
-                    <Link className="button primary" href={fix.href}>
-                      {fix.label} →
-                    </Link>
-                  </>
+                  <Link className="button primary invited-fix" href={fix.href}>
+                    {fix.label} →
+                  </Link>
                 )}
               </li>
             );
