@@ -4374,6 +4374,66 @@ describe("the humanity check", () => {
       }
     });
 
+    it("retries an OAuth unlink by username when Privy refuses the subject, and says what Privy said", async () => {
+      // Privy's `handle` is documented as "the identifier for the account" and took the subject for
+      // some providers and the username for others; a 400 on the first is not the end of it. And a
+      // refusal says why, not only its status: "Privy refused: github_oauth (400)" helps nobody.
+      const { chain } = fakeChain();
+      const calls: { body: { type: string; handle: string } }[] = [];
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (url: string, init?: { body?: string }) => {
+          if (url.endsWith("/v1/users/wallet/address")) {
+            return new Response(
+              JSON.stringify({
+                id: "did:privy:alice",
+                linked_accounts: [
+                  { type: "wallet", address: wallet },
+                  { type: "github_oauth", subject: "42", username: "alice" },
+                  { type: "twitter_oauth", subject: "7", username: "alice_x" },
+                ],
+              }),
+              { status: 200 }
+            );
+          }
+          const body = JSON.parse(init!.body!) as { type: string; handle: string };
+          calls.push({ body });
+          if (body.type === "github_oauth" && body.handle === "42") {
+            return new Response(JSON.stringify({ error: "Invalid handle for github_oauth" }), {
+              status: 400,
+            });
+          }
+          if (body.type === "twitter_oauth") {
+            return new Response(JSON.stringify({ error: "Cannot unlink the last login method" }), {
+              status: 400,
+            });
+          }
+          return new Response("{}", { status: 200 });
+        })
+      );
+      try {
+        const a = humanApp(chain, portal(), { ...adminEnv, PRIVY_APP_SECRET: "secret-secret" });
+        const res = await a.request("/v1/admin/privy/unlink", {
+          method: "POST",
+          headers: { ...headers, "content-type": "application/json" },
+          body: JSON.stringify({ wallet }),
+        });
+        expect(res.status).toBe(200);
+        expect(await res.json()).toMatchObject({
+          unlinked: [{ type: "github_oauth", handle: "alice" }],
+          failed: [{ type: "twitter_oauth", status: 400, error: "Cannot unlink the last login method" }],
+        });
+        expect(calls.map((c) => [c.body.type, c.body.handle])).toEqual([
+          ["github_oauth", "42"],
+          ["github_oauth", "alice"],
+          ["twitter_oauth", "7"],
+          ["twitter_oauth", "alice_x"],
+        ]);
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
     it("deletes the wallet's live platform records on chain too, since those are keyed by the account", async () => {
       // Unlinking in Privy alone leaves the platform record on chain, so the same GitHub account
       // attested from a fresh Privy user meets `walletMismatch` and can never link again.

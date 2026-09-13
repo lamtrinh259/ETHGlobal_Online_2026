@@ -148,7 +148,7 @@ describe("resetting a person's Privy accounts", () => {
         handle: "alice",
         did: "did:privy:alice",
         unlinked: [{ type: "github_oauth", handle: "42" }],
-        failed: [{ type: "email", status: 400 }],
+        failed: [{ type: "email", status: 400, error: "Cannot unlink the last login method" }],
         deleted: [
           { domain: "github.com", txHash: "0xaa" },
           { domain: "gmail.com", txHash: "0xbb" },
@@ -160,7 +160,9 @@ describe("resetting a person's Privy accounts", () => {
     await waitFor(() =>
       expect(screen.getByTestId("admin-unlinked")).toHaveTextContent("Unlinked github_oauth")
     );
-    expect(screen.getByTestId("admin-unlinked")).toHaveTextContent("Privy refused: email (400)");
+    expect(screen.getByTestId("admin-unlinked")).toHaveTextContent(
+      "Privy refused: email (Cannot unlink the last login method)"
+    );
     // The chain record is keyed by the account, so the reset says it went too.
     expect(screen.getByTestId("admin-unlinked")).toHaveTextContent("Deleted github.com, gmail.com on chain");
   });

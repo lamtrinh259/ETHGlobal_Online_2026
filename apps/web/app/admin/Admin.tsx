@@ -366,7 +366,7 @@ export function Admin() {
             Unlinked {unlinked.unlinked.length ? unlinked.unlinked.map((u) => u.type).join(", ") : "nothing"}{" "}
             from <code>{unlinked.did}</code>.
             {unlinked.failed.length > 0 &&
-              ` Privy refused: ${unlinked.failed.map((f) => `${f.type} (${f.status})`).join(", ")}.`}
+              ` Privy refused: ${unlinked.failed.map((f) => `${f.type} (${f.error ?? f.status})`).join(", ")}.`}
             {unlinked.deleted.length > 0 &&
               ` Deleted ${unlinked.deleted.map((d) => d.domain).join(", ")} on chain.`}
           </p>
