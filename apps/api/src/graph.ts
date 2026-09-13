@@ -200,29 +200,47 @@ export const SCORE_MAX = 100;
  * Rank above is trust per connection — a signal that tells a ring from a team, and one that a
  * newcomer with a single honest reference can score well on, which reads wrong on a page. This is the
  * other number a verifier asks for: how much is behind somebody, added up. Proved humanity is worth a
- * floor of its own; every live reference adds a share of its writer's score, capped, so what a
- * connection is worth depends on who is at the other end of it. It is solved to a fixed point: a
- * ring of accounts nobody proved and nobody outside referred sums to nothing however tightly it is
- * wired, and a newcomer holds only what their referrers pass on. Zero to a hundred, whole numbers.
+ * floor of its own; every live reference carries a share of its writer's score. Zero to a hundred,
+ * whole numbers.
+ *
+ * Trust is conserved, after SybilRank and EigenTrust: a writer passes on at most one share of their
+ * own score in total, split across everyone they vouch for, so a farm of a hundred accounts behind
+ * one proved human holds together what one account would. Without that, SybilLimit's bound on attack
+ * edges — the honest → sybil vouches an attacker has to earn — means nothing, because one edge feeds
+ * any number of accounts. A vouch the council has read carries its reading as a weight (supportive
+ * 1, critical 0); an unread one counts in full, never scored by something else.
+ *
+ * The walk stops after O(log n) hops, SybilRank's cut-off: trust fills the honest region and barely
+ * crosses into a sybil one, which is joined to it by few edges however densely it is wired inside. A
+ * ring of accounts nobody proved and nobody outside referred sums to nothing.
  */
-export function sybilScore(graph: ReferenceGraph, humans: Iterable<string>): Map<string, number> {
+export function sybilScore(
+  graph: ReferenceGraph,
+  humans: Iterable<string>,
+  /** Weight per edge, keyed `from>to`, 0..1; absent means 1 */
+  weights: ReadonlyMap<string, number> = new Map()
+): Map<string, number> {
   const handles = graph.nodes.map((n) => n.handle);
   const human = new Set([...humans].map((h) => h.toLowerCase()));
-  const referrers = new Map<string, string[]>(handles.map((h) => [h, []]));
-  for (const e of graph.edges) referrers.get(e.to)?.push(e.from);
+  const weight = (e: GraphEdge) => Math.min(1, Math.max(0, weights.get(`${e.from}>${e.to}`) ?? 1));
+  // What each writer hands out per edge: their one share, divided over the weight of all their
+  // vouches — never less than one whole vouch, so a lone half-hearted one carries half, not all.
+  const outWeight = new Map<string, number>(handles.map((h) => [h, 0]));
+  for (const e of graph.edges) outWeight.set(e.from, outWeight.get(e.from)! + weight(e));
+  const referrers = new Map<string, { from: string; part: number }[]>(handles.map((h) => [h, []]));
+  for (const e of graph.edges) {
+    const part = weight(e) / Math.max(1, outWeight.get(e.from)!);
+    if (part > 0) referrers.get(e.to)?.push({ from: e.from, part });
+  }
   let score = new Map(handles.map((h) => [h, human.has(h) ? SCORE_HUMAN : 0]));
-  // Each pass carries score one connection further; a graph's longest honest path is bounded by its size.
-  for (let i = 0; i < Math.max(1, handles.length); i++) {
+  const hops = Math.max(2, Math.ceil(Math.log2(Math.max(2, handles.length))) + 1);
+  for (let i = 0; i < hops; i++) {
     const next = new Map<string, number>();
     let moved = false;
     for (const h of handles) {
       const carried = referrers
         .get(h)!
-        .reduce(
-          (sum, from) =>
-            sum + Math.min(SCORE_PER_REFERENCE, (score.get(from) ?? 0) * (SCORE_PER_REFERENCE / SCORE_MAX)),
-          0
-        );
+        .reduce((sum, r) => sum + (score.get(r.from) ?? 0) * (SCORE_PER_REFERENCE / SCORE_MAX) * r.part, 0);
       const value = Math.min(SCORE_MAX, (human.has(h) ? SCORE_HUMAN : 0) + carried);
       if (Math.abs(value - score.get(h)!) > 1e-9) moved = true;
       next.set(h, value);

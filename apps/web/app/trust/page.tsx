@@ -295,8 +295,8 @@ export default async function TrustPage() {
             },
             {
               at: "SybilScore",
-              does: "0–100: a real person is 20, each vouch adds up to 15 of its writer's score",
-              sees: "a newcomer starts at 0; a ring nobody proved stays at 0",
+              does: "0–100: a real person is 20; a writer's share (15) is split over everyone they vouch for",
+              sees: "a ring nobody proved stays at 0; a farm behind one person holds what one account would",
             },
           ]}
         />

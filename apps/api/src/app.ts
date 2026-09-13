@@ -1147,6 +1147,16 @@ export function createApp({
    * each other are the same number, and the difference is what a verifier wants. Every edge here is a
    * signed record anybody can resolve; nothing is inferred.
    */
+  const readings = new Readings(
+    councilFrom(config),
+    new PersistentMap<Reading>(
+      "readings",
+      config.DATA_DIR || undefined,
+      (raw) => raw as Reading,
+      (r) => r
+    ),
+    fetchImpl
+  );
   async function wholeGraph(): Promise<{
     graph: ReferenceGraph;
     human: Set<string>;
@@ -1159,7 +1169,12 @@ export function createApp({
     const [records, held, proofs] = await Promise.all([
       Promise.all(
         domains.map(async (domain) =>
-          (await chain.listRecords(domain)).map((r) => ({ domain, name: r.name, live: r.live }))
+          (await chain.listRecords(domain)).map((r) => ({
+            domain,
+            name: r.name,
+            live: r.live,
+            payload: r.payload,
+          }))
         )
       ).then((all) => all.flat()),
       chain.listRecords(rootDomain),
@@ -1168,6 +1183,19 @@ export function createApp({
     ]);
     const graph = referenceGraph(records, config.VOUCH_PREFIX);
     /*
+     * How each vouch reads, where the council has already read it: supportive carries in full,
+     * critical carries nothing. Only readings kept are used — the graph asks the council nothing.
+     */
+    const weights = new Map<string, number>();
+    for (const r of records) {
+      if (!r.live) continue;
+      const text = readable(fromBytes32(r.payload));
+      const reading = text ? readings.peek(text) : null;
+      if (!reading) continue;
+      const to = r.domain.slice(config.VOUCH_PREFIX.length).toLowerCase();
+      weights.set(`${r.name.toLowerCase()}>${to}`, (reading.polarity + 1) / 2);
+    }
+    /*
      * Seeds are people, and a proof is on a wallet: join through the name each wallet holds. Only a
      * live proof counts, and only a live name — a lapsed name is not somebody trust should start from.
      */
@@ -1175,7 +1203,7 @@ export function createApp({
     const human = new Set(
       held.filter((r) => r.live && provedWallets.has(r.wallet.toLowerCase())).map((r) => r.name.toLowerCase())
     );
-    return { graph, human, rank: sybilRank(graph, human), score: sybilScore(graph, human) };
+    return { graph, human, rank: sybilRank(graph, human), score: sybilScore(graph, human, weights) };
   }
 
   /** A node as the routes answer it: the counts, whether they proved humanity, and their rank. */
@@ -1233,16 +1261,6 @@ export function createApp({
    * when peers have judged. Where no council is configured the statements are listed unread. Nothing
    * here scores a person; it reads sentences, and says which.
    */
-  const readings = new Readings(
-    councilFrom(config),
-    new PersistentMap<Reading>(
-      "readings",
-      config.DATA_DIR || undefined,
-      (raw) => raw as Reading,
-      (r) => r
-    ),
-    fetchImpl
-  );
   /** How many statements one request will send to the council; a page nobody reads is money spent. */
   const READ_PAGE = 40;
 

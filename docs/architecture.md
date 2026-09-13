@@ -164,7 +164,7 @@ KeystoneForwarder calls `AttestationReporter.onReport`, and that hands it to the
 
 ## The Selfie Check: one human, one account
 
-A World ID proof says a real person is behind a wallet. The nullifier is what makes it *one* person,
+A World ID proof says a real person is behind a wallet. The nullifier is what makes it _one_ person,
 and it stays off chain.
 
 ```mermaid
@@ -197,16 +197,35 @@ The proof is verified in the relay rather than the enclave: it carries no secret
 World is the party that decides whether the mathematics holds. `apps/api/README.md` has the exchange
 field by field, and [selfie-check-feedback.md](selfie-check-feedback.md) what it cost to integrate.
 
+## SybilScore: trust conserved from the seeds
+
+The proved humans are the seeds; every live vouch is an edge. Two numbers are solved over that graph,
+both after SybilRank (Cao et al., NSDI 2012) and the EigenTrust family, and both are signals for a
+reader, not verdicts:
+
+- **rank**: a short random walk from the seeds, trust split equally over connections at every step,
+  cut off after O(log n) hops. Trust per connection, so collecting connections earns nothing.
+- **SybilScore**, 0–100: proved humanity is a floor (20). A writer passes on at most one share (15%)
+  of their own score in total, split across everyone they vouch for, weighted by how the council read
+  each vouch where it has (supportive 1, critical 0, unread 1). Solved for O(log n) hops. Conservation
+  is what makes SybilLimit's bound mean something: an attacker has to earn honest → sybil edges, and
+  each one feeds the farm once, not once per account. A ring nobody proved sums to nothing however
+  tightly it is wired; a hundred accounts behind one proved human hold together what one would.
+
+`GET /v1/graph/:handle` answers both, with the neighbourhood and whether a person's vouchers vouch for
+each other. `apps/api/src/graph.ts` holds the rules; the readings come from the council's kept
+readings only, so the graph never asks it anything.
+
 ## Trust boundaries
 
-| Holder | Power |
-|---|---|
-| Registrar key (enclave / Node fallback) | signs records for its domains; never transacts |
-| Multipass owner | `initializeDomain`, `changeRegistrar`, `deleteName`, fees |
+| Holder                                       | Power                                                      |
+| -------------------------------------------- | ---------------------------------------------------------- |
+| Registrar key (enclave / Node fallback)      | signs records for its domains; never transacts             |
+| Multipass owner                              | `initializeDomain`, `changeRegistrar`, `deleteName`, fees  |
 | Factory / bridge / registry owner (operator) | provisions domains, registers orgs, sets the root resolver |
-| Bridge on PermissionedResolver | `ROLE_SET_TEXT_ADMIN`, `ROLE_SET_ALIAS` on root |
-| User on PermissionedResolver | `ROLE_SET_TEXT` on four keys of their own name |
-| Relayer / org treasury | pays for `verify` / `verifyFor` |
+| Bridge on PermissionedResolver               | `ROLE_SET_TEXT_ADMIN`, `ROLE_SET_ALIAS` on root            |
+| User on PermissionedResolver                 | `ROLE_SET_TEXT` on four keys of their own name             |
+| Relayer / org treasury                       | pays for `verify` / `verifyFor`                            |
 
 `deleteName` is the one power that contradicts what the product promises, so the owner should be a key
 that signs nothing else. Where it is the relayer — a hot key transacting continuously — a single

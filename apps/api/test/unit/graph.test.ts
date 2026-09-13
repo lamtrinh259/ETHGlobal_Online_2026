@@ -262,7 +262,51 @@ describe("a sybil score", () => {
       humans
     );
     expect(wide.get("popular")!).toBeGreaterThan(wide.get("lone")!);
-    expect(wide.get("lone")!).toBeGreaterThan(0);
+    // h1 stands behind nine people; the one vouch lone holds is a ninth of h1's share, which rounds away.
+    expect(wide.get("lone")!).toBeLessThanOrEqual(1);
+    expect(wide.get("popular")!).toBeGreaterThanOrEqual(3);
+  });
+
+  it("conserves trust: a writer's share is split across everyone they vouch for, so a farm gains nothing by size", () => {
+    /*
+     * SybilLimit's bound is on attack edges — honest → sybil vouches — and only holds when each one
+     * costs the writer something. Copying the writer's share to every vouch let one proved human
+     * hand a hundred fresh accounts the full share each; splitting it means the hundred together hold
+     * what one would.
+     */
+    const one = sybilScore(referenceGraph([rec("s1", "mira")], "~"), ["mira"]);
+    const farm = [...Array(100)].map((_, i) => `s${i + 1}`);
+    const many = sybilScore(
+      referenceGraph(
+        farm.map((s) => rec(s, "mira")),
+        "~"
+      ),
+      ["mira"]
+    );
+    const total = farm.reduce((sum, s) => sum + (many.get(s) ?? 0), 0);
+    expect(one.get("s1")).toBe(3);
+    expect(total).toBeLessThanOrEqual(one.get("s1")!);
+    for (const s of farm) expect(many.get(s)!).toBeLessThan(one.get("s1")!);
+  });
+
+  it("weights a vouch by how it reads, where a council has read it", () => {
+    // A vouch the council read as critical is not somebody standing behind you; an unread one counts in full.
+    const g = referenceGraph([rec("nadia", "mira"), rec("nadia", "omar")], "~");
+    const plain = sybilScore(g, ["mira", "omar"]);
+    const weighed = sybilScore(g, ["mira", "omar"], new Map([["omar>nadia", 0]]));
+    expect(plain.get("nadia")).toBe(6);
+    expect(weighed.get("nadia")).toBe(3);
+    const half = sybilScore(g, ["mira", "omar"], new Map([["omar>nadia", 0.5]]));
+    expect(half.get("nadia")).toBe(5);
+  });
+
+  it("stops after a logarithmic number of hops, so trust does not creep deep into a sybil region", () => {
+    // A long chain hung off one proved human: with the SybilRank cut-off the far end holds nothing.
+    const chain = [...Array(64)].map((_, i) => `c${i}`);
+    const records = chain.slice(1).map((c, i) => rec(c, chain[i]!));
+    const s = sybilScore(referenceGraph([rec("c0", "mira"), ...records], "~"), ["mira"]);
+    expect(s.get("c0")).toBe(3);
+    expect(s.get("c63")).toBe(0);
   });
 
   it("sums a ring nobody proved to nothing, however tightly it is wired", () => {

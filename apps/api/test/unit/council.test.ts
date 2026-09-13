@@ -139,6 +139,17 @@ describe("readings, kept", () => {
     expect(calls).toBe(1);
   });
 
+  it("lets a caller peek at a kept reading without asking the council", async () => {
+    // The graph weighs every vouch on the platform; it may use what was read, never cause a read.
+    const fetchImpl = vi.fn<Fetch>(async () => answer('{"polarity": 0.6, "rationale": "kind"}'));
+    const r = new Readings(council, store(), fetchImpl);
+    expect(r.peek("kind words")).toBeNull();
+    await r.read("kind words");
+    expect(r.peek("kind words")?.polarity).toBe(0.6);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(new Readings(undefined, store(), fetchImpl).peek("kind words")).toBeNull();
+  });
+
   it("does not keep a failed reading, so the next request asks again", async () => {
     let ok = false;
     const fetchImpl = vi.fn<Fetch>(async () =>

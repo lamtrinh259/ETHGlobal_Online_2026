@@ -157,6 +157,12 @@ export class Readings {
     return this.council?.model ?? null;
   }
 
+  /** A reading already kept, or null: asks nobody, so a graph over every vouch costs nothing to read. */
+  peek(statement: string): Reading | null {
+    if (!this.council) return null;
+    return this.store.get(keccak256(stringToBytes(statement))) ?? null;
+  }
+
   async read(statement: string): Promise<Reading | null> {
     if (!this.council) return null;
     const key = keccak256(stringToBytes(statement));
