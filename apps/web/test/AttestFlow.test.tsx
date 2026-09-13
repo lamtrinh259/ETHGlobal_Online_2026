@@ -30,6 +30,7 @@ vi.mock("@privy-io/react-auth", () => ({
       linkGithub: linking.linkGithub,
       linkDiscord: vi.fn(),
       linkGoogle: vi.fn(),
+      linkLinkedIn: vi.fn(),
       linkEmail: vi.fn(),
     };
   },
@@ -411,5 +412,14 @@ describe("the letter rides with the record", () => {
     await waitFor(() => expect(published).toHaveLength(1));
     expect(state.delivered).toMatchObject({ description: "CTO at Acme 2019-22" });
     expect(published[0]).toMatchObject({ letterWritten: true });
+  });
+});
+
+describe("LinkedIn is one of the doors", () => {
+  it("offers a LinkedIn link button and reads a linked LinkedIn as one of the accounts", () => {
+    privy.user = { id: "did:privy:x", linkedin: { vanityName: "lam-tr" } } as typeof privy.user;
+    render(<AttestFlow platformsOnly allowLinking />);
+    expect(screen.getByRole("button", { name: "LinkedIn · linked" })).toBeInTheDocument();
+    privy.user = { id: "did:privy:x" };
   });
 });

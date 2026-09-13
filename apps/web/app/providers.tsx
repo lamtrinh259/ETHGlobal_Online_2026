@@ -47,7 +47,7 @@ export function Providers({ config, children }: { config: WebConfig; children: R
           appId={config.privyAppId}
           clientId={config.privyClientId}
           config={{
-            loginMethods: ["email", "google", "twitter", "github", "wallet"],
+            loginMethods: ["email", "google", "twitter", "linkedin", "github", "wallet"],
             embeddedWallets: { ethereum: { createOnLogin: "users-without-wallets" } },
             appearance: { theme: "dark" },
           }}

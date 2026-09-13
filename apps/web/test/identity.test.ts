@@ -87,3 +87,15 @@ describe("which domain an account is attested into", () => {
     expect(domainFor(x, ["x", "x.com"])).toBe("x.com");
   });
 });
+
+describe("a LinkedIn account", () => {
+  it("is named by its vanity name, then its name, then its email", async () => {
+    const { connectedAccounts } = await import("@/lib/identity");
+    expect(connectedAccounts({ linkedin: { vanityName: "lam-tr" } })).toEqual([
+      { domain: "linkedin", label: "lam-tr" },
+    ]);
+    expect(connectedAccounts({ linkedin: { name: "Lam T" } })).toEqual([
+      { domain: "linkedin", label: "Lam T" },
+    ]);
+  });
+});

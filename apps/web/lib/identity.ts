@@ -7,6 +7,7 @@ export type LinkedAccounts = {
   telegram?: { username?: string | null } | null;
   discord?: { username?: string | null } | null;
   google?: { email?: string | null } | null;
+  linkedin?: { vanityName?: string | null; name?: string | null; email?: string | null } | null;
   email?: { address?: string | null } | null;
   id?: string;
 };
@@ -61,6 +62,7 @@ export function connectedAccounts(user: LinkedAccounts | null | undefined): Conn
     ["telegram", user?.telegram?.username ? `@${user.telegram.username}` : null],
     ["discord", user?.discord?.username?.split("#")[0]],
     ["google", user?.google?.email],
+    ["linkedin", user?.linkedin?.vanityName ?? user?.linkedin?.name ?? user?.linkedin?.email],
     ["email", user?.email?.address],
   ];
   return pairs.filter(([, label]) => !!label).map(([domain, label]) => ({ domain, label: label as string }));

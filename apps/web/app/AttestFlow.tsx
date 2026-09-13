@@ -113,7 +113,7 @@ export function AttestFlow({
   // A link that fails used to fail in the console only; the button looked dead. The reason is said
   // under the buttons, since the usual one is a platform the Privy app has not been set up for.
   const [linkError, setLinkError] = useState<string>();
-  const { linkTwitter, linkGithub, linkDiscord, linkGoogle, linkEmail } = useLinkAccount({
+  const { linkTwitter, linkGithub, linkDiscord, linkGoogle, linkLinkedIn, linkEmail } = useLinkAccount({
     onSuccess: ({ linkMethod, linkedAccount }) => {
       setLinkError(undefined);
       // An email lands in the domain that issued the address; a platform in its own DNS name.
@@ -354,6 +354,7 @@ export function AttestFlow({
                 ["github", "GitHub", linkGithub],
                 ["discord", "Discord", linkDiscord],
                 ["google", "Google", linkGoogle],
+                ["linkedin", "LinkedIn", linkLinkedIn],
                 ["email", "Email", linkEmail],
               ] as const
             ).map(([platform, label, link]) => {
