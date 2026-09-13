@@ -3,7 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { TxDone } from "@/app/TxDone";
 import { useWebConfig } from "@/app/providers";
-import type { AdminAccount, AdminHumanity, AdminReset, AdminSelfieCheck, AdminUnlink } from "@/lib/api";
+import type {
+  AdminAccount,
+  AdminDelete,
+  AdminHumanity,
+  AdminReset,
+  AdminSelfieCheck,
+  AdminUnlink,
+} from "@/lib/api";
 import { apiFor } from "@/lib/hooks";
 
 const TOKEN_KEY = "ketsuban:admin-token";
@@ -24,11 +31,14 @@ export function Admin() {
   const [state, setState] = useState<AdminHumanity>();
   const [result, setResult] = useState<AdminReset>();
   const [error, setError] = useState<string>();
-  const [busy, setBusy] = useState<"look" | "reset" | "switch" | "unlink" | "all" | "list" | "row">();
+  const [busy, setBusy] = useState<
+    "look" | "reset" | "switch" | "unlink" | "delete" | "all" | "list" | "row"
+  >();
   const [accounts, setAccounts] = useState<AdminAccount[]>();
   const [rowNote, setRowNote] = useState<string>();
   const [resetAll, setResetAll] = useState<{ forgotten: number; deleted: unknown[] }>();
   const [unlinked, setUnlinked] = useState<AdminUnlink>();
+  const [removed, setRemoved] = useState<AdminDelete>();
   /** The deletion whose confirmation has been read, so closing it does not bring it back */
   const [doneRead, setDoneRead] = useState<string>();
   const [policy, setPolicy] = useState<AdminSelfieCheck>();
@@ -97,6 +107,23 @@ export function Admin() {
       setBusy(undefined);
     }
   };
+  const remove = async () => {
+    if (
+      !window.confirm(
+        `Delete the Privy user behind ${who.trim()}? Every record of their wallet on chain goes first, then the user; the embedded wallet is gone for good.`
+      )
+    )
+      return;
+    setError(undefined);
+    setBusy("delete");
+    try {
+      setRemoved(await api.adminPrivyDelete(token, query()));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(undefined);
+    }
+  };
   const listAccounts = async () => {
     setError(undefined);
     setBusy("list");
@@ -118,6 +145,27 @@ export function Admin() {
         `${row.handle ?? row.wallet}: forgot ${r.forgotten}, ${r.deleted && "txHash" in r.deleted ? "deleted the record" : "no record to delete"}.`
       );
       setAccounts(await api.adminAccounts(token));
+    } catch (e) {
+      setRowNote((e as Error).message);
+    } finally {
+      setBusy(undefined);
+    }
+  };
+  const rowDelete = async (row: AdminAccount) => {
+    if (
+      !window.confirm(
+        `Delete the Privy user behind ${row.handle ?? row.wallet}? Every record of their wallet on chain goes first, then the user.`
+      )
+    )
+      return;
+    setBusy("row");
+    try {
+      const r = await api.adminPrivyDelete(token, { wallet: row.wallet });
+      setRowNote(
+        `${row.handle ?? row.wallet}: deleted ${r.deleted.map((d) => d.domain).join(", ") || "nothing"} on chain, ` +
+          `${r.forgotten} nullifier${r.forgotten === 1 ? "" : "s"} forgotten, Privy user ${r.did} deleted.`
+      );
+      void listAccounts();
     } catch (e) {
       setRowNote((e as Error).message);
     } finally {
@@ -304,6 +352,14 @@ export function Admin() {
                     >
                       Unlink Privy
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => rowDelete(row)}
+                      disabled={!!busy}
+                      data-testid={`admin-row-delete-${row.wallet}`}
+                    >
+                      Delete user
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -360,7 +416,22 @@ export function Admin() {
           >
             {busy === "unlink" ? "unlinking…" : "Unlink Privy accounts"}
           </button>
+          <button
+            type="button"
+            onClick={remove}
+            disabled={!token || !who.trim() || !!busy}
+            data-testid="admin-delete"
+          >
+            {busy === "delete" ? "deleting…" : "Delete Privy user"}
+          </button>
         </p>
+        {removed && (
+          <p className="muted" data-testid="admin-deleted">
+            Deleted {removed.deleted.length ? removed.deleted.map((d) => d.domain).join(", ") : "nothing"} on
+            chain, {removed.forgotten} nullifier{removed.forgotten === 1 ? "" : "s"} forgotten, Privy user{" "}
+            <code>{removed.did}</code> deleted.
+          </p>
+        )}
         {unlinked && (
           <p className="muted" data-testid="admin-unlinked">
             Unlinked {unlinked.unlinked.length ? unlinked.unlinked.map((u) => u.type).join(", ") : "nothing"}{" "}

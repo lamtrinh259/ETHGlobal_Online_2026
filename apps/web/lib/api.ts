@@ -331,6 +331,16 @@ export const adminUnlinkSchema = z.object({
   deleted: z.array(z.object({ domain: z.string(), txHash: z.string() })).default([]),
 });
 export type AdminUnlink = z.infer<typeof adminUnlinkSchema>;
+/** Demo only: what deleting a person's Privy user took with it. */
+export const adminDeleteSchema = z.object({
+  wallet: z.string(),
+  handle: z.string().nullable(),
+  did: z.string(),
+  forgotten: z.number(),
+  deleted: z.array(z.object({ domain: z.string(), txHash: z.string() })),
+  privyDeleted: z.boolean(),
+});
+export type AdminDelete = z.infer<typeof adminDeleteSchema>;
 /** Demo only: one row of the admin's account list. */
 export const adminAccountSchema = z.object({
   wallet: z.string(),
@@ -826,6 +836,15 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
         body: JSON.stringify(q),
       });
       return adminUnlinkSchema.parse(await readJson(res));
+    },
+    /** Demo only: delete the person's Privy user, after every record of their wallet on chain. */
+    async adminPrivyDelete(token: string, q: { wallet?: string; handle?: string }): Promise<AdminDelete> {
+      const res = await call(`${base}/v1/admin/privy/delete`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-admin-token": token },
+        body: JSON.stringify(q),
+      });
+      return adminDeleteSchema.parse(await readJson(res));
     },
     /** Demo only: whether the Selfie Check is in force for everyone. */
     async adminSelfieCheck(token: string): Promise<AdminSelfieCheck> {

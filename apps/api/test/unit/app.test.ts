@@ -4508,6 +4508,94 @@ describe("the humanity check", () => {
       }
     });
 
+    it("deletes the person's Privy user, after every record of their wallet on chain and their nullifier", async () => {
+      /*
+       * Privy will not unlink the only login an account has. Deleting the user is the way out, and the
+       * embedded wallet dies with it, so what that wallet holds on chain — names, answers, references,
+       * accounts, the humanity record — goes first: a name nobody can ever sign for again would stay
+       * taken, and a nullifier bound to a dead wallet would refuse the person's next Selfie Check.
+       */
+      const rec = (domain: string, name = "", live = true) =>
+        ({
+          wallet,
+          live,
+          name,
+          domain,
+          nonce: "1",
+          id: `0x${"11".repeat(32)}`,
+          payload: "",
+          validUntil: "2099-01-01T00:00:00.000Z",
+        }) as never;
+      const { chain } = fakeChain({
+        byWallet: [
+          rec("kju-is", "alice"),
+          rec("github.com"),
+          rec("~bob", "alice"),
+          rec("humanity"),
+          rec("x.com", "", false),
+        ],
+      });
+      const calls: { method: string; url: string }[] = [];
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (url: string, init?: { method?: string }) => {
+          calls.push({ method: init?.method ?? "GET", url });
+          if (url.endsWith("/v1/users/wallet/address")) {
+            return new Response(
+              JSON.stringify({
+                id: "did:privy:alice",
+                linked_accounts: [{ type: "wallet", address: wallet }],
+              }),
+              { status: 200 }
+            );
+          }
+          return new Response(null, { status: 204 });
+        })
+      );
+      try {
+        const a = humanApp(chain, portal(), { ...adminEnv, PRIVY_APP_SECRET: "secret-secret" });
+        expect((await post(a, "/v1/humanity", { wallet, proof: proof(signal) })).status).toBe(200);
+        const res = await a.request("/v1/admin/privy/delete", {
+          method: "POST",
+          headers: { ...headers, "content-type": "application/json" },
+          body: JSON.stringify({ wallet }),
+        });
+        expect(res.status).toBe(200);
+        expect(await res.json()).toMatchObject({
+          did: "did:privy:alice",
+          forgotten: 1,
+          deleted: [
+            { domain: "kju-is", txHash: `0x${"de".repeat(32)}` },
+            { domain: "github.com", txHash: `0x${"de".repeat(32)}` },
+            { domain: "~bob", txHash: `0x${"de".repeat(32)}` },
+            { domain: "humanity", txHash: `0x${"de".repeat(32)}` },
+          ],
+          privyDeleted: true,
+        });
+        // Every live record, none of the dead ones; then the user.
+        expect(chain.deleteRecord).toHaveBeenCalledTimes(4);
+        expect(chain.deleteRecord).not.toHaveBeenCalledWith("x.com", wallet);
+        expect(calls.at(-1)).toEqual({
+          method: "DELETE",
+          url: "https://api.privy.io/v1/users/did:privy:alice",
+        });
+        // The nullifier is free again: the same proof binds once more.
+        expect((await post(a, "/v1/humanity", { wallet, proof: proof(signal) })).status).toBe(200);
+        // Without the app secret the route says so instead of trying.
+        expect(
+          (
+            await humanApp(chain, portal(), adminEnv).request("/v1/admin/privy/delete", {
+              method: "POST",
+              headers: { ...headers, "content-type": "application/json" },
+              body: JSON.stringify({ wallet }),
+            })
+          ).status
+        ).toBe(501);
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
     it("lists every account it knows, with a handle, a humanity flag and bound nullifiers", async () => {
       const other = `0x${"77".repeat(20)}` as Address;
       const rec = (w: Address, domain: string, name: string, live = true) =>

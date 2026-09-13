@@ -68,6 +68,7 @@ function fakeApi(): Api {
     adminSelfieCheck: vi.fn(),
     adminSelfieCheckSet: vi.fn(),
     adminPrivyUnlink: vi.fn(),
+    adminPrivyDelete: vi.fn(),
     adminHumanityResetAll: vi.fn(),
     adminAccounts: vi.fn(),
     viewCodes: vi.fn(),

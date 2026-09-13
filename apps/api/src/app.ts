@@ -2200,6 +2200,67 @@ export function createApp({
   });
 
   /**
+   * Demo only: delete a person's Privy user, after everything their wallet holds. Privy will not unlink
+   * the only login an account has, so a demo that must run the same GitHub through onboarding again
+   * deletes the user instead. The embedded wallet dies with it, so every live record of that wallet
+   * on chain is deleted first — a name nobody can sign for again would stay taken — and the nullifier
+   * bound to it is forgotten, or the person's next Selfie Check would be refused.
+   */
+  app.post("/v1/admin/privy/delete", async (c) => {
+    const refused = adminGate(c);
+    if (refused) return refused;
+    if (!config.PRIVY_APP_SECRET) return c.json({ error: "privy app secret not configured" }, 501);
+    const body = z
+      .object({ wallet: z.string().optional(), handle: z.string().optional() })
+      .safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: "wallet or handle required" }, 400);
+    const who = await adminWallet(body.data);
+    if (!who) return c.json({ error: "no such account here" }, 404);
+    const headers = {
+      "privy-app-id": config.PRIVY_APP_ID,
+      authorization: `Basic ${Buffer.from(`${config.PRIVY_APP_ID}:${config.PRIVY_APP_SECRET}`).toString("base64")}`,
+      "content-type": "application/json",
+    };
+    const found = await fetch(`${config.PRIVY_API_URL}/v1/users/wallet/address`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ address: who.wallet }),
+    });
+    if (found.status === 404) return c.json({ error: "no Privy user holds that wallet" }, 404);
+    if (!found.ok) return c.json({ error: `privy answered ${found.status}` }, 502);
+    const user = (await found.json()) as { id: string };
+    // The chain first: what fails here leaves the user in place, to be tried again.
+    const deleted: { domain: string; txHash: Hex }[] = [];
+    for (const r of await chain.listRecordsByWallet(who.wallet)) {
+      if (!r.live) continue;
+      try {
+        deleted.push({ domain: r.domain, txHash: await chain.deleteRecord(r.domain, who.wallet) });
+      } catch (e) {
+        return c.json(
+          { ...who, did: user.id, deleted, error: `could not delete ${r.domain}: ${explainRevert(e)}` },
+          503
+        );
+      }
+    }
+    let forgotten = 0;
+    for (const [nullifier, w] of humans.entries()) {
+      if (w.toLowerCase() === who.wallet.toLowerCase()) {
+        humans.delete(nullifier);
+        forgotten += 1;
+      }
+    }
+    const gone = await fetch(`${config.PRIVY_API_URL}/v1/users/${user.id}`, { method: "DELETE", headers });
+    if (!gone.ok && gone.status !== 404) {
+      const text = await gone.text().catch(() => "");
+      return c.json(
+        { ...who, did: user.id, deleted, forgotten, error: `privy answered ${gone.status}: ${text}` },
+        502
+      );
+    }
+    return c.json({ ...who, did: user.id, deleted, forgotten, privyDeleted: true });
+  });
+
+  /**
    * Demo only: every Selfie Check on the platform, reset at once. Forgets every nullifier this node
    * has bound and deletes every live humanity record on chain, so anybody proves again from nothing.
    * A migration that moves names leaves proofs bound to wallets no name reaches any more; this is the

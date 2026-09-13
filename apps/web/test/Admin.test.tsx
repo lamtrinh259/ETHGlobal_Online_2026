@@ -216,3 +216,28 @@ describe("the account list", () => {
     expect(reset).toHaveBeenCalledWith("admin-token-0123456789abcdef", { wallet: WALLET });
   });
 });
+
+describe("deleting a person's Privy user", () => {
+  it("deletes after a confirmation, and says what went on chain and in Privy", async () => {
+    await show({
+      adminPrivyDelete: vi.fn(async () => ({
+        wallet: WALLET,
+        handle: "alice",
+        did: "did:privy:alice",
+        forgotten: 1,
+        deleted: [
+          { domain: "kju-is", txHash: "0xaa" },
+          { domain: "github.com", txHash: "0xbb" },
+        ],
+        privyDeleted: true,
+      })),
+    });
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    fireEvent.click(screen.getByTestId("admin-delete"));
+    await waitFor(() =>
+      expect(screen.getByTestId("admin-deleted")).toHaveTextContent("Deleted kju-is, github.com on chain")
+    );
+    expect(screen.getByTestId("admin-deleted")).toHaveTextContent("1 nullifier forgotten");
+    expect(screen.getByTestId("admin-deleted")).toHaveTextContent("Privy user did:privy:alice deleted");
+  });
+});
