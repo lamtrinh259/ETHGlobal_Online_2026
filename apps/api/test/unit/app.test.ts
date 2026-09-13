@@ -5180,7 +5180,9 @@ describe("a preview deployment", () => {
     const preview = await a.request("/healthz", { headers: { origin: "https://1.shibboleth.peeramid.xyz" } });
     expect(preview.headers.get("access-control-allow-origin")).toBe("https://1.shibboleth.peeramid.xyz");
     expect((await preview.json()).preview).toBe("1");
-    const production = await a.request("/healthz", { headers: { origin: "https://shibboleth.peeramid.xyz" } });
+    const production = await a.request("/healthz", {
+      headers: { origin: "https://shibboleth.peeramid.xyz" },
+    });
     expect(production.headers.get("access-control-allow-origin")).toBe("https://shibboleth.peeramid.xyz");
     const other = await a.request("/healthz", { headers: { origin: "https://2.shibboleth.peeramid.xyz" } });
     expect(other.headers.get("access-control-allow-origin")).toBeNull();
