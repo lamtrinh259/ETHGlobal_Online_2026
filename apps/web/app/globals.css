@@ -480,6 +480,13 @@ dl.kv dd {
 }
 
 /* ── landing ── */
+.hero-banner {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius, 12px);
+  margin: 0 0 var(--sp-md);
+}
 .hero h1 {
   font-size: clamp(24px, 4vw, 34px);
   margin: 0 0 var(--sp-sm);

@@ -34,6 +34,15 @@ export default async function Home() {
   return (
     <>
       <section className="hero">
+        <img
+          src="/banner.jpg"
+          alt="ShibbolETH"
+          className="hero-banner"
+          width={1376}
+          height={768}
+          fetchPriority="high"
+          data-testid="hero-banner"
+        />
         <h1>
           A vouch that cannot be <span className="knot">deleted</span>
         </h1>

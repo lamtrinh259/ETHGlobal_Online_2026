@@ -184,7 +184,7 @@ for (const [path, says] of [
 test("a card names an image a client can actually fetch", async ({ request, baseURL }) => {
   // Without `metadataBase` Next writes `http://localhost:3000` into every card, which is a picture no
   // reader of a shared link can load and a failure nothing in the app itself shows.
-  for (const path of ["/p/alice", "/v/kju-is.ketsuban.eth"]) {
+  for (const path of ["/", "/p/alice", "/v/kju-is.ketsuban.eth"]) {
     const html = await (await request.get(path)).text();
     const image = /<meta property="og:image" content="([^"]*)"/.exec(html)?.[1] ?? "";
     expect(image, `og:image on ${path}`).toMatch(/^https?:\/\//);

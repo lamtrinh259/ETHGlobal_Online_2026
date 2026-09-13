@@ -1,4 +1,4 @@
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 /**
@@ -52,5 +52,20 @@ describe("the landing page's subjects", () => {
         answers: 2,
       }),
     ]);
+  });
+});
+
+describe("the landing page's banner", () => {
+  it("opens with the logotype, at the top, as an image a reader can name", async () => {
+    const { default: Page } = await import("@/app/page");
+    render(await Page());
+    const banner = screen.getByTestId("hero-banner");
+    expect(banner).toHaveAttribute("src", "/banner.jpg");
+    expect(banner).toHaveAttribute("alt", "ShibbolETH");
+    // Above the headline, not beside or below it.
+    expect(
+      banner.compareDocumentPosition(screen.getByRole("heading", { level: 1 })) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
   });
 });
