@@ -54,9 +54,12 @@ keeps its nonce, so the index remembers it (`lastNonce`) and the browser retries
 revert names. *Ask:* a documented way to release a nullifier for testing, or a sandbox reset action.
 Everybody building uniqueness re-tests on themselves.
 
-**9. A check in the critical path needs an off switch (2026-09-13).** `POST /v1/admin/selfie-check`
-`{required}` drops the requirement for everyone without a redeploy, because §2–§4 are invisible from
-inside the product. Nothing for World to fix; recorded as what an integrator ends up building.
+**9. We had to build a kill switch (2026-09-13).** The Selfie Check stands in front of the one thing
+the product does: writing a vouch. When it broke (§2, §3, §4), nobody could vouch for anybody, and
+from inside our app there was no way to tell whether World or we were at fault. So we added an admin
+switch that turns the check off for everyone until the cause is found. *Ask:* a status page or a
+health endpoint for the verify API and the app, so an integrator can tell "World is down" from "we
+broke it".
 
 **10. What the proof became: a SybilScore (2026-09-13).** Every person who passed the Selfie Check
 is a trusted seed. Trust flows from the seeds along vouches, and a writer's trust is split among the
