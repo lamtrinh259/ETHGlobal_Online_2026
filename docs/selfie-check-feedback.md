@@ -68,13 +68,11 @@ broke it".
 
 What the people we onboarded said, as distinct from what we hit building it.
 
-**10. The App Store listing says the opposite of the product (2026-09-13).** World App's download screen
-lists data collected: identifiers, usage data, diagnostics, location. A person is sent there to prove
-they are human *without revealing who*, and the first thing they read is a privacy label that says
-more is collected than most apps admit to. Whatever the reasons, it is the wrong first impression for a
-privacy product, and it is what the people we onboarded remarked on. *Ask:* "Data Not Collected" is
-the label to aim for; where a category cannot be dropped, say on the listing why the proof does not
-carry it.
+**10. The App Store says World App collects your data (2026-09-13).** The download page lists
+identifiers, usage data, diagnostics and location. We send people there to prove they are human
+without saying who they are, and the first thing they see is a list of what gets collected. Several
+stopped right there. *Ask:* aim for "Data Not Collected" on the listing, and if something must stay,
+say why the proof does not carry it.
 
 **11. One action, two answers (2026-09-13).** The person taps through World App, sees it succeed, and
 comes back to a widget that says it failed (§4). From their side both are "the Selfie Check", and the
