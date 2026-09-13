@@ -1,10 +1,5 @@
 // Small presentational helpers. Pure functions, no deps.
 
-/** Per-character animation delays for the wave wordmark. */
-export function waveChars(word: string): { ch: string; delay: string }[] {
-  return [...word].map((ch, i) => ({ ch, delay: `${i * 70}ms` }));
-}
-
 /** Short 0x1234…abcd form for addresses and hashes. */
 export function short(hex: string, head = 6, tail = 4): string {
   if (!hex || hex.length <= head + tail + 2) return hex;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildStamp, fmtUtc, short, waveChars } from "@/app/ui";
+import { buildStamp, fmtUtc, short } from "@/app/ui";
 
 describe("ui helpers", () => {
   it("shortens hex, leaves short strings alone", () => {
@@ -10,12 +10,6 @@ describe("ui helpers", () => {
     expect(fmtUtc("2026-10-08T09:14:22.000Z")).toBe("2026-10-08 09:14Z");
     expect(fmtUtc(null)).toBe("—");
     expect(fmtUtc("nope")).toBe("—");
-  });
-  it("staggers the wordmark", () => {
-    expect(waveChars("ab")).toEqual([
-      { ch: "a", delay: "0ms" },
-      { ch: "b", delay: "70ms" },
-    ]);
   });
 });
 

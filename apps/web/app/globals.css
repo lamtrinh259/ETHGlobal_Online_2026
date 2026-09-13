@@ -131,26 +131,13 @@ code {
 .sh-brandSide {
   padding: 6px 8px 12px;
 }
-.sh-logo {
-  filter: invert(var(--logo-invert));
+.sh-logotype {
+  display: block;
+  height: 26px;
+  width: auto;
 }
-.wordmark {
-  font-weight: 600;
-  letter-spacing: 0.02em;
-}
-.wave span {
-  display: inline-block;
-  animation: wave 2.8s ease-in-out infinite;
-}
-@keyframes wave {
-  0%,
-  60%,
-  100% {
-    transform: translateY(0);
-  }
-  30% {
-    transform: translateY(-2px);
-  }
+.sh-logotypeSide {
+  height: 30px;
 }
 .sh-nav {
   display: flex;

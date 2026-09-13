@@ -195,3 +195,13 @@ test("a card names an image a client can actually fetch", async ({ request, base
   }
   expect(baseURL).toBeTruthy();
 });
+
+test("the header and the menu carry the logotype", async ({ page }) => {
+  await page.goto("/");
+  const marks = page.locator('a[aria-label="ShibbolETH home"] img[alt="ShibbolETH"]');
+  await expect(marks.first()).toHaveAttribute("src", "/logo-text.svg");
+  expect(await marks.count()).toBe(2);
+  const served = await page.request.get("/logo-text.svg");
+  expect(served.status()).toBe(200);
+  expect(served.headers()["content-type"]).toContain("svg");
+});

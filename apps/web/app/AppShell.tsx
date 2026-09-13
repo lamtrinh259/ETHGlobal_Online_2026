@@ -10,7 +10,7 @@ import { WhoAmI } from "./WhoAmI";
 import { useWebConfig } from "./providers";
 import { useBodyScrollLock } from "./useBodyScrollLock";
 import { useModalEscape } from "./useModalEscape";
-import { buildStamp, waveChars } from "./ui";
+import { buildStamp } from "./ui";
 
 const NAV = [
   { href: "/me", label: "My profile" },
@@ -30,18 +30,6 @@ export function isActive(path: string, href: string): boolean {
   if (href === "/verify") return path.startsWith("/p/") || path.startsWith("/v/") || path.startsWith("/w/");
   // Claiming is part of the profile now; an old link still highlights the right entry.
   return href === "/me" && path.startsWith("/claim");
-}
-
-function Wordmark() {
-  return (
-    <span className="wordmark wave">
-      {waveChars("ShibbolETH").map((c, i) => (
-        <span key={i} style={{ animationDelay: c.delay }}>
-          {c.ch}
-        </span>
-      ))}
-    </span>
-  );
 }
 
 /**
@@ -93,8 +81,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </button>
         <Link href="/" className="sh-brand" onClick={close} aria-label="ShibbolETH home">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/mark.svg" alt="" aria-hidden className="sh-logo" width={22} height={22} />
-          <Wordmark />
+          <img src="/logo-text.svg" alt="ShibbolETH" className="sh-logotype" width={280} height={40} />
         </Link>
       </header>
 
@@ -110,8 +97,13 @@ export function AppShell({ children }: { children: ReactNode }) {
         </button>
         <Link href="/" className="sh-brand sh-brandSide" onClick={close} aria-label="ShibbolETH home">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/mark.svg" alt="" aria-hidden className="sh-logo" width={26} height={26} />
-          <Wordmark />
+          <img
+            src="/logo-text.svg"
+            alt="ShibbolETH"
+            className="sh-logotype sh-logotypeSide"
+            width={280}
+            height={40}
+          />
         </Link>
         <nav className="sh-nav" aria-label="Primary">
           {NAV.map((n) => (
