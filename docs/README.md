@@ -40,7 +40,7 @@ Sepolia. [The root README](../README.md) is the three-minute version; this is ev
 | [apps/api](../apps/api/README.md) | Every route the relay answers, the index, the humanity exchange, and what the docker e2e covers. |
 | [apps/web](../apps/web/README.md) | Every page of the portal, who it is for, and which pure modules it is built from. |
 | [packages/contracts](../packages/contracts/README.md) | The contracts, the CRE report path, registration versus renewal, and the merged error ABI. |
-| [packages/cre](../packages/cre/README.md) | The `attest` workflow: three handlers, its config, and how to run the enclave handler without deploy access. |
+| [packages/cre](../packages/cre/README.md) | The Confidential Workflow: the judges' checklist, three handlers, its config, the Sepolia evidence, and how to run the enclave handler without deploy access. |
 | [packages/registrar](../packages/registrar) | The pure attester both hosts call. No README; the types are the documentation. |
 
 ## Conventions

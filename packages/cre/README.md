@@ -1,5 +1,15 @@
 # CRE workflow: `attest`
 
+## For the judges: the Confidential Workflow, criterion by criterion
+
+| Criterion | Where to look |
+|---|---|
+| Confidential Workflow does a meaningful part of the app | `onAttest` in [`attest/workflow.ts`](attest/workflow.ts): the enclave is the registrar. No record exists without its signature, and the signature is what Multipass verifies. |
+| A confidential TEE handler is registered and used | `initWorkflow` in the same file: `cre.handlerInTee(http.trigger({}), onAttest, [{ tee: "nitro", regions: ["us-west-2"] }])`, and the same for `onDisclose`. |
+| Sensitive data is processed inside the enclave | `runtime.getSecret` for the registrar key and the view-code key; the Privy identity token is verified in the enclave and never crosses to the DON; the view code is derived and encrypted there. `runtime.usingTheDons()` is used only for the Multipass read and the report. |
+| Execution demonstrated with evidence | [It has been run](#it-has-been-run): `cre workflow simulate --broadcast` through the `MockKeystoneForwarder`, two Sepolia transactions, one public record and one masked. `bun test` runs 30 handler tests against a fake TEE runtime. Deployment waits on `cre account access` (not enabled on this account) and the Confidential Workflows beta. |
+
+
 Confidential workflow that turns a wallet-signed intent plus a Privy identity token into a
 registrar-signed Multipass record. The enclave is the registrar: the signing key and the view-code
 key exist only inside it.
