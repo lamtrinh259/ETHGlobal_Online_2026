@@ -35,11 +35,14 @@ tell which to believe. *Ask:* a distinct code for "valid proof, verification ref
 accepted credentials; which one a flow asks for is only visible in the SDK. *Ask:* show the credential
 asked for in the widget.
 
-**6. A sybil signal for a subset of the social graph.** The presentation promised a Sybil score; the
-verify API has none. We score our own vouch graph, seeded by who passed the check. What would help is
-World answering for a subset of it: hand over the nullifiers of everyone who vouched for one candidate
-and learn how many distinct humans that is. Today the only way is a separate app id per subset, which
-is a hack. *Ask:* a per-group "how many humans" query.
+**6. A Sybil score per cluster.** The sybil-detection papers (SybilGuard, SybilLimit, SybilRank)
+all work the same way: a sybil region is a cluster densely wired inside and joined to the honest graph
+by few edges, so the signal lives in clusters, not in single accounts. The presentation promised a
+Sybil score; the verify API has none. We build clusters from our own vouch graph, seeded by who
+passed the check. What World could add is the half we cannot see: for a cluster we name (the
+nullifiers of everyone who vouched for one candidate), how many distinct humans it holds. Today the
+only way is a separate app id per cluster, which is a hack. *Ask:* a per-cluster "how many humans"
+query.
 
 **7. Nullifier stability is documented twice, differently (2026-09-12).** `idkit/integrate`: the same
 person and action always produce the same nullifier. `4-0-migration`: nullifiers are one-time, and
