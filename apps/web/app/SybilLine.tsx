@@ -43,7 +43,7 @@ export function SybilLine({ handle }: { handle: string }) {
 
   return (
     <p className="muted sybil-line" data-testid="sybil-line">
-      <span title="what accumulated behind them, 0–100: proved humanity is a floor, every reference adds a share of its writer's score, and a ring nobody proved sums to nothing">
+      <span title="what accumulated behind them, 0–100: proved humanity is a floor, every vouch adds a share of its writer's score, and a ring nobody proved sums to nothing">
         SybilScore <strong data-testid="sybil-score">{g.score}</strong>
       </span>
       {" · "}
@@ -59,7 +59,7 @@ export function SybilLine({ handle }: { handle: string }) {
       <span data-testid="sybil-human">{g.human ? <HumanMark /> : "humanity not proved"}</span>
       {" · "}
       {read ? (
-        <span data-testid="sybil-read" title="how the references read, by the fast council; provisional">
+        <span data-testid="sybil-read" title="how the vouches read, by the fast council; provisional">
           reads {read.supportive} supportive / {read.critical} critical
         </span>
       ) : (

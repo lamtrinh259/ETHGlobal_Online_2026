@@ -205,9 +205,9 @@ export function Dashboard() {
       {d.org && (
         <section className="card" data-testid="dash-org">
           <h2>Issuing as {d.org.label}</h2>
-          <p className="muted">Write references for people who have claimed nothing yet.</p>
+          <p className="muted">Vouch for people who have claimed nothing yet.</p>
           <p>
-            <Link href="/vouch">Write a reference →</Link>
+            <Link href="/vouch">Write a vouch →</Link>
           </p>
         </section>
       )}

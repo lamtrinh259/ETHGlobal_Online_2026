@@ -49,7 +49,7 @@ export function InviteTerms({
   return (
     <div className={met ? "muted" : "warning"} data-testid="invite-terms">
       <p>
-        {candidate} asked for a reference from someone with{" "}
+        {candidate} asked for a vouch from someone with{" "}
         {met ? "these accounts, which you have attested." : "these accounts."}
         {!met && " You can still write one; it will be marked unsolicited."}
         {!met && linkHref && (
@@ -68,8 +68,8 @@ export function InviteTerms({
       {impossible.size > 0 && (
         <p data-testid="invite-impossible">
           This invitation cannot be satisfied by anyone, however many accounts you link:{" "}
-          {[...impossible.values()].join(" ")} Write the reference if you mean to — it is published either way
-          — and ask {candidate} for a new link if you want it to count as one they asked for.
+          {[...impossible.values()].join(" ")} Write the vouch if you mean to — it is published either way —
+          and ask {candidate} for a new link if you want it to count as one they asked for.
         </p>
       )}
       <ul className="acct">

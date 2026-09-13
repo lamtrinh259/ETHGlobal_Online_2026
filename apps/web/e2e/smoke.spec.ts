@@ -177,7 +177,7 @@ for (const [path, says] of [
     expect(meta("og:title"), "og:title").toContain(says);
     expect(meta("twitter:title"), "twitter:title").toContain(says);
     // And not the line every other page carries.
-    expect(meta("og:title")).not.toBe("Ketsuban — References that cannot be deleted");
+    expect(meta("og:title")).not.toBe("Ketsuban — Vouches that cannot be deleted");
   });
 }
 

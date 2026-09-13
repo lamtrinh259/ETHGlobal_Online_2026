@@ -35,7 +35,7 @@ export default async function Home() {
     <>
       <section className="hero">
         <h1>
-          A reference that cannot be <span className="knot">deleted</span>
+          A vouch that cannot be <span className="knot">deleted</span>
         </h1>
         <p>Verified humans put their permanent name behind yours, as an ENS name anyone can read.</p>
         <HeroAuth />

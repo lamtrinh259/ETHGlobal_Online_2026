@@ -41,7 +41,7 @@ export function profileScore(input: ScoreInput): { score: number; parts: ScorePa
   const parts: ScorePart[] = [
     {
       id: "references",
-      label: "References",
+      label: "Vouches",
       weight: 30,
       earned: Math.round((30 * references) / REFERENCE_FLOOR),
       done: references >= REFERENCE_FLOOR,

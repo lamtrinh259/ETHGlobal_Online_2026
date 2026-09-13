@@ -53,9 +53,9 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
     .standing(handle, { signal: flourish() })
     .catch(() => null);
   const refs = standing
-    ? `${standing.received} reference${standing.received === 1 ? "" : "s"} written for them, by name, on chain`
-    : "References written by name, on chain, and readable without this app.";
-  return socialCard(`${handle} — reference page`, refs);
+    ? `${standing.received} vouch${standing.received === 1 ? "" : "es"} written for them, by name, on chain`
+    : "Vouches written by name, on chain, and readable without this app.";
+  return socialCard(`${handle} — vouch page`, refs);
 }
 
 export default async function ProfilePage({ params, searchParams }: Params) {

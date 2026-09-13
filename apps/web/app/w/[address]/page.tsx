@@ -120,7 +120,7 @@ export default async function WalletPage({ params }: Params) {
         {live.length === 0 ? (
           <p>
             <em>This wallet holds no live name.</em> An address alone says nothing: a name is what carries
-            answers and references.
+            answers and vouches.
           </p>
         ) : (
           <ul className="acct">
@@ -131,7 +131,7 @@ export default async function WalletPage({ params }: Params) {
                 </span>
                 {n.payload && <small className="muted">“{n.payload}”</small>}
                 <span className="acct-state">
-                  until {fmtUtc(n.validUntil)} · <Link href={`/p/${n.name}`}>reference page</Link>
+                  until {fmtUtc(n.validUntil)} · <Link href={`/p/${n.name}`}>vouch page</Link>
                 </span>
               </li>
             ))}
@@ -171,7 +171,7 @@ export default async function WalletPage({ params }: Params) {
       </section>
 
       <section className="card" data-testid="wallet-given">
-        <h2>References this wallet wrote</h2>
+        <h2>Vouches this wallet wrote</h2>
         {read?.given.length ? (
           <ul className="vouches">
             {read.given.map((g) => (

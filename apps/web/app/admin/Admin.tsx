@@ -197,8 +197,8 @@ export function Admin() {
       <section className="card" data-testid="admin-policy">
         <h2>Selfie Check, for everyone</h2>
         <p className="warning">
-          Demo only. Off, no reference needs a proof of humanity and the browser stops asking for one, on
-          every account at once. It comes back on with the same switch.
+          Demo only. Off, no vouch needs a proof of humanity and the browser stops asking for one, on every
+          account at once. It comes back on with the same switch.
         </p>
         <label>
           Admin token

@@ -83,8 +83,8 @@ export function ProfileCard({
 
       {!p.identity && p.vouches.some((v) => v.live) && (
         <p className="warning" data-testid="waiting">
-          Nobody holds this name yet, and {p.vouches.filter((v) => v.live).length} reference
-          {p.vouches.filter((v) => v.live).length === 1 ? " is" : "s are"} already written for it. If this is
+          Nobody holds this name yet, and {p.vouches.filter((v) => v.live).length} vouch
+          {p.vouches.filter((v) => v.live).length === 1 ? " is" : "es are"} already written for it. If this is
           you, <Link href="/me">claim the name</Link> and they attach to it — an organisation can write a
           letter before the person has heard of us.
         </p>
@@ -100,7 +100,7 @@ export function ProfileCard({
       {blank ? (
         <p data-testid="blank-page">
           {heldOnce ? "Nobody holds this name now" : "Nobody holds this name"} and nobody has written about it
-          yet. References written here are real and permanent, and none of them can be tied to a real account
+          yet. Vouches written here are real and permanent, and none of them can be tied to a real account
           until whoever this is about <Link href="/me">claims the name</Link> — until then it is a page about
           a name.
         </p>

@@ -73,7 +73,7 @@ export function InvitedBy({ code }: { code: string | undefined }) {
     return (
       <section className="card" data-testid="invited-to-vouch">
         <p>
-          That link invites you to write a reference for <code>{handle}</code>.{" "}
+          That link invites you to vouch for <code>{handle}</code>.{" "}
           <Link className="button primary" href={`/vouch/${handle}?invite=${kept.code}`}>
             Write it
           </Link>
@@ -111,7 +111,7 @@ export function InvitedBy({ code }: { code: string | undefined }) {
         : id.startsWith("answer:")
           ? { label: "Answer it", title: questionTitle(id.slice("answer:".length)) }
           : id === "vouches" || id === "from"
-            ? { label: "Ask for references", title: "Ask for references" }
+            ? { label: "Ask for vouches", title: "Ask for vouches" }
             : id === "humanity"
               ? { label: "Pass the Selfie Check", title: "Selfie Check" }
               : undefined;

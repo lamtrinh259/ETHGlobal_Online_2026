@@ -113,7 +113,7 @@ test("a vouch page opens for anyone, invitation or not, and a bad token is not a
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Vouch for");
   // Behind the sign-in gate there is no form either way; the steps still stand.
   await expect(page.getByTestId("step-signin")).toBeVisible();
-  await expect(page.getByTestId("step-reference")).toContainText("Reference for alice");
+  await expect(page.getByTestId("step-reference")).toContainText("Vouch for alice");
   await expect(page.locator("body")).not.toContainText("You need alice's invitation");
 
   await page.goto("/vouch/alice?invite=not-a-real-token");

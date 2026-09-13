@@ -120,9 +120,9 @@ export function VouchList({
           */}
           {vouches.some((v) => !v.solicited) && (
             <p className="muted" data-testid="unsolicited-note">
-              <strong>unsolicited</strong> means no invitation from {handle} came with that reference. Anyone
-              may refer anyone here, so it is a fact about how the reference arrived — not a judgement of it,
-              and not proof that {handle} never asked.
+              <strong>unsolicited</strong> means no invitation from {handle} came with that vouch. Anyone may
+              refer anyone here, so it is a fact about how the vouch arrived — not a judgement of it, and not
+              proof that {handle} never asked.
             </p>
           )}
         </>

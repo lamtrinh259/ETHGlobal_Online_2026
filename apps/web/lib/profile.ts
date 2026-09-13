@@ -67,19 +67,19 @@ export const POLICY_PRESETS: PolicyPreset[] = [
   {
     id: "hiring",
     label: "Hiring",
-    blurb: "Every subject answered, one linked account, three live references.",
+    blurb: "Every subject answered, one linked account, three live vouches.",
     policy: { allSubjects: true, minLinks: 1, requireHumanity: false, minVouches: 3 },
   },
   {
     id: "landlord",
     label: "Landlord",
-    blurb: "Identity and one reference; no opinions asked.",
+    blurb: "Identity and one vouch; no opinions asked.",
     policy: { allSubjects: false, minLinks: 1, requireHumanity: false, minVouches: 1 },
   },
   {
     id: "dao",
     label: "DAO membership",
-    blurb: "Proof of unique humanity, two references, subjects answered, no links required.",
+    blurb: "Proof of unique humanity, two vouches, subjects answered, no links required.",
     policy: { allSubjects: true, minLinks: 0, requireHumanity: true, minVouches: 2 },
   },
   {
@@ -118,9 +118,9 @@ export function describePolicy(policy: Policy): string {
       ? `answers for ${policy.requiredAnswers.map(questionTitle).join(", ")}`
       : "no answers required",
     `≥${policy.minLinks} linked account${policy.minLinks === 1 ? "" : "s"}`,
-    `≥${policy.minVouches} live reference${policy.minVouches === 1 ? "" : "s"}`,
+    `≥${policy.minVouches} live vouch${policy.minVouches === 1 ? "" : "es"}`,
   ];
-  if (policy.onlySolicited) parts.push("only references they asked for");
+  if (policy.onlySolicited) parts.push("only vouches they asked for");
   if (policy.requireHumanity) parts.push("humanity attested");
   if (policy.maxCritical !== undefined)
     parts.push(

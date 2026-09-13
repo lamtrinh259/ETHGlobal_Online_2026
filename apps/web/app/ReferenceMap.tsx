@@ -96,7 +96,7 @@ export function ReferenceMap({ handle }: { handle: string }) {
                 viewBox="-130 -130 260 260"
                 className="refmap-svg"
                 role="img"
-                aria-label={`references around ${handle}`}
+                aria-label={`vouches around ${handle}`}
               >
                 {g.edges.map((e) => {
                   const a = at.get(e.from);
@@ -156,7 +156,7 @@ export function ReferenceMap({ handle }: { handle: string }) {
                   </dd>
                 </div>
                 <div>
-                  <dt>References returned</dt>
+                  <dt>Vouches returned</dt>
                   <dd data-testid="fact-mutual">
                     {m.mutual} of {referrers}
                   </dd>
@@ -190,7 +190,7 @@ export function ReferenceMap({ handle }: { handle: string }) {
       )}
       <p className="muted refmap-caveat">
         Every line is a signed record anyone can resolve. The rank is a signal, not a verdict: a newcomer with
-        one honest reference and a ring with one bought one look alike until more people speak.{" "}
+        one honest vouch and a ring with one bought one look alike until more people speak.{" "}
         <Link href="/trust">How this is computed →</Link>
       </p>
     </section>

@@ -57,8 +57,8 @@ function Provisional({ model }: { model: string | null }) {
 function NoCouncil({ side }: { side: "received" | "given" }) {
   return (
     <p className="muted" data-testid="readings-no-council">
-      Shown as written: no council reads statements on this deployment, so {side} references carry the words
-      and nothing else.
+      Shown as written: no council reads statements on this deployment, so {side} vouches carry the words and
+      nothing else.
     </p>
   );
 }
@@ -102,7 +102,7 @@ export function ReferenceTabs({
 
   return (
     <>
-      <div className="row" role="tablist" aria-label="references" data-testid="reference-tabs">
+      <div className="row" role="tablist" aria-label="vouches" data-testid="reference-tabs">
         <button
           role="tab"
           aria-selected={tab === "received"}
@@ -140,7 +140,7 @@ export function ReferenceTabs({
               <Switch
                 checked={onlyAsked}
                 onChange={setOnlyAsked}
-                label="Only references they asked for"
+                label="Only vouches they asked for"
                 hint={`${unsolicited} arrived without an invitation${onlyAsked ? ", set aside" : ""}`}
               />
             </div>
@@ -186,13 +186,13 @@ export function ReferenceTabs({
             <ReferencesGiven references={given} readings={gave} />
           ) : (
             <p className="muted" data-testid="none-given">
-              {handle} has not written a reference for anybody here.
+              {handle} has not vouched for anybody here.
             </p>
           )}
           {/* Asking them for one: an invitation is made on your own page and sent to them. */}
           <p className="row">
             <Link className="button" href="/me#invite" data-testid="request-reference">
-              Request a reference from {handle}
+              Ask {handle} for a vouch
             </Link>
           </p>
         </div>

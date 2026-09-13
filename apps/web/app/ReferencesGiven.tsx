@@ -36,7 +36,7 @@ export function ReferencesGiven({
     <section className="v-block">
       {answers.length > 0 && written.length > 0 && (
         <p className="muted" data-testid="given-split">
-          {written.length} reference{written.length === 1 ? "" : "s"} written, and {answers.length} answer
+          {written.length} vouch{written.length === 1 ? "" : "es"} written, and {answers.length} answer
           {answers.length === 1 ? "" : "s"} to a question anybody may answer.
         </p>
       )}

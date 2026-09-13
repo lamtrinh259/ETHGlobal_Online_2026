@@ -222,7 +222,7 @@ describe("ProfileCard", () => {
   it("tells an unclaimed handle that letters are already waiting for it", () => {
     render(<ProfileCard p={{ ...profile, identity: undefined, wallet: null }} rootParent="ketsuban.eth" />);
     const waiting = screen.getByTestId("waiting");
-    expect(waiting).toHaveTextContent("1 reference is already written for it");
+    expect(waiting).toHaveTextContent("1 vouch is already written for it");
     expect(waiting.querySelector("a")).toHaveAttribute("href", "/me");
 
     // Nothing to claim, nothing to say: with no live reference there is no banner.
@@ -409,7 +409,7 @@ describe("what a person has said, by kind", () => {
   it("says how many of each, where it holds both", () => {
     open(given);
     expect(screen.getByTestId("given-split")).toHaveTextContent(
-      "1 reference written, and 1 answer to a question anybody may answer"
+      "1 vouch written, and 1 answer to a question anybody may answer"
     );
   });
 

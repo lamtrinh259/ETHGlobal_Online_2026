@@ -106,7 +106,7 @@ export default async function VouchPage({ params, searchParams }: Params) {
             {status && (
               <p className={status.live ? "muted" : "error"} data-testid="candidate-status">
                 {status.live
-                  ? `claimed · ${live ?? "?"} live reference${live === 1 ? "" : "s"} so far`
+                  ? `claimed · ${live ?? "?"} live vouch${live === 1 ? "" : "es"} so far`
                   : status.taken
                     ? "this name has expired — ask the candidate to renew before you vouch"
                     : "not claimed yet — an organisation can write now and the letter waits for them"}{" "}

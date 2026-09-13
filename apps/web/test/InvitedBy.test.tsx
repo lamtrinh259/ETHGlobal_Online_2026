@@ -93,7 +93,7 @@ describe("an invitation on your own page", () => {
   it("says who is asking, the bar, and which account to begin with", async () => {
     await show(async () => invitation);
     await waitFor(() => expect(screen.getByTestId("invited")).toHaveTextContent("peersky.ketsuban.eth"));
-    expect(screen.getByTestId("invited-bar")).toHaveTextContent("≥2 live references");
+    expect(screen.getByTestId("invited-bar")).toHaveTextContent("≥2 live vouches");
     expect(screen.getByTestId("invited-begin")).toHaveTextContent("github.com");
     expect(screen.getByTestId("invited-begin")).toHaveTextContent("@lamtrinh259");
   });

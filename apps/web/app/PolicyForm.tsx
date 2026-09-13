@@ -144,14 +144,14 @@ export function PolicyForm({
           />
         </label>
         <label>
-          minimum live references{" "}
+          minimum live vouches{" "}
           <input
             type="number"
             min={0}
             max={99}
             value={minVouches}
             onChange={(e) => custom(setMinVouches)(Number(e.target.value))}
-            aria-label="minimum live references"
+            aria-label="minimum live vouches"
           />
         </label>
         {/* How the references read, counted: the council's provisional polarity of each statement.
@@ -195,7 +195,7 @@ export function PolicyForm({
             onChange={(e) => custom(setOnlySolicited)(e.target.checked)}
             data-testid="only-solicited"
           />{" "}
-          count only references the candidate asked for
+          count only vouches the candidate asked for
         </label>
         <p className="muted" data-testid="policy-summary">
           {describePolicy(policy)}

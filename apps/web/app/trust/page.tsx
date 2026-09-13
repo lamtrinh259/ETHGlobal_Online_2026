@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Who can see what",
   description:
-    "How a reference is made, where the secret part runs, and what this deployment admits about itself.",
+    "How a vouch is made, where the secret part runs, and what this deployment admits about itself.",
 };
 
 /** One step of writing a record: where it happens, and what it can see while it does. */
@@ -75,9 +75,7 @@ export default async function TrustPage() {
     <>
       <section className="hero">
         <h1>Who can see what</h1>
-        <p>
-          A reference is a signed note on a public register. Here is who touches it, and what each one sees.
-        </p>
+        <p>A vouch is a signed note on a public register. Here is who touches it, and what each one sees.</p>
       </section>
 
       <section className="card trust">
@@ -277,7 +275,7 @@ export default async function TrustPage() {
           steps={[
             {
               at: "edges",
-              does: "every live reference is a line, writer → subject",
+              does: "every live vouch is a line, writer → subject",
               sees: "signed records, nothing guessed",
             },
             {
@@ -297,7 +295,7 @@ export default async function TrustPage() {
             },
             {
               at: "SybilScore",
-              does: "0–100: a real person is 20, each reference adds up to 15 of its writer's score",
+              does: "0–100: a real person is 20, each vouch adds up to 15 of its writer's score",
               sees: "a newcomer starts at 0; a ring nobody proved stays at 0",
             },
           ]}
@@ -306,7 +304,7 @@ export default async function TrustPage() {
       </section>
 
       <section className="card trust" data-testid="how-read">
-        <h2>How a reference is read</h2>
+        <h2>How a vouch is read</h2>
         <Chain
           steps={[
             { at: "the words", does: "31 bytes somebody signed", sees: "always shown as written" },
@@ -337,8 +335,7 @@ export default async function TrustPage() {
             <strong>Your World ID proof</strong> — has no secret of yours in it; World says whether it holds.
           </li>
           <li>
-            <strong>Reference letters</strong> — kept on this site; only their fingerprint is on chain,
-            forever.
+            <strong>Vouch letters</strong> — kept on this site; only their fingerprint is on chain, forever.
           </li>
           <li>
             <strong>Who may read a masked account</strong> — kept on this site; opens only inside the box.

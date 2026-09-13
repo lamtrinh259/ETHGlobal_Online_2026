@@ -8,7 +8,7 @@ import type { Ask } from "@/lib/asks";
 import { useFind, useWho } from "@/lib/hooks";
 import { HANDLE_RE } from "@ketsuban/registrar";
 
-const label = (s: { received: number }) => `${s.received} reference${s.received === 1 ? "" : "s"} received`;
+const label = (s: { received: number }) => `${s.received} vouch${s.received === 1 ? "" : "es"} received`;
 
 /**
  * Refer anyone. Two ways in, because they answer different questions: you either know an account they
@@ -100,7 +100,7 @@ export function ReferSomeone({ api, onGo }: { api: Api; onGo: (handle: string, a
                         onClick={() => onGo(who.data!.candidate as string, picking?.ask)}
                         data-testid="who-go"
                       >
-                        Write their reference →
+                        Vouch for them →
                       </button>
                     </>
                   ) : who.data?.note ? (

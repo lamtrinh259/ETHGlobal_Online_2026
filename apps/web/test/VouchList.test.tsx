@@ -27,7 +27,7 @@ describe("how a reference arrived", () => {
   it("explains the badge in the page, where a phone can read it", () => {
     render(<VouchList vouches={[{ ...(base as object), solicited: false } as never]} handle="alice" />);
     const said = screen.getByTestId("unsolicited-note").textContent ?? "";
-    expect(said).toMatch(/no invitation from alice came with that reference/);
+    expect(said).toMatch(/no invitation from alice came with that vouch/);
     // The badge is about the invitation. A candidate whose link was unsatisfiable gets references
     // marked this way too, so the page must not say they never asked.
     expect(said).toMatch(/not proof that alice never asked/);

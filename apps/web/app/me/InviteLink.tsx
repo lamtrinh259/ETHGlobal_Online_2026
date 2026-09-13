@@ -179,13 +179,13 @@ export function InviteLink({
                           </Link>
                         </span>
                       ))}{" "}
-                      — a reference you asked for, on your page
+                      — a vouch you asked for, on your page
                     </small>
                   )}
                   {/* Signed, so it cannot be repaired — but it can be stopped from being sent again. */}
                   {i.requires.some((r) => whyUnsatisfiable(r, config.parentNames)) && (
                     <small className="warning" data-testid={`invite-dead-${i.code}`}>
-                      Nobody can satisfy this one: a reference written from it is published, and marked
+                      Nobody can satisfy this one: a vouch written from it is published, and marked
                       unsolicited whatever the writer links. Make a new link instead of sending this.
                     </small>
                   )}
@@ -217,7 +217,7 @@ export function InviteLink({
               <legend>From one person in particular?</legend>
               <p className="muted">
                 Leave empty to accept anyone with an account there. Name a handle and only that person&apos;s
-                reference counts as asked for.
+                vouch counts as asked for.
               </p>
               {picked.map((d) => (
                 <label key={d}>

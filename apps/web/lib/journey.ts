@@ -104,7 +104,7 @@ export function needsAttention(dash: WalletDashboard | undefined, nowMs: number,
       .filter((g) => g.live && soon(g.validUntil))
       .map((g) => ({
         kind: "given" as const,
-        label: `reference for ${g.candidate}`,
+        label: `vouch for ${g.candidate}`,
         daysLeft: left(g.validUntil),
         href: `/vouch/${g.candidate}`,
       })),

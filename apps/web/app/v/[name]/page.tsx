@@ -92,7 +92,7 @@ export default async function VerifyPage({ params, searchParams }: Params) {
                 Vouch for this person
               </Link>
               <Link className="muted" href={`/p/${handle}`}>
-                their full reference page
+                their full vouch page
               </Link>
             </p>
           </section>

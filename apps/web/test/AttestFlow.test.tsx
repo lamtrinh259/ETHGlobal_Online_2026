@@ -203,7 +203,7 @@ describe("AttestFlow after signing", () => {
       unsolicitedReason: "the invitation asks for github.com as @lam; you are signed in as @bob",
     };
     state.txHash = `0x${"ab".repeat(32)}`;
-    render(<AttestFlow fixedDomain="~alice" doneTitle="Reference published" />);
+    render(<AttestFlow fixedDomain="~alice" doneTitle="Vouch published" />);
     expect(screen.getByTestId("tx-done-unsolicited")).toHaveTextContent(
       /not counted as one alice asked for/i
     );

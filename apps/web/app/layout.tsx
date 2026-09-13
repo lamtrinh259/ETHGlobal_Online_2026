@@ -4,9 +4,9 @@ import { Providers } from "./providers";
 import { AppShell } from "./AppShell";
 import { loadWebConfig, siteUrl } from "@/lib/config";
 
-const TAGLINE = "References that cannot be deleted";
+const TAGLINE = "Vouches that cannot be deleted";
 const PITCH =
-  "A reference from a verified human, signed into a permanent public name — checkable by anyone, unfakeable at scale.";
+  "A vouch from a verified human, signed into a permanent public name — checkable by anyone, unfakeable at scale.";
 
 export const metadata: Metadata = {
   title: { default: `ShibbolETH — ${TAGLINE}`, template: "%s · ShibbolETH" },

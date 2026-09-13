@@ -88,8 +88,7 @@ export function Employers({ subjectDomains }: { subjectDomains: string[] }) {
   const [sent, setSent] = useState<{ account: string; platform: string; text: string }>();
   const [inviteError, setInviteError] = useState<string>();
   const [inviting, setInviting] = useState(false);
-  const policyLabel =
-    note.trim() || POLICY_PRESETS.find((p) => p.id === named)?.label || named || "reference";
+  const policyLabel = note.trim() || POLICY_PRESETS.find((p) => p.id === named)?.label || named || "vouch";
 
   const invite = async (platform: string, account: string) => {
     setInviteError(undefined);

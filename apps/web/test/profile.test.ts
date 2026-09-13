@@ -323,7 +323,7 @@ describe("policy presets", () => {
     // A policy is stated in questions, not in the domains they live in: the verifier setting it has
     // never heard of `kju-is`, and the query string keeps the domain either way.
     expect(describePolicy(dao)).toBe(
-      "answers for What do you think of Kim Jong Un? · ≥0 linked accounts · ≥2 live references · humanity attested"
+      "answers for What do you think of Kim Jong Un? · ≥0 linked accounts · ≥2 live vouches · humanity attested"
     );
     expect(
       describePolicy(
@@ -332,7 +332,7 @@ describe("policy presets", () => {
           ["kju-is"]
         )
       )
-    ).toBe("no answers required · ≥1 linked account · ≥1 live reference");
+    ).toBe("no answers required · ≥1 linked account · ≥1 live vouch");
   });
 });
 
@@ -522,12 +522,12 @@ describe("socialCard", () => {
    * handing a link to somebody, and the link said nothing about whose page it was.
    */
   it("says the same thing in every field a client might read", () => {
-    const card = socialCard("peersky — 3 references", "Read through the ENS resolver.");
-    expect(card.openGraph.title).toBe("peersky — 3 references");
-    expect(card.twitter.title).toBe("peersky — 3 references");
+    const card = socialCard("peersky — 3 vouches", "Read through the ENS resolver.");
+    expect(card.openGraph.title).toBe("peersky — 3 vouches");
+    expect(card.twitter.title).toBe("peersky — 3 vouches");
     expect(card.openGraph.description).toBe("Read through the ENS resolver.");
     expect(card.twitter.description).toBe("Read through the ENS resolver.");
-    expect(card.title).toBe("peersky — 3 references");
+    expect(card.title).toBe("peersky — 3 vouches");
   });
 });
 

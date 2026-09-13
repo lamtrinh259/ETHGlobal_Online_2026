@@ -11,7 +11,7 @@ test("an invitation says who is asking, the bar, and which account to begin with
   await page.goto("/me?invite=0123456789abcdef0123456789abcdef");
   const invited = page.getByTestId("invited");
   await expect(invited).toContainText("peersky.ketsuban.eth is inviting you");
-  await expect(invited.getByTestId("invited-bar")).toContainText("≥2 live references");
+  await expect(invited.getByTestId("invited-bar")).toContainText("≥2 live vouches");
   const begin = invited.getByTestId("invited-begin");
   await expect(begin).toContainText("github.com");
   await expect(begin).toContainText("@lamtrinh259");

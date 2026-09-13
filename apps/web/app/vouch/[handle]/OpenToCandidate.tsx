@@ -117,8 +117,7 @@ export function OpenToCandidate({
           </p>
           {must.length > 0 && (
             <p data-testid="opening-required">
-              {candidate} asked for <strong>{must.join(", ")}</strong>: opened to them as part of this
-              reference.
+              {candidate} asked for <strong>{must.join(", ")}</strong>: opened to them as part of this vouch.
             </p>
           )}
           {masked
@@ -146,7 +145,7 @@ export function OpenToCandidate({
             </button>
           </p>
           {must.length === 0 && (
-            <p className="muted">Or leave it closed: the reference still counts, anonymously.</p>
+            <p className="muted">Or leave it closed: the vouch still counts, anonymously.</p>
           )}
         </>
       )}

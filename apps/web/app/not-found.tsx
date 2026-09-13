@@ -7,7 +7,7 @@ export default function NotFound() {
       <p className="muted">
         Names live at <code>/v/&lt;handle&gt;.&lt;instance&gt;.eth</code>.
       </p>
-      <Link href="/">Publish a reference</Link>
+      <Link href="/">Publish a vouch</Link>
     </section>
   );
 }

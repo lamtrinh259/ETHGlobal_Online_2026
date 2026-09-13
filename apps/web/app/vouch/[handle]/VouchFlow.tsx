@@ -220,7 +220,7 @@ export function VouchFlow({
     ...(contracts.data?.humanity
       ? [{ id: "human" as const, label: "Selfie Check", done: humanityDone }]
       : []),
-    { id: "reference", label: `Reference for ${candidate}`, done: !!published },
+    { id: "reference", label: `Vouch for ${candidate}`, done: !!published },
   ];
   const firstOpen = steps.findIndex((s) => !s.done);
   const defaultIndex = firstOpen === -1 ? steps.length - 1 : firstOpen;
@@ -278,10 +278,10 @@ export function VouchFlow({
                   <code>
                     {onChain.named}.{root.parentName}
                   </code>{" "}
-                  signs every reference you write.
+                  signs every vouch you write.
                 </>
               ) : (
-                "Signs every reference you write. Yours for good."
+                "Signs every vouch you write. Yours for good."
               )}
             </p>
             {(needsName || claimedHere) && (
@@ -360,7 +360,7 @@ export function VouchFlow({
                   </p>
                   <p>
                     Log out and sign in with {notYou.map((m) => `@${m.wanted}`).join(" and ")}, or ask{" "}
-                    {candidate} for an invitation naming your account. A reference written as you are now is
+                    {candidate} for an invitation naming your account. A vouch written as you are now is
                     published, but reads as not asked for.
                   </p>
                 </div>
@@ -474,7 +474,7 @@ export function VouchFlow({
               answerLabel="Statement"
               answerPlaceholder={WITHDRAWN}
               answerValue={WITHDRAWN}
-              doneTitle="Reference withdrawn"
+              doneTitle="Vouch withdrawn"
               onPublished={setPublished}
             />
           </>
@@ -522,7 +522,7 @@ export function VouchFlow({
               answerLabel="Title"
               answerHint="On chain, permanent. 31 bytes."
               answerPlaceholder="CTO at Acme 2019-22"
-              doneTitle="Reference published"
+              doneTitle="Vouch published"
               extra={<LetterField value={letter} onChange={setLetter} candidate={candidate} />}
               // The letter rides with the record: one transaction, paid by the relay. A long one is
               // kept by its hash and the hash goes on chain.

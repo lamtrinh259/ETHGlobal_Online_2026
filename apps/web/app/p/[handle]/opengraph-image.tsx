@@ -12,7 +12,7 @@ import { flourish } from "@/lib/patience";
  */
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
-export const alt = "A reference page on ShibbolETH";
+export const alt = "A vouch page on ShibbolETH";
 export const runtime = "nodejs";
 
 export default async function Image({ params }: { params: Promise<{ handle: string }> }) {
@@ -24,7 +24,7 @@ export default async function Image({ params }: { params: Promise<{ handle: stri
     .catch(() => null);
   const references = standing?.received ?? 0;
   // One sentence built in one place, as on the card for a name.
-  const written = `${references} ${references === 1 ? "reference" : "references"} written by name, on chain`;
+  const written = `${references} ${references === 1 ? "vouch" : "vouches"} written by name, on chain`;
 
   return new ImageResponse(
     <div
@@ -49,8 +49,8 @@ export default async function Image({ params }: { params: Promise<{ handle: stri
       </div>
       <div style={{ display: "flex", fontSize: 40, color: "#f5f7fb" }}>
         {standing
-          ? `${references} reference${references === 1 ? "" : "s"} written by name, on chain`
-          : "References written by name, on chain"}
+          ? `${references} vouch${references === 1 ? "" : "es"} written by name, on chain`
+          : "Vouches written by name, on chain"}
       </div>
     </div>,
     size

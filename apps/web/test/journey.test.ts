@@ -139,7 +139,7 @@ describe("needsAttention", () => {
     };
     expect(needsAttention(soonDash, now)).toEqual([
       { kind: "link", label: "x link", daysLeft: -8, href: "/me#link" },
-      { kind: "given", label: "reference for alice", daysLeft: 3, href: "/vouch/alice" },
+      { kind: "given", label: "vouch for alice", daysLeft: 3, href: "/vouch/alice" },
       { kind: "name", label: "bob.ketsuban.eth", daysLeft: 4, href: "/me" },
     ]);
     expect(needsAttention(soonDash, now, 1)).toHaveLength(1);

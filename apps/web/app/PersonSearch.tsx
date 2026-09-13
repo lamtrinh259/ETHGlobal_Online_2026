@@ -15,7 +15,7 @@ const refs = (s: { received: number }) => `${s.received} vouch${s.received === 1
 export function claimAsk(platform: string, handle: string, site: string): string {
   return (
     `I looked you up on ShibbolETH and nobody holds a name for you yet. If you link your ${platform} ` +
-    `account (@${handle}) there, references written for you attach to it and the page is yours: ${site}/me`
+    `account (@${handle}) there, vouches written for you attach to it and the page is yours: ${site}/me`
   );
 }
 
@@ -418,7 +418,7 @@ export function PersonSearch({
           <div className="muted" data-testid="no-match">
             <p>
               Nobody holds <strong>{clean}</strong> yet. Opening it makes a page about the name: people can
-              write references there, and none of it can be linked to a real account until whoever it is about
+              write vouches there, and none of it can be linked to a real account until whoever it is about
               claims it.
             </p>
             <p className="row">

@@ -45,9 +45,9 @@ test("presets fill the policy and encode it into the candidate's URL", async ({ 
   await page.getByTestId("policy-open").click();
   await page.getByTestId("policy-build").click();
   await page.getByTestId("preset-dao").click();
-  await expect(page.getByTestId("policy-summary")).toHaveText(/≥2 live references · humanity attested/);
-  await page.getByLabel("minimum live references").fill("5");
-  await expect(page.getByTestId("policy-summary")).toHaveText(/≥5 live references/);
+  await expect(page.getByTestId("policy-summary")).toHaveText(/≥2 live vouches · humanity attested/);
+  await page.getByLabel("minimum live vouches").fill("5");
+  await expect(page.getByTestId("policy-summary")).toHaveText(/≥5 live vouches/);
   await page.getByRole("button", { name: "Apply to alice" }).click();
   await expect(page).toHaveURL(/\/p\/alice\?answers=kju-is&minLinks=0&minVouches=5&humanity=1$/);
 });
