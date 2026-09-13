@@ -26,6 +26,8 @@ jobs:
 
       # Contracts are Foundry; the CRE workflow package runs its tests under bun.
       - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
       - uses: oven-sh/setup-bun@v2
 
       - run: pnpm install --frozen-lockfile
@@ -36,7 +38,10 @@ jobs:
       - run: pnpm -w typecheck
       # One step per package: a recursive run that hangs says nothing about which package hung.
       - run: pnpm --filter @ketsuban/registrar test
-      - run: pnpm --filter @ketsuban/contracts test
+      # The runner's own environment carries REGISTRY (its docker registry, unexpanded as `$REGISTRY`),
+      # and the migration test reads a variable of that name: it is unset for the step so `vm.setEnv`
+      # is the only thing the script sees.
+      - run: env -u REGISTRY pnpm --filter @ketsuban/contracts test
       - run: pnpm --filter @ketsuban/cre-attest test
       - name: api tests
         timeout-minutes: 8
