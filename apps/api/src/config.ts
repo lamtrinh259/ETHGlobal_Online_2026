@@ -146,7 +146,6 @@ export const configSchema = z.object({
    */
   PRIVY_APP_SECRET: z.string().min(8).optional(),
   PRIVY_API_URL: z.string().url().default("https://api.privy.io"),
-  PRIVY_AUTH_URL: z.string().url().default("https://auth.privy.io"),
   /**
    * Multipass domain holding humanity attestations. The instance resolver hops into it keyed by the
    * wallet, which is what makes `ketsuban:humanity` answer on a person's own name.

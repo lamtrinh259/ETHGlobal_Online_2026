@@ -2165,10 +2165,10 @@ export function createApp({
       let last: { status: number; error?: string } | undefined;
       const attempts: Attempt[] = [];
       for (const handle of handles) {
-        const res = await fetch(`${config.PRIVY_AUTH_URL}/api/v1/apps/${config.PRIVY_APP_ID}/users/unlink`, {
+        const res = await fetch(`${config.PRIVY_API_URL}/v1/users/${user.id}/accounts/unlink`, {
           method: "POST",
           headers,
-          body: JSON.stringify({ user_id: user.id, type: a.type, handle }),
+          body: JSON.stringify({ type: a.type, handle }),
         });
         if (res.ok) {
           unlinked.push({ type: a.type, handle });

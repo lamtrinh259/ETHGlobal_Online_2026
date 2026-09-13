@@ -4333,7 +4333,7 @@ describe("the humanity check", () => {
               { status: 200 }
             );
           }
-          return new Response("{}", { status: url.endsWith("/users/unlink") ? 200 : 404 });
+          return new Response("{}", { status: url.endsWith("/accounts/unlink") ? 200 : 404 });
         }
       );
       vi.stubGlobal("fetch", fetchMock);
@@ -4353,9 +4353,10 @@ describe("the humanity check", () => {
           ],
           failed: [],
         });
-        // The lookup, then one unlink per account; the wallet is never touched.
+        // The lookup, then one unlink per account on Privy's current users API; the wallet is never touched.
         expect(calls.map((c) => c.url.split("/").slice(-1)[0])).toEqual(["address", "unlink", "unlink"]);
-        expect(calls[1].body).toEqual({ user_id: "did:privy:alice", type: "github_oauth", handle: "42" });
+        expect(calls[1].url).toBe("https://api.privy.io/v1/users/did:privy:alice/accounts/unlink");
+        expect(calls[1].body).toEqual({ type: "github_oauth", handle: "42" });
         // Nothing on chain to delete for a wallet with no platform record.
         expect(chain.deleteRecord).not.toHaveBeenCalled();
         // Without the app secret the route says so instead of trying.
