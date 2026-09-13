@@ -69,6 +69,16 @@ forgets the nullifier and deletes the chain records (`POST /v1/admin/privy/delet
 World proof for this action is not ours to forget: a new wallet presenting the same nullifier is what
 §7 is about, and a stale binding would refuse it. Same ask as §8.
 
+## What a user sees
+
+**12. The App Store listing says the opposite of the product (2026-09-13).** World App's download screen
+lists data collected: identifiers, usage data, diagnostics, location. A person is sent there to prove
+they are human *without revealing who*, and the first thing they read is a privacy label that says
+more is collected than most apps admit to. Whatever the reasons, it is the wrong first impression for a
+privacy product, and it is what the people we onboarded remarked on. *Ask:* "Data Not Collected" is
+the label to aim for; where a category cannot be dropped, say on the listing why the proof does not
+carry it.
+
 ## Where it lives
 
 | Piece | Where |
