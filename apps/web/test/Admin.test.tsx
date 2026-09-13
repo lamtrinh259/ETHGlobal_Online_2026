@@ -159,3 +159,16 @@ describe("resetting a person's Privy accounts", () => {
     expect(screen.getByTestId("admin-unlinked")).toHaveTextContent("Privy refused: email (400)");
   });
 });
+
+describe("resetting every Selfie Check", () => {
+  it("resets after a confirmation and says how many were forgotten and deleted", async () => {
+    await show({ adminHumanityResetAll: vi.fn(async () => ({ forgotten: 3, deleted: [{}, {}] })) });
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    fireEvent.click(screen.getByTestId("admin-reset-all"));
+    await waitFor(() =>
+      expect(screen.getByTestId("admin-reset-all-result")).toHaveTextContent(
+        "Forgot 3 nullifiers, deleted 2 records"
+      )
+    );
+  });
+});

@@ -2143,6 +2143,32 @@ export function createApp({
     return c.json({ ...who, did: user.id, unlinked, failed });
   });
 
+  /**
+   * Demo only: every Selfie Check on the platform, reset at once. Forgets every nullifier this node
+   * has bound and deletes every live humanity record on chain, so anybody proves again from nothing.
+   * A migration that moves names leaves proofs bound to wallets no name reaches any more; this is the
+   * way out of that without naming each one.
+   */
+  app.post("/v1/admin/humanity/reset-all", async (c) => {
+    const refused = adminGate(c);
+    if (refused) return refused;
+    const forgotten = humans.entries().length;
+    for (const [nullifier] of humans.entries()) humans.delete(nullifier);
+    const deleted: ({ wallet: Address; txHash: Hex } | { wallet: Address; error: string })[] = [];
+    for (const r of await chain.listRecords(config.HUMANITY_DOMAIN)) {
+      if (!r.live) continue;
+      try {
+        deleted.push({
+          wallet: r.wallet,
+          txHash: await chain.deleteRecord(config.HUMANITY_DOMAIN, r.wallet),
+        });
+      } catch (e) {
+        deleted.push({ wallet: r.wallet, error: (e as Error).message });
+      }
+    }
+    return c.json({ forgotten, deleted });
+  });
+
   app.post("/v1/admin/humanity/reset", async (c) => {
     const refused = adminGate(c);
     if (refused) return refused;

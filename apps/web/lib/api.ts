@@ -784,6 +784,14 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
         body: JSON.stringify({ idToken, name, viewCode }),
       });
     },
+    /** Demo only: every Selfie Check on the platform, reset at once. */
+    async adminHumanityResetAll(token: string): Promise<{ forgotten: number; deleted: unknown[] }> {
+      const res = await call(`${base}/v1/admin/humanity/reset-all`, {
+        method: "POST",
+        headers: { "x-admin-token": token },
+      });
+      return z.object({ forgotten: z.number(), deleted: z.array(z.unknown()) }).parse(await readJson(res));
+    },
     /** Demo only: unlink every account but the wallets from the person's Privy user. */
     async adminPrivyUnlink(token: string, q: { wallet?: string; handle?: string }): Promise<AdminUnlink> {
       const res = await call(`${base}/v1/admin/privy/unlink`, {

@@ -38,11 +38,14 @@ attesting it again in the DNS domain.
 
 ## A name resolves to the wrong person, or to somebody who never attested
 
-That was a real bug: the Universal Resolver falls back to the nearest ancestor resolver, so an instance
+That was a real bug: the Universal Resolver falls back to the nearest ancestor resolver, so a resolver
 that answers on the first label alone becomes a wildcard for everything beneath it. Every fallback ends at
 the resolver the `.eth` registry names, and `script/SetRootResolver.s.sol` replaces that one in a single
-transaction. Check with a name that must **not** resolve, beside one that must — a check that cannot tell them
-apart passes just as happily when the wildcard is back:
+transaction. The root resolver serving the tree today refuses any path Multipass holds no domain for,
+which is the same guarantee ([namespace.md](namespace.md)).
+
+Check with a name that must **not** resolve, beside one that must — a check that cannot tell them apart
+passes just as happily when the wildcard is back:
 
 ```bash
 curl -s $API/v1/ens/alice.anything.ketsuban.eth | jq .addr      # null
@@ -188,6 +191,7 @@ carry the stable per-action nullifier.
 
 Until this is confirmed with World, treat a humanity record as *a verified human proved this at a point
 in time* — which it is — and not as one-account-per-person. The copy says only the former.
+
 ## The footer shows a build time but no commit
 
 `next build` bakes the commit from whichever environment variable the platform sets, and a Docker

@@ -1,4 +1,4 @@
-# Demo: a reference nobody can delete
+# Demo: a vouch nobody can delete
 
 Everything here runs against the live Sepolia deployment and needs nothing but `curl`. Names resolve
 through ENSv2, so the last section checks them without touching this project's code at all.
@@ -6,7 +6,8 @@ through ENSv2, so the last section checks them without touching this project's c
 | Piece                               | Address                                      |
 | ----------------------------------- | -------------------------------------------- |
 | Multipass                           | `0x418F82fd0014a4CA402F145978bfaF0555a9cA06` |
-| AttestationFactory                  | `0xc0281d75974155fE8513F623de726F040c4bcC51` |
+| `RootAttestationResolver` (`shibboleth.eth`) | `0x542012eCb66De81CBd5De2E2952254c0e84a9447` |
+| AttestationFactory (the per-mount tree) | `0xc0281d75974155fE8513F623de726F040c4bcC51` |
 | AttestationBridge                   | `0xE5e985B5f152EbD07aF9922d564AA8A7ccB77c62` |
 | AttestationReporter (Chainlink CRE) | `0xb84EF4ad54E28B5C489dB4543609e6743449048C` |
 | KeystoneForwarder                   | `0xF8344CFd5c43616a4366C34E3EEE75af79a74482` |
@@ -17,6 +18,10 @@ through ENSv2, so the last section checks them without touching this project's c
 ```bash
 API=https://shibboleth-api.peeramid.xyz
 ```
+
+The root name is `shibboleth.eth`. Names in the examples below were claimed under `ketsuban.eth` before
+the rename and still resolve through their old resolver; a name claimed today is under `shibboleth.eth`,
+and the two are read exactly the same way.
 
 ## 0. Is the deployment wired correctly
 
@@ -49,17 +54,6 @@ curl -s $API/v1/ens/alice.ketsuban.eth | jq '{resolver, addr, answer: .texts["ke
 
 That endpoint reads through the ENSv2 UniversalResolver. Anyone can do the same with `cast` and never
 speak to this service:
-
-A live example, written under the namespace and readable by anyone — and beside it the names that must
-**not** answer, because a resolver serves its own children only:
-
-```
-demo.com.x.www.ketsuban.eth         ->  0xF0121f93b1a1bAd73AdDC316B57684bD93D3254e
-                                        via the x.com resolver 0x4b3e0eaE64b843537BFE49e9344fd2eb75c97A59
-nobody.com.x.www.ketsuban.eth       ->  0x0
-foo.demo.com.x.www.ketsuban.eth     ->  0x0
-alice.anything.ketsuban.eth         ->  0x0
-```
 
 `cast` has no DNS encoder — there is no `--to-dns-name` — so the wire-format name is written out:
 each label as a length byte and its bytes, terminated by a zero. `alice.ketsuban.eth` is
@@ -285,12 +279,7 @@ cd packages/cre && cre workflow simulate attest --target staging-settings \
   --non-interactive --trigger-index 0 --http-payload ./attest/fixtures/request.json
 ```
 
-## What this is not
-
-Ketsuban attests that accountable humans stood behind a claim. It is not identity, employment, safety,
-nationality or affiliation verification, and it never labels a person.
-
-## 5. Signed inside an enclave
+## 10. Signed inside an enclave
 
 The attester runs as a Chainlink CRE Confidential Workflow: the identity token, the view code and the
 registrar key never leave the TEE, and what comes out is a signed record anyone can check. The simulator
@@ -315,7 +304,7 @@ viewCode   {ephemeralPubkey, nonce, ciphertext}   readable only by the wallet th
 
 Deployment needs Confidential Workflows access (`cre account access`); everything above runs without it.
 
-## 6. Who may write which field
+## 11. Who may write which field
 
 The profile records are standard ENS text records on the stock ENSv2 PermissionedResolver, and the roles
 are per key and per name. When a name lands, the bridge grants that wallet `ROLE_SET_TEXT` for exactly
@@ -343,10 +332,6 @@ API_URL=https://shibboleth-api.peeramid.xyz REGISTRAR_KEY=0x… pnpm --filter @k
 
 Or let the deployment write it itself: `SEED_GRAPH=true` on the API (a pull request's preview, say) seeds
 the same namespace once the service is listening, idempotently. See docs/deploy.md.
-
-```bash
-
-```
 
 It writes, in order: a name for each person, a humanity record for the ones who "proved" it, and then
 every reference. Every record is registrar-signed and relayed through `/v1/submit`, so each one is a
@@ -395,3 +380,8 @@ attester under a code, and worded for the person receiving it — who is invitin
 bar, which account to begin with, and the link (`/me?invite=<code>`). The invitation is listed under
 "Whom you invited" as a pending check until the person links the account and claims a page, then as a
 link to read them against the bar. See [employers.md](employers.md).
+
+## What this is not
+
+ShibbolETH attests that accountable humans stood behind a claim. It is not identity, employment, safety,
+nationality or affiliation verification, and it never labels a person.

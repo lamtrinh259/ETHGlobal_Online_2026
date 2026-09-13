@@ -1,5 +1,8 @@
 # Architecture
 
+ShibbolETH writes vouches as Multipass records and names them with ENSv2. This is what runs where, how
+a record gets written, and who can do what. [namespace.md](namespace.md) is what the names mean.
+
 ## Components
 
 ```mermaid
@@ -11,91 +14,134 @@ flowchart LR
     D[DON: chain read, delivery]
     T[Enclave: token verify, record derive, registrar sign]
   end
+  A[api relay]
   subgraph chain[Ethereum]
-    M[Multipass<br/>attestation store]
-    F[AttestationFactory]
-    R[AttestationRegistry<br/>IRegistry per instance]
-    G[GroupingRegistry<br/>a level, holds no records]
-    K[MaskedMirrorRegistry<br/>the private branch]
-    S[AttestationResolver<br/>ENSIP-10 shim per instance]
+    M[Multipass<br/>every record lives here]
     B[AttestationBridge<br/>singleton]
-    I[PermissionedResolver<br/>stock ENSv2]
+    W[RootAttestationResolver<br/>one resolver for the tree]
+    I[PermissionedResolver<br/>stock ENSv2: profile records]
     E[ENSv2 .eth registry]
   end
-  A[api relay]
   P -- idToken + signed intent --> D
   D --> T
   D -- resolveRecord --> M
   T -- signed record --> A
-  A -- verify / verifyFor --> B
+  A -- verifyWithText --> B
   B -- register --> M
   B -- authorizeTextRoles / setAlias --> I
-  F -- create --> R & S
-  F -- createMirror --> K
-  E -- getSubregistry(label) --> R
-  R -- getSubregistry(www) --> G
-  G -- getSubregistry(label) --> R
-  R -- getResolver(handle) --> S
-  K -- getResolver(person) --> S
-  S -- ketsuban:* --> M
-  S -- other keys --> I
+  E -- getResolver(shibboleth) --> W
+  W -- reads records --> M
+  W -- every other key --> I
 ```
 
-## An instance
+The attester is the enclave where one is deployed, and this deployment's own node until then; the app
+says which. Nothing is stored in ENS: the resolver reads Multipass on every call.
 
-One Multipass domain ↔ one ENS parent name. `AttestationFactory.create(domain, parent, parentLabel, parentName, inner)`
-deploys the registry/resolver pair and records it; the bridge finds instances by `record.domainName`. Instances nest
-through `AttestationRegistry.setSubregistry`.
+Global, shared by every subject: platform domains (`x.com`, `t.me`, …), `humanity`, `org`, the stock
+PermissionedResolver, the bridge, the CRE workflow, the API.
 
-A domain can have a second mount: `createMirror` deploys a `MaskedMirrorRegistry` for the private branch,
-which answers a **person's** label and checks two records — a live name in the root domain, and a live
-masked record in the platform domain. The open instance refuses masked records, so the two never answer
-for each other. A `GroupingRegistry` is a level with no records of its own, shared by every account at
-that DNS name.
+## A subject
 
-Each resolver answers for names exactly one label under its own parent. The Universal Resolver falls back
-to the nearest ancestor resolver, so without that check every instance would be a wildcard for everything
-beneath it — `script/SetRootResolver.s.sol` repairs a live deployment, because every fallback ends at the
-resolver the `.eth` registry names.
+One Multipass domain is one level of the tree. A subject (`kju-is`), a platform (`x.com`), a candidate's
+vouch domain (`~alice`) and the root (`shibboleth`) are all just domains; the resolver derives each
+name from the domain, so adding one is `initializeDomain` + `activateDomain` and no deployment at all.
 
-Platforms are mounted at their own DNS names under grouping levels — `x.com` at `com.x.www.<root>`, a
-mail host under the at-sign level, both mirrored for masked records. See [the namespace](namespace.md).
+**Historical.** Before the root resolver, each mount was a deployed pair:
+`AttestationFactory.create(domain, parent, parentLabel, parentName, inner)` made an
+`AttestationRegistry` (ENSv2 `IRegistry`) and an `AttestationResolver` (ENSIP-10 shim), `createMirror`
+made a `MaskedMirrorRegistry` for the private branch, and a `GroupingRegistry` held a level with no
+records of its own. Those contracts are still deployed and still mounted for the flat platform names
+(`x`, `telegram`, …) that predate the DNS namespace; everything else is unmounted and inert. The
+migration is [root-wildcard-resolver.md](root-wildcard-resolver.md).
 
-Global, shared by every instance: platform domains (`x.com`, `t.me`, …), `humanity`, `org`, the stock
-PermissionedResolver, the bridge, the factory, the CRE workflow, the API.
+## The write path
+
+A browser never writes. It signs an intent, the attester signs the record, and a relay — or the CRE
+DON itself — pays to put it on chain.
+
+```mermaid
+sequenceDiagram
+  participant B as browser
+  participant A as attester (API or CRE enclave)
+  participant R as relay (apps/api)
+  participant G as AttestationBridge
+  participant M as Multipass
+  B->>B: sign Intent (EIP-712): wallet, domain, nonce, exp, handle, payload
+  B->>A: POST /v1/attest { idToken, intent, signature }
+  A->>M: resolveRecord(wallet, domain) — the nonce to beat
+  A->>A: check the signature, the expiry, the nonce, the linked account
+  A->>A: derive the record, sign it as registrar
+  A-->>B: { record, signature, viewCode? }
+  B->>R: POST /v1/submit { record, signature, description? }
+  R->>G: verifyWithText(record, signature, …, "description", letter)
+  G->>M: register — Multipass accepts it because the registrar signed it
+  G->>G: grant the wallet ROLE_SET_TEXT on avatar, description, url, email
+  G->>G: write the letter with the borrowed role, then hand it back
+```
+
+Two things make the shape what it is. The relay holds no power over the record: Multipass accepts it
+only because the registrar signed it, so a compromised relay can delay a write but not forge one. And
+the letter is written in the same transaction (`verifyWithText`), because a wallet with no gas would
+otherwise have a vouch on chain and nothing to read.
+
+A record the CRE workflow writes skips the relay entirely: the nodes sign the payload, the
+KeystoneForwarder calls `AttestationReporter.onReport`, and that hands it to the same bridge.
+`POST /v1/cre/delivery` is the other path, where the DON posts the signed record to the relay instead.
 
 ## Record lifecycle
 
-1. **Intent.** Wallet signs `Intent{wallet, domain, nonce, exp, optIn, pubkey, handle, payload}` (EIP-712, domain
-   `Ketsuban Intent/1`, `verifyingContract = Multipass`).
-2. **Public leg (DON).** Signature recovers to `wallet`; `exp` fresh; `nonce` strictly greater than the on-chain nonce
-   for `(wallet, domain)`; a renewal cannot rebind the wallet.
-3. **Confidential leg (enclave).** ES256 identity token verified against the pinned Privy JWK; `wallet` ∈ linked
-   wallets; the record is derived:
+1. **Intent.** Wallet signs `Intent{wallet, domain, nonce, exp, optIn, pubkey, handle, payload}` (EIP-712,
+   domain `Ketsuban Intent/1`, `verifyingContract = Multipass`).
+2. **Public leg (DON).** Signature recovers to `wallet`; `exp` fresh; `nonce` strictly greater than the
+   on-chain nonce for `(wallet, domain)`; a renewal cannot rebind the wallet.
+3. **Confidential leg (enclave).** ES256 identity token verified against the pinned Privy JWK; `wallet` ∈
+   linked wallets; the record is derived:
    - name domain: `name = handle`, `id = keccak256(DID)`, `payload = answer`
    - platform domain: `name = handle`, `id = platform id`, `payload = 0` — or, opted in,
      `name = handle ⊕ pad_name`, `id = id ⊕ pad_id`, `payload = keccak256(viewCode)`
    - `id` must equal the on-chain id when a record exists (opt-in is immutable)
-   - registrar signs the Multipass `registerName` typed data (RFC-6979); the view code, if any, is ECIES-encrypted to
-     `intent.pubkey` with a seed derived from the view-code key so replicas agree.
-4. **Delivery.** `{ record, signature, viewCode? }` reaches the relay; the relay (or an org treasury) calls
-   `AttestationBridge.verify` / `verifyFor`, which calls `Multipass.register` and grants the wallet
+   - registrar signs the Multipass `registerName` typed data (RFC-6979); the view code, if any, is
+     ECIES-encrypted to `intent.pubkey` with a seed derived from the view-code key so replicas agree.
+4. **Delivery.** `{ record, signature, viewCode? }` reaches the relay; the relay (or an org treasury, or
+   the CRE reporter) calls the bridge, which calls `Multipass.register` and grants the wallet
    `ROLE_SET_TEXT` on `avatar`, `description`, `url`, `email` for its new name.
-5. **Resolution.** `<handle>.<parentName>` resolves through `AttestationResolver`; expiry is enforced at resolution,
-   so a name goes dark at `validUntil` and returns on renewal.
+5. **Resolution.** `<handle>.<parentName>` resolves through `RootAttestationResolver`; expiry is enforced
+   at resolution, so a name goes dark at `validUntil` and returns on renewal.
 
-## Humanity
+## The Selfie Check: one human, one account
 
-The `humanity` domain is global and keyed by wallet, so the instance resolver hops into it from any name
-the same wallet holds and answers `ketsuban:humanity[:until]`. The record's id is derived from the wallet
-(`humanityRecordId`), never the World nullifier: Multipass keeps an id for a record's whole life and keeps
-a nonce per id even after deletion, and the nullifier is neither that stable (it is per action and per
-credential) nor something to publish. Its payload is the credential (`selfie`, `proof_of_human`). One
-human, one account is the nullifier's job, done off chain: the relay keeps nullifier → wallet in
-`DATA_DIR` and refuses a second wallet before spending anything.
+A World ID proof says a real person is behind a wallet. The nullifier is what makes it *one* person,
+and it stays off chain.
+
+```mermaid
+sequenceDiagram
+  participant B as browser (IDKit)
+  participant A as api
+  participant W as World
+  participant M as Multipass
+  B->>A: POST /v1/humanity/challenge { wallet }
+  A-->>B: a request signed as this app, signal = the wallet
+  B->>W: the Selfie Check, in World App
+  W-->>B: proof
+  B->>A: POST /v1/humanity { wallet, proof }
+  A->>A: our action? bound to this wallet? nullifier unspent?
+  A->>W: POST /api/v4/verify/{rp_id}, the result verbatim
+  W-->>A: { success, nullifier, results }
+  A->>A: remember nullifier → wallet in DATA_DIR
+  A->>M: register in the humanity domain, under an id derived from the wallet
+  M-->>B: ketsuban:humanity answers on every name that wallet holds
+```
+
+The record holds the credential (`selfie`, `proof_of_human`) and nothing from World — no nullifier, no
+proof, no merkle root. The id is derived from the wallet, because Multipass keeps an id for a record's
+whole life and keeps its nonce even after deletion, while a World nullifier is per action and per
+credential and is not something to publish either. So the nullifier does its one job off chain: a
+second wallet presenting the same one is refused with 409. The binding lives in `DATA_DIR`, or every
+redeploy would hand the same person another account.
 
 The proof is verified in the relay rather than the enclave: it carries no secret of the person's, and
-World is the party that decides whether the mathematics holds. `apps/api/README.md` has the exchange.
+World is the party that decides whether the mathematics holds. `apps/api/README.md` has the exchange
+field by field, and [selfie-check-feedback.md](selfie-check-feedback.md) what it cost to integrate.
 
 ## Trust boundaries
 
@@ -103,36 +149,36 @@ World is the party that decides whether the mathematics holds. `apps/api/README.
 |---|---|
 | Registrar key (enclave / Node fallback) | signs records for its domains; never transacts |
 | Multipass owner | `initializeDomain`, `changeRegistrar`, `deleteName`, fees |
-
-`deleteName` is the one power that contradicts what the product promises, so the owner should be a
-key that signs nothing else. Where it is the relayer — a hot key transacting continuously — a single
-compromise can remove references this deployment calls permanent, and preflight says so.
-
-| Factory / bridge / registry owner (operator) | creates instances, registers orgs, mounts subregistries |
+| Factory / bridge / registry owner (operator) | provisions domains, registers orgs, sets the root resolver |
 | Bridge on PermissionedResolver | `ROLE_SET_TEXT_ADMIN`, `ROLE_SET_ALIAS` on root |
 | User on PermissionedResolver | `ROLE_SET_TEXT` on four keys of their own name |
 | Relayer / org treasury | pays for `verify` / `verifyFor` |
 
-## Deploying an instance
+`deleteName` is the one power that contradicts what the product promises, so the owner should be a key
+that signs nothing else. Where it is the relayer — a hot key transacting continuously — a single
+compromise can remove vouches this deployment calls permanent, and `GET /v1/preflight` says so.
 
-1. `Multipass.initializeDomain(registrar, fee, renewalFee, domain, reward, discount)` + `activateDomain` (Multipass owner)
-2. `AttestationFactory.create(...)` — `script/DeploySepolia.s.sol` does this for the first instance
-3. Register `<parentLabel>.eth` on the ENSv2 ETHRegistrar, then `setSubregistry` / `setResolver` on the ETHRegistry
-4. `PermissionedResolver.grantRootRoles(ROLE_SET_TEXT_ADMIN | ROLE_SET_ALIAS, bridge)` once;
-   `authorizeDataRoles(ANY, "ketsuban:<key>", oracle, true)` per oracle key once
-5. CRE: add the domain to `nameDomains`, secrets in Vault; API: `NAME_DOMAINS`, `DEPLOYMENT_FILE`
+## Provisioning
 
+1. `Multipass.initializeDomain(registrar, fee, renewalFee, domain, reward, discount)` + `activateDomain`
+   (Multipass owner). `script/InitDomains.s.sol`, idempotent.
+2. Nothing else for a platform, a subject or a candidate: the root resolver derives the name from the
+   domain. A **new root** needs the label registered on the ENSv2 ETHRegistrar, a
+   `RootAttestationResolver` deployed for it, `ETHRegistry.setResolver(label, resolver)`, and
+   `AttestationBridge.setRootResolver(resolver)` so new names still get their four text-record grants.
+3. `PermissionedResolver.grantRootRoles(ROLE_SET_TEXT_ADMIN | ROLE_SET_ALIAS, bridge)` once;
+   `authorizeDataRoles(ANY, "ketsuban:<key>", oracle, true)` per oracle key once.
+4. CRE: add the domain to `nameDomains`, secrets in Vault. API: `NAME_DOMAINS`, `DEPLOYMENT_FILE`.
 
-## Root resolver mode
+Text an operator writes about a label nobody holds — a subject's description, an unclaimed public
+figure — is `setAbout(domain, label, key, value)` on the root resolver. It does not follow a resolver
+swap, so it is copied across before the old one is retired.
 
-A deployment can run with one wildcard resolver at the root (`RootAttestationResolver`, see
-[root-wildcard-resolver.md](root-wildcard-resolver.md)) instead of a registry and resolver per mount. The
-resolver maps a name's path to a Multipass domain — root, subject, `~candidate`, `<dns reversed>.www|@`,
-the masked twin, `<slug>.<question>` — and answers nothing for a path Multipass has no domain for, which is
-the guarantee the per-mount registries gave. Users' own text records, oracle data and aliases are the
-stock PermissionedResolver's, forwarded by full name as before.
+## Root-resolver mode, and the switch that selects it
 
-The API switches on `ROOT_RESOLVER` (env, or `rootResolver` in the deployment file): the tree is read from
-Multipass domains and the name rule in `packages/registrar/src/namespace.ts`, provisioning a domain is
-`initializeDomain` + `activateDomain` alone, and no factory or registry is touched. The migration is
-level by level and reversible: `script/MigrateRoot.s.sol`.
+The API switches on `ROOT_RESOLVER` (env, or `rootResolver` in the deployment file). Set — which is how
+Sepolia runs — the tree is read from Multipass domains plus the name rule in
+`packages/registrar/src/namespace.ts`, and no factory or registry is touched. Unset, the API enumerates
+the factory for per-mount instances as it did before. Users' own text records, oracle data and aliases
+are the stock PermissionedResolver's either way, forwarded by full name. The CRE handler is unaffected:
+it signs Multipass records and never touches ENS.

@@ -4314,6 +4314,53 @@ describe("the humanity check", () => {
       }
     });
 
+    it("resets everybody at once: every nullifier forgotten, every live humanity record deleted", async () => {
+      const other = `0x${"77".repeat(20)}` as Address;
+      const { chain } = fakeChain({
+        listed: {
+          humanity: [
+            {
+              wallet,
+              live: true,
+              name: "",
+              domain: "humanity",
+              nonce: "1",
+              payload: "",
+              validUntil: "2099-01-01T00:00:00.000Z",
+            },
+            {
+              wallet: other,
+              live: false,
+              name: "",
+              domain: "humanity",
+              nonce: "1",
+              payload: "",
+              validUntil: "2000-01-01T00:00:00.000Z",
+            },
+          ] as never,
+        },
+      });
+      const a = humanApp(chain, portal(), adminEnv);
+      // Whatever an earlier test left bound in the shared data dir, this is the route that clears it.
+      await a.request("/v1/admin/humanity/reset-all", { method: "POST", headers });
+      expect((await post(a, "/v1/humanity", { wallet, proof: proof(signal) })).status).toBe(200);
+      const res = await a.request("/v1/admin/humanity/reset-all", { method: "POST", headers });
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({
+        forgotten: 1,
+        deleted: [{ wallet, txHash: `0x${"de".repeat(32)}` }],
+      });
+      // Only the live record was deleted; the lapsed one had nothing to delete.
+      expect(chain.deleteRecord).toHaveBeenCalledWith("humanity", wallet);
+      expect(chain.deleteRecord).not.toHaveBeenCalledWith("humanity", other);
+      // And the same person's proof binds afresh, to any wallet.
+      const fresh = `0x${"88".repeat(20)}` as Address;
+      expect((await post(a, "/v1/humanity", { wallet: fresh, proof: proof(signal, fresh) })).status).not.toBe(
+        409
+      );
+      expect((await a.request("/v1/admin/humanity/reset-all", { method: "POST" })).status).toBe(401);
+    });
+
     it("forgets the nullifier and deletes the record, so the person can pass the check again", async () => {
       const { chain } = fakeChain({
         records: {

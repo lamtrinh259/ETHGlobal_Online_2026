@@ -1,14 +1,16 @@
 # api
 
-Relay and verification service. One container, env-configured, health-checked on `/healthz`.
+The ShibbolETH relay and verification service: it submits registrar-signed records, indexes them, and
+answers every read the portal and an agent make. One container, env-configured, health-checked on
+`/healthz`. Live at <https://shibboleth-api.peeramid.xyz>.
 
 | Route                      | Purpose                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `POST /v1/cre/delivery`    | CRE external delivery: `{ record, signature, viewCode? }` → `AttestationBridge.verify` → `{ ok, txHash }`. Guarded by `x-delivery-token` when `DELIVERY_TOKEN` is set.                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `POST /v1/attest`          | Node registrar fallback (same input/output as the enclave). Enabled only when `REGISTRAR_KEY` and `VIEWCODE_KEY` are set.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `GET /v1/verify/:name`     | Machine-readable verification read through the ENS resolver: status, wallet, answer, expiry, humanity, links (`?links=` defaults to every mount this deployment holds; an `x-view-code` header discloses opted-in links, and a header rather than a query because that code is permanent and a query string is written into every log on the way), each link's own `ensName`, `profile` (the user's `avatar`/`description`/`url`/`email` text records on the stock resolver), evidence, warning, and `branch` — `private` when the name read is the mirror one, which claims only that the person holds an account in that domain. |
-| `GET /v1/preflight`        | What the configured addresses actually are on chain, both factories included: code present, which bridge functions the deployed bytecode has, and each name domain's active flag, registrar and fees. 503 with reasons when something is off.                                                                                                                                                                                                                                                                                                                                                                                      |
-| `GET /v1/instances`        | Every mount this deployment holds, from both factories, each with `parentName` and — where a private branch exists — `maskedParentName`. Plus `bridge`, `permissionedResolver`, `ethRegistry`, `ethRegistrar` and `paymentToken` for what a wallet does itself.                                                                                                                                                                                                                                                                                                                                                                    |
+| `GET /v1/preflight`        | What the configured addresses actually are on chain: code present, which bridge functions the deployed bytecode has, and each name domain's active flag, registrar and fees. 503 with reasons when something is off.                                                                                                                                                                                                                                                                                                                                                                                      |
+| `GET /v1/instances`        | Every mount this deployment holds, each with `parentName` and — where a private branch exists — `maskedParentName`. Read from the Multipass domains with `ROOT_RESOLVER` set, and from the factories without it. Plus `bridge`, `permissionedResolver`, `ethRegistry`, `ethRegistrar` and `paymentToken` for what a wallet does itself.                                                                                                                                                                                                                                                                                                                                                                    |
 | `GET /v1/explain/:name`    | What a name would claim here, whether or not anything resolves at it: `kind` is `person`, `account`, `private`, `reference`, `mount` or `unknown`, so an agent can tell a name nobody holds from one this deployment could never answer — and a mount, one label under the root like `x.<root>`, from the person it is shaped like. Same function the app reads.                                                                                                                                                                                                                                                                   |
 | `GET /v1/eth-label/:label` | Who owns a `.eth` label on the registry the bridge checks, so a page can say that before someone pays for a `NotNameOwner` revert. `owner: null` means nobody here holds it.                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 
@@ -16,9 +18,10 @@ Relay and verification service. One container, env-configured, health-checked on
 (never their values), and which optional variables are missing. Addresses need not be configured at all —
 the build carries the deployment it was made against, and an explicit variable still wins.
 
-A DNS domain nobody has mounted is built while the first account there is attested: `/v1/attest` verifies
-the request first, then deploys the grouping levels, the instance and the private mirror, so a person with
-an ordinary mail host is never turned away.
+A DNS domain nobody has mounted is provisioned while the first account there is attested: `/v1/attest`
+verifies the request first, then initialises the Multipass domain — or, without `ROOT_RESOLVER`, deploys
+the grouping levels, the instance and the private mirror — so a person with an ordinary mail host is
+never turned away.
 
 CORS: `CORS_ORIGINS` (comma list, default `*`) — set it to the web app origin in production.
 | `GET /v1/nonce?wallet=&domain=` | On-chain state for a wallet in a domain; `next` is the nonce to sign into the intent. Also `ready` and `reason`: whether a record in that domain can be written at all (initialised, active, and this attester is its registrar), so the browser learns before the wallet signs. |
@@ -33,6 +36,7 @@ CORS: `CORS_ORIGINS` (comma list, default `*`) — set it to the web app origin 
 | `GET /v1/admin/selfie-check` | Demo only, `x-admin-token`: whether a reference needs the Selfie Check right now, for everyone (`required`), what was configured, and whether the browser is offered it. |
 | `POST /v1/admin/selfie-check` | Demo only, `x-admin-token`: `{required: boolean}` turns the check off for everyone, or back on; persisted in the data dir. |
 | `POST /v1/admin/privy/unlink` | Demo only, `x-admin-token` and `PRIVY_APP_SECRET`: `{wallet}` or `{handle}` → finds the Privy user holding the wallet and unlinks every account but the wallets (email, Google, X, GitHub, Discord, LinkedIn…), so the person can onboard again. Reports what was unlinked and what Privy refused. |
+| `POST /v1/admin/humanity/reset-all` | Demo only, `x-admin-token`: forgets every nullifier bound here and deletes every live humanity record on chain, so everybody proves again from nothing (the way out after a migration leaves proofs bound to wallets no name reaches). Reports counts and each delete. |
 | `POST /v1/admin/humanity/reset` | Demo only, `x-admin-token`: `{wallet}` or `{handle}` → forgets every nullifier bound to the wallet and deletes its humanity record on chain (a Multipass owner call), so the person can pass the Selfie Check again. Reports what it forgot and whether the delete went through. |
 | `POST /v1/humanity` | `{wallet, proof}` → verifies the IDKit result with World, then writes the human into `HUMANITY_DOMAIN` under an id derived from the wallet (Multipass keeps an id for a record's life, and the World nullifier is neither that stable nor something to publish), which is what makes `ketsuban:humanity` answer; the nullifier is remembered off chain so a second wallet cannot claim the same person. 409 when that nullifier already belongs to another account, 422 with World's own reason when the proof is refused. |
 | `POST /v1/gas` | `{wallet}` → relayer sends `GAS_TOPUP_WEI` once to a wallet holding a live name and below that balance (disabled when 0). "Once" is kept in `DATA_DIR`, so a redeploy does not hand out a second payout. |
@@ -89,15 +93,19 @@ Unmet requirements do not refuse the reference unless `REQUIRE_INVITE` is on: it
 reported as `solicited: false`. The app holds the _invited_ flow until what was asked for is linked,
 which is a courtesy to the candidate rather than a rule of the attester.
 
-Vouch instances: when a delivery registers a record in the root name domain (`NAME_DOMAINS[0]`), the relay provisions
-`~<handle>` — Multipass domain (fee 0, registrar `REGISTRAR_ADDRESS`) → `AttestationFactory.create` → root
-`setSubregistry(handle)` — so `bob.alice.<root>` is a real ENS name. Needs `REGISTRY`, `PERMISSIONED_RESOLVER`
-(from `DEPLOYMENT_FILE`) and `REGISTRAR_ADDRESS`; the relayer must own Multipass, the factory and the root registry.
+Vouch domains: when a delivery registers a record in the root name domain (`NAME_DOMAINS[0]`), the relay
+provisions `~<handle>` so `bob.alice.<root>` is a real ENS name. With `ROOT_RESOLVER` set that is the
+Multipass domain alone (fee 0, registrar `REGISTRAR_ADDRESS`) — the domain existing *is* the mount, since
+the resolver derives the name from it. Without it, the domain plus `AttestationFactory.create` plus root
+`setSubregistry(handle)`, which needs `REGISTRY` and `PERMISSIONED_RESOLVER` from `DEPLOYMENT_FILE` as
+well. Either way the relayer must own Multipass (and, in the per-mount case, the factory and the root
+registry).
 
 ## Proof of unique humanity
 
-One human, one account. The person proves it in World App; the record that comes out is keyed by the
-nullifier, which is stable for this app and this action, so a second wallet cannot claim the same human.
+One human, one account. The person proves it in World App; the nullifier that comes back is bound to
+their wallet here, so a second wallet presenting the same one is refused. The record on chain is keyed by
+the wallet, not the nullifier — see [docs/architecture.md](../../docs/architecture.md) for why.
 
 ```mermaid
 sequenceDiagram
@@ -113,15 +121,15 @@ sequenceDiagram
   A->>A: action ours? signal this wallet? nullifier unspent?
   A->>W: POST /api/v4/verify/{rp_id}, the result verbatim
   W-->>A: { success, nullifier, results }
-  A->>M: register(name 0, id nullifier, payload level) as registrar
+  A->>A: remember nullifier → wallet in DATA_DIR
+  A->>M: register(name 0, id from wallet, payload credential) as registrar
 ```
 
 Three checks, and each has a job. The **action** scopes the nullifier, so a proof minted for a different
 action of the same app is a proof of something else. The **signal** binds the proof to the wallet that
 asked, so one captured in flight cannot be spent on another account. The **nullifier** is the person:
 its binding to a wallet is kept in `DATA_DIR`, because held in memory it would mean "one per process"
-and every redeploy would hand the same human another account. Multipass gives the same guarantee a
-second time — an id is unique within a domain — so a binding that was lost still cannot land twice.
+and every redeploy would hand the same human another account.
 
 Unconfigured, both routes answer 501 and the web CTA stays disabled: nothing here is required for the
 rest of the service. The spec followed is [RP signatures](https://docs.world.org/world-id/idkit/signatures)
@@ -176,7 +184,7 @@ sequenceDiagram
   participant V as verifier
   C->>A: POST /v1/disclose (box to enclave key, signed)
   A->>A: signer holds the record? unexpired? box matches?
-  V->>A: GET /v1/disclose/alice.ketsuban.eth/x
+  V->>A: GET /v1/disclose/alice.shibboleth.eth/x
   A->>E: open the view code
   E-->>A: handle
   A-->>V: { disclosed: { handle, platformId } }

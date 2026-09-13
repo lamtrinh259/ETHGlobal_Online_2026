@@ -1,3 +1,43 @@
+# View codes and disclosure
+
+A private account is on chain as a masked name and a commitment. The view code is what opens it, and
+who may use it is the holder's decision, one reader at a time.
+
+## Where a view code comes from
+
+It is derived, never stored: `deriveViewCode(VIEWCODE_KEY, domain, platform account id)` inside the
+attester. The same account in the same domain always gives the same code, so there is no per-person
+secret for anyone to lose, and the attester keeps no table of them.
+
+```mermaid
+flowchart TD
+  K["VIEWCODE_KEY · the attester's secret"] --> D["deriveViewCode(key, domain, account id)"]
+  D --> V["the view code · 32 bytes, nowhere stored"]
+  V --> C["on chain: the masked name, and a commitment to this code"]
+  V --> E["at attestation: encrypted to the browser's own key"]
+  V --> S["later: POST /v1/viewcodes re-derives it for the signed-in person, on any device"]
+  V --> G["a grant: encrypted to the registrar's key, signed by the holder"]
+  G --> R1["a reader the holder named: one wallet, one name, or a whole branch"]
+  G --> R2["whoever holds the link: the link carries the secret"]
+```
+
+The browser keeps its own keypair (`apps/web/lib/keys.ts`) because an embedded wallet never exposes a
+private key; losing it costs nothing, since `POST /v1/viewcodes` derives the codes again from the
+Privy identity token and the wallets that session holds. A code somebody *gave* this person is the one
+thing that cannot be re-derived, so `POST /v1/viewcodes/given` keeps it against their Privy user.
+
+## Opening one account for one reader
+
+The holder signs a `Ketsuban Disclosure` over the ciphertext hash, the domains, an audience and an
+expiry. The view code inside it is encrypted to the registrar's public key, which lives in the
+enclave, so storing the grant gives the relay nothing: only the enclave can open the box, and the
+handle is never written to disk or to chain. `GET /v1/disclose/:name/:domain` is where a reader asks.
+
+The audience is one of four: a wallet, a name (`bob.shibboleth.eth`), a branch
+(`*.com.acme.www.shibboleth.eth` — whoever holds a name under `acme.com`, which the holder could not
+enumerate), or nobody in particular, which is the link below. A reader's name is resolved on chain
+before it counts; a claim is never evidence. `GET /v1/disclosures/:name` is the holder's own list, and
+`POST /v1/revoke` takes one back.
 
 ## The link secret
 

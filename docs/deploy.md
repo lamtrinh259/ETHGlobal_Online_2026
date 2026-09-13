@@ -18,7 +18,7 @@ Prerequisites: `PRIVATE_KEY` funded on Sepolia; Multipass domains initialised by
 
 ```bash
 MULTIPASS=0x418F82fd0014a4CA402F145978bfaF0555a9cA06 REGISTRAR=<registrar address> \
-DOMAINS=ketsuban,kju-is,x,telegram,humanity,org \
+DOMAINS=shibboleth,kju-is,x,telegram,humanity,org \
 forge script script/InitDomains.s.sol --rpc-url sepolia --mnemonics "$ETH_SEPOLIA_MNEMONIC" --mnemonic-indexes 1 --broadcast
 ```
 
@@ -29,12 +29,14 @@ export MULTIPASS=0x418F82fd0014a4CA402F145978bfaF0555a9cA06
 export ETH_REGISTRY=0xbdc85dd5b15d7ecb354cd7cb6f2c50b4f2c4f0e2
 export VERIFIABLE_FACTORY=0x10dc6333cdfe1fcef624c6e0a8221b91804cd7ef
 export PERMISSIONED_RESOLVER_IMPL=0x9eae5c2730a7dd16bdd1dee6421a1b91e3b0365e
-export ROOT_DOMAIN=ketsuban ROOT_LABEL=ketsuban CHILD_DOMAIN=kju-is CHILD_LABEL=kju-is
+export ROOT_DOMAIN=shibboleth ROOT_LABEL=shibboleth CHILD_DOMAIN=kju-is CHILD_LABEL=kju-is
 forge script script/DeploySepolia.s.sol --rpc-url sepolia --broadcast
 ```
 
-Deploys the stock PermissionedResolver (Verifiable Factory), factory, bridge, the root instance (`*.ketsuban.eth`) and a
-child instance nested under it (`*.kju-is.ketsuban.eth`); writes `deployments/11155111.json`.
+Deploys the stock PermissionedResolver (Verifiable Factory), factory, bridge, the root instance
+(`*.shibboleth.eth`) and a child instance nested under it (`*.kju-is.shibboleth.eth`); writes
+`deployments/11155111.json`. A deployment in root-resolver mode needs the resolver instead of the
+instances — [root-wildcard-resolver.md](root-wildcard-resolver.md) has that runbook.
 
 Mount the root name on the ETHRegistrar (`0xa88553f454b77203b0d036a05c894d555eaaa2cc`) with the mock payment token
 (MockUSDC `0x768f42455a2d082e23ceef7d51e5787c82d67a39`, `mint(address,uint256)` is open on Sepolia):
@@ -65,8 +67,8 @@ the production variables.
 Each side derives the other from that one variable (`previewId` / `forPreview` in `@ketsuban/registrar`):
 
 - the web app reads `COOLIFY_FQDN` at runtime on the server and puts the id in front of `NEXT_PUBLIC_API_URL`,
-  `NEXT_PUBLIC_ATTEST_URL` and `NEXT_PUBLIC_SITE_URL` — so preview `1` talks to `1.ketsuban-api…` and writes
-  its own links as `1.ketsuban…`;
+  `NEXT_PUBLIC_ATTEST_URL` and `NEXT_PUBLIC_SITE_URL` — so preview `1` talks to `1.shibboleth-api…` and
+  writes its own links as `1.shibboleth…`;
 - the API allows every origin in `CORS_ORIGINS` with the id in front as well (`https://1.shibboleth.peeramid.xyz`
   beside `https://shibboleth.peeramid.xyz`), and `/healthz` reports `preview: "1"` (`null` in production).
 

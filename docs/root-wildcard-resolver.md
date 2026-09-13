@@ -1,7 +1,13 @@
 # One wildcard resolver at the root — plan, spike, migration
 
-Branch: `spike/root-wildcard-resolver`. Spike: `packages/contracts/src/RootAttestationResolver.sol`,
-tests in `test/RootAttestationResolver.t.sol` (10 passing, forge, local).
+**Largely historical.** The migration is done: Sepolia serves `shibboleth.eth` through one
+`RootAttestationResolver` and the per-mount registries are unmounted. Read
+[namespace.md](namespace.md) for the rule as it stands; read this for how it got there, what was
+unmounted from where, and which rollback each step has. The "State on Sepolia" sections at the bottom
+are the record of the live deployment and are current.
+
+Spike: `packages/contracts/src/RootAttestationResolver.sol`, tests in
+`test/RootAttestationResolver.t.sol` (10 passing, forge, local).
 
 ## Where we are
 
@@ -122,6 +128,9 @@ key that mounts today. Multipass ownership is untouched.
 3. `check:live` against the local stack (`CHECK_API`/`CHECK_WEB`), then against Sepolia after each unmount.
 
 ## Recommendation
+
+Done, in this order, on 2026-09-12 and 2026-09-13 — the two "State on Sepolia" sections below record
+what each step produced.
 
 Do it in that order, on this branch: `setAbout` → factory becomes a mount registry → `DeployLocal` on the root
 resolver → docker e2e green → Sepolia steps 1–3 with `check:live` between each. Two to three days. The

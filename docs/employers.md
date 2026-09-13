@@ -42,7 +42,7 @@ An employer usually knows a candidate by an account — `@lamtrinh259` on github
 hold a name for it here. The search says so, and on `/employers` the answer is an invitation rather
 than a dead end:
 
-> peersky.ketsuban.eth is inviting you to pass their Backend engineer risk assessment policy, please
+> peersky.shibboleth.eth is inviting you to pass their Backend engineer risk assessment policy, please
 > follow this link and begin with connecting your github.com account (@lamtrinh259):
 > https://shibboleth.peeramid.xyz/me?invite=0123456789abcdef0123456789abcdef
 

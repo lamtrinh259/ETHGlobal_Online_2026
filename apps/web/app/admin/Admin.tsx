@@ -24,7 +24,8 @@ export function Admin() {
   const [state, setState] = useState<AdminHumanity>();
   const [result, setResult] = useState<AdminReset>();
   const [error, setError] = useState<string>();
-  const [busy, setBusy] = useState<"look" | "reset" | "switch" | "unlink">();
+  const [busy, setBusy] = useState<"look" | "reset" | "switch" | "unlink" | "all">();
+  const [resetAll, setResetAll] = useState<{ forgotten: number; deleted: unknown[] }>();
   const [unlinked, setUnlinked] = useState<AdminUnlink>();
   /** The deletion whose confirmation has been read, so closing it does not bring it back */
   const [doneRead, setDoneRead] = useState<string>();
@@ -90,6 +91,23 @@ export function Admin() {
       setUnlinked(await api.adminPrivyUnlink(token, query()));
     } catch (e) {
       setError((e as Error).message);
+    } finally {
+      setBusy(undefined);
+    }
+  };
+  const resetEveryone = async () => {
+    if (
+      !window.confirm(
+        "Reset EVERY Selfie Check on the platform? Every nullifier is forgotten and every live humanity record deleted."
+      )
+    )
+      return;
+    setPolicyError(undefined);
+    setBusy("all");
+    try {
+      setResetAll(await api.adminHumanityResetAll(token));
+    } catch (e) {
+      setPolicyError((e as Error).message);
     } finally {
       setBusy(undefined);
     }
@@ -167,7 +185,21 @@ export function Admin() {
           >
             {policy?.required ? "Turn the Selfie Check off for everyone" : "Require the Selfie Check again"}
           </button>
+          <button
+            type="button"
+            onClick={resetEveryone}
+            disabled={!token || !!busy}
+            data-testid="admin-reset-all"
+          >
+            {busy === "all" ? "resetting…" : "Reset every Selfie Check"}
+          </button>
         </p>
+        {resetAll && (
+          <p className="muted" data-testid="admin-reset-all-result">
+            Forgot {resetAll.forgotten} {resetAll.forgotten === 1 ? "nullifier" : "nullifiers"}, deleted{" "}
+            {resetAll.deleted.length} {resetAll.deleted.length === 1 ? "record" : "records"} on chain.
+          </p>
+        )}
         {policy && (
           <p className="muted" data-testid="admin-policy-state">
             Right now: {policy.required ? "required" : "off"}
