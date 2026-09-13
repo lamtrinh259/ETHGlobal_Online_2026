@@ -35,16 +35,11 @@ tell which to believe. *Ask:* a distinct code for "valid proof, verification ref
 accepted credentials; which one a flow asks for is only visible in the SDK. *Ask:* show the credential
 asked for in the widget.
 
-**6. The "Sybil score" from the presentation is not in the API, and the one we need is per cluster.**
-`POST /api/v4/verify/{rp_id}` returns `success`, `action`, `nullifier`, `created_at`, `environment`,
-`session_id`, `results[]`; the credential page says it returns "not a numeric Sybil or uniqueness
-score". Meanwhile we compute our own over the vouch graph, seeded by who passed the check
-(`apps/api/src/graph.ts`). What would help most is a score scoped to a subset of our users: the
-people who vouch for one candidate, an employer's shortlist, one company's cohort. That says whether a
-cluster is many humans or one operator, which a per-user signal cannot. The way to get it today would
-be one World app id per cluster, which is a hack. *Ask:* say where the score is or that it is not yet
-exposed, and consider a query over a set of nullifiers (or an action per cluster) that returns how many
-distinct humans are behind them.
+**6. The "Sybil score" from the presentation is not in the API.** The verify response has no score,
+and the docs say there is none. We built our own from the vouch graph. What we would actually want
+from World: give it a group of our users (say, everyone who vouched for one candidate) and get back
+how many real humans are in it. Today the only way is a separate app id per group, which is a hack.
+*Ask:* a score per group of users.
 
 **7. Nullifier stability is documented twice, differently (2026-09-12).** `idkit/integrate`: the same
 person and action always produce the same nullifier. `4-0-migration`: nullifiers are one-time, and
