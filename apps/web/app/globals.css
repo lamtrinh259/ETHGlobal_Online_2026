@@ -482,9 +482,9 @@ dl.kv dd {
 /* ── landing ── */
 .hero-banner {
   display: block;
-  width: 100%;
-  max-width: 480px;
-  height: auto;
+  width: auto;
+  max-width: 100%;
+  height: 160px;
   border-radius: var(--radius, 12px);
   margin: 0 0 var(--sp-md);
 }
