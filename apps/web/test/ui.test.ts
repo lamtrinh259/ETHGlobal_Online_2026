@@ -35,11 +35,11 @@ describe("nav", () => {
 
 describe("apiMisconfigured", () => {
   it("flags a loopback API on a public origin only", () => {
-    expect(apiMisconfigured("http://127.0.0.1:8787", "https://ketsuban-app.peeramid.xyz")).toBe(true);
+    expect(apiMisconfigured("http://127.0.0.1:8787", "https://shibboleth.peeramid.xyz")).toBe(true);
     expect(apiMisconfigured("http://localhost:8787", "https://x.example")).toBe(true);
     expect(apiMisconfigured("http://127.0.0.1:8787", "http://localhost:3000")).toBe(false);
     expect(apiMisconfigured("http://127.0.0.1:8787", "")).toBe(false);
-    expect(apiMisconfigured("https://ketsuban.peeramid.xyz", "https://ketsuban-app.peeramid.xyz")).toBe(
+    expect(apiMisconfigured("https://shibboleth.peeramid.xyz", "https://shibboleth.peeramid.xyz")).toBe(
       false
     );
   });

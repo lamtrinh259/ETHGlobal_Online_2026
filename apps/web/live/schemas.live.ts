@@ -34,9 +34,9 @@ import {
  *
  * Parsing is only half of it: `chain.live.ts` asks whether what parsed is what the chain holds.
  */
-const API = (process.env.CHECK_API ?? "https://ketsuban-api.peeramid.xyz").replace(/\/$/, "");
-const HANDLE = process.env.CHECK_HANDLE ?? "peersky";
-const ROOT = process.env.CHECK_ROOT ?? "ketsuban.eth";
+const API = (process.env.CHECK_API ?? "https://shibboleth-api.peeramid.xyz").replace(/\/$/, "");
+const HANDLE = process.env.CHECK_HANDLE ?? "employer-test";
+const ROOT = process.env.CHECK_ROOT ?? "shibboleth.eth";
 const WALLET = process.env.CHECK_WALLET ?? "0xD70B5E8A232Bf67F64658cbDDebe32e1443894a0";
 const SUBJECT = process.env.CHECK_SUBJECT ?? "kju-is";
 

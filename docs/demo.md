@@ -15,7 +15,7 @@ through ENSv2, so the last section checks them without touching this project's c
 `API` below is the deployed relay, `alice` a candidate who has already been through the flow.
 
 ```bash
-API=https://ketsuban-api.peeramid.xyz
+API=https://shibboleth-api.peeramid.xyz
 ```
 
 ## 0. Is the deployment wired correctly
@@ -338,7 +338,7 @@ names and three references give it nothing to show, so there is a seeder that wr
 shaped like the real thing:
 
 ```sh
-API_URL=https://ketsuban-api.peeramid.xyz REGISTRAR_KEY=0x… pnpm --filter @ketsuban/api seed:graph
+API_URL=https://shibboleth-api.peeramid.xyz REGISTRAR_KEY=0x… pnpm --filter @ketsuban/api seed:graph
 ```
 
 Or let the deployment write it itself: `SEED_GRAPH=true` on the API (a pull request's preview, say) seeds

@@ -11,7 +11,7 @@ vi.stubEnv("NEXT_PUBLIC_PARENT_NAMES", "ketsuban.eth,kju-is.ketsuban.eth");
 const { middleware } = await import("@/middleware");
 const { NextRequest } = await import("next/server");
 
-const go = (path: string) => middleware(new NextRequest(new URL(path, "https://ketsuban.peeramid.xyz")));
+const go = (path: string) => middleware(new NextRequest(new URL(path, "https://shibboleth.peeramid.xyz")));
 
 describe("a person's name goes to their page", () => {
   it("redirects a single label under the root, for real", () => {

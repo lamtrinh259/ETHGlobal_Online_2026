@@ -4197,7 +4197,7 @@ describe("the humanity check", () => {
       const res = await humanApp(fakeChain().chain, portal(), adminEnv).request("/v1/admin/selfie-check", {
         method: "OPTIONS",
         headers: {
-          origin: "https://ketsuban.peeramid.xyz",
+          origin: "https://shibboleth.peeramid.xyz",
           "access-control-request-method": "GET",
           "access-control-request-headers": "x-admin-token",
         },
@@ -5174,15 +5174,15 @@ describe("a preview deployment", () => {
     const { chain } = fakeChain();
     const a = app(chain, {
       ...baseEnv,
-      CORS_ORIGINS: "https://ketsuban.peeramid.xyz",
-      COOLIFY_FQDN: "1.ketsuban-api.peeramid.xyz",
+      CORS_ORIGINS: "https://shibboleth.peeramid.xyz",
+      COOLIFY_FQDN: "1.shibboleth-api.peeramid.xyz",
     });
-    const preview = await a.request("/healthz", { headers: { origin: "https://1.ketsuban.peeramid.xyz" } });
-    expect(preview.headers.get("access-control-allow-origin")).toBe("https://1.ketsuban.peeramid.xyz");
+    const preview = await a.request("/healthz", { headers: { origin: "https://1.shibboleth.peeramid.xyz" } });
+    expect(preview.headers.get("access-control-allow-origin")).toBe("https://1.shibboleth.peeramid.xyz");
     expect((await preview.json()).preview).toBe("1");
-    const production = await a.request("/healthz", { headers: { origin: "https://ketsuban.peeramid.xyz" } });
-    expect(production.headers.get("access-control-allow-origin")).toBe("https://ketsuban.peeramid.xyz");
-    const other = await a.request("/healthz", { headers: { origin: "https://2.ketsuban.peeramid.xyz" } });
+    const production = await a.request("/healthz", { headers: { origin: "https://shibboleth.peeramid.xyz" } });
+    expect(production.headers.get("access-control-allow-origin")).toBe("https://shibboleth.peeramid.xyz");
+    const other = await a.request("/healthz", { headers: { origin: "https://2.shibboleth.peeramid.xyz" } });
     expect(other.headers.get("access-control-allow-origin")).toBeNull();
   });
 
@@ -5190,10 +5190,10 @@ describe("a preview deployment", () => {
     const { chain } = fakeChain();
     const a = app(chain, {
       ...baseEnv,
-      CORS_ORIGINS: "https://ketsuban.peeramid.xyz",
-      COOLIFY_FQDN: "ketsuban-api.peeramid.xyz",
+      CORS_ORIGINS: "https://shibboleth.peeramid.xyz",
+      COOLIFY_FQDN: "shibboleth-api.peeramid.xyz",
     });
-    const res = await a.request("/healthz", { headers: { origin: "https://1.ketsuban.peeramid.xyz" } });
+    const res = await a.request("/healthz", { headers: { origin: "https://1.shibboleth.peeramid.xyz" } });
     expect(res.headers.get("access-control-allow-origin")).toBeNull();
     expect((await res.json()).preview).toBeNull();
   });

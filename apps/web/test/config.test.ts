@@ -9,9 +9,9 @@ import { loadWebConfig, siteUrl } from "@/lib/config";
 const production = {
   NEXT_PUBLIC_PRIVY_APP_ID: "app",
   NEXT_PUBLIC_PRIVY_CLIENT_ID: "client",
-  NEXT_PUBLIC_API_URL: "https://ketsuban-api.peeramid.xyz",
-  NEXT_PUBLIC_ATTEST_URL: "https://ketsuban-api.peeramid.xyz",
-  NEXT_PUBLIC_SITE_URL: "https://ketsuban.peeramid.xyz",
+  NEXT_PUBLIC_API_URL: "https://shibboleth-api.peeramid.xyz",
+  NEXT_PUBLIC_ATTEST_URL: "https://shibboleth-api.peeramid.xyz",
+  NEXT_PUBLIC_SITE_URL: "https://shibboleth.peeramid.xyz",
   NEXT_PUBLIC_CHAIN_ID: "11155111",
   NEXT_PUBLIC_MULTIPASS: "0x418f82fd0014a4ca402f145978bfaf0555a9ca06",
   NEXT_PUBLIC_NAME_DOMAINS: "ketsuban,kju-is",
@@ -21,32 +21,32 @@ const production = {
 describe("where the app is served, and which API it talks to", () => {
   it("talks to the production API in production", () => {
     const c = loadWebConfig(production);
-    expect(c.apiUrl).toBe("https://ketsuban-api.peeramid.xyz");
-    expect(c.attestUrl).toBe("https://ketsuban-api.peeramid.xyz");
+    expect(c.apiUrl).toBe("https://shibboleth-api.peeramid.xyz");
+    expect(c.attestUrl).toBe("https://shibboleth-api.peeramid.xyz");
     expect(c.confidential).toBe(false);
-    expect(siteUrl(production)).toBe("https://ketsuban.peeramid.xyz");
+    expect(siteUrl(production)).toBe("https://shibboleth.peeramid.xyz");
   });
 
   it("talks to the preview's own API where the platform says this is a preview", () => {
-    const preview = { ...production, COOLIFY_FQDN: "1.ketsuban.peeramid.xyz" };
+    const preview = { ...production, COOLIFY_FQDN: "1.shibboleth.peeramid.xyz" };
     const c = loadWebConfig(preview);
-    expect(c.apiUrl).toBe("https://1.ketsuban-api.peeramid.xyz");
-    expect(c.attestUrl).toBe("https://1.ketsuban-api.peeramid.xyz");
+    expect(c.apiUrl).toBe("https://1.shibboleth-api.peeramid.xyz");
+    expect(c.attestUrl).toBe("https://1.shibboleth-api.peeramid.xyz");
     // Same origin either side of the id: still not a confidential attester.
     expect(c.confidential).toBe(false);
-    expect(siteUrl(preview)).toBe("https://1.ketsuban.peeramid.xyz");
+    expect(siteUrl(preview)).toBe("https://1.shibboleth.peeramid.xyz");
   });
 
   it("reads the preview from COOLIFY_URL too, with its scheme", () => {
-    const c = loadWebConfig({ ...production, COOLIFY_URL: "https://12.ketsuban.peeramid.xyz" });
-    expect(c.apiUrl).toBe("https://12.ketsuban-api.peeramid.xyz");
+    const c = loadWebConfig({ ...production, COOLIFY_URL: "https://12.shibboleth.peeramid.xyz" });
+    expect(c.apiUrl).toBe("https://12.shibboleth-api.peeramid.xyz");
   });
 
   it("keeps a separate attester separate, in the same preview", () => {
     const c = loadWebConfig({
       ...production,
       NEXT_PUBLIC_ATTEST_URL: "https://attest.example",
-      COOLIFY_FQDN: "1.ketsuban.peeramid.xyz",
+      COOLIFY_FQDN: "1.shibboleth.peeramid.xyz",
     });
     expect(c.attestUrl).toBe("https://1.attest.example");
     expect(c.confidential).toBe(true);

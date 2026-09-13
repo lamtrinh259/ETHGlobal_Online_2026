@@ -44,7 +44,7 @@ than a dead end:
 
 > peersky.ketsuban.eth is inviting you to pass their Backend engineer risk assessment policy, please
 > follow this link and begin with connecting your github.com account (@lamtrinh259):
-> https://ketsuban.peeramid.xyz/me?invite=0123456789abcdef0123456789abcdef
+> https://shibboleth.peeramid.xyz/me?invite=0123456789abcdef0123456789abcdef
 
 It is the same invitation resource the candidate side already uses — one store, one code shape, one
 `?invite=<code>` link shape — with a second kind. `POST /v1/invite` with `kind: "policy"` takes

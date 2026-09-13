@@ -57,8 +57,8 @@ ENSv2 Sepolia addresses: [docs.ens.domains/learn/deployments](https://docs.ens.d
 
 ## Preview deployments (one pull request, two hosts)
 
-Coolify serves a pull request's preview at `{{pr_id}}.{{domain}}` — `https://1.ketsuban.peeramid.xyz` for
-the web app, `https://1.ketsuban-api.peeramid.xyz` for the API — and tells each container so through its
+Coolify serves a pull request's preview at `{{pr_id}}.{{domain}}` — `https://1.shibboleth.peeramid.xyz` for
+the web app, `https://1.shibboleth-api.peeramid.xyz` for the API — and tells each container so through its
 predefined `COOLIFY_FQDN` (and `COOLIFY_URL`, with the scheme). Nothing else changes: both previews run with
 the production variables.
 
@@ -67,8 +67,8 @@ Each side derives the other from that one variable (`previewId` / `forPreview` i
 - the web app reads `COOLIFY_FQDN` at runtime on the server and puts the id in front of `NEXT_PUBLIC_API_URL`,
   `NEXT_PUBLIC_ATTEST_URL` and `NEXT_PUBLIC_SITE_URL` — so preview `1` talks to `1.ketsuban-api…` and writes
   its own links as `1.ketsuban…`;
-- the API allows every origin in `CORS_ORIGINS` with the id in front as well (`https://1.ketsuban.peeramid.xyz`
-  beside `https://ketsuban.peeramid.xyz`), and `/healthz` reports `preview: "1"` (`null` in production).
+- the API allows every origin in `CORS_ORIGINS` with the id in front as well (`https://1.shibboleth.peeramid.xyz`
+  beside `https://shibboleth.peeramid.xyz`), and `/healthz` reports `preview: "1"` (`null` in production).
 
 The id is the first label of the host, and only when it is a number; a production host derives nothing.
 

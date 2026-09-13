@@ -13,10 +13,10 @@ import { describe, expect, it } from "vitest";
  *   pnpm --filter @ketsuban/web check:live
  *   CHECK_WEB=http://127.0.0.1:3000 pnpm --filter @ketsuban/web check:live
  */
-const WEB = (process.env.CHECK_WEB ?? "https://ketsuban.peeramid.xyz").replace(/\/$/, "");
+const WEB = (process.env.CHECK_WEB ?? "https://shibboleth.peeramid.xyz").replace(/\/$/, "");
 const SUBJECT = process.env.CHECK_SUBJECT ?? "kju-is";
-const ROOT = process.env.CHECK_ROOT ?? "ketsuban.eth";
-const API = (process.env.CHECK_API ?? "https://ketsuban-api.peeramid.xyz").replace(/\/$/, "");
+const ROOT = process.env.CHECK_ROOT ?? "shibboleth.eth";
+const API = (process.env.CHECK_API ?? "https://shibboleth-api.peeramid.xyz").replace(/\/$/, "");
 
 const get = async (path: string) => {
   const res = await fetch(`${WEB}${path}`);

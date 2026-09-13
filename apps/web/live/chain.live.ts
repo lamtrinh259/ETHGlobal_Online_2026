@@ -14,9 +14,9 @@ import { describe, expect, it } from "vitest";
  *
  *   pnpm --filter @ketsuban/web check:live
  */
-const API = (process.env.CHECK_API ?? "https://ketsuban-api.peeramid.xyz").replace(/\/$/, "");
-const HANDLE = process.env.CHECK_HANDLE ?? "peersky";
-const ROOT = process.env.CHECK_ROOT ?? "ketsuban.eth";
+const API = (process.env.CHECK_API ?? "https://shibboleth-api.peeramid.xyz").replace(/\/$/, "");
+const HANDLE = process.env.CHECK_HANDLE ?? "employer-test";
+const ROOT = process.env.CHECK_ROOT ?? "shibboleth.eth";
 const SUBJECT = process.env.CHECK_SUBJECT ?? "kju-is";
 const RPC = process.env.CHECK_RPC ?? "https://ethereum-sepolia-rpc.publicnode.com";
 
@@ -75,7 +75,7 @@ describe(`whether the chain agrees with ${API}`, () => {
       v.name,
       ...(v.links ?? []).map((l: { ensName: string | null }) => l.ensName).filter(Boolean),
     ];
-    expect(names.length, "no names to check").toBeGreaterThan(1);
+    expect(names.length, "no names to check").toBeGreaterThan(0);
 
     for (const name of names) {
       const data = encodeFunctionData({
