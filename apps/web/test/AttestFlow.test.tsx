@@ -44,6 +44,8 @@ const linking = {
 
 const state = {
   delivered: undefined as unknown,
+  /** The relay refuses the first delivery with the chain's nonce, the way a deleted record makes it */
+  refuseNonceOnce: false,
   deliverError: undefined as Error | undefined,
   txHash: undefined as string | undefined,
   attestData: undefined as object | undefined,
@@ -82,6 +84,10 @@ vi.mock("@/lib/hooks", () => ({
     isPending: false,
     reset: vi.fn(),
     mutateAsync: vi.fn(async (input: unknown) => {
+      if (state.refuseNonceOnce) {
+        state.refuseNonceOnce = false;
+        throw new Error("invalidNonceIncrement: nonce must increase: on chain 2, signed 1");
+      }
       state.delivered = input;
       return {
         txHash: "0xdead",
@@ -274,6 +280,18 @@ describe("the nonce an intent carries", () => {
     state.freshNonce = { exists: true, next: 2n, ready: true, reason: null };
     await publish();
     expect(state.wire?.intent?.nonce).toBe("2");
+  });
+
+  it("signs once more with the nonce the chain names when the relay refuses the first", async () => {
+    // A record the owner deleted no longer resolves, but Multipass still counts its nonce: the service
+    // says 1, the chain says 2. The revert carries the number, so the person is not asked to reload.
+    state.refuseNonceOnce = true;
+    const published: unknown[] = [];
+    render(<AttestFlow fixedDomain="kju-is" fixedHandle="alice" onPublished={(p) => published.push(p)} />);
+    fireEvent.click(screen.getByRole("button", { name: /Sign & publish/ }));
+    await waitFor(() => expect(published).toHaveLength(1));
+    expect(state.wire?.intent?.nonce).toBe("3");
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("still publishes when nothing has changed", async () => {

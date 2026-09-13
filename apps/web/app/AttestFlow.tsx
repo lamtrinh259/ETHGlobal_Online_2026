@@ -276,44 +276,62 @@ export function AttestFlow({
         const why = refreshed.error?.message ?? nonce.error?.message ?? "no response";
         throw new Error(`could not read the on-chain nonce from ${config.apiUrl}: ${why}`);
       }
-      const { next } = state;
       const viewKey = loadOrCreateViewKey();
-      setSigning(true);
-      const intent = buildIntent({
-        wallet,
-        domain,
-        nonce: next,
-        now: Math.floor(Date.now() / 1000),
-        optIn,
-        pubkey: viewKey.publicKey,
-        handle,
-        answer,
-        isNameDomain,
-      });
-      const { signature } = await signTypedData(
-        intentTypedData(intent, config.chainId, config.multipass as Address),
-        {
-          address: wallet,
+      /*
+       * Sign, attest, deliver — once with the nonce the service reports, and once more if the chain
+       * says the count is higher. A record the owner deleted no longer resolves, but Multipass still
+       * counts its nonce; the revert names the number, so the second signature carries it.
+       */
+      const attempt = async (next: bigint, retried: boolean): Promise<void> => {
+        setSigning(true);
+        const intent = buildIntent({
+          wallet,
+          domain,
+          nonce: next,
+          now: Math.floor(Date.now() / 1000),
+          optIn,
+          pubkey: viewKey.publicKey,
+          handle,
+          answer,
+          isNameDomain,
+        });
+        const { signature } = await signTypedData(
+          intentTypedData(intent, config.chainId, config.multipass as Address),
+          {
+            address: wallet,
+          }
+        );
+        setSigning(false);
+        const attested = await attest.mutateAsync(toWire(intent, identityToken, signature as Hex, invite));
+        if (attested.viewCode) {
+          const code = openViewCode(viewKey, attested.viewCode);
+          setViewCode(code);
+          saveViewCode(domain, code);
         }
-      );
-      setSigning(false);
-      const attested = await attest.mutateAsync(toWire(intent, identityToken, signature as Hex, invite));
-      if (attested.viewCode) {
-        const code = openViewCode(viewKey, attested.viewCode);
-        setViewCode(code);
-        saveViewCode(domain, code);
-      }
-      const letter = description ? await description() : undefined;
-      const { txHash, letterWritten } = await deliver.mutateAsync(
-        letter ? { result: attested, description: letter } : attested
-      );
-      onPublished?.({
-        handle,
-        domain,
-        txHash,
-        name: isNameDomain && parentName ? `${handle}.${parentName}` : undefined,
-        letterWritten: !!letterWritten,
-      });
+        const letter = description ? await description() : undefined;
+        let delivered: { txHash: Hex; letterWritten?: boolean };
+        try {
+          delivered = await deliver.mutateAsync(
+            letter ? { result: attested, description: letter } : attested
+          );
+        } catch (e) {
+          const onChain = /on chain (\d+)/.exec((e as Error).message)?.[1];
+          if (onChain && !retried) {
+            deliver.reset();
+            return attempt(BigInt(onChain) + 1n, true);
+          }
+          throw e;
+        }
+        const { txHash, letterWritten } = delivered;
+        onPublished?.({
+          handle,
+          domain,
+          txHash,
+          name: isNameDomain && parentName ? `${handle}.${parentName}` : undefined,
+          letterWritten: !!letterWritten,
+        });
+      };
+      await attempt(state.next, false);
     } catch (e) {
       setSigning(false);
       if (!attest.error && !deliver.error) setSignError((e as Error).message);
