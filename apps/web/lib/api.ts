@@ -316,6 +316,7 @@ export const adminUnlinkSchema = z.object({
   did: z.string(),
   unlinked: z.array(z.object({ type: z.string(), handle: z.string() })),
   failed: z.array(z.object({ type: z.string(), status: z.number() })),
+  deleted: z.array(z.object({ domain: z.string(), txHash: z.string() })).default([]),
 });
 export type AdminUnlink = z.infer<typeof adminUnlinkSchema>;
 /** Demo only: one row of the admin's account list. */

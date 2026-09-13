@@ -2083,9 +2083,12 @@ export function createApp({
   });
 
   /**
-   * Demo only: unlink every account a person has attached to their Privy user, keeping the wallets.
-   * A demo runs the same person through onboarding again; Privy allows one account per type, so the
-   * second run cannot link what the first did. Done through Privy's server API with the app secret.
+   * Demo only: unlink every account a person has attached to their Privy user, keeping the wallets,
+   * and delete the wallet's live platform records on chain. A demo runs the same person through
+   * onboarding again; Privy allows one account per type, so the second run cannot link what the first
+   * did. The chain record is keyed by the platform account, so left in place it answers the next
+   * wallet's attestation of that account with `walletMismatch`. Done through Privy's server API with
+   * the app secret, and the Multipass owner key for the records.
    */
   app.post("/v1/admin/privy/unlink", async (c) => {
     const refused = adminGate(c);
@@ -2140,7 +2143,14 @@ export function createApp({
       if (res.ok) unlinked.push({ type: a.type, handle });
       else failed.push({ type: a.type, status: res.status });
     }
-    return c.json({ ...who, did: user.id, unlinked, failed });
+    const isPlatform = (d: string) =>
+      !config.NAME_DOMAINS.includes(d) && d !== config.HUMANITY_DOMAIN && !d.startsWith(config.VOUCH_PREFIX);
+    const deleted: { domain: string; txHash: Hex }[] = [];
+    for (const r of await chain.listRecordsByWallet(who.wallet)) {
+      if (!r.live || !isPlatform(r.domain)) continue;
+      deleted.push({ domain: r.domain, txHash: await chain.deleteRecord(r.domain, who.wallet) });
+    }
+    return c.json({ ...who, did: user.id, unlinked, failed, deleted });
   });
 
   /**

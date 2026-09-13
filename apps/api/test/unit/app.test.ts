@@ -4298,6 +4298,8 @@ describe("the humanity check", () => {
         // The lookup, then one unlink per account; the wallet is never touched.
         expect(calls.map((c) => c.url.split("/").slice(-1)[0])).toEqual(["address", "unlink", "unlink"]);
         expect(calls[1].body).toEqual({ user_id: "did:privy:alice", type: "github_oauth", handle: "42" });
+        // Nothing on chain to delete for a wallet with no platform record.
+        expect(chain.deleteRecord).not.toHaveBeenCalled();
         // Without the app secret the route says so instead of trying.
         const bare = humanApp(chain, portal(), adminEnv);
         expect(
@@ -4309,6 +4311,68 @@ describe("the humanity check", () => {
             })
           ).status
         ).toBe(501);
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
+    it("deletes the wallet's live platform records on chain too, since those are keyed by the account", async () => {
+      // Unlinking in Privy alone leaves the platform record on chain, so the same GitHub account
+      // attested from a fresh Privy user meets `walletMismatch` and can never link again.
+      const rec = (domain: string, live = true) =>
+        ({
+          wallet,
+          live,
+          name: "",
+          domain,
+          nonce: "1",
+          id: `0x${"11".repeat(32)}`,
+          payload: "",
+          validUntil: "2099-01-01T00:00:00.000Z",
+        }) as never;
+      const { chain } = fakeChain({
+        byWallet: [
+          rec("github.com"),
+          rec("x.com", false),
+          rec("kju-is"),
+          rec("~bob"),
+          rec("humanity"),
+          rec("gmail.com"),
+        ],
+      });
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (url: string) =>
+          url.endsWith("/v1/users/wallet/address")
+            ? new Response(
+                JSON.stringify({
+                  id: "did:privy:alice",
+                  linked_accounts: [{ type: "wallet", address: wallet }],
+                }),
+                { status: 200 }
+              )
+            : new Response("{}", { status: 200 })
+        )
+      );
+      try {
+        const a = humanApp(chain, portal(), { ...adminEnv, PRIVY_APP_SECRET: "secret-secret" });
+        const res = await a.request("/v1/admin/privy/unlink", {
+          method: "POST",
+          headers: { ...headers, "content-type": "application/json" },
+          body: JSON.stringify({ wallet }),
+        });
+        expect(res.status).toBe(200);
+        expect(await res.json()).toMatchObject({
+          deleted: [
+            { domain: "github.com", txHash: `0x${"de".repeat(32)}` },
+            { domain: "gmail.com", txHash: `0x${"de".repeat(32)}` },
+          ],
+        });
+        // Live platform records only: a name, a letter and the humanity record have their own resets,
+        // and a dead record is already out of the way.
+        expect(chain.deleteRecord).toHaveBeenCalledTimes(2);
+        expect(chain.deleteRecord).toHaveBeenCalledWith("github.com", wallet);
+        expect(chain.deleteRecord).toHaveBeenCalledWith("gmail.com", wallet);
       } finally {
         vi.unstubAllGlobals();
       }

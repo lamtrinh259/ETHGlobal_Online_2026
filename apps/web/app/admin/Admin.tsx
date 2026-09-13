@@ -131,7 +131,8 @@ export function Admin() {
     try {
       const r = await api.adminPrivyUnlink(token, { wallet: row.wallet });
       setRowNote(
-        `${row.handle ?? row.wallet}: unlinked ${r.unlinked.map((u) => u.type).join(", ") || "nothing"}.`
+        `${row.handle ?? row.wallet}: unlinked ${r.unlinked.map((u) => u.type).join(", ") || "nothing"}` +
+          `, deleted ${r.deleted.map((d) => d.domain).join(", ") || "nothing"} on chain.`
       );
     } catch (e) {
       setRowNote((e as Error).message);
@@ -366,6 +367,8 @@ export function Admin() {
             from <code>{unlinked.did}</code>.
             {unlinked.failed.length > 0 &&
               ` Privy refused: ${unlinked.failed.map((f) => `${f.type} (${f.status})`).join(", ")}.`}
+            {unlinked.deleted.length > 0 &&
+              ` Deleted ${unlinked.deleted.map((d) => d.domain).join(", ")} on chain.`}
           </p>
         )}
         {error && (

@@ -149,6 +149,10 @@ describe("resetting a person's Privy accounts", () => {
         did: "did:privy:alice",
         unlinked: [{ type: "github_oauth", handle: "42" }],
         failed: [{ type: "email", status: 400 }],
+        deleted: [
+          { domain: "github.com", txHash: "0xaa" },
+          { domain: "gmail.com", txHash: "0xbb" },
+        ],
       })),
     });
     vi.spyOn(window, "confirm").mockReturnValue(true);
@@ -157,6 +161,8 @@ describe("resetting a person's Privy accounts", () => {
       expect(screen.getByTestId("admin-unlinked")).toHaveTextContent("Unlinked github_oauth")
     );
     expect(screen.getByTestId("admin-unlinked")).toHaveTextContent("Privy refused: email (400)");
+    // The chain record is keyed by the account, so the reset says it went too.
+    expect(screen.getByTestId("admin-unlinked")).toHaveTextContent("Deleted github.com, gmail.com on chain");
   });
 });
 
