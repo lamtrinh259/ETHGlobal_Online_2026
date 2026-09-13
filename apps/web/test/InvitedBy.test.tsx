@@ -1,4 +1,4 @@
-import { render, renderHook, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
 import type { Api, PolicyInviteRead } from "@/lib/api";
@@ -18,6 +18,26 @@ vi.mock("@/app/providers", () => ({
   }),
 }));
 
+vi.mock("@/app/AttestFlow", () => ({
+  AttestFlow: ({
+    fixedDomain,
+    onPublished,
+  }: {
+    fixedDomain?: string;
+    onPublished?: (p: unknown) => void;
+  }) => (
+    <div data-testid="attest" data-domain={fixedDomain ?? ""}>
+      <button
+        data-testid="fake-publish"
+        onClick={() => onPublished?.({ domain: fixedDomain, txHash: "0x1" })}
+      >
+        publish
+      </button>
+    </div>
+  ),
+}));
+vi.mock("@/app/me/HumanityCheck", () => ({ HumanityCheck: () => <div data-testid="fake-human" /> }));
+vi.mock("@/app/me/InviteLink", () => ({ InviteLink: () => <div data-testid="fake-invite-link" /> }));
 let current: Api;
 const session = { authenticated: false, held: undefined as string | undefined };
 vi.mock("@privy-io/react-auth", () => ({
@@ -32,6 +52,7 @@ vi.mock("@/lib/hooks", async (orig) => {
     ...real,
     apiFor: () => current,
     useWalletDashboard: () => ({
+      refetch: vi.fn(async () => undefined),
       data: session.held
         ? {
             names: [
@@ -172,10 +193,23 @@ describe("what the bar needs from you, line by line", () => {
     expect(screen.getByTestId("invited-check-links").className).toBe("done");
     const answer = screen.getByTestId("invited-check-answer:kju-is");
     expect(answer.className).toBe("todo");
-    expect(answer.querySelector("a")?.getAttribute("href")).toBe("#refer");
+    // The fix happens here, in a dialog over the checklist: nothing scrolls away.
+    const profileReads = (current.profile as ReturnType<typeof vi.fn>).mock.calls.length;
+    fireEvent.click(screen.getByTestId("invited-fix-answer:kju-is"));
+    expect(
+      screen
+        .getByTestId("invited-fixing")
+        .querySelector("[data-testid='attest']")
+        ?.getAttribute("data-domain")
+    ).toBe("kju-is");
+    fireEvent.click(screen.getByTestId("fake-publish"));
+    await waitFor(() =>
+      expect((current.profile as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(profileReads)
+    );
+    expect(answer.querySelector("a")).toBeNull();
     const vouches = screen.getByTestId("invited-check-vouches");
     expect(vouches.className).toBe("todo");
-    expect(vouches.querySelector("a")?.getAttribute("href")).toBe("#invite");
+    expect(screen.getByTestId("invited-fix-vouches")).toBeInTheDocument();
     expect(screen.getByTestId("invited-progress").textContent).toContain("2 of 4 met");
     expect(screen.queryByTestId("invited-pass")).toBeNull();
     expect(screen.queryByTestId("invited-pass-modal")).toBeNull();

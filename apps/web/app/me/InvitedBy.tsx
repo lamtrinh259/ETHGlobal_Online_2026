@@ -3,6 +3,10 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Modal } from "@/app/Modal";
+import { AttestFlow } from "@/app/AttestFlow";
+import { HumanityCheck } from "@/app/me/HumanityCheck";
+import { InviteLink } from "@/app/me/InviteLink";
+import { questionFor, questionTitle } from "@/lib/questions";
 import { useWebConfig } from "@/app/providers";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import type { Address } from "viem";
@@ -38,6 +42,12 @@ export function InvitedBy({ code }: { code: string | undefined }) {
   const read = useProfileRead(api, handle);
   const [celebrated, setCelebrated] = useState<string>();
   const [showPass, setShowPass] = useState(false);
+  /** The requirement being fixed right here, in a dialog over the checklist. */
+  const [fixing, setFixing] = useState<string>();
+  const refresh = () => {
+    void read.refetch();
+    void dash.refetch();
+  };
   if (!code) return null;
 
   if (q.isPending && /^[0-9a-f]{32}$/i.test(code)) {
@@ -92,18 +102,72 @@ export function InvitedBy({ code }: { code: string | undefined }) {
           read.data.vouches
         ).checks
       : undefined;
-  const fixAt = (id: string) =>
+  /* What fixes a miss, done in a dialog over this card rather than by scrolling off to find it. */
+  const fixAt = (id: string): { label: string; title: string } | undefined =>
     id === "identity"
-      ? { href: "#name", label: "Claim your name" }
+      ? { label: "Claim your name", title: "Claim your name" }
       : id === "links"
-        ? { href: "#link", label: "Link an account" }
+        ? { label: "Link an account", title: "Link an account" }
         : id.startsWith("answer:")
-          ? { href: "#refer", label: "Answer it" }
+          ? { label: "Answer it", title: questionTitle(id.slice("answer:".length)) }
           : id === "vouches" || id === "from"
-            ? { href: "#invite", label: "Ask for references" }
+            ? { label: "Ask for references", title: "Ask for references" }
             : id === "humanity"
-              ? { href: "#humanity", label: "Pass the Selfie Check" }
+              ? { label: "Pass the Selfie Check", title: "Selfie Check" }
               : undefined;
+  const fixer = (id: string) => {
+    if (!handle || !root) return null;
+    if (id === "identity") {
+      return (
+        <AttestFlow
+          key="identity"
+          fixedDomain={root.domain}
+          title=""
+          doneTitle="Name claimed"
+          onPublished={refresh}
+        />
+      );
+    }
+    if (id === "links") {
+      return (
+        <AttestFlow
+          key="links"
+          platformsOnly
+          allowLinking
+          title=""
+          doneTitle="Account attested"
+          onPublished={refresh}
+        />
+      );
+    }
+    if (id.startsWith("answer:")) {
+      const domain = id.slice("answer:".length);
+      return (
+        <AttestFlow
+          key={domain}
+          fixedDomain={domain}
+          fixedHandle={handle}
+          title=""
+          answerLabel={questionFor(domain)}
+          doneTitle="Answer published"
+          onPublished={refresh}
+        />
+      );
+    }
+    if (id === "vouches" || id === "from") {
+      return (
+        <InviteLink
+          api={api}
+          handle={handle}
+          rootParent={root.parentName}
+          links={dash.data?.links ?? []}
+          name={`${handle}.${root.parentName}`}
+        />
+      );
+    }
+    if (id === "humanity") return <HumanityCheck api={api} wallet={wallet} onVerified={refresh} />;
+    return null;
+  };
   const passes = !!checks && checks.every((c) => c.ok);
   const met = checks?.filter((c) => c.ok).length ?? 0;
   const pageUrl = handle
@@ -144,6 +208,11 @@ export function InvitedBy({ code }: { code: string | undefined }) {
           </div>
         </Modal>
       )}
+      {fixing && fixAt(fixing) && (
+        <Modal title={fixAt(fixing)!.title} onClose={() => setFixing(undefined)}>
+          <div data-testid="invited-fixing">{fixer(fixing)}</div>
+        </Modal>
+      )}
       <h2>
         <code>{kept.inviterName}</code> is inviting you
       </h2>
@@ -179,9 +248,14 @@ export function InvitedBy({ code }: { code: string | undefined }) {
                   <small className="muted">{c.detail}</small>
                 </span>
                 {fix && (
-                  <Link className="button primary invited-fix" href={fix.href}>
+                  <button
+                    type="button"
+                    className="primary invited-fix"
+                    onClick={() => setFixing(c.id)}
+                    data-testid={`invited-fix-${c.id}`}
+                  >
                     {fix.label} →
-                  </Link>
+                  </button>
                 )}
               </li>
             );
