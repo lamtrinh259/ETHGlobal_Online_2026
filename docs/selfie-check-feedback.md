@@ -38,7 +38,8 @@ asked for in the widget.
 **6. The "Sybil score" from the presentation is not in the API.** `POST /api/v4/verify/{rp_id}` returns
 `success`, `action`, `nullifier`, `created_at`, `environment`, `session_id`, `results[]`; the credential
 page says it returns "not a numeric Sybil or uniqueness score". *Ask:* say where it is, or that it is
-not yet exposed. What we built instead is §10.
+not yet exposed. Meanwhile we compute our own over the vouch graph, seeded by who passed the check
+(`apps/api/src/graph.ts`); a World-side score would set how much each seed is worth.
 
 **7. Nullifier stability is documented twice, differently (2026-09-12).** `idkit/integrate`: the same
 person and action always produce the same nullifier. `4-0-migration`: nullifiers are one-time, and
@@ -60,18 +61,11 @@ switch that turns the check off for everyone until the cause is found. *Ask:* a 
 health endpoint for the verify API and the app, so an integrator can tell "World is down" from "we
 broke it".
 
-**10. What the proof became: a SybilScore (2026-09-13).** Every person who passed the Selfie Check
-is a trusted seed. Trust flows from the seeds along vouches, and a writer's trust is split among the
-people they vouch for, so vouching for a hundred accounts gives each a hundredth. A group of accounts
-with no verified human among them scores zero. The method is SybilRank's; the code is
-`apps/api/src/graph.ts`. A World-side "Sybil score", if it ships, would set how much each seed is
-worth.
-
 ## 2. User feedback
 
 What the people we onboarded said, as distinct from what we hit building it.
 
-**11. The App Store listing says the opposite of the product (2026-09-13).** World App's download screen
+**10. The App Store listing says the opposite of the product (2026-09-13).** World App's download screen
 lists data collected: identifiers, usage data, diagnostics, location. A person is sent there to prove
 they are human *without revealing who*, and the first thing they read is a privacy label that says
 more is collected than most apps admit to. Whatever the reasons, it is the wrong first impression for a
@@ -79,7 +73,7 @@ privacy product, and it is what the people we onboarded remarked on. *Ask:* "Dat
 the label to aim for; where a category cannot be dropped, say on the listing why the proof does not
 carry it.
 
-**12. One action, two answers (2026-09-13).** The person taps through World App, sees it succeed, and
+**11. One action, two answers (2026-09-13).** The person taps through World App, sees it succeed, and
 comes back to a widget that says it failed (§4). From their side both are "the Selfie Check", and the
 only recovery they can think of is to do it again, which does not help. *Ask:* when the app and the
 widget disagree, one of them should say which one to believe and what to do next.
