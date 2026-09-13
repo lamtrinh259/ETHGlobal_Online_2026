@@ -2149,6 +2149,45 @@ export function createApp({
    * A migration that moves names leaves proofs bound to wallets no name reaches any more; this is the
    * way out of that without naming each one.
    */
+  /**
+   * Demo only: every account this deployment knows, for the admin's list. A wallet appears when it
+   * holds a root name, a humanity record or a nullifier binding; each row carries what the two
+   * controls act on.
+   */
+  app.get("/v1/admin/accounts", async (c) => {
+    const refused = adminGate(c);
+    if (refused) return refused;
+    const rootDomain = config.NAME_DOMAINS[0] ?? "";
+    const [names, proofs] = await Promise.all([
+      chain.listRecords(rootDomain),
+      chain.listRecords(config.HUMANITY_DOMAIN),
+    ]);
+    const wallets = new Map<string, Address>();
+    for (const r of names) wallets.set(r.wallet.toLowerCase(), r.wallet);
+    for (const r of proofs) wallets.set(r.wallet.toLowerCase(), r.wallet);
+    for (const [, w] of humans.entries()) wallets.set(w.toLowerCase(), w);
+    const accounts = [...wallets.values()].map((wallet) => {
+      const w = wallet.toLowerCase();
+      const name = names.find((r) => r.wallet.toLowerCase() === w && r.live);
+      const proof = proofs.find((r) => r.wallet.toLowerCase() === w && r.live);
+      return {
+        wallet,
+        handle: name?.name ?? null,
+        humanity: !!proof,
+        bound: humans.entries().filter(([, b]) => b.toLowerCase() === w).length,
+      };
+    });
+    // Named first, then by handle; the nameless at the end, by wallet.
+    accounts.sort((a, b) =>
+      !a.handle !== !b.handle
+        ? a.handle
+          ? -1
+          : 1
+        : (a.handle ?? a.wallet).localeCompare(b.handle ?? b.wallet)
+    );
+    return c.json({ accounts });
+  });
+
   app.post("/v1/admin/humanity/reset-all", async (c) => {
     const refused = adminGate(c);
     if (refused) return refused;

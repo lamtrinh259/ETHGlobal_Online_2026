@@ -4314,6 +4314,33 @@ describe("the humanity check", () => {
       }
     });
 
+    it("lists every account it knows, with a handle, a humanity flag and bound nullifiers", async () => {
+      const other = `0x${"77".repeat(20)}` as Address;
+      const rec = (w: Address, domain: string, name: string, live = true) =>
+        ({
+          wallet: w,
+          live,
+          name,
+          domain,
+          nonce: "1",
+          payload: "",
+          validUntil: "2099-01-01T00:00:00.000Z",
+        }) as never;
+      const { chain } = fakeChain({
+        listed: { "kju-is": [rec(wallet, "kju-is", "alice")], humanity: [rec(other, "humanity", "")] },
+      });
+      const a = humanApp(chain, portal(), adminEnv);
+      await a.request("/v1/admin/humanity/reset-all", { method: "POST", headers });
+      expect((await post(a, "/v1/humanity", { wallet, proof: proof(signal) })).status).toBe(200);
+      const res = await a.request("/v1/admin/accounts", { headers });
+      expect(res.status).toBe(200);
+      expect((await res.json()).accounts).toEqual([
+        { wallet, handle: "alice", humanity: false, bound: 1 },
+        { wallet: other, handle: null, humanity: true, bound: 0 },
+      ]);
+      expect((await a.request("/v1/admin/accounts")).status).toBe(401);
+    });
+
     it("resets everybody at once: every nullifier forgotten, every live humanity record deleted", async () => {
       const other = `0x${"77".repeat(20)}` as Address;
       const { chain } = fakeChain({

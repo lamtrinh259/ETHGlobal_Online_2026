@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { TxDone } from "@/app/TxDone";
 import { useWebConfig } from "@/app/providers";
-import type { AdminHumanity, AdminReset, AdminSelfieCheck, AdminUnlink } from "@/lib/api";
+import type { AdminAccount, AdminHumanity, AdminReset, AdminSelfieCheck, AdminUnlink } from "@/lib/api";
 import { apiFor } from "@/lib/hooks";
 
 const TOKEN_KEY = "ketsuban:admin-token";
@@ -24,7 +24,9 @@ export function Admin() {
   const [state, setState] = useState<AdminHumanity>();
   const [result, setResult] = useState<AdminReset>();
   const [error, setError] = useState<string>();
-  const [busy, setBusy] = useState<"look" | "reset" | "switch" | "unlink" | "all">();
+  const [busy, setBusy] = useState<"look" | "reset" | "switch" | "unlink" | "all" | "list" | "row">();
+  const [accounts, setAccounts] = useState<AdminAccount[]>();
+  const [rowNote, setRowNote] = useState<string>();
   const [resetAll, setResetAll] = useState<{ forgotten: number; deleted: unknown[] }>();
   const [unlinked, setUnlinked] = useState<AdminUnlink>();
   /** The deletion whose confirmation has been read, so closing it does not bring it back */
@@ -91,6 +93,48 @@ export function Admin() {
       setUnlinked(await api.adminPrivyUnlink(token, query()));
     } catch (e) {
       setError((e as Error).message);
+    } finally {
+      setBusy(undefined);
+    }
+  };
+  const listAccounts = async () => {
+    setError(undefined);
+    setBusy("list");
+    try {
+      setAccounts(await api.adminAccounts(token));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(undefined);
+    }
+  };
+  /* The same two resets as above, from a row: the wallet is known, so nothing is typed. */
+  const rowReset = async (row: AdminAccount) => {
+    if (!window.confirm(`Reset the Selfie Check on ${row.handle ?? row.wallet}?`)) return;
+    setBusy("row");
+    try {
+      const r = await api.adminHumanityReset(token, { wallet: row.wallet });
+      setRowNote(
+        `${row.handle ?? row.wallet}: forgot ${r.forgotten}, ${r.deleted && "txHash" in r.deleted ? "deleted the record" : "no record to delete"}.`
+      );
+      setAccounts(await api.adminAccounts(token));
+    } catch (e) {
+      setRowNote((e as Error).message);
+    } finally {
+      setBusy(undefined);
+    }
+  };
+  const rowUnlink = async (row: AdminAccount) => {
+    if (!window.confirm(`Unlink every Privy account from ${row.handle ?? row.wallet}? The wallets stay.`))
+      return;
+    setBusy("row");
+    try {
+      const r = await api.adminPrivyUnlink(token, { wallet: row.wallet });
+      setRowNote(
+        `${row.handle ?? row.wallet}: unlinked ${r.unlinked.map((u) => u.type).join(", ") || "nothing"}.`
+      );
+    } catch (e) {
+      setRowNote((e as Error).message);
     } finally {
       setBusy(undefined);
     }
@@ -211,6 +255,64 @@ export function Admin() {
         {policyError && (
           <p className="error" role="alert" data-testid="admin-policy-error">
             {policyError}
+          </p>
+        )}
+      </section>
+      <section className="card" data-testid="admin-accounts">
+        <h2>Accounts</h2>
+        <p className="muted">Every wallet this deployment knows, with the two resets on each row.</p>
+        <p>
+          <button type="button" onClick={listAccounts} disabled={!token || !!busy} data-testid="admin-list">
+            {busy === "list" ? "reading…" : accounts ? "Refresh" : "List accounts"}
+          </button>
+        </p>
+        {accounts && (
+          <table className="admin-table" data-testid="admin-account-rows">
+            <thead>
+              <tr>
+                <th>handle</th>
+                <th>wallet</th>
+                <th>Selfie Check</th>
+                <th>nullifiers</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {accounts.map((row) => (
+                <tr key={row.wallet} data-testid={`admin-account-${row.wallet}`}>
+                  <td>{row.handle ?? <span className="muted">no name</span>}</td>
+                  <td>
+                    <code>{row.wallet.slice(0, 10)}…</code>
+                  </td>
+                  <td>{row.humanity ? "✅" : "—"}</td>
+                  <td>{row.bound}</td>
+                  <td className="row">
+                    <button
+                      type="button"
+                      onClick={() => rowReset(row)}
+                      disabled={!!busy}
+                      data-testid={`admin-row-reset-${row.wallet}`}
+                    >
+                      Reset Selfie Check
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => rowUnlink(row)}
+                      disabled={!!busy}
+                      data-testid={`admin-row-unlink-${row.wallet}`}
+                    >
+                      Unlink Privy
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        {accounts && accounts.length === 0 && <p className="muted">Nobody yet.</p>}
+        {rowNote && (
+          <p className="muted" data-testid="admin-row-note">
+            {rowNote}
           </p>
         )}
       </section>

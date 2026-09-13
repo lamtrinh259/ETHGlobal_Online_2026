@@ -172,3 +172,30 @@ describe("resetting every Selfie Check", () => {
     );
   });
 });
+
+describe("the account list", () => {
+  it("lists every account with its state, and resets one from its row", async () => {
+    const rows = [
+      { wallet: WALLET, handle: "alice", humanity: true, bound: 1 },
+      { wallet: `0x${"77".repeat(20)}`, handle: null, humanity: false, bound: 0 },
+    ];
+    const reset = vi.fn(async () => ({
+      wallet: WALLET,
+      handle: "alice",
+      forgotten: 1,
+      existed: true,
+      deleted: { txHash: "0x1" },
+    }));
+    await show({ adminAccounts: vi.fn(async () => rows), adminHumanityReset: reset });
+    fireEvent.click(screen.getByTestId("admin-list"));
+    await waitFor(() => expect(screen.getByTestId("admin-account-rows")).toBeInTheDocument());
+    expect(screen.getByTestId(`admin-account-${WALLET}`)).toHaveTextContent("alice");
+    expect(screen.getByTestId(`admin-account-0x${"77".repeat(20)}`)).toHaveTextContent("no name");
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    fireEvent.click(screen.getByTestId(`admin-row-reset-${WALLET}`));
+    await waitFor(() =>
+      expect(screen.getByTestId("admin-row-note")).toHaveTextContent("alice: forgot 1, deleted the record")
+    );
+    expect(reset).toHaveBeenCalledWith("admin-token-0123456789abcdef", { wallet: WALLET });
+  });
+});

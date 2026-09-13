@@ -318,6 +318,14 @@ export const adminUnlinkSchema = z.object({
   failed: z.array(z.object({ type: z.string(), status: z.number() })),
 });
 export type AdminUnlink = z.infer<typeof adminUnlinkSchema>;
+/** Demo only: one row of the admin's account list. */
+export const adminAccountSchema = z.object({
+  wallet: z.string(),
+  handle: z.string().nullable(),
+  humanity: z.boolean(),
+  bound: z.number(),
+});
+export type AdminAccount = z.infer<typeof adminAccountSchema>;
 /** Demo only: whether a reference needs the Selfie Check right now, for everyone. */
 export const adminSelfieCheckSchema = z.object({
   required: z.boolean(),
@@ -783,6 +791,11 @@ export function createApi(apiUrl: string, attestUrl: string, fetchFn: Fetch = fe
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ idToken, name, viewCode }),
       });
+    },
+    /** Demo only: every account the deployment knows, for the admin's list. */
+    async adminAccounts(token: string): Promise<AdminAccount[]> {
+      const res = await call(`${base}/v1/admin/accounts`, { headers: { "x-admin-token": token } });
+      return z.object({ accounts: z.array(adminAccountSchema) }).parse(await readJson(res)).accounts;
     },
     /** Demo only: every Selfie Check on the platform, reset at once. */
     async adminHumanityResetAll(token: string): Promise<{ forgotten: number; deleted: unknown[] }> {
