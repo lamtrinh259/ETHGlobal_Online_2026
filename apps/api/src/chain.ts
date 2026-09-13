@@ -191,7 +191,10 @@ export class Chain {
       functionName: "resolveRecord",
       args: [{ name: zeroHash, id: zeroHash, wallet, domainName: toBytes32(domain), targetDomain: zeroHash }],
     });
-    return { exists, nonce: record.nonce, id: record.id, wallet: record.wallet };
+    // A deleted record no longer resolves, but Multipass still counts its nonce: the next intent has to
+    // climb past what the index saw last, or the chain answers `invalidNonceIncrement`.
+    const nonce = exists ? record.nonce : this.indexer.lastNonce(wallet, domain);
+    return { exists, nonce, id: record.id, wallet: record.wallet };
   }
 
   /**

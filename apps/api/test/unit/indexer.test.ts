@@ -119,6 +119,11 @@ describe("Indexer", () => {
     expect(kju[0]).toMatchObject({ name: "alice", nonce: 2n, validUntil: FUTURE + 1n, block: 300n });
     expect(indexer.recordsByDomain("x")).toEqual([]);
     expect(indexer.recordsByWallet(ALICE).map((r) => r.domain)).toEqual(["kju-is"]);
+    // Multipass keeps a record's nonce after `deleteName`, so the next intent has to climb past it; the
+    // chain no longer resolves the record, so the index is what remembers where the count got to.
+    expect(indexer.lastNonce(ALICE, "x")).toBe(1n);
+    expect(indexer.lastNonce(ALICE, "kju-is")).toBe(2n);
+    expect(indexer.lastNonce(ALICE, "nowhere")).toBe(0n);
     expect(
       indexer.recordsByWallet(BOB.toUpperCase().replace("0X", "0x") as `0x${string}`).map((r) => r.name)
     ).toEqual(["bob"]);
@@ -235,6 +240,19 @@ describe("Indexer", () => {
     const fresh = new Indexer(fakeSource(600n, []).source, MULTIPASS, 5_000n, { dataDir });
     expect(fresh.status().indexedBlock).toBe(4_999);
     expect(fresh.recordsByDomain("kju-is")).toEqual([]);
+  });
+
+  it("rescans instead of trusting a snapshot written before deleted nonces were kept", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "idx-"));
+    const gone: Rec = { domain: "x", name: "alice_x", wallet: ALICE, nonce: 2n };
+    const { source } = fakeSource(500n, [registeredLog(gone, 120n), deletedLog(gone, 400n)]);
+    // An old-shape snapshot claims the history is read; it holds no `spent`, so the nonce would be lost.
+    writeFileSync(join(dir, "records.json"), JSON.stringify({ indexedBlock: "500", records: {} }));
+    const indexer = new Indexer(source, MULTIPASS, 50n, { dataDir: dir });
+    await indexer.tick();
+    expect(indexer.lastNonce(ALICE, "x")).toBe(2n);
+    // And what it writes now carries the version, so the next boot trusts it.
+    expect(JSON.parse(readFileSync(join(dir, "records.json"), "utf8")).version).toBe(2);
   });
 
   it("stops polling at once, and waits for the loop to finish", async () => {

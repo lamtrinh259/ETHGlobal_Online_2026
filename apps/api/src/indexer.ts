@@ -47,7 +47,15 @@ const REGISTERED = getAbiItem({ abi: MultipassAbi, name: "Registered" });
 const RENEWED = getAbiItem({ abi: MultipassAbi, name: "Renewed" });
 const DELETED = getAbiItem({ abi: MultipassAbi, name: "nameDeleted" });
 
-type Snapshot = { indexedBlock: string; records: Record<string, SerialisedRecord> };
+/** Bumped when the snapshot learns something it cannot recover from the old shape; an older one is rescanned. */
+const SNAPSHOT_VERSION = 2;
+type Snapshot = {
+  version?: number;
+  indexedBlock: string;
+  records: Record<string, SerialisedRecord>;
+  /** Deleted records' last nonces; absent in snapshots written before it was kept */
+  spent?: Record<string, { wallet: Address; domain: string; nonce: string }>;
+};
 type SerialisedRecord = Omit<IndexedRecord, "validUntil" | "nonce" | "block"> & {
   validUntil: string;
   nonce: string;
@@ -65,6 +73,8 @@ const key = (domainName: Hex, id: Hex) => `${domainName.toLowerCase()}:${id.toLo
  */
 export class Indexer implements RecordIndex {
   private records = new Map<string, IndexedRecord>();
+  /** Where a deleted record's nonce got to: Multipass keeps counting from there, the chain forgets the record. */
+  private spent = new Map<string, { wallet: Address; domain: string; nonce: bigint }>();
   private indexedBlock: bigint;
   private headBlock = 0n;
   /** When a tick last completed, and why the last one did not; see `status`. */
@@ -162,7 +172,15 @@ export class Indexer implements RecordIndex {
       changes.push({ block: l.blockNumber, apply: () => this.put(l.domainName, l.newRecord, l.blockNumber) });
     }
     for (const l of decodeLogs<{ domainName: Hex; id: Hex }>(DELETED, deleted)) {
-      changes.push({ block: l.blockNumber, apply: () => void this.records.delete(key(l.domainName, l.id)) });
+      changes.push({
+        block: l.blockNumber,
+        apply: () => {
+          const k = key(l.domainName, l.id);
+          const r = this.records.get(k);
+          if (r) this.spent.set(k, { wallet: r.wallet, domain: r.domain, nonce: r.nonce });
+          this.records.delete(k);
+        },
+      });
     }
     changes.sort((a, b) => Number(a.block - b.block));
     for (const c of changes) c.apply();
@@ -175,6 +193,19 @@ export class Indexer implements RecordIndex {
     return [...this.records.values()]
       .filter((r) => r.domain === domain)
       .sort((a, b) => Number(b.validUntil - a.validUntil));
+  }
+
+  /** The highest nonce this wallet's record in `domain` ever reached, deleted or not; 0 where there was none. */
+  lastNonce(wallet: Address, domain: string): bigint {
+    const w = wallet.toLowerCase();
+    let n = 0n;
+    for (const r of this.records.values()) {
+      if (r.domain === domain && r.wallet.toLowerCase() === w && r.nonce > n) n = r.nonce;
+    }
+    for (const r of this.spent.values()) {
+      if (r.domain === domain && r.wallet.toLowerCase() === w && r.nonce > n) n = r.nonce;
+    }
+    return n;
   }
 
   recordsByWallet(wallet: Address): IndexedRecord[] {
@@ -222,7 +253,11 @@ export class Indexer implements RecordIndex {
   private persist() {
     if (!this.snapshotPath) return;
     const snapshot: Snapshot = {
+      version: SNAPSHOT_VERSION,
       indexedBlock: this.indexedBlock.toString(),
+      spent: Object.fromEntries(
+        [...this.spent.entries()].map(([k, r]) => [k, { ...r, nonce: r.nonce.toString() }])
+      ),
       records: Object.fromEntries(
         [...this.records.entries()].map(([k, r]) => [
           k,
@@ -255,6 +290,7 @@ export class Indexer implements RecordIndex {
       const snapshot = JSON.parse(readFileSync(this.snapshotPath, "utf8")) as Snapshot;
       const block = BigInt(snapshot.indexedBlock);
       if (block < this.indexedBlock) return; // snapshot predates this deployment's start block
+      if ((snapshot.version ?? 1) < SNAPSHOT_VERSION) return;
 
       /*
        * Read it all before keeping any of it.
@@ -276,6 +312,9 @@ export class Indexer implements RecordIndex {
       }
       this.indexedBlock = block;
       this.records = restored;
+      this.spent = new Map(
+        Object.entries(snapshot.spent ?? {}).map(([k, r]) => [k, { ...r, nonce: BigInt(r.nonce) }])
+      );
     } catch {
       // no snapshot yet, or an unreadable one: the history is read again from the deploy block
     }
