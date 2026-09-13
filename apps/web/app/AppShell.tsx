@@ -35,7 +35,7 @@ export function isActive(path: string, href: string): boolean {
 function Wordmark() {
   return (
     <span className="wordmark wave">
-      {waveChars("ketsuban").map((c, i) => (
+      {waveChars("ShibbolETH").map((c, i) => (
         <span key={i} style={{ animationDelay: c.delay }}>
           {c.ch}
         </span>
@@ -91,7 +91,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         >
           ☰
         </button>
-        <Link href="/" className="sh-brand" onClick={close} aria-label="Ketsuban home">
+        <Link href="/" className="sh-brand" onClick={close} aria-label="ShibbolETH home">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/mark.svg" alt="" aria-hidden className="sh-logo" width={22} height={22} />
           <Wordmark />
@@ -108,7 +108,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <button ref={closeRef} className="sh-close" aria-label="Close menu" onClick={close}>
           ✕
         </button>
-        <Link href="/" className="sh-brand sh-brandSide" onClick={close} aria-label="Ketsuban home">
+        <Link href="/" className="sh-brand sh-brandSide" onClick={close} aria-label="ShibbolETH home">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/mark.svg" alt="" aria-hidden className="sh-logo" width={26} height={26} />
           <Wordmark />

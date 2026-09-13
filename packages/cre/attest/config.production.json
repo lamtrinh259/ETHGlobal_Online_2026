@@ -16,6 +16,7 @@
     }
   },
   "nameDomains": [
+    "shibboleth",
     "ketsuban",
     "kju-is"
   ],

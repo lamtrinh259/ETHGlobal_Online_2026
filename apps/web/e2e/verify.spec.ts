@@ -107,7 +107,7 @@ test("the machinery below a person is one appendix, not three cards", async ({ p
 test("the one thing to do with a person read about is offered once", async ({ page }) => {
   await page.goto("/p/alice");
   // It was a primary button in the references tab and a text link in the share card below it.
-  await expect(page.getByRole("link", { name: /vouch|Refer this person/i })).toHaveCount(1);
+  await expect(page.getByRole("link", { name: /vouch|Vouch for this person/i })).toHaveCount(1);
 });
 
 /**
@@ -197,7 +197,7 @@ test("a candidate whose records could not be read says so, and claims nothing el
   await expect(page.getByTestId("score")).toHaveCount(0);
   await expect(page.getByTestId("checks")).toHaveCount(0);
   // Nor the invitation to write the first reference for somebody who may already have many.
-  await expect(page.getByRole("link", { name: "Refer this person" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Vouch for this person" })).toHaveCount(0);
 });
 
 test("a wallet whose records could not be read says so, and claims nothing else", async ({ page }) => {

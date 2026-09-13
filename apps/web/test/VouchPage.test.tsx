@@ -86,7 +86,7 @@ describe("/vouch/<handle>", () => {
     // placeholder, not an image of nothing.
     expect(screen.getByTestId("head-avatar").tagName).toBe("SPAN");
     expect(screen.getByTestId("head-avatar")).not.toHaveAttribute("src");
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Refer");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Vouch for");
   });
 
   it("refuses a handle that could never name anybody", async () => {

@@ -2,15 +2,15 @@
   "bridge": "0xE5e985B5f152EbD07aF9922d564AA8A7ccB77c62",
   "chainId": 11155111,
   "childDomain": "kju-is",
-  "childParent": "kju-is.ketsuban.eth",
+  "childParent": "kju-is.shibboleth.eth",
   "childRegistry": "0xA976CB21597c555F92e7A5de2dAAF06A3c0D63F7",
   "childResolver": "0x24d0F1dc28D9d05342C2c2ceA459C3f0Dffb18D8",
   "creForwarder": "0xF8344CFd5c43616a4366C34E3EEE75af79a74482",
   "ethRegistrar": "0xa88553f454b77203b0d036a05c894d555eaaa2cc",
   "ethRegistry": "0xBDC85dD5b15D7ecb354cd7cb6f2c50b4f2c4F0E2",
   "factory": "0xc0281d75974155fE8513F623de726F040c4bcC51",
-  "instanceDomain": "ketsuban",
-  "instanceParent": "ketsuban.eth",
+  "instanceDomain": "shibboleth",
+  "instanceParent": "shibboleth.eth",
   "multipass": "0x418F82fd0014a4CA402F145978bfaF0555a9cA06",
   "namespace": {
     "discord.com": {
@@ -116,5 +116,6 @@
   "resolver": "0xa2602ce1A469d7FF1090aE4b876BA4ec566D3873",
   "rootResolver": "0xdb29a8091a89c90bA5Fec97Cb291766eE44B1cA6",
   "universalResolver": "0x4A1817d13E9cF196f471725176355C1234b63C70",
-  "wildcardResolver": "0x6acc74E4931436c18E00302465f70A27599125FD"
+  "wildcardResolver": "0x542012eCb66De81CBd5De2E2952254c0e84a9447",
+  "previousWildcardResolver": "0x6acc74E4931436c18E00302465f70A27599125FD"
 }

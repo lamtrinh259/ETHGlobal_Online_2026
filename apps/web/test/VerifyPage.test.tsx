@@ -137,7 +137,7 @@ describe("/v/<name> for a name nobody can hold", () => {
     };
     state.vouches = [];
     await renderPage({}, "x");
-    expect(screen.queryByText("Refer this person")).toBeNull();
+    expect(screen.queryByText("Vouch for this person")).toBeNull();
     expect(screen.getByTestId("mount-name")).toHaveTextContent("not a name a person can hold");
     state.claim = { says: "alice is a person's name here.", kind: "person" };
   });
@@ -264,7 +264,10 @@ describe("a person page, wherever the reader came from", () => {
     expect(received).toHaveTextContent("worked with them for years");
     // Anyone may refer anyone; a reader is owed the difference.
     expect(received).toHaveTextContent("unsolicited");
-    expect(screen.getByRole("link", { name: "Refer this person" })).toHaveAttribute("href", "/vouch/alice");
+    expect(screen.getByRole("link", { name: "Vouch for this person" })).toHaveAttribute(
+      "href",
+      "/vouch/alice"
+    );
   });
 
   it("invites the first reference when nobody has written one", async () => {

@@ -150,7 +150,7 @@ export function ReferenceTabs({
               to it. This lived on the other route, and a person's page had no way to reach it. */}
           <p className="row">
             <Link className="button primary" href={`/vouch/${handle}`}>
-              Refer this person
+              Vouch for this person
             </Link>
           </p>
           {r?.council && (

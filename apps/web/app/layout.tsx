@@ -9,14 +9,19 @@ const PITCH =
   "A reference from a verified human, signed into a permanent public name — checkable by anyone, unfakeable at scale.";
 
 export const metadata: Metadata = {
-  title: { default: `Ketsuban — ${TAGLINE}`, template: "%s · ketsuban" },
+  title: { default: `ShibbolETH — ${TAGLINE}`, template: "%s · ShibbolETH" },
   description: PITCH,
   // A card names an absolute URL or names nothing a client can fetch.
   metadataBase: new URL(siteUrl() || "http://localhost:3000"),
-  openGraph: { type: "website", siteName: "ketsuban", title: `Ketsuban — ${TAGLINE}`, description: PITCH },
-  twitter: { card: "summary", title: `Ketsuban — ${TAGLINE}`, description: PITCH },
+  openGraph: {
+    type: "website",
+    siteName: "ShibbolETH",
+    title: `ShibbolETH — ${TAGLINE}`,
+    description: PITCH,
+  },
+  twitter: { card: "summary", title: `ShibbolETH — ${TAGLINE}`, description: PITCH },
   manifest: "/site.webmanifest",
-  appleWebApp: { capable: true, title: "Ketsuban", statusBarStyle: "black-translucent" },
+  appleWebApp: { capable: true, title: "ShibbolETH", statusBarStyle: "black-translucent" },
   other: { "apple-mobile-web-app-capable": "yes" },
   icons: { icon: [{ url: "/mark.svg", type: "image/svg+xml" }], apple: "/apple-touch-icon.png" },
 };

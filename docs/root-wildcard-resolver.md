@@ -128,6 +128,16 @@ resolver → docker e2e green → Sepolia steps 1–3 with `check:live` between 
 spike is the risky half and it is done.
 
 
+## State on Sepolia (2026-09-13): the root is `shibboleth.eth`
+
+The product is ShibbolETH and the Multipass root domain is `shibboleth`. Registered `shibboleth.eth` on the
+ETHRegistrar (one year, MockUSDC) with a fresh `RootAttestationResolver` `0x542012eCb66De81CBd5De2E2952254c0e84a9447`
+(root domain `shibboleth`, root name `shibboleth.eth`, no subregistry); Multipass domain `shibboleth`
+initialised and activated (registrar `0x8583…`); bridge v3 `setRootResolver` to it; kju-is `about` texts
+copied as `setAbout("shibboleth", "kju-is", …)`. Names claimed under `ketsuban` stay on `ketsuban.eth`
+(old resolver below); people re-claim under `shibboleth`. Coolify: API `NAME_DOMAINS=shibboleth,kju-is`;
+web `NEXT_PUBLIC_NAME_DOMAINS=shibboleth,kju-is`, `NEXT_PUBLIC_PARENT_NAMES=shibboleth.eth,kju-is.shibboleth.eth`.
+
 ## State on Sepolia (2026-09-12)
 
 Steps 1–4 are done; `check:live` was green (23/23) after every unmount.

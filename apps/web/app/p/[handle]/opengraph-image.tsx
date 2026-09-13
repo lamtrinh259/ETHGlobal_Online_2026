@@ -12,7 +12,7 @@ import { flourish } from "@/lib/patience";
  */
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
-export const alt = "A reference page on Ketsuban";
+export const alt = "A reference page on ShibbolETH";
 export const runtime = "nodejs";
 
 export default async function Image({ params }: { params: Promise<{ handle: string }> }) {

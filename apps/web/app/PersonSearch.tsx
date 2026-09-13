@@ -14,7 +14,7 @@ const refs = (s: { received: number }) => `${s.received} reference${s.received =
 /** What to send somebody whose account is here but whose name nobody holds. */
 export function claimAsk(platform: string, handle: string, site: string): string {
   return (
-    `I looked you up on Ketsuban and nobody holds a name for you yet. If you link your ${platform} ` +
+    `I looked you up on ShibbolETH and nobody holds a name for you yet. If you link your ${platform} ` +
     `account (@${handle}) there, references written for you attach to it and the page is yours: ${site}/me`
   );
 }

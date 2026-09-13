@@ -95,7 +95,7 @@ test("a name nobody holds opens a page that says so, rather than failing them", 
   await expect(page.getByTestId("checks")).toHaveCount(0);
   await expect(page.getByTestId("score")).toHaveCount(0);
   // Both of the things there are to do with it.
-  await expect(page.getByRole("link", { name: "Refer this person" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Vouch for this person" })).toBeVisible();
   await expect(page.getByTestId("blank-page").getByRole("link", { name: "claims the name" })).toBeVisible();
   // And not a line addressed to somebody who holds this name, since nobody does.
   await expect(page.getByText("Verify me at Ketsuban")).toHaveCount(0);

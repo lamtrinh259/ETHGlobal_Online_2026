@@ -224,7 +224,7 @@ export default async function ProfilePage({ params, searchParams }: Params) {
       <EnsProof ens={ens} name={names[0]} chainId={config.chainId} />
       {/*
         A snippet the subject hands out, on a page the subject holds.
-        "Verify me at Ketsuban" under a name nobody has claimed invites a stranger to publish somebody
+        "Verify me at ShibbolETH" under a name nobody has claimed invites a stranger to publish somebody
         else's page as their own credential, and offers the page's own reader a line addressed to them.
       */}
       {profile.identity && (

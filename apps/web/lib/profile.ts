@@ -230,7 +230,7 @@ export function assessProfile(
     );
     checks.push({
       id: "from",
-      label: `Referred by ${wanted.join(" or ")}`,
+      label: `Vouched for by ${wanted.join(" or ")}`,
       ok: matched.length > 0,
       detail: matched.length
         ? matched.map((v) => v.voucherName ?? v.voucher).join(", ")

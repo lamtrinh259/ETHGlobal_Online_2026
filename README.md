@@ -1,4 +1,4 @@
-# Ketsuban
+# ShibbolETH
 
 [CI](https://git.peeramid.xyz/peersky/ETHGlobal_Online_2026/actions) runs on Forgejo at `git.peeramid.xyz`, which is the `origin` remote.
 

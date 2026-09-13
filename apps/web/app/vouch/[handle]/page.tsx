@@ -17,7 +17,7 @@ type Params = {
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { handle } = await params;
-  return { title: `Refer ${decodeURIComponent(handle)}` };
+  return { title: `Vouch for ${decodeURIComponent(handle)}` };
 }
 
 /**
@@ -82,7 +82,7 @@ export default async function VouchPage({ params, searchParams }: Params) {
     <>
       <section className="hero">
         <h1>
-          Refer <span className="knot">{handle}</span>
+          Vouch for <span className="knot">{handle}</span>
         </h1>
       </section>
       {/* The code itself reaches the flow, not only what it stood for: a grant the candidate made for

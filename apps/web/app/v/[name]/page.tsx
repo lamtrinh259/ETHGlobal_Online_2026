@@ -89,7 +89,7 @@ export default async function VerifyPage({ params, searchParams }: Params) {
             <VouchList vouches={received.vouches} handle={handle} />
             <p className="row">
               <Link className="button primary" href={`/vouch/${handle}`}>
-                Refer this person
+                Vouch for this person
               </Link>
               <Link className="muted" href={`/p/${handle}`}>
                 their full reference page

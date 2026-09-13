@@ -40,13 +40,13 @@ export function ReferSomeone({ api, onGo }: { api: Api; onGo: (handle: string, a
 
       <p>
         <button className="primary" onClick={() => open()} data-testid="refer-open">
-          Refer someone
+          Vouch for someone
         </button>
       </p>
 
       {picking && (
         <Modal
-          title={picking.ask ? picking.ask.label : "Refer someone"}
+          title={picking.ask ? picking.ask.label : "Vouch for someone"}
           onClose={() => setPicking(undefined)}
         >
           <div data-testid="refer-dialog">
@@ -145,7 +145,7 @@ export function ReferSomeone({ api, onGo }: { api: Api; onGo: (handle: string, a
                               onClick={() => onGo(m.handle, picking?.ask)}
                               data-testid={`pick-${m.handle}`}
                             >
-                              Refer this one
+                              Vouch for this one
                             </button>
                           </span>
                         </li>
@@ -163,7 +163,9 @@ export function ReferSomeone({ api, onGo }: { api: Api; onGo: (handle: string, a
                       onClick={() => onGo(clean, picking?.ask)}
                       data-testid="refer-new"
                     >
-                      {found.data.matches.length ? `None of these — refer ${clean}` : `Refer ${clean}`}
+                      {found.data.matches.length
+                        ? `None of these — vouch for ${clean}`
+                        : `Vouch for ${clean}`}
                     </button>
                   </p>
                 )}
