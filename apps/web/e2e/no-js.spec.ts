@@ -16,7 +16,7 @@ test.describe("without JavaScript", () => {
     await page.goto("/p/alice");
     await expect(page.getByTestId("profile-head")).toContainText("alice.ketsuban.eth");
     // The references are what a verifier came for, and they are in the document.
-    await expect(page.getByLabel("references received")).toContainText("Ran the platform team");
+    await expect(page.getByLabel("vouches received")).toContainText("Ran the platform team");
   });
 
   test("a name that is not a person still explains itself", async ({ page }) => {

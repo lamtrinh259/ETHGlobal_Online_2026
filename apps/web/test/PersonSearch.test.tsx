@@ -64,7 +64,7 @@ describe("finding the person you mean", () => {
     await waitFor(() => expect(screen.getByTestId("matches")).toBeInTheDocument());
     const rows = screen.getByTestId("matches").querySelectorAll("li");
     expect(rows[0]).toHaveTextContent("bob");
-    expect(rows[0]).toHaveTextContent("4 references received");
+    expect(rows[0]).toHaveTextContent("4 vouches received");
     // Unclaimed is not hidden: a page can exist for somebody who has claimed nothing.
     expect(rows[1]).toHaveTextContent("unclaimed");
   });

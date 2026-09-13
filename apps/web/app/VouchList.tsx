@@ -24,7 +24,7 @@ export function VouchList({
 }) {
   return (
     <>
-      <h3>References received</h3>
+      <h3>Vouches received</h3>
       {vouches.length === 0 ? (
         <p>
           <em>none yet</em> — <a href={`/vouch/${handle}`}>be the first</a>

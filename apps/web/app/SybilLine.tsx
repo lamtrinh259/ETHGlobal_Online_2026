@@ -50,7 +50,7 @@ export function SybilLine({ handle }: { handle: string }) {
       {behind === 0 ? (
         <span>nobody behind them yet</span>
       ) : (
-        <span title="references received, and how many of those people refer each other">
+        <span title="vouches received, and how many of those people refer each other">
           <strong data-testid="sybil-behind">{behind}</strong> behind them,{" "}
           <strong data-testid="sybil-among">{g.metrics.referrersReferringEachOther}</strong> know each other
         </span>

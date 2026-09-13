@@ -131,7 +131,7 @@ describe("a person's page reads as a profile", () => {
  * anybody else is the half they wrote themselves, and it replaced a bare `answer` field that stopped
  * meaning anything once one person could answer about more than one subject.
  */
-describe("references given", () => {
+describe("vouches given", () => {
   const gave = (...refs: Verification["references"]) => ({ ...base, references: refs });
 
   it("names the subject by its question, not by the domain that holds it", () => {

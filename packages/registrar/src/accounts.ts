@@ -158,10 +158,24 @@ export function pickAccountFor(
 ): PlatformAccount & { label?: string } {
   const platform = platformOf(domain);
   if (!platform) throw new Error(`accounts: unknown domain "${domain}"`);
-  const acct = pickPlatformAccount(linked, platform);
-  const dns = dnsNameFor(platform, acct);
-  if (isDnsName(domain) && dns !== domain) {
-    throw new Error(`accounts: ${acct.username} is not an account at ${domain}`);
+  // An address is an address whether typed in or vouched for by Google: a mail host takes whichever
+  // linked account holds one there. Asking only for `email` answered a Gmail sign-in with "no linked
+  // email account".
+  const kinds = platform === "email" && isDnsName(domain) ? ["email", "google"] : [platform];
+  const held = kinds.flatMap((kind) => {
+    try {
+      return [pickPlatformAccount(linked, kind)];
+    } catch {
+      return [];
+    }
+  });
+  if (held.length === 0) {
+    if (kinds.length > 1) throw new Error(`accounts: no linked address at ${domain}`);
+    return pickPlatformAccount(linked, platform);
+  }
+  const acct = held.find((a) => !isDnsName(domain) || dnsNameFor(platform, a) === domain);
+  if (!acct) {
+    throw new Error(`accounts: ${held[0]!.username} is not an account at ${domain}`);
   }
   // A handle that cannot be a label still gets a record: it is proof of control either way, and only
   // the ENS name is lost. Refusing here would turn an ordinary Discord handle into a dead end.

@@ -52,7 +52,7 @@ export function useNameStatus(api: Api, domain: string, handle: string, enabled 
   });
 }
 
-/** A wallet's dashboard: names, links, references given. */
+/** A wallet's dashboard: names, links, vouches given. */
 export function useWalletDashboard(api: Api, address: Address | undefined, awaiting = false) {
   return useQuery({
     queryKey: ["wallet", address],
@@ -329,7 +329,7 @@ export function useViewCodeSync(api: Api) {
   });
 }
 
-/** A person's page in one read: every name with its verification, and the references received. */
+/** A person's page in one read: every name with its verification, and the vouches received. */
 export function useProfileRead(api: Api, handle: string | undefined) {
   return useQuery({
     queryKey: ["profile", handle ?? ""],

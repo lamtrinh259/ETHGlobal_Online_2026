@@ -9,7 +9,7 @@ test("a person's name lands on their page, and it frames what was read", async (
   await expect(page.getByTestId("score")).toBeVisible();
 
   // What somebody else said about them, and — a tab away — what they said about somebody else.
-  await expect(page.getByLabel("references received")).toContainText("Ran the platform team");
+  await expect(page.getByLabel("vouches received")).toContainText("Ran the platform team");
   await page.getByTestId("tab-given").click();
   await expect(page.getByTestId("references")).toContainText("a terrible dictator");
   await expect(page.locator(".sh-side")).toBeAttached();
@@ -261,7 +261,7 @@ test("the received tab sums how the references read, and says why under each one
   // No second card saying it again.
   await expect(page.getByTestId("readings")).toHaveCount(0);
 
-  const received = page.getByLabel("references received");
+  const received = page.getByLabel("vouches received");
   await expect(received.getByTestId("readings-received")).toContainText("1 of 2 read as supportive");
   await expect(received.getByTestId("readings-received")).toContainText("1 critical");
   await expect(received).toContainText("provisional");
@@ -277,7 +277,7 @@ test("the received tab sums how the references read, and says why under each one
 });
 
 /**
- * The rating of references given.
+ * The rating of vouches given.
  *
  * A reference taken back stays on chain, so it counted as one given. What somebody said about others
  * is weighed by whether they stand by it, and a record of withdrawals is worth a reader knowing

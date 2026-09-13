@@ -124,7 +124,7 @@ export function ReferenceTabs({
       </div>
 
       {tab === "received" ? (
-        <div role="tabpanel" aria-label="references received">
+        <div role="tabpanel" aria-label="vouches received">
           {/* The sum of the readings the rows below carry: what a reader gets in the time they have. */}
           {r && vouches.length > 0 && !r.council && <NoCouncil side="received" />}
           {r && r.council && r.received.length > 0 && (
@@ -162,9 +162,9 @@ export function ReferenceTabs({
           )}
         </div>
       ) : (
-        <div role="tabpanel" aria-label="references given">
+        <div role="tabpanel" aria-label="vouches given">
           {/*
-            The rating of references given.
+            The rating of vouches given.
             What somebody has said about others is weighed by whether they stand by it. A reference
             taken back stays on chain, which is the point of withdrawal — and so a record of many
             withdrawals is worth a reader knowing before they weigh the ones that remain.

@@ -212,7 +212,7 @@ export function Dashboard() {
         </section>
       )}
 
-      <Step anchor="refer" title="References given" state={d.given.length > 0 ? "done" : "now"}>
+      <Step anchor="refer" title="Vouches given" state={d.given.length > 0 ? "done" : "now"}>
         {/* What to answer and who to refer are both references you give, so they read as one thing. */}
         {subjectRows.length > 0 && (
           <>
@@ -270,7 +270,7 @@ export function Dashboard() {
 
       <Step
         anchor="references"
-        title="References received"
+        title="Vouches received"
         state={liveVouchers.length > 0 ? "done" : handle ? "now" : "todo"}
       >
         {handle ? (

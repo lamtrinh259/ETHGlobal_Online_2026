@@ -481,7 +481,7 @@ describe("an answer that lapsed", () => {
   });
 });
 
-describe("the rating of references given", () => {
+describe("the rating of vouches given", () => {
   it("says what stands and what was taken back, on the tab that lists them", () => {
     render(<ProfileCard p={profile} rootParent="ketsuban.eth" standing={{ given: 3, withdrawn: 1 }} />);
     fireEvent.click(screen.getByTestId("tab-given"));

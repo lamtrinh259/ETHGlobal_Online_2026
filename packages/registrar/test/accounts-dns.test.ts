@@ -80,6 +80,28 @@ describe("a DNS domain says which platform it is", () => {
     expect(() => pickAccountFor(linked, "myspace")).toThrow(/unknown/);
   });
 
+  it("takes an address vouched for by Google as an address at its host", () => {
+    // Signing in with Google links a `google_oauth` account, not an `email` one. The address is an
+    // address either way; asking only for `email` answered a Gmail user with "no linked email account".
+    const google = [{ type: "google_oauth", subject: "g1", email: "colors@gmail.com" }];
+    expect(pickAccountFor(google, "gmail.com")).toEqual({
+      subject: "g1",
+      username: "colors@gmail.com",
+      label: "colors",
+    });
+    expect(() => pickAccountFor(google, "peeramid.xyz")).toThrow(
+      /colors@gmail.com is not an account at peeramid.xyz/
+    );
+    // With both linked, the one at the asked-for host is the one that counts.
+    const both = [
+      { type: "email", address: "tim@peeramid.xyz" },
+      { type: "google_oauth", subject: "g1", email: "colors@gmail.com" },
+    ];
+    expect(pickAccountFor(both, "gmail.com").subject).toBe("g1");
+    expect(pickAccountFor(both, "peeramid.xyz").subject).toBe("tim@peeramid.xyz");
+    expect(() => pickAccountFor([], "gmail.com")).toThrow(/no linked address/);
+  });
+
   it("keeps an account whose handle cannot be a label, without a label", () => {
     // The record still proves control; only the ENS name is lost, and refusing would be a dead end.
     const linked = [{ type: "twitter_oauth", subject: "42", username: "has space" }];

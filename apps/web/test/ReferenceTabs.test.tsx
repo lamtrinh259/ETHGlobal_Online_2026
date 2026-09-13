@@ -97,8 +97,8 @@ describe("the references tab", () => {
     expect(line).toHaveTextContent("1 critical");
     expect(line).toHaveTextContent("mean +0.05");
     expect(line).toHaveTextContent("1 unread");
-    expect(screen.getByLabelText("references received")).toHaveTextContent("provisional");
-    expect(screen.getByLabelText("references received")).toHaveTextContent("nsed:fast");
+    expect(screen.getByLabelText("vouches received")).toHaveTextContent("provisional");
+    expect(screen.getByLabelText("vouches received")).toHaveTextContent("nsed:fast");
   });
 
   it("says how each statement reads and why, under the words it was read from", async () => {
@@ -110,7 +110,7 @@ describe("the references tab", () => {
     // Nothing was read about dan, so nothing is said about why.
     expect(screen.queryByTestId("why-dan")).toBeNull();
     // And the caveat, once: it is a reading of text, not a judgement of a person.
-    expect(screen.getByLabelText("references received")).toHaveTextContent("not a judgement of a person");
+    expect(screen.getByLabelText("vouches received")).toHaveTextContent("not a judgement of a person");
   });
 
   it("sums the other half on the tab that lists it, with the reason under each statement", async () => {

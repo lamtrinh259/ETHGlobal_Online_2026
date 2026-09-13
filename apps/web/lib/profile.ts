@@ -41,7 +41,7 @@ export type Policy = {
    */
   onlySolicited?: boolean;
   /**
-   * At most this many references received may read as critical — the council's provisional reading of
+   * At most this many vouches received may read as critical — the council's provisional reading of
    * each statement, three kinds. Unset means the bar does not ask. Where no council reads statements,
    * the check says so and does not pass: a bar that cannot be read is not a bar that was met.
    */

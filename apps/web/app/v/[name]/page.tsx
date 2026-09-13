@@ -85,7 +85,7 @@ export default async function VerifyPage({ params, searchParams }: Params) {
           <VerifyCard v={v} />
         )}
         {received && handle && !isMount && (
-          <section className="card" aria-label="references received">
+          <section className="card" aria-label="vouches received">
             <VouchList vouches={received.vouches} handle={handle} />
             <p className="row">
               <Link className="button primary" href={`/vouch/${handle}`}>

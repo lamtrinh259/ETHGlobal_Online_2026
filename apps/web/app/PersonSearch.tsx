@@ -9,7 +9,7 @@ import { useContracts, useFind, useWho } from "@/lib/hooks";
 import { ADDRESS_RE } from "@/lib/profile";
 import { HANDLE_RE } from "@ketsuban/registrar";
 
-const refs = (s: { received: number }) => `${s.received} reference${s.received === 1 ? "" : "s"} received`;
+const refs = (s: { received: number }) => `${s.received} vouch${s.received === 1 ? "" : "es"} received`;
 
 /** What to send somebody whose account is here but whose name nobody holds. */
 export function claimAsk(platform: string, handle: string, site: string): string {

@@ -228,7 +228,7 @@ export const standingSchema = z.object({
   claimed: z.boolean(),
   /** Held once, whether or not it is held now: a lapsed name is not a name nobody has ever had. */
   taken: z.boolean().default(false),
-  /** References they wrote and have since taken back: the rating of references given. */
+  /** References they wrote and have since taken back: the rating of vouches given. */
   withdrawn: z.number().default(0),
   given: z.number(),
   received: z.number(),

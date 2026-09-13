@@ -260,7 +260,7 @@ describe("a person page, wherever the reader came from", () => {
   it("shows the references written about them, and how to add one", async () => {
     state.vouches = [vouch];
     await renderPage({});
-    const received = screen.getByLabelText("references received");
+    const received = screen.getByLabelText("vouches received");
     expect(received).toHaveTextContent("worked with them for years");
     // Anyone may refer anyone; a reader is owed the difference.
     expect(received).toHaveTextContent("unsolicited");
@@ -273,6 +273,6 @@ describe("a person page, wherever the reader came from", () => {
   it("invites the first reference when nobody has written one", async () => {
     state.vouches = [];
     await renderPage({});
-    expect(screen.getByLabelText("references received")).toHaveTextContent("none yet");
+    expect(screen.getByLabelText("vouches received")).toHaveTextContent("none yet");
   });
 });
