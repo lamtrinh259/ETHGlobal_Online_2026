@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 40" width="280" height="40">
+  <defs>
+    <!-- Ethereum Diamond Gradient -->
+    <linearGradient id="eth-grad-top" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#A8C0FF" />
+      <stop offset="100%" stop-color="#6F86D6" />
+    </linearGradient>
+    <linearGradient id="eth-grad-bot" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#E0C3FC" />
+      <stop offset="100%" stop-color="#8EC5FC" />
+    </linearGradient>
+
+    <!-- Handshake Neon Cyan Gradient -->
+    <linearGradient id="hand-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#50F5D8" />
+      <stop offset="100%" stop-color="#38BDF8" />
+    </linearGradient>
+  </defs>
+
+  <!-- LOGO ICON GROUP -->
+  <g transform="translate(4, 2)">
+    <!-- Ethereum Diamond (Top) -->
+    <polygon points="18,3 24,12 18,15 12,12" fill="url(#eth-grad-top)" />
+    <polygon points="18,3 18,15 24,12" fill="#88A0E0" opacity="0.6" />
+    <!-- Ethereum Diamond (Bottom Shadow/Reflection) -->
+    <polygon points="18,16 24,13 18,21 12,13" fill="url(#eth-grad-bot)" opacity="0.85" />
+
+    <!-- Stylized Handshake (Vouch Concept) -->
+    <!-- Left Hand / Cuff -->
+    <path d="M 6 22 L 12 17 L 16 21 L 11 26 Z" fill="url(#hand-grad)" />
+    <!-- Right Hand / Cuff -->
+    <path d="M 30 22 L 24 17 L 20 21 L 25 26 Z" fill="url(#hand-grad)" />
+    <!-- Clasp Center -->
+    <path d="M 14 20 Q 18 16 22 20 L 19 24 Q 18 25 17 24 Z" fill="#50F5D8" />
+    <!-- Finger Grips -->
+    <circle cx="14.5" cy="24.5" r="1.2" fill="url(#hand-grad)" />
+    <circle cx="17.5" cy="26.5" r="1.2" fill="url(#hand-grad)" />
+    <circle cx="20.5" cy="25.5" r="1.2" fill="url(#hand-grad)" />
+  </g>
+
+  <!-- TYPOGRAPHY -->
+  <g font-family="Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="22" font-weight="600" letter-spacing="-0.02em">
+    <!-- "shibbol" in clean off-white matching existing UI text -->
+    <text x="48" y="26" fill="#F1F5F9">shibbol</text>
+    <!-- "ETH" highlighted in neon cyan -->
+    <text x="119" y="26" fill="#38BDF8" font-weight="700">ETH</text>
+  </g>
+</svg>
