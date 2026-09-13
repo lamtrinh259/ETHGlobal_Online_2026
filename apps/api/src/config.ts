@@ -92,7 +92,7 @@ export const configSchema = z.object({
   /** Where the in-process index persists its snapshot; empty keeps it in memory only */
   DATA_DIR: z.string().default("/data"),
   /** How often the index reads new blocks */
-  INDEX_POLL_SECONDS: z.coerce.number().int().positive().default(15),
+  INDEX_POLL_SECONDS: z.coerce.number().int().positive().default(5),
   /**
    * Block the deployment starts at; the index scans from here. Leaving it at 0 makes a first run walk
    * the whole chain, which is slow enough to look broken — set it to the block the contracts were

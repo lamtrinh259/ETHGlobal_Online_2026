@@ -68,6 +68,8 @@ type Props = {
   /** What the confirmation dialog calls this write ("Name claimed", "Reference published") */
   doneTitle?: string;
   onPublished?: (p: Published) => void;
+  /** The confirmation was closed: whoever holds the flow may move it on now. */
+  onDoneRead?: () => void;
 };
 
 /**
@@ -105,6 +107,7 @@ export function AttestFlow({
   description,
   doneTitle,
   onPublished,
+  onDoneRead,
 }: Props) {
   const config = useWebConfig();
   const { ready, authenticated, login, user } = usePrivy();
@@ -618,7 +621,14 @@ export function AttestFlow({
         </div>
       )}
       {txHash && doneRead !== txHash && (
-        <TxDone title={doneTitle ?? "Published"} hash={txHash} onClose={() => setDoneRead(txHash)}>
+        <TxDone
+          title={doneTitle ?? "Published"}
+          hash={txHash}
+          onClose={() => {
+            setDoneRead(txHash);
+            onDoneRead?.();
+          }}
+        >
           {attest.data?.solicited === false && (
             <p className="warning" data-testid="tx-done-unsolicited">
               Published, but not counted as one {domain.slice(VOUCH_PREFIX.length)} asked for:{" "}

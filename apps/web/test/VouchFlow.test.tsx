@@ -86,17 +86,22 @@ vi.mock("@/app/AttestFlow", () => ({
   AttestFlow: ({
     extra,
     onPublished,
+    onDoneRead,
     fixedDomain,
     description,
   }: {
     extra?: React.ReactNode;
     onPublished?: (p: Published) => void;
+    onDoneRead?: () => void;
     fixedDomain?: string;
     description?: () => Promise<string | undefined>;
   }) =>
     onPublished ? (
       <div data-testid="attest" data-domain={fixedDomain ?? ""}>
         {extra}
+        <button data-testid="fake-done-read" onClick={onDoneRead}>
+          close
+        </button>
         <button
           data-testid="fake-publish"
           onClick={async () => {
@@ -414,6 +419,59 @@ describe("your own name comes first", () => {
     await waitFor(() => expect(screen.getByTestId("step-name").textContent).toContain("✓"));
     expect(screen.getAllByTestId("attest")[0]).toHaveAttribute("data-domain", "ketsuban");
     expect(screen.getByText(/lam\.alice\.ketsuban\.eth/)).toBeInTheDocument();
+  });
+});
+
+describe("a step ticks the moment it is done, and the flow moves on when the confirmation is closed", () => {
+  const invite = {
+    requires: ["github.com", "x.com"],
+    candidate: "alice",
+    code: "c",
+    expires: 0,
+    signature: "0x",
+  } as unknown as import("@ketsuban/registrar").SignedInvite;
+  // The index trails the chain by a poll. A person who has just claimed their name should not see
+  // the step still open, nor have to press Next: the tick is theirs at the publish, and closing the
+  // confirmation lands them on the next open step.
+  afterEach(() => {
+    state.names = [{ domain: "ketsuban", name: "lam", live: true, ensName: "lam.ketsuban.eth" }];
+    state.links = [{ domain: "github.com", live: true, optedIn: false, ensName: null }];
+    state.checksHumanity = false;
+  });
+
+  it("ticks the name at the publish, with the index still behind, and lands on the vouch after the modal", async () => {
+    state.names = [];
+    render(<VouchFlow candidate="alice" />);
+    await waitFor(() => expect(screen.getByTestId("onboarding-gate")).toBeInTheDocument());
+    fireEvent.click(screen.getAllByTestId("fake-publish")[0]!);
+    // The index has not listed the name; the step is ticked all the same, and stays in view.
+    expect(screen.getByTestId("step-name").textContent).toContain("✓");
+    expect(screen.getByTestId("step-name")).toHaveAttribute("aria-current", "step");
+    fireEvent.click(screen.getAllByTestId("fake-done-read")[0]!);
+    expect(screen.getByTestId("step-reference")).toHaveAttribute("aria-current", "step");
+    expect(screen.getByTestId("reference-box")).toBeVisible();
+  });
+
+  it("ticks an attested account the same way, and the Selfie Check when it is passed", async () => {
+    state.links = [];
+    state.checksHumanity = true;
+    render(<VouchFlow candidate="alice" invite={invite} inviteCode="c" />);
+    await waitFor(() => expect(screen.getByTestId("onboarding-gate")).toBeInTheDocument());
+    // github.com first; x.com is still open, so the step stays and offers x.com next.
+    expect(screen.getAllByTestId("attest")[0]).toHaveAttribute("data-domain", "github.com");
+    fireEvent.click(screen.getAllByTestId("fake-publish")[0]!);
+    expect(screen.getByTestId("step-accounts").textContent).not.toContain("✓");
+    fireEvent.click(screen.getAllByTestId("fake-done-read")[0]!);
+    expect(screen.getByTestId("step-accounts")).toHaveAttribute("aria-current", "step");
+    expect(screen.getAllByTestId("attest")[0]).toHaveAttribute("data-domain", "x.com");
+    fireEvent.click(screen.getAllByTestId("fake-publish")[0]!);
+    expect(screen.getByTestId("step-accounts").textContent).toContain("✓");
+    fireEvent.click(screen.getAllByTestId("fake-done-read")[0]!);
+    // On to the Selfie Check, which ticks when the widget reports it, before the index has it.
+    expect(screen.getByTestId("step-human")).toHaveAttribute("aria-current", "step");
+    fireEvent.click(screen.getByTestId("fake-human"));
+    expect(screen.getByTestId("step-human").textContent).toContain("✓");
+    expect(screen.getByTestId("step-reference")).toHaveAttribute("aria-current", "step");
   });
 });
 

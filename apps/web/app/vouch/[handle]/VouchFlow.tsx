@@ -101,6 +101,14 @@ export function VouchFlow({
   const [attesting, setAttesting] = useState<string>();
   /** Whether the name was claimed on this page, so its step stays open with the confirmation inside. */
   const [claimedHere, setClaimedHere] = useState(false);
+  /*
+   * What was done on this page, before the index lists it. A step is the person's to tick at the
+   * publish; the index trails the chain by a poll, and a step still open after the confirmation reads
+   * as a failure and sends them looking for a Next button.
+   */
+  const [claimedName, setClaimedName] = useState<string>();
+  const [attestedHere, setAttestedHere] = useState<string[]>([]);
+  const [humanHere, setHumanHere] = useState(false);
   /** The step the writer is looking at; unset, it is the first one not done. */
   const [chosen, setChosen] = useState<string>();
   const dash = useWalletDashboard(api, authenticated ? wallet : undefined, awaitingLink);
@@ -118,16 +126,20 @@ export function VouchFlow({
   /** The transaction the wallet's own letter write landed in, until its confirmation is read */
   const [letterTx, setLetterTx] = useState<string>();
   const letterWrite = useLetterWrite(candidate);
-  const handle = onChain.named;
+  const handle = onChain.named ?? claimedName;
   // One real person writes a reference, or nobody does: where the deployment can check humanity, a
   // writer without a live proof is sent to pass it before a statement is asked of them.
-  const needsHuman = !!contracts.data?.humanity && dash.data !== undefined && !dash.data.humanity;
+  const needsHuman =
+    !!contracts.data?.humanity && dash.data !== undefined && !dash.data.humanity && !humanHere;
   // A reference is signed by the writer's own name, so the name is the first thing, not a field on the
   // statement form.
-  const needsName = dash.data !== undefined && !onChain.named;
+  const needsName = dash.data !== undefined && !handle;
   // The accounts the invitation asks for that somebody could hold, and which are not attested yet;
   // a masked account counts, so this is answered without publishing which account it is.
-  const attestedNow = (dash.data?.links ?? []).filter((l) => l.live).map((l) => l.domain.toLowerCase());
+  const attestedNow = [
+    ...(dash.data?.links ?? []).filter((l) => l.live).map((l) => l.domain.toLowerCase()),
+    ...attestedHere,
+  ];
   const askedFor = (invite?.requires ?? []).filter((d) => !whyUnsatisfiable(d, config.parentNames));
   const stillToLink = askedFor.filter((d) => !attestedNow.includes(parseRequirement(d).domain));
   // A requirement naming one account that this sign-in is not: nothing to link can change it.
@@ -161,7 +173,7 @@ export function VouchFlow({
   const impossibleAsk = (invite?.requires ?? [])
     .map((d) => whyUnsatisfiable(d, config.parentNames))
     .find(Boolean);
-  const humanityDone = !!dash.data?.humanity;
+  const humanityDone = !!dash.data?.humanity || humanHere;
 
   /**
    * Write the letter onto the name the record just created. Kept by its hash when it is too long to
@@ -207,7 +219,7 @@ export function VouchFlow({
   type StepId = "signin" | "name" | "accounts" | "human" | "reference";
   const steps: { id: StepId; label: string; done: boolean }[] = [
     { id: "signin", label: "Sign in", done: authenticated },
-    { id: "name", label: "Your name", done: !!onChain.named },
+    { id: "name", label: "Your name", done: !!handle },
     ...(askedFor.length > 0
       ? [
           {
@@ -290,13 +302,15 @@ export function VouchFlow({
                 fixedDomain={root.domain}
                 title=""
                 doneTitle="Name claimed"
-                onPublished={() => {
+                onPublished={(p) => {
                   // Stay here: the confirmation is read before the next step, never swapped away.
                   setChosen("name");
                   setClaimedHere(true);
+                  setClaimedName(p.handle);
                   setAwaitingLink(true);
                   void dash.refetch();
                 }}
+                onDoneRead={() => setChosen(undefined)}
               />
             )}
           </div>
@@ -373,10 +387,16 @@ export function VouchFlow({
                   title=""
                   doneTitle="Account attested"
                   onPublished={() => {
+                    const done = attesting ?? stillToLink[0]!;
                     setChosen("accounts");
-                    setAttesting(attesting ?? stillToLink[0]);
+                    setAttesting(done);
+                    setAttestedHere((prev) => [...prev, parseRequirement(done).domain]);
                     setAwaitingLink(true);
                     void dash.refetch();
+                  }}
+                  onDoneRead={() => {
+                    setAttesting(undefined);
+                    setChosen(undefined);
                   }}
                 />
               )}
@@ -397,7 +417,15 @@ export function VouchFlow({
             <div {...panel("human")} data-testid="humanity-gate">
               <p className="muted">Once per wallet. Proves one human, not who.</p>
               {needsHuman ? (
-                <HumanityCheck api={api} wallet={wallet} onVerified={() => void dash.refetch()} />
+                <HumanityCheck
+                  api={api}
+                  wallet={wallet}
+                  onVerified={() => {
+                    setHumanHere(true);
+                    setChosen(undefined);
+                    void dash.refetch();
+                  }}
+                />
               ) : (
                 <p className="muted">Passed.</p>
               )}
