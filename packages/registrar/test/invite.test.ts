@@ -120,14 +120,18 @@ describe("an invitation that asks something of the writer", () => {
     ];
     expect(meetsInvite(asked, ["github.com", "mit.edu"], lam)).toBe(true);
     // The right platforms, the wrong people.
-    expect(meetsInvite(asked, ["github.com", "mit.edu"], [{ type: "github_oauth", subject: "2", username: "bob" }])).toBe(false);
+    expect(
+      meetsInvite(asked, ["github.com", "mit.edu"], [{ type: "github_oauth", subject: "2", username: "bob" }])
+    ).toBe(false);
     // The account has to be attested there too; a sign-in alone is not a record.
     expect(meetsInvite(asked, ["mit.edu"], lam)).toBe(false);
     // A Google sign-in on the host counts for a mail host.
     expect(
-      meetsInvite({ ...base, requires: ["mit.edu/tim"] }, ["mit.edu"], [
-        { type: "google_oauth", subject: "3", email: "Tim@MIT.edu" },
-      ])
+      meetsInvite(
+        { ...base, requires: ["mit.edu/tim"] },
+        ["mit.edu"],
+        [{ type: "google_oauth", subject: "3", email: "Tim@MIT.edu" }]
+      )
     ).toBe(true);
     expect(parseRequirement("GitHub.com/@Lam")).toEqual({ domain: "github.com", handle: "lam" });
     expect(parseRequirement("mit.edu")).toEqual({ domain: "mit.edu" });
